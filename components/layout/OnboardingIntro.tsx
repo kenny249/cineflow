@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Film, ListChecks, Layers, UploadCloud, X, ArrowRight } from "lucide-react";
 
-const STORAGE_KEY = "cf_onboarded_v2";
+const STORAGE_KEY = "cf_onboarded_v3";
 const TRANSITION_MS = 500;
 
 const FRAMES = [
@@ -50,28 +50,26 @@ interface OnboardingIntroProps {
 }
 
 export function OnboardingIntro({ onDone }: OnboardingIntroProps) {
-  const [visible, setVisible] = useState(false);
+  // null = not yet checked, false = should not show, true = should show
+  const [show, setShow] = useState<boolean | null>(null);
   const [frameIdx, setFrameIdx] = useState(0);
   const [contentVisible, setContentVisible] = useState(true);
-  const [overlayVisible, setOverlayVisible] = useState(false);
-  const [exiting, setExiting] = useState(false);
+  const [fading, setFading] = useState(false); // overlay fading out
 
   useEffect(() => {
-    if (typeof localStorage === "undefined") return;
-    if (localStorage.getItem(STORAGE_KEY)) return;
-    setVisible(true);
-    const t = setTimeout(() => setOverlayVisible(true), 80);
-    return () => clearTimeout(t);
+    // Runs only in the browser — safe to access localStorage
+    const seen = window.localStorage.getItem(STORAGE_KEY);
+    setShow(!seen);
   }, []);
 
   const dismiss = useCallback(() => {
-    setExiting(true);
-    localStorage.setItem(STORAGE_KEY, "1");
-    setOverlayVisible(false);
+    setFading(true);
+    window.localStorage.setItem(STORAGE_KEY, "1");
     setTimeout(() => {
-      setVisible(false);
+      setShow(false);
+      setFading(false);
       onDone?.();
-    }, 700);
+    }, 650);
   }, [onDone]);
 
   const goNext = useCallback(() => {
@@ -79,11 +77,12 @@ export function OnboardingIntro({ onDone }: OnboardingIntroProps) {
     setContentVisible(false);
     setTimeout(() => {
       setFrameIdx((i) => i + 1);
-      setTimeout(() => setContentVisible(true), 80);
+      setTimeout(() => setContentVisible(true), 60);
     }, TRANSITION_MS);
   }, [frameIdx, dismiss]);
 
-  if (!visible) return null;
+  // null = SSR / not yet checked → render nothing to avoid flash
+  if (show === null || show === false) return null;
 
   const frame = FRAMES[frameIdx];
   const Icon = frame.icon;
@@ -142,9 +141,9 @@ export function OnboardingIntro({ onDone }: OnboardingIntroProps) {
       <div
         className="fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden bg-[#050505]"
         style={{
-          opacity: overlayVisible ? 1 : 0,
-          transition: `opacity ${exiting ? 700 : 450}ms cubic-bezier(.4,0,.2,1)`,
-          pointerEvents: exiting ? "none" : "auto",
+          opacity: fading ? 0 : 1,
+          transition: `opacity ${fading ? 650 : 400}ms cubic-bezier(.4,0,.2,1)`,
+          pointerEvents: fading ? "none" : "auto",
         }}
       >
         {/* Ambient glows */}
