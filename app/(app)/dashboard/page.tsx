@@ -225,7 +225,11 @@ export default function DashboardPage() {
                       {/* Thumbnail */}
                       <div className="relative h-36 w-full overflow-hidden bg-muted">
                         <Image
-                          src={project.thumbnail_url ?? getCinematicImageUrl(project.id || project.title)}
+                          src={
+                            (project.thumbnail_url && !project.thumbnail_url.includes("unsplash.com"))
+                              ? project.thumbnail_url
+                              : getCinematicImageUrl(project.id || project.title)
+                          }
                           alt={project.title}
                           fill
                           className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"

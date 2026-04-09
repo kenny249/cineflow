@@ -49,9 +49,14 @@ export function ProjectCard({ project }: ProjectCardProps) {
   }, [storageKey, thumbPosKey]);
 
   const seed = project.id || project.title;
+  // Treat stale Unsplash URLs stored on the project as absent
+  const dbThumb =
+    project.thumbnail_url && !project.thumbnail_url.includes("unsplash.com")
+      ? project.thumbnail_url
+      : null;
   const activeThumbnail =
     (imgError ? null : thumbOverride) ??
-    project.thumbnail_url ??
+    dbThumb ??
     getCinematicImageUrl(seed, thumbVariant);
 
   const handleRegenerate = (e: React.MouseEvent) => {
