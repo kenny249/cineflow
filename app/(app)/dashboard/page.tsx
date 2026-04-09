@@ -231,6 +231,9 @@ export default function DashboardPage() {
                           className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                           unoptimized
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = getCinematicImageUrl(project.title, 1);
+                          }}
                         />
                         {/* Gradient */}
                         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
