@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Layers, Plus, Sparkles, ImageIcon, ArrowRight } from "lucide-react";
 import { MOCK_PROJECTS, MOCK_STORYBOARD } from "@/mock/projects";
+import { getCinematicImageUrl } from "@/lib/cinematic-images";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,7 @@ const templateOptions = [
 ];
 
 const buildCoverUrl = (projectTitle: string) =>
-  `https://source.unsplash.com/1200x675/?cinematic,${encodeURIComponent(projectTitle)}`;
+  getCinematicImageUrl(projectTitle, Math.floor(Math.random() * 12));
 
 export default function StoryboardPage() {
   const projectOptions = useMemo(() => MOCK_PROJECTS, []);

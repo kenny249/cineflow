@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useState, useEffect, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, Search, ChevronDown, LogOut, User, Settings, Clapperboard, CalendarDays, Upload, CheckCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -66,15 +66,11 @@ interface TopBarProps {
     onClick: () => void;
   };
   onSignOut?: () => void;
+  onOpenPalette?: () => void;
 }
 
-export function TopBar({ action, onSignOut }: TopBarProps) {
-  const router       = useRouter();
-  const pathname     = usePathname();
-  const searchParams = useSearchParams();
-  const [, startTransition] = useTransition();
-
-  const [localQ, setLocalQ] = useState(searchParams.get("q") ?? "");
+export function TopBar({ action, onSignOut, onOpenPalette }: TopBarProps) {
+  const router = useRouter();
   const [displayName, setDisplayName] = useState("Studio User");
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
 
@@ -87,51 +83,20 @@ export function TopBar({ action, onSignOut }: TopBarProps) {
     setDisplayName(getOrCreateDisplayName());
   }, []);
 
-  const pushSearch = useCallback(
-    (q: string) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (q) params.set("q", q);
-      else params.delete("q");
-      startTransition(() => {
-        router.replace(`${pathname}?${params.toString()}`);
-      });
-    },
-    [router, pathname, searchParams],
-  );
-
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-5 backdrop-blur-sm">
-      {/* ── Search ── */}
+      {/* ⌘K Search trigger */}
       <div className="relative hidden w-64 md:block">
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Search projects..."
-          value={localQ}
-          onChange={(e) => {
-            setLocalQ(e.target.value);
-            pushSearch(e.target.value);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setLocalQ("");
-              pushSearch("");
-            }
-          }}
-          className="h-8 w-full rounded-md border border-border bg-muted/50 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-[#d4a853]/50 focus:ring-2 focus:ring-[#d4a853]/20 focus:shadow-[0_0_0_3px_rgba(212,168,83,0.10)] transition-all duration-200"
-        />
-        {localQ ? (
-          <button
-            onClick={() => { setLocalQ(""); pushSearch(""); }}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors duration-150"
-          >
-            <span className="text-xs">✕</span>
-          </button>
-        ) : (
-          <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 hidden select-none items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground sm:flex">
-            ⌘K
-          </kbd>
-        )}
+        <button
+          onClick={onOpenPalette}
+          className="flex h-8 w-full items-center rounded-md border border-border bg-muted/50 pl-9 pr-14 text-xs text-muted-foreground transition-all hover:border-[#d4a853]/30 hover:text-foreground"
+        >
+          Search or jump to…
+        </button>
+        <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 hidden select-none items-center gap-1 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground sm:flex">
+          ⌘K
+        </kbd>
       </div>
 
       {/* ── Right side ── */}

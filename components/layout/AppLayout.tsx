@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -8,6 +8,8 @@ import { LayoutDashboard, FolderKanban, Calendar, UploadCloud, Settings } from "
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { MobileSplash } from "./MobileSplash";
+import { CommandPalette } from "./CommandPalette";
+import { FeedbackButton } from "./FeedbackButton";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -30,8 +32,21 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [collapsed, setCollapsed] = useLocalStorage("sidebar-collapsed", false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Global ⌘K / Ctrl+K listener
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, []);
 
   const handleSignOut = async () => {
     const { error } = await createClient().auth.signOut();
@@ -50,6 +65,8 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
       <MobileSplash />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <FeedbackButton />
       {/* ── Ambient grain overlay across entire app ── */}
       <svg
         aria-hidden="true"
@@ -75,7 +92,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
-          <TopBar action={topBarAction} onSignOut={handleSignOut} />
+          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} />
         </Suspense>
         {/* pb-16 on mobile for bottom nav clearance */}
         <main className="flex-1 overflow-hidden pb-16 md:pb-0">{children}</main>

@@ -392,8 +392,8 @@ export default function ProjectDetailTabs({
   };
 
   const handleRefreshCover = async () => {
-    const query = encodeURIComponent(`${project.title} cinematic cover`);
-    const url = `https://source.unsplash.com/1600x900/?${query}`;
+    const { getCinematicImageUrl } = await import("@/lib/cinematic-images");
+    const url = getCinematicImageUrl(project.title, Math.floor(Math.random() * 12));
     setCoverUrl(url);
     try {
       await updateProject(project.id, { thumbnail_url: url });
@@ -516,8 +516,9 @@ export default function ProjectDetailTabs({
 
       <div className="flex-1 overflow-hidden">
         <Tabs defaultValue="overview" className="flex h-full flex-col">
-          <div className="border-b border-border px-6">
-            <TabsList className="h-10 bg-transparent gap-1 rounded-none border-b-0 p-0">
+          <div className="border-b border-border">
+            <div className="overflow-x-auto no-scrollbar">
+              <TabsList className="flex h-10 w-max min-w-full bg-transparent gap-0 rounded-none border-b-0 p-0 px-6">
               {[
                 { value: "overview", label: "Overview" },
                 { value: "shot-list", label: `Shot List ${totalShots ? `(${completedShots}/${totalShots})` : ""}` },
@@ -533,7 +534,8 @@ export default function ProjectDetailTabs({
                   {tab.label}
                 </TabsTrigger>
               ))}
-            </TabsList>
+              </TabsList>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar">

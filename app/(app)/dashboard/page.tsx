@@ -13,6 +13,7 @@ import {
   Plus,
   LogOut,
   Sparkles,
+  Film,
 } from "lucide-react";
 import { getCinematicImageUrl } from "@/lib/cinematic-images";
 import { getOrCreateDisplayName } from "@/lib/random-name";
@@ -216,6 +217,25 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {activeProjects.length === 0 && !loading ? (
+                    <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/30 px-8 py-14 text-center">
+                      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/20 bg-[#d4a853]/10">
+                        <Film className="h-7 w-7 text-[#d4a853]" />
+                      </div>
+                      <h3 className="font-display text-base font-semibold text-foreground">Your slate is empty</h3>
+                      <p className="mt-2 max-w-xs text-xs leading-relaxed text-muted-foreground">
+                        Start by creating your first project. Track shoots, revisions, and shot lists — all in one place.
+                      </p>
+                      <button
+                        onClick={() => setModalOpen(true)}
+                        className="mt-6 flex items-center gap-2 rounded-xl bg-[#d4a853] px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-[#d4a853]/90"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Create your first project
+                      </button>
+                    </div>
+                  ) : (
+                    <>
                   {activeProjects.map((project) => (
                     <Link
                       key={project.id}
@@ -293,6 +313,8 @@ export default function DashboardPage() {
                       New project
                     </span>
                   </button>
+                  </>
+                  )}
                 </div>
               </section>
 
