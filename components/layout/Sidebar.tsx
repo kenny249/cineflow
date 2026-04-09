@@ -1,0 +1,211 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  FolderKanban,
+  Calendar,
+  List,
+  Layers,
+  UploadCloud,
+  Settings,
+  Film,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Users,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
+const NAV_MAIN = [
+  { label: "Dashboard",   href: "/dashboard",  icon: LayoutDashboard },
+  { label: "Projects",    href: "/projects",   icon: FolderKanban },
+  { label: "Clients",     href: "/clients",    icon: Users },
+  { label: "Calendar",    href: "/calendar",   icon: Calendar },
+  { label: "Shot Lists",  href: "/shot-lists", icon: List },
+  { label: "Storyboard",  href: "/storyboard", icon: Layers },
+  { label: "Revisions",   href: "/revisions",  icon: UploadCloud },
+];
+
+const NAV_BOTTOM = [
+  { label: "Settings", href: "/settings", icon: Settings },
+];
+
+const MOCK_USER = {
+  full_name: "Kenneth Garcia",
+  company: "Maltav Media",
+  avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80",
+};
+
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
+function NavItem({
+  item,
+  collapsed,
+  isActive,
+}: {
+  item: (typeof NAV_MAIN)[0];
+  collapsed: boolean;
+  isActive: boolean;
+}) {
+  const link = (
+    <Link
+      href={item.href}
+      className={cn(
+        "group relative flex h-9 items-center gap-3 rounded-md px-2.5 text-sm transition-all duration-150",
+        collapsed ? "justify-center w-9 px-0" : "",
+        isActive
+          ? "bg-[#d4a853]/[0.07] text-foreground font-medium ring-[0.5px] ring-inset ring-[#d4a853]/10"
+          : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+      )}
+    >
+      {/* Active indicator */}
+      {isActive && (
+        <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[#d4a853]" />
+      )}
+      <item.icon
+        className={cn(
+          "h-4 w-4 shrink-0 transition-all duration-200",
+          isActive
+            ? "text-[#d4a853]"
+            : "text-muted-foreground group-hover:text-foreground group-hover:scale-110"
+        )}
+      />
+      {!collapsed && (
+        <span className="truncate transition-opacity duration-200">{item.label}</span>
+      )}
+    </Link>
+  );
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{link}</TooltipTrigger>
+        <TooltipContent side="right" sideOffset={12}>
+          {item.label}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return link;
+}
+
+export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+  const pathname = usePathname();
+
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
+
+  return (
+    <TooltipProvider delayDuration={0}>
+      <aside
+        className={cn(
+          "relative flex h-screen flex-col border-r border-border bg-[#0b0b0b] transition-all duration-300 ease-in-out",
+          collapsed ? "w-[64px]" : "w-[240px]"
+        )}
+      >
+        {/* ── Ambient gold glow behind logo area ── */}
+        <div className="pointer-events-none absolute left-0 top-0 h-20 w-full bg-[radial-gradient(ellipse_80%_60%_at_30%_0%,rgba(212,168,83,0.07),transparent)] blur-sm" />
+
+        {/* ── Logo + toggle ── */}
+        <div
+          className={cn(
+            "relative flex h-14 items-center border-b border-border/60 px-3",
+            collapsed ? "justify-center" : "justify-between"
+          )}
+        >
+          {!collapsed && (
+            <Link href="/dashboard" className="flex items-center gap-2.5">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/12 shadow-[0_0_12px_rgba(212,168,83,0.18)]">
+                <Film className="h-3.5 w-3.5 text-[#d4a853]" />
+              </div>
+              <span className="font-display text-sm font-semibold tracking-tight text-gradient-gold">
+                CINEFLOW
+              </span>
+            </Link>
+          )}
+
+          {collapsed && (
+            <div className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/12 shadow-[0_0_12px_rgba(212,168,83,0.18)]">
+              <Film className="h-3.5 w-3.5 text-[#d4a853]" />
+            </div>
+          )}
+
+          <button
+            onClick={onToggle}
+            className={cn(
+              "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-90",
+              collapsed && "hidden"
+            )}
+          >
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* ── Expand button when collapsed ── */}
+        {collapsed && (
+          <button
+            onClick={onToggle}
+            className="mx-auto mt-2 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-90"
+          >
+            <PanelLeftOpen className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {/* ── Main nav ── */}
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2 pt-3 custom-scrollbar">
+          {NAV_MAIN.map((item) => (
+            <NavItem
+              key={item.href}
+              item={item}
+              collapsed={collapsed}
+              isActive={isActive(item.href)}
+            />
+          ))}
+        </nav>
+
+        {/* ── Bottom nav ── */}
+        <div className="p-2">
+          {NAV_BOTTOM.map((item) => (
+            <NavItem
+              key={item.href}
+              item={item}
+              collapsed={collapsed}
+              isActive={isActive(item.href)}
+            />
+          ))}
+
+          <Separator className="my-2" />
+
+          {/* User profile */}
+          <div
+            className={cn(
+              "flex items-center gap-2.5 rounded-md px-2.5 py-2",
+              collapsed && "justify-center px-0"
+            )}
+          >
+            <Avatar className="h-7 w-7 shrink-0 ring-1 ring-border">
+              <AvatarImage src={MOCK_USER.avatar_url} alt={MOCK_USER.full_name} />
+              <AvatarFallback className="text-[10px]">KG</AvatarFallback>
+            </Avatar>
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-foreground">
+                  {MOCK_USER.full_name}
+                </p>
+                <p className="truncate text-[10px] text-muted-foreground">{MOCK_USER.company}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
+    </TooltipProvider>
+  );
+}
