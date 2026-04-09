@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { LayoutDashboard, FolderKanban, Calendar, UploadCloud, Settings } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
+import { MobileSplash } from "./MobileSplash";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
+      <MobileSplash />
       {/* ── Ambient grain overlay across entire app ── */}
       <svg
         aria-hidden="true"

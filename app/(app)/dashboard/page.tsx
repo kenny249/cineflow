@@ -12,8 +12,30 @@ import {
   ArrowUpRight,
   Plus,
   LogOut,
+  Sparkles,
 } from "lucide-react";
 import { getCinematicImageUrl } from "@/lib/cinematic-images";
+import { getOrCreateDisplayName } from "@/lib/random-name";
+
+const COMPLIMENTS = [
+  "The lens never lies — and today, you're looking sharp.",
+  "Every great film starts with one bold decision. Make yours today.",
+  "Your vision is your superpower. Trust it.",
+  "Lights. Camera. You've got this.",
+  "The best directors show up even when it's hard. You showed up.",
+  "Frame it, shoot it, own it.",
+  "Today's cut could be tomorrow's masterpiece.",
+  "The story you tell matters. Keep telling it.",
+  "Cinematic excellence isn't accidental — and neither are you.",
+  "Roll camera. The world is watching.",
+  "You're not just making content. You're making history.",
+  "Stay curious. The best shot is always the next one.",
+];
+
+function getDailyCompliment(): string {
+  const day = new Date().getDate() + new Date().getMonth() * 31;
+  return COMPLIMENTS[day % COMPLIMENTS.length];
+}
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -32,9 +54,11 @@ export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [displayName, setDisplayName] = useState("Early Tester");
   const router = useRouter();
 
   useEffect(() => {
+    setDisplayName(getOrCreateDisplayName());
     loadData();
   }, []);
 
@@ -117,9 +141,18 @@ export default function DashboardPage() {
               <p className="mb-0.5 text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#d4a853]">
                 {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </p>
-              <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                {greeting}{user?.email ? `, ${user.email.split('@')[0]}` : ''}<span className="text-[#d4a853]">.</span>
-              </h1>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                  {greeting}, {displayName}<span className="text-[#d4a853]">.</span>
+                </h1>
+                <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/25 bg-[#d4a853]/10 px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-[#d4a853] uppercase">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Early Tester
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground italic">
+                {getDailyCompliment()}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <button

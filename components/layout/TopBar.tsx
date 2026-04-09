@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useEffect, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Search, ChevronDown, LogOut, User, Settings } from "lucide-react";
+import { Bell, Search, ChevronDown, LogOut, User, Settings, Clapperboard, CalendarDays, Upload, CheckCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,50 @@ import {
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { getOrCreateDisplayName, getInitials } from "@/lib/random-name";
+import { cn } from "@/lib/utils";
+
+const MOCK_NOTIFICATIONS = [
+  {
+    id: "1",
+    icon: Clapperboard,
+    color: "text-[#d4a853]",
+    bg: "bg-[#d4a853]/10",
+    title: "Project review requested",
+    desc: "Protetta — client left feedback",
+    time: "2m ago",
+    unread: true,
+  },
+  {
+    id: "2",
+    icon: CalendarDays,
+    color: "text-blue-400",
+    bg: "bg-blue-400/10",
+    title: "Shoot scheduled tomorrow",
+    desc: "Downtown commercial — 9:00 AM",
+    time: "1h ago",
+    unread: true,
+  },
+  {
+    id: "3",
+    icon: Upload,
+    color: "text-emerald-400",
+    bg: "bg-emerald-400/10",
+    title: "Revision uploaded",
+    desc: "Cut v3 is ready for review",
+    time: "3h ago",
+    unread: false,
+  },
+  {
+    id: "4",
+    icon: CheckCheck,
+    color: "text-purple-400",
+    bg: "bg-purple-400/10",
+    title: "Shot list approved",
+    desc: "All 24 shots confirmed",
+    time: "Yesterday",
+    unread: false,
+  },
+];
 
 interface TopBarProps {
   action?: {
@@ -32,6 +76,12 @@ export function TopBar({ action, onSignOut }: TopBarProps) {
 
   const [localQ, setLocalQ] = useState(searchParams.get("q") ?? "");
   const [displayName, setDisplayName] = useState("Studio User");
+  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+
+  const unreadCount = notifications.filter((n) => n.unread).length;
+
+  const markAllRead = () =>
+    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
 
   useEffect(() => {
     setDisplayName(getOrCreateDisplayName());
@@ -99,12 +149,69 @@ export function TopBar({ action, onSignOut }: TopBarProps) {
         )}
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-8 w-8 text-muted-foreground hover:text-[#d4a853] transition-colors duration-200">
-          <Bell className="h-4 w-4 transition-transform duration-200 group-hover:scale-110" />
-          <span className="absolute right-1.5 top-1.5 flex h-1.5 w-1.5 rounded-full bg-[#d4a853]">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#d4a853] opacity-50" />
-          </span>
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative h-8 w-8 text-muted-foreground hover:text-[#d4a853] transition-colors duration-200">
+              <Bell className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="absolute right-1.5 top-1.5 flex h-1.5 w-1.5 rounded-full bg-[#d4a853]">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#d4a853] opacity-50" />
+                </span>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-80 p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <DropdownMenuLabel className="p-0 font-semibold text-sm text-foreground">
+                Notifications
+                {unreadCount > 0 && (
+                  <span className="ml-2 inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#d4a853] text-[9px] font-bold text-black">
+                    {unreadCount}
+                  </span>
+                )}
+              </DropdownMenuLabel>
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-[10px] text-muted-foreground hover:text-[#d4a853] transition-colors"
+                >
+                  Mark all read
+                </button>
+              )}
+            </div>
+            <div className="max-h-72 overflow-y-auto">
+              {notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={cn(
+                    "flex items-start gap-3 px-4 py-3 border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 cursor-pointer",
+                    n.unread && "bg-[#d4a853]/[0.03]"
+                  )}
+                  onClick={() => setNotifications((prev) =>
+                    prev.map((item) => item.id === n.id ? { ...item, unread: false } : item)
+                  )}
+                >
+                  <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg mt-0.5", n.bg)}>
+                    <n.icon className={cn("h-3.5 w-3.5", n.color)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={cn("text-xs font-medium text-foreground", n.unread && "text-white")}>
+                      {n.title}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">{n.desc}</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">{n.time}</p>
+                  </div>
+                  {n.unread && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#d4a853] mt-2 shrink-0" />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-border px-4 py-2.5">
+              <p className="text-center text-[11px] text-muted-foreground">You&apos;re all caught up</p>
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* User menu */}
         <DropdownMenu>
