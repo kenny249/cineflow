@@ -1,5 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 import type { Project, ProjectMember, ProjectNote, Revision, ShotList, StoryboardFrame } from "@/types";
 import { getProject, getProjectNotes, getShotLists } from "@/lib/supabase/queries";
 import ProjectDetailTabs from "@/components/projects/ProjectDetailTabs";
