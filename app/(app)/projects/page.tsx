@@ -1,7 +1,6 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-
+import { Suspense } from "react";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -42,7 +41,7 @@ const STATUS_FILTERS: { value: "all" | ProjectStatus; label: string }[] = [
   { value: "delivered", label: "Delivered" },
 ];
 
-export default function ProjectsPage() {
+function ProjectsPageInner() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
@@ -528,5 +527,13 @@ function ListView({ projects, onDelete }: { projects: Project[]; onDelete: (id: 
         </Link>
       ))}
     </div>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense>
+      <ProjectsPageInner />
+    </Suspense>
   );
 }
