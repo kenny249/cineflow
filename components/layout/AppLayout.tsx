@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Sidebar } from "./Sidebar";
@@ -52,7 +53,9 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar action={topBarAction} onSignOut={handleSignOut} />
+        <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
+          <TopBar action={topBarAction} onSignOut={handleSignOut} />
+        </Suspense>
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>
     </div>
