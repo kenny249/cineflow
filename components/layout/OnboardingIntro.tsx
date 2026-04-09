@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Film, ListChecks, Layers, UploadCloud, X, ArrowRight } from "lucide-react";
 
-const STORAGE_KEY = "cf_onboarded";
+const STORAGE_KEY = "cf_onboarded_v2";
 const TRANSITION_MS = 500;
 
 const FRAMES = [
