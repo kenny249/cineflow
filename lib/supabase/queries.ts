@@ -1,12 +1,14 @@
 import { createClient } from './client';
 import type { Project, ProjectNote, ShotList, ShotListItem } from '@/types';
 
-const supabase = createClient();
+// Lazy getter — avoids module-level instantiation during Next.js build-time
+// static analysis, which runs before env vars are injected.
+const db = () => createClient();
 
 // ─── Projects ────────────────────────────────────────────────────────────────
 
 export async function getProjects() {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('projects')
     .select('*')
     .order('created_at', { ascending: false });
@@ -16,7 +18,7 @@ export async function getProjects() {
 }
 
 export async function getProject(id: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('projects')
     .select('*')
     .eq('id', id)
@@ -27,7 +29,7 @@ export async function getProject(id: string) {
 }
 
 export async function createProject(project: Omit<Project, 'id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('projects')
     .insert(project)
     .select()
@@ -46,7 +48,7 @@ function isMissingTableError(error: any) {
 }
 
 export async function updateProject(id: string, updates: Partial<Project>) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('projects')
     .update(updates)
     .eq('id', id)
@@ -58,7 +60,7 @@ export async function updateProject(id: string, updates: Partial<Project>) {
 }
 
 export async function deleteProject(id: string) {
-  const { error } = await supabase
+  const { error } = await db()
     .from('projects')
     .delete()
     .eq('id', id);
@@ -69,7 +71,7 @@ export async function deleteProject(id: string) {
 // ─── Project Notes ───────────────────────────────────────────────────────────
 
 export async function getProjectNotes(projectId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('project_notes')
     .select('*')
     .eq('project_id', projectId)
@@ -83,7 +85,7 @@ export async function getProjectNotes(projectId: string) {
 }
 
 export async function createProjectNote(note: Omit<ProjectNote, 'id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('project_notes')
     .insert(note)
     .select()
@@ -94,7 +96,7 @@ export async function createProjectNote(note: Omit<ProjectNote, 'id' | 'created_
 }
 
 export async function updateProjectNote(id: string, updates: Partial<ProjectNote>) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('project_notes')
     .update(updates)
     .eq('id', id)
@@ -106,7 +108,7 @@ export async function updateProjectNote(id: string, updates: Partial<ProjectNote
 }
 
 export async function deleteProjectNote(id: string) {
-  const { error } = await supabase
+  const { error } = await db()
     .from('project_notes')
     .delete()
     .eq('id', id);
@@ -117,7 +119,7 @@ export async function deleteProjectNote(id: string) {
 // ─── Shot Lists ──────────────────────────────────────────────────────────────
 
 export async function getShotLists(projectId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('shot_lists')
     .select(`*, shot_list_items (*)`)
     .eq('project_id', projectId)
@@ -131,7 +133,7 @@ export async function getShotLists(projectId: string) {
 }
 
 export async function getShotList(id: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('shot_lists')
     .select(`
       *,
@@ -145,7 +147,7 @@ export async function getShotList(id: string) {
 }
 
 export async function createShotList(shotList: Omit<ShotList, 'id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('shot_lists')
     .insert(shotList)
     .select()
@@ -156,7 +158,7 @@ export async function createShotList(shotList: Omit<ShotList, 'id' | 'created_at
 }
 
 export async function updateShotList(id: string, updates: Partial<ShotList>) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('shot_lists')
     .update(updates)
     .eq('id', id)
@@ -168,7 +170,7 @@ export async function updateShotList(id: string, updates: Partial<ShotList>) {
 }
 
 export async function deleteShotList(id: string) {
-  const { error } = await supabase
+  const { error } = await db()
     .from('shot_lists')
     .delete()
     .eq('id', id);
@@ -179,7 +181,7 @@ export async function deleteShotList(id: string) {
 // ─── Shot List Items ─────────────────────────────────────────────────────────
 
 export async function getShotListItems(shotListId: string) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('shot_list_items')
     .select('*')
     .eq('shot_list_id', shotListId)
@@ -190,7 +192,7 @@ export async function getShotListItems(shotListId: string) {
 }
 
 export async function createShotListItem(item: Omit<ShotListItem, 'id' | 'created_at' | 'updated_at'>) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('shot_list_items')
     .insert(item)
     .select()
@@ -201,7 +203,7 @@ export async function createShotListItem(item: Omit<ShotListItem, 'id' | 'create
 }
 
 export async function updateShotListItem(id: string, updates: Partial<ShotListItem>) {
-  const { data, error } = await supabase
+  const { data, error } = await db()
     .from('shot_list_items')
     .update(updates)
     .eq('id', id)
@@ -213,7 +215,7 @@ export async function updateShotListItem(id: string, updates: Partial<ShotListIt
 }
 
 export async function deleteShotListItem(id: string) {
-  const { error } = await supabase
+  const { error } = await db()
     .from('shot_list_items')
     .delete()
     .eq('id', id);
