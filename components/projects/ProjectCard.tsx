@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Calendar, MoreHorizontal, Users } from "lucide-react";
+import { Calendar, MoreHorizontal, Camera, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, PROJECT_TYPE_LABELS, getProgressColor } from "@/lib/utils";
+import { getCinematicImageUrl, CINEMATIC_COUNT } from "@/lib/cinematic-images";
 import type { Project } from "@/types";
 
 interface ProjectCardProps {
@@ -19,6 +20,59 @@ interface ProjectCardProps {
 export function ProjectCard({ project }: ProjectCardProps) {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const [thumbVariant, setThumbVariant] = useState(0);
+  const [thumbOverride, setThumbOverride] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const storageKey = `cf_thumb_${project.id}`;
+
+  useEffect(() => {
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      if (stored.startsWith("__variant:")) {
+        setThumbVariant(parseInt(stored.replace("__variant:", ""), 10));
+      } else {
+        setThumbOverride(stored);
+      }
+    }
+  }, [storageKey]);
+
+  const seed = project.id || project.title;
+  const activeThumbnail =
+    thumbOverride ??
+    project.thumbnail_url ??
+    getCinematicImageUrl(seed, thumbVariant);
+
+  const handleRegenerate = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = (thumbVariant + 1) % CINEMATIC_COUNT;
+    setThumbVariant(next);
+    setThumbOverride(null);
+    localStorage.setItem(storageKey, `__variant:${next}`);
+    toast.success("Generated new cinematic image");
+    setEditOpen(false);
+  };
+
+  const handleApplyUrl = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const val = urlInput.trim();
+    if (!val) return;
+    try {
+      new URL(val);
+    } catch {
+      toast.error("Please enter a valid URL");
+      return;
+    }
+    setThumbOverride(val);
+    localStorage.setItem(storageKey, val);
+    toast.success("Photo updated");
+    setEditOpen(false);
+    setUrlInput("");
+  };
 
   const handleCopyLink = async () => {
     try {
@@ -35,27 +89,14 @@ export function ProjectCard({ project }: ProjectCardProps) {
       <article className="relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:border-border/60 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5">
         {/* Thumbnail */}
         <div className="relative aspect-video w-full overflow-hidden bg-muted">
-          {project.thumbnail_url ? (
-            <Image
-              src={project.thumbnail_url}
-              alt={project.title}
-              fill
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              unoptimized
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center rounded-b-xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white">
-              <span className="text-base font-semibold">
-                {project.title
-                  .split(" ")
-                  .slice(0, 2)
-                  .map((word) => word[0])
-                  .join("")
-                  .toUpperCase()}
-              </span>
-            </div>
-          )}
+          <Image
+            src={activeThumbnail}
+            alt={project.title}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            unoptimized
+          />
 
           {/* Overlay gradient */}
           <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
@@ -71,6 +112,64 @@ export function ProjectCard({ project }: ProjectCardProps) {
           <div className="absolute right-3 top-3">
             <StatusBadge status={project.status} />
           </div>
+
+          {/* Edit photo button — appears on hover */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setEditOpen((v) => !v);
+              setMenuOpen(false);
+            }}
+            className="absolute bottom-2 right-2 flex items-center gap-1 rounded-lg bg-black/60 px-2 py-1 text-[10px] font-medium text-white/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 hover:bg-black/80"
+          >
+            <Camera className="h-3 w-3" />
+            Edit photo
+          </button>
+
+          {/* Inline edit panel */}
+          {editOpen && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 backdrop-blur-sm p-4"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            >
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditOpen(false); }}
+                className="absolute right-2 top-2 rounded-md p-1 text-white/60 hover:text-white"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-xs font-medium text-white hover:bg-white/20 transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Generate new
+              </button>
+              <div className="flex w-full gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Paste image URL…"
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleApplyUrl(e as any); }}
+                  className="flex-1 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-white/40"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyUrl}
+                  className="rounded-lg bg-[#d4a853] px-3 py-1.5 text-[10px] font-bold text-black hover:bg-[#d4a853]/90 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -95,6 +194,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
                   e.preventDefault();
                   e.stopPropagation();
                   setMenuOpen((current) => !current);
+                  setEditOpen(false);
                 }}
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />

@@ -98,6 +98,14 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.4" },
         },
+        "silver-sweep": {
+          "0%": { backgroundPosition: "200% center" },
+          "100%": { backgroundPosition: "-200% center" },
+        },
+        "card-rise": {
+          from: { opacity: "0", transform: "translateY(20px) scale(0.97)" },
+          to: { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -105,6 +113,8 @@ const config: Config = {
         "fade-in": "fade-in 0.4s ease-out",
         "slide-in-left": "slide-in-left 0.3s ease-out",
         shimmer: "shimmer 2s ease-in-out infinite",
+        "silver-sweep": "silver-sweep 3s linear infinite",
+        "card-rise": "card-rise 0.65s cubic-bezier(0.22,1,0.36,1) forwards",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

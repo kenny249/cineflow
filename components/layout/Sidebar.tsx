@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getOrCreateDisplayName, getInitials } from "@/lib/random-name";
 
 const NAV_MAIN = [
   { label: "Dashboard",   href: "/dashboard",  icon: LayoutDashboard },
@@ -33,12 +35,6 @@ const NAV_MAIN = [
 const NAV_BOTTOM = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
-
-const MOCK_USER = {
-  full_name: "Kenneth Garcia",
-  company: "Maltav Media",
-  avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80",
-};
 
 interface SidebarProps {
   collapsed: boolean;
@@ -99,6 +95,11 @@ function NavItem({
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const [displayName, setDisplayName] = useState("Studio User");
+
+  useEffect(() => {
+    setDisplayName(getOrCreateDisplayName());
+  }, []);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -192,15 +193,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             )}
           >
             <Avatar className="h-7 w-7 shrink-0 ring-1 ring-border">
-              <AvatarImage src={MOCK_USER.avatar_url} alt={MOCK_USER.full_name} />
-              <AvatarFallback className="text-[10px]">KG</AvatarFallback>
+              <AvatarFallback className="text-[10px] bg-[#d4a853]/20 text-[#d4a853]">
+                {getInitials(displayName)}
+              </AvatarFallback>
             </Avatar>
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-foreground">
-                  {MOCK_USER.full_name}
-                </p>
-                <p className="truncate text-[10px] text-muted-foreground">{MOCK_USER.company}</p>
+                <p className="truncate text-xs font-medium text-foreground">{displayName}</p>
+                <p className="truncate text-[10px] text-muted-foreground">Beta User</p>
               </div>
             )}
           </div>

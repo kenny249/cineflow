@@ -13,6 +13,7 @@ import {
   Plus,
   LogOut,
 } from "lucide-react";
+import { getCinematicImageUrl } from "@/lib/cinematic-images";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -111,29 +112,29 @@ export default function DashboardPage() {
         <div className="flex-1 space-y-6 p-6">
 
           {/* ── Welcome header ── */}
-          <div className="flex items-start justify-between">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="mb-0.5 text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#d4a853]">
                 {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
               </p>
-              <h1 className="font-display text-2xl font-bold tracking-tight text-foreground">
+              <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                 {greeting}{user?.email ? `, ${user.email.split('@')[0]}` : ''}<span className="text-[#d4a853]">.</span>
               </h1>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/8 px-4 py-2 text-sm font-medium text-red-400 transition-all hover:border-red-500/40 hover:bg-red-500/12"
+                className="flex items-center gap-1.5 rounded-lg border border-red-500/25 bg-red-500/8 px-3 py-1.5 text-xs font-medium text-red-400 transition-all hover:border-red-500/40 hover:bg-red-500/12 sm:px-4 sm:py-2 sm:text-sm"
               >
-                <LogOut className="h-4 w-4" />
-                Logout
+                <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Logout</span>
               </button>
               <button
                 onClick={() => setModalOpen(true)}
-                className="flex items-center gap-2 rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/8 px-4 py-2 text-sm font-medium text-[#d4a853] transition-all hover:border-[#d4a853]/40 hover:bg-[#d4a853]/12"
+                className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/8 px-3 py-1.5 text-xs font-medium text-[#d4a853] transition-all hover:border-[#d4a853]/40 hover:bg-[#d4a853]/12 sm:px-4 sm:py-2 sm:text-sm"
               >
-                <Plus className="h-4 w-4" />
-                New Project
+                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>New Project</span>
               </button>
             </div>
           </div>
@@ -190,16 +191,14 @@ export default function DashboardPage() {
                     >
                       {/* Thumbnail */}
                       <div className="relative h-36 w-full overflow-hidden bg-muted">
-                        {project.thumbnail_url && (
-                          <Image
-                            src={project.thumbnail_url}
-                            alt={project.title}
-                            fill
-                            className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                            unoptimized
-                          />
-                        )}
+                        <Image
+                          src={project.thumbnail_url ?? getCinematicImageUrl(project.id || project.title)}
+                          alt={project.title}
+                          fill
+                          className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          unoptimized
+                        />
                         {/* Gradient */}
                         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
                         {/* Status */}

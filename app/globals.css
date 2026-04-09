@@ -91,6 +91,15 @@
     background-clip: text;
   }
 
+  /* Silver shimmer sweep for Beta Test button */
+  @keyframes silver-sweep {
+    0% { background-position: 200% center; }
+    100% { background-position: -200% center; }
+  }
+  .animate-silver-sweep {
+    animation: silver-sweep 3s linear infinite;
+  }
+
   /* Scrollbar styling */
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;

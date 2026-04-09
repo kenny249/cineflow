@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useState, useEffect, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Search, ChevronDown, LogOut, User, Settings } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { getOrCreateDisplayName, getInitials } from "@/lib/random-name";
 
 interface TopBarProps {
   action?: {
@@ -30,6 +31,11 @@ export function TopBar({ action, onSignOut }: TopBarProps) {
   const [, startTransition] = useTransition();
 
   const [localQ, setLocalQ] = useState(searchParams.get("q") ?? "");
+  const [displayName, setDisplayName] = useState("Studio User");
+
+  useEffect(() => {
+    setDisplayName(getOrCreateDisplayName());
+  }, []);
 
   const pushSearch = useCallback(
     (q: string) => {
@@ -105,14 +111,12 @@ export function TopBar({ action, onSignOut }: TopBarProps) {
           <DropdownMenuTrigger asChild>
             <button className="flex h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-accent focus:outline-none">
               <Avatar className="h-6 w-6 ring-1 ring-border">
-                <AvatarImage
-                  src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80"
-                  alt="Kenneth Garcia"
-                />
-                <AvatarFallback className="text-[10px]">KG</AvatarFallback>
+                <AvatarFallback className="text-[10px] bg-[#d4a853]/20 text-[#d4a853]">
+                  {getInitials(displayName)}
+                </AvatarFallback>
               </Avatar>
               <span className="hidden text-xs font-medium text-foreground md:block">
-                Kenneth
+                {displayName.split(" ")[0]}
               </span>
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </button>
@@ -120,8 +124,8 @@ export function TopBar({ action, onSignOut }: TopBarProps) {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-0.5">
-                <p className="text-xs font-medium text-foreground">Kenneth Garcia</p>
-                <p className="text-[10px] text-muted-foreground">kenny@maltavmedia.com</p>
+                <p className="text-xs font-medium text-foreground">{displayName}</p>
+                <p className="text-[10px] text-muted-foreground">Beta User</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

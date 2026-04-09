@@ -111,10 +111,10 @@ export function LoginPageClient() {
       <div className="absolute right-0 bottom-0 h-72 w-72 rounded-full bg-[#d4a853]/8 blur-3xl" />
 
       {/* Left: Login Form */}
-      <div className="relative z-10 flex w-full flex-col items-center justify-center px-6 py-12 md:w-1/2 lg:w-2/5">
+      <div className="relative z-10 flex w-full flex-col items-center justify-center px-4 py-8 sm:px-6 sm:py-12 md:w-1/2 lg:w-2/5">
         <div
           ref={leftCardRef}
-          className="animate-card-rise relative w-full max-w-sm rounded-[2rem] border border-white/10 bg-card/95 p-8 backdrop-blur-xl"
+          className="animate-card-rise relative w-full max-w-sm rounded-[1.5rem] sm:rounded-[2rem] border border-white/10 bg-card/95 p-6 sm:p-8 backdrop-blur-xl"
           style={{ willChange: "transform" }}
         >
           {/* Specular sheen layer */}
@@ -122,6 +122,14 @@ export function LoginPageClient() {
             ref={leftSpecRef}
             className="pointer-events-none absolute inset-0 rounded-[2rem]"
           />
+
+          {/* Beta Test badge */}
+          <div className="mb-5 flex justify-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1 text-[10px] font-bold tracking-[0.25em] text-zinc-400 uppercase bg-white/[0.04]">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Beta Access
+            </span>
+          </div>
 
           <div className="mb-7">
             <p className="text-[0.65rem] font-bold tracking-[0.3em] text-[#d4a853] uppercase mb-1.5">CineFlow</p>
