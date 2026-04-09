@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { MessageSquarePlus, X, Send } from "lucide-react";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
+import { getOrCreateDisplayName } from "@/lib/random-name";
 
 type FeedbackType = "bug" | "idea" | "other";
 
@@ -28,11 +30,22 @@ export function FeedbackButton() {
     if (!text.trim()) return;
     setSending(true);
     try {
-      const existing: unknown[] = JSON.parse(localStorage.getItem("cf_feedback") ?? "[]");
-      existing.push({ type, text: text.trim(), at: new Date().toISOString() });
-      localStorage.setItem("cf_feedback", JSON.stringify(existing));
-    } catch {}
-    await new Promise((r) => setTimeout(r, 500));
+      const supabase = createClient();
+      const { error } = await supabase.from("feedback").insert({
+        type,
+        message: text.trim(),
+        page_url: window.location.pathname,
+        display_name: getOrCreateDisplayName(),
+      });
+      if (error) throw error;
+    } catch {
+      // Fallback: save locally so feedback isn't lost
+      try {
+        const existing: unknown[] = JSON.parse(localStorage.getItem("cf_feedback") ?? "[]");
+        existing.push({ type, text: text.trim(), at: new Date().toISOString() });
+        localStorage.setItem("cf_feedback", JSON.stringify(existing));
+      } catch {}
+    }
     setSending(false);
     setText("");
     setOpen(false);
