@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 export function SignupForm() {
   const [firstName, setFirstName] = useState("");
@@ -21,7 +21,7 @@ export function SignupForm() {
     setIsLoading(true);
 
     const redirectUrl = `${window.location.origin}/login`;
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await createClient().auth.signUp({
       email,
       password,
       options: {

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 const DEMO_EMAIL = "kenny@maltavmedia.com";
 const DEMO_PASSWORD = "DopeDrops17!";
@@ -21,7 +21,7 @@ export function LoginForm() {
     event.preventDefault();
     setIsLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await createClient().auth.signInWithPassword({
       email,
       password,
     });
@@ -44,7 +44,7 @@ export function LoginForm() {
     setIsDemoLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await createClient().auth.signInWithPassword({
         email: DEMO_EMAIL,
         password: DEMO_PASSWORD,
       });
@@ -55,7 +55,7 @@ export function LoginForm() {
           error.message.toLowerCase().includes("invalid login credentials")
         ) {
           const redirectUrl = `${window.location.origin}/login`;
-          const { data: signupData, error: signupError } = await supabase.auth.signUp({
+          const { data: signupData, error: signupError } = await createClient().auth.signUp({
             email: DEMO_EMAIL,
             password: DEMO_PASSWORD,
             options: {

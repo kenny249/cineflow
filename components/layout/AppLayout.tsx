@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { supabase } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -20,7 +20,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const router = useRouter();
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await createClient().auth.signOut();
 
     if (error) {
       toast.error(error.message);
