@@ -25,6 +25,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const [thumbVariant, setThumbVariant] = useState(0);
   const [thumbOverride, setThumbOverride] = useState<string | null>(null);
   const [thumbPos, setThumbPos] = useState({ x: 50, y: 50, scale: 1 });
+  const [imgError, setImgError] = useState(false);
 
   const storageKey = `cf_thumb_${project.id}`;
   const thumbPosKey = `cf_thumb_pos_${project.id}`;
@@ -32,7 +33,10 @@ export function ProjectCard({ project }: ProjectCardProps) {
   useEffect(() => {
     const stored = localStorage.getItem(storageKey);
     if (stored) {
-      if (stored.startsWith("__variant:")) {
+      // Clear stale Unsplash URLs that no longer resolve
+      if (stored.includes("unsplash.com")) {
+        localStorage.removeItem(storageKey);
+      } else if (stored.startsWith("__variant:")) {
         setThumbVariant(parseInt(stored.replace("__variant:", ""), 10));
       } else {
         setThumbOverride(stored);
@@ -46,7 +50,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
   const seed = project.id || project.title;
   const activeThumbnail =
-    thumbOverride ??
+    (imgError ? null : thumbOverride) ??
     project.thumbnail_url ??
     getCinematicImageUrl(seed, thumbVariant);
 
@@ -106,6 +110,13 @@ export function ProjectCard({ project }: ProjectCardProps) {
                 transformOrigin: `${thumbPos.x}% ${thumbPos.y}%`,
               }}
               unoptimized
+              onError={() => {
+                setImgError(true);
+                if (thumbOverride) {
+                  localStorage.removeItem(storageKey);
+                  setThumbOverride(null);
+                }
+              }}
             />
 
             {/* Overlay gradient */}
