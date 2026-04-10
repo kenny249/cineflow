@@ -17,6 +17,7 @@ const syne = Syne({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://usecineflow.com"),
   title: {
     default: "Cineflow — Creative Project Management for Filmmakers",
     template: "%s | Cineflow",
@@ -28,6 +29,13 @@ export const metadata: Metadata = {
     title: "Cineflow",
     description: "Creative project management for filmmakers and videographers.",
     type: "website",
+    url: "https://usecineflow.com",
+    siteName: "Cineflow",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Cineflow",
+    description: "Creative project management for filmmakers and videographers.",
   },
 };
 

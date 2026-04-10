@@ -1,0 +1,16 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark rounded background -->
+  <rect width="32" height="32" rx="7" fill="#0c0c0c"/>
+  <!-- Film strip body -->
+  <rect x="2" y="9" width="28" height="14" rx="2" fill="#1c1c1c"/>
+  <!-- Left perforations -->
+  <rect x="4" y="11" width="3.5" height="4" rx="0.8" fill="#d4a853"/>
+  <rect x="4" y="17" width="3.5" height="4" rx="0.8" fill="#d4a853"/>
+  <!-- Right perforations -->
+  <rect x="24.5" y="11" width="3.5" height="4" rx="0.8" fill="#d4a853"/>
+  <rect x="24.5" y="17" width="3.5" height="4" rx="0.8" fill="#d4a853"/>
+  <!-- Frame window -->
+  <rect x="9" y="10" width="14" height="12" rx="1" fill="#242424"/>
+  <!-- Gold play triangle -->
+  <polygon points="13.5,13 13.5,19 20,16" fill="#d4a853"/>
+</svg>
