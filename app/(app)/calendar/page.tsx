@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock } from "lucide-react";
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, getProjects } from "@/lib/supabase/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -78,6 +78,30 @@ export default function CalendarPage() {
   const [typePickerId, setTypePickerId] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<{ id: string; field: "description" | "location" | "time" } | null>(null);
   const [editingFieldValue, setEditingFieldValue] = useState("");
+
+  // Card edit mode
+  const [cardEditId, setCardEditId] = useState<string | null>(null);
+  const [cardEdit, setCardEdit] = useState<{ title: string; type: CalendarEventType; description: string; location: string; time: string } | null>(null);
+
+  const openCardEdit = (ev: CalendarEvent) => {
+    const d = new Date(ev.start_date);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    setCardEditId(ev.id);
+    setCardEdit({ title: ev.title, type: ev.type, description: ev.description ?? "", location: ev.location ?? "", time: `${hh}:${mm}` });
+  };
+
+  const saveCardEdit = async (id: string) => {
+    if (!cardEdit) return;
+    const d = new Date(events.find((e) => e.id === id)!.start_date);
+    const [h, m] = cardEdit.time.split(":").map(Number);
+    d.setHours(h, m);
+    const updates = { title: cardEdit.title.trim() || "Untitled", type: cardEdit.type, description: cardEdit.description.trim() || undefined, location: cardEdit.location.trim() || undefined, start_date: d.toISOString() };
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, ...updates } : e));
+    setCardEditId(null);
+    setCardEdit(null);
+    try { await updateCalendarEvent(id, updates); } catch { toast.error("Failed to save"); }
+  };
 
   const commitTitle = async (id: string) => {
     const trimmed = editingTitle.trim();
@@ -450,118 +474,103 @@ export default function CalendarPage() {
             ) : (
               <div className="space-y-2">
                 {selectedDayEvents.map((ev) => (
-                  <div key={ev.id} className="rounded-xl border border-border bg-background p-3" onClick={() => setTypePickerId(null)}>
-                    <div className="flex items-start gap-2">
-                      {/* Type dot — click to pick type */}
-                      <div className="relative mt-0.5 shrink-0">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setTypePickerId(typePickerId === ev.id ? null : ev.id); }}
-                          title="Change type"
-                          className={`h-2.5 w-2.5 rounded-full ${EVENT_DOT[ev.type]} hover:ring-2 hover:ring-offset-1 hover:ring-offset-background hover:ring-current transition-all`}
-                        />
-                        {typePickerId === ev.id && (
-                          <div className="absolute left-0 top-5 z-50 rounded-lg border border-border bg-popover shadow-lg py-1 w-28" onClick={(e) => e.stopPropagation()}>
-                            {EVENT_TYPES.map((t) => (
-                              <button
-                                key={t.value}
-                                onClick={() => commitType(ev.id, t.value as CalendarEventType)}
-                                className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${ev.type === t.value ? "text-foreground font-medium" : "text-muted-foreground"}`}
-                              >
-                                <span className={`h-2 w-2 rounded-full ${EVENT_DOT[t.value]}`} />
-                                {t.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {/* Inline title edit */}
-                      {editingId === ev.id ? (
+                  <div key={ev.id} className="group rounded-xl border border-border bg-background p-3 transition-colors hover:border-border/80" onClick={() => setTypePickerId(null)}>
+                    {cardEditId === ev.id && cardEdit ? (
+                      /* ── Edit mode ── */
+                      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
                         <input
                           autoFocus
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onBlur={() => commitTitle(ev.id)}
-                          onKeyDown={(e) => { if (e.key === "Enter") commitTitle(ev.id); if (e.key === "Escape") setEditingId(null); }}
-                          className="flex-1 border-0 bg-transparent text-sm font-medium text-foreground outline-none ring-0 p-0 leading-tight"
-                          onClick={(e) => e.stopPropagation()}
+                          value={cardEdit.title}
+                          onChange={(e) => setCardEdit({ ...cardEdit, title: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === "Escape") { setCardEditId(null); setCardEdit(null); } }}
+                          className="w-full rounded bg-accent/40 px-2 py-1 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
+                          placeholder="Event title"
                         />
-                      ) : (
-                        <p
-                          className="flex-1 text-sm font-medium text-foreground truncate cursor-text hover:text-[#d4a853] transition-colors"
-                          title="Click to edit"
-                          onClick={(e) => { e.stopPropagation(); setEditingId(ev.id); setEditingTitle(ev.title); }}
-                        >
-                          {ev.title}
+                        {/* Type pills */}
+                        <div className="flex flex-wrap gap-1">
+                          {EVENT_TYPES.map((t) => (
+                            <button
+                              key={t.value}
+                              onClick={() => setCardEdit({ ...cardEdit, type: t.value as CalendarEventType })}
+                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all ${
+                                cardEdit.type === t.value ? EVENT_COLORS[t.value] : "bg-accent text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${EVENT_DOT[t.value]}`} />
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                        {/* Time */}
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <input
+                            type="time"
+                            value={cardEdit.time}
+                            onChange={(e) => setCardEdit({ ...cardEdit, time: e.target.value })}
+                            className="rounded bg-accent/40 px-2 py-0.5 text-xs text-foreground outline-none"
+                          />
+                        </div>
+                        {/* Location */}
+                        <div className="flex items-center gap-1.5">
+                          <MapPin className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <input
+                            value={cardEdit.location}
+                            onChange={(e) => setCardEdit({ ...cardEdit, location: e.target.value })}
+                            placeholder="Location"
+                            className="flex-1 rounded bg-accent/40 px-2 py-0.5 text-xs text-foreground outline-none placeholder:text-muted-foreground/40"
+                          />
+                        </div>
+                        {/* Notes */}
+                        <textarea
+                          rows={2}
+                          value={cardEdit.description}
+                          onChange={(e) => setCardEdit({ ...cardEdit, description: e.target.value })}
+                          placeholder="Notes…"
+                          className="w-full resize-none rounded bg-accent/40 px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground/40"
+                        />
+                        <div className="flex justify-end gap-1.5 pt-0.5">
+                          <button
+                            onClick={() => { setCardEditId(null); setCardEdit(null); }}
+                            className="flex h-6 items-center gap-1 rounded px-2 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                          >
+                            <X className="h-3 w-3" /> Cancel
+                          </button>
+                          <button
+                            onClick={() => saveCardEdit(ev.id)}
+                            className="flex h-6 items-center gap-1 rounded bg-[#d4a853] px-2 text-[10px] font-semibold text-black transition-opacity hover:opacity-90"
+                          >
+                            <Check className="h-3 w-3" /> Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* ── Read mode ── */
+                      <>
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${EVENT_DOT[ev.type]}`} />
+                            <p className="text-sm font-medium text-foreground truncate">{ev.title}</p>
+                          </div>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openCardEdit(ev); }}
+                            className="invisible shrink-0 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-accent hover:text-foreground group-hover:visible"
+                            title="Edit event"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </div>
+                        {ev.description && <p className="mt-1.5 text-xs text-muted-foreground">{ev.description}</p>}
+                        {ev.location && (
+                          <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3 shrink-0" />{ev.location}
+                          </p>
+                        )}
+                        <p className="mt-1.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <Clock className="h-3 w-3 shrink-0" />
+                          {new Date(ev.start_date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                         </p>
-                      )}
-                    </div>
-                    {/* Description */}
-                    {editingField?.id === ev.id && editingField.field === "description" ? (
-                      <textarea
-                        autoFocus
-                        rows={2}
-                        value={editingFieldValue}
-                        onChange={(e) => setEditingFieldValue(e.target.value)}
-                        onBlur={() => commitField(ev.id, "description")}
-                        onKeyDown={(e) => { if (e.key === "Escape") setEditingField(null); if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitField(ev.id, "description"); } }}
-                        placeholder="Add notes…"
-                        className="mt-1.5 w-full resize-none rounded bg-accent/40 px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <p
-                        className={`mt-1.5 cursor-text text-xs transition-colors ${ev.description ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/30 hover:text-muted-foreground/60"}`}
-                        onClick={(e) => { e.stopPropagation(); startFieldEdit(ev.id, "description", ev.description ?? ""); }}
-                      >
-                        {ev.description || "Add notes…"}
-                      </p>
-                    )}
-                    {/* Location */}
-                    {editingField?.id === ev.id && editingField.field === "location" ? (
-                      <input
-                        autoFocus
-                        value={editingFieldValue}
-                        onChange={(e) => setEditingFieldValue(e.target.value)}
-                        onBlur={() => commitField(ev.id, "location")}
-                        onKeyDown={(e) => { if (e.key === "Enter") commitField(ev.id, "location"); if (e.key === "Escape") setEditingField(null); }}
-                        placeholder="Add location…"
-                        className="mt-1.5 w-full rounded bg-accent/40 px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <p
-                        className={`mt-1.5 flex cursor-text items-center gap-1 text-xs transition-colors ${ev.location ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/30 hover:text-muted-foreground/60"}`}
-                        onClick={(e) => { e.stopPropagation(); startFieldEdit(ev.id, "location", ev.location ?? ""); }}
-                      >
-                        <MapPin className="h-3 w-3 shrink-0" />
-                        {ev.location || "Add location…"}
-                      </p>
-                    )}
-                    {/* Time */}
-                    {editingField?.id === ev.id && editingField.field === "time" ? (
-                      <input
-                        autoFocus
-                        type="time"
-                        value={editingFieldValue}
-                        onChange={(e) => setEditingFieldValue(e.target.value)}
-                        onBlur={() => commitField(ev.id, "time")}
-                        onKeyDown={(e) => { if (e.key === "Enter") commitField(ev.id, "time"); if (e.key === "Escape") setEditingField(null); }}
-                        className="mt-1.5 rounded bg-accent/40 px-2 py-1 text-[10px] text-foreground outline-none"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    ) : (
-                      <p
-                        className="mt-1.5 cursor-text text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const d = new Date(ev.start_date);
-                          const hh = String(d.getHours()).padStart(2, "0");
-                          const mm = String(d.getMinutes()).padStart(2, "0");
-                          startFieldEdit(ev.id, "time", `${hh}:${mm}`);
-                        }}
-                      >
-                        {new Date(ev.start_date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
+                      </>
                     )}
                   </div>
                 ))}
