@@ -411,23 +411,46 @@ export async function deleteTeamTopic(id: string): Promise<void> {
 export async function getTeamMessages(topicId: string): Promise<TeamMessage[]> {
   const { data, error } = await db()
     .from('team_messages')
-    .select('*, profiles(id, full_name, avatar_url, email)')
+    .select('*')
     .eq('topic_id', topicId)
     .order('created_at', { ascending: true });
   if (error) { if (isMissingTableError(error)) return []; throw error; }
-  return (data || []).map((row: any) => ({ ...row, author: row.profiles ?? undefined })) as TeamMessage[];
+
+  const messages = (data ?? []) as TeamMessage[];
+  const authorIds = [...new Set(messages.map((m) => m.author_id).filter(Boolean))] as string[];
+
+  if (authorIds.length > 0) {
+    const { data: profiles } = await db()
+      .from('profiles')
+      .select('id, full_name, avatar_url, email')
+      .in('id', authorIds);
+    if (profiles) {
+      const map = Object.fromEntries(profiles.map((p: any) => [p.id, p]));
+      return messages.map((m) => ({ ...m, author: m.author_id ? map[m.author_id] : undefined }));
+    }
+  }
+
+  return messages;
 }
 
 export async function sendTeamMessage(topicId: string, content: string): Promise<TeamMessage> {
   const client = db();
   const { data: { user } } = await client.auth.getUser();
+
   const { data, error } = await client
     .from('team_messages')
     .insert({ topic_id: topicId, content, author_id: user?.id ?? null })
-    .select('*, profiles(id, full_name, avatar_url, email)')
+    .select()
     .single();
   if (error) throw error;
-  return { ...data, author: (data as any).profiles ?? undefined } as TeamMessage;
+
+  let author: TeamMessage['author'] = undefined;
+  if (user) {
+    const { data: profile } = await client.from('profiles').select('id, full_name, avatar_url').eq('id', user.id).maybeSingle();
+    author = { id: user.id, email: user.email ?? undefined, full_name: profile?.full_name ?? user.email ?? undefined, avatar_url: profile?.avatar_url };
+  }
+
+  return { ...(data as TeamMessage), author };
 }
 
 export async function deleteTeamMessage(id: string): Promise<void> {
