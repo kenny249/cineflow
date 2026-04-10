@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Users,
+  UsersRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,6 +31,7 @@ const NAV_MAIN = [
   { label: "Shot Lists",  href: "/shot-lists", icon: List },
   { label: "Storyboard",  href: "/storyboard", icon: Layers },
   { label: "Revisions",   href: "/revisions",  icon: UploadCloud },
+  { label: "Team",        href: "/team",       icon: UsersRound },
 ];
 
 const NAV_BOTTOM = [

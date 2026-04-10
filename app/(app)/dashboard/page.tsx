@@ -40,6 +40,7 @@ function getDailyCompliment(): string {
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { DashboardParticles } from "@/components/dashboard/DashboardParticles";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Progress } from "@/components/ui/progress";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
@@ -133,8 +134,9 @@ export default function DashboardPage() {
     <>
       <CreateProjectModal open={modalOpen} onClose={() => setModalOpen(false)} onSuccess={handleCreateProjectSuccess} />
 
-      <div className="flex h-full flex-col overflow-y-auto custom-scrollbar">
-        <div className="flex-1 space-y-6 p-6">
+      <div className="relative flex h-full flex-col overflow-y-auto custom-scrollbar">
+        <DashboardParticles />
+        <div className="relative flex-1 space-y-6 p-6">
 
           {/* ── Welcome header ── */}
           <div className="flex flex-wrap items-start justify-between gap-3">

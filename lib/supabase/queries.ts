@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -359,4 +359,78 @@ export async function updateProfile(updates: Partial<Omit<Profile, 'id' | 'creat
 
   if (error) throw error;
   return { ...data, email: user.email } as Profile;
+}
+
+// ─── Team ─────────────────────────────────────────────────────────────────────
+
+export async function getTeamMembers(): Promise<TeamMember[]> {
+  const { data, error } = await db().from('team_members').select('*').order('invited_at', { ascending: true });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return data as TeamMember[];
+}
+
+export async function inviteTeamMember(email: string, name: string, role: TeamMember['role'] = 'member'): Promise<TeamMember> {
+  const { data, error } = await db()
+    .from('team_members')
+    .insert({ email, name, role, status: 'pending' })
+    .select().single();
+  if (error) throw error;
+  return data as TeamMember;
+}
+
+export async function removeTeamMember(id: string): Promise<void> {
+  const { error } = await db().from('team_members').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateTeamMemberRole(id: string, role: TeamMember['role']): Promise<TeamMember> {
+  const { data, error } = await db()
+    .from('team_members').update({ role }).eq('id', id).select().single();
+  if (error) throw error;
+  return data as TeamMember;
+}
+
+export async function getTeamTopics(): Promise<TeamTopic[]> {
+  const { data, error } = await db().from('team_topics').select('*').order('created_at', { ascending: true });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return data as TeamTopic[];
+}
+
+export async function createTeamTopic(name: string, description: string, emoji = '💬'): Promise<TeamTopic> {
+  const { data, error } = await db()
+    .from('team_topics').insert({ name, description, emoji }).select().single();
+  if (error) throw error;
+  return data as TeamTopic;
+}
+
+export async function deleteTeamTopic(id: string): Promise<void> {
+  const { error } = await db().from('team_topics').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function getTeamMessages(topicId: string): Promise<TeamMessage[]> {
+  const { data, error } = await db()
+    .from('team_messages')
+    .select('*, profiles(id, full_name, avatar_url, email)')
+    .eq('topic_id', topicId)
+    .order('created_at', { ascending: true });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data || []).map((row: any) => ({ ...row, author: row.profiles ?? undefined })) as TeamMessage[];
+}
+
+export async function sendTeamMessage(topicId: string, content: string): Promise<TeamMessage> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  const { data, error } = await client
+    .from('team_messages')
+    .insert({ topic_id: topicId, content, author_id: user?.id ?? null })
+    .select('*, profiles(id, full_name, avatar_url, email)')
+    .single();
+  if (error) throw error;
+  return { ...data, author: (data as any).profiles ?? undefined } as TeamMessage;
+}
+
+export async function deleteTeamMessage(id: string): Promise<void> {
+  const { error } = await db().from('team_messages').delete().eq('id', id);
+  if (error) throw error;
 }

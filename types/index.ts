@@ -233,3 +233,36 @@ export interface PaginatedResponse<T> {
   page: number;
   per_page: number;
 }
+
+// ─── Team ───────────────────────────────────────────────────────────────────
+
+export interface TeamMember {
+  id: string;
+  user_id?: string;
+  email: string;
+  name?: string;
+  role: "owner" | "admin" | "member";
+  status: "pending" | "active";
+  avatar_url?: string;
+  invited_at: string;
+  joined_at?: string;
+}
+
+export interface TeamTopic {
+  id: string;
+  name: string;
+  description?: string;
+  emoji: string;
+  created_by?: string;
+  created_at: string;
+}
+
+export interface TeamMessage {
+  id: string;
+  topic_id: string;
+  author_id?: string;
+  author?: Pick<Profile, "id" | "full_name" | "avatar_url" | "email">;
+  content: string;
+  created_at: string;
+  updated_at?: string;
+}
