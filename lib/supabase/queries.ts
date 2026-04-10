@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -221,4 +221,109 @@ export async function deleteShotListItem(id: string) {
     .eq('id', id);
 
   if (error) throw error;
+}
+
+// ─── Calendar Events ─────────────────────────────────────────────────────────
+
+export async function getCalendarEvents(projectId?: string) {
+  let query = db()
+    .from('calendar_events')
+    .select('*, projects(id, title, status)')
+    .order('start_time', { ascending: true });
+
+  if (projectId) {
+    query = (query as any).eq('project_id', projectId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    if (isMissingTableError(error)) return [];
+    throw error;
+  }
+
+  return (data || []).map((row: any) => ({
+    ...row,
+    type: row.event_type as CalendarEventType,
+    start_date: row.start_time,
+    end_date: row.end_time,
+    project: row.projects ?? undefined,
+  })) as CalendarEvent[];
+}
+
+export async function createCalendarEvent(event: {
+  project_id?: string;
+  title: string;
+  description?: string;
+  type: CalendarEventType;
+  start_date: string;
+  end_date?: string;
+  location?: string;
+}) {
+  const { data, error } = await db()
+    .from('calendar_events')
+    .insert({
+      project_id: event.project_id || null,
+      title: event.title,
+      description: event.description || null,
+      event_type: event.type,
+      start_time: event.start_date,
+      end_time: event.end_date || event.start_date,
+      location: event.location || null,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    ...data,
+    type: (data as any).event_type as CalendarEventType,
+    start_date: (data as any).start_time,
+    end_date: (data as any).end_time,
+  } as CalendarEvent;
+}
+
+export async function deleteCalendarEvent(id: string) {
+  const { error } = await db()
+    .from('calendar_events')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+// ─── Profile ─────────────────────────────────────────────────────────────────
+
+export async function getProfile(): Promise<Profile | null> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await client
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return { ...data, email: user.email } as Profile;
+}
+
+export async function updateProfile(updates: Partial<Omit<Profile, 'id' | 'created_at'>>) {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data, error } = await client
+    .from('profiles')
+    .upsert({ id: user.id, ...updates, updated_at: new Date().toISOString() })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { ...data, email: user.email } as Profile;
 }

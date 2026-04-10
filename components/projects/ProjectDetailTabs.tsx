@@ -17,7 +17,7 @@ import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Messa
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, ShotList, StoryboardFrame, ShotListItem } from "@/types";
-import { updateProject } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem } from "@/lib/supabase/queries";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
 
@@ -313,13 +313,25 @@ export default function ProjectDetailTabs({
     toast.success("Revision uploaded — it will persist across navigation.");
   };
 
-  const handleSaveProject = () => {
-    setTitle(editTitle.trim() || title);
-    setDescription(editDescription);
-    setStatus(editStatus);
-    setProgressValue(editProgress);
+  const handleSaveProject = async () => {
+    const updates = {
+      title: editTitle.trim() || title,
+      description: editDescription,
+      status: editStatus,
+      progress: editProgress,
+    };
+    // Optimistic update
+    setTitle(updates.title);
+    setDescription(updates.description);
+    setStatus(updates.status);
+    setProgressValue(updates.progress);
     setShowEditDialog(false);
-    toast.success("Project details updated.");
+    try {
+      await updateProject(project.id, updates);
+      toast.success("Project details updated.");
+    } catch {
+      toast.error("Failed to save — changes may not persist.");
+    }
   };
 
   const openEditDialog = () => {
@@ -330,14 +342,26 @@ export default function ProjectDetailTabs({
     setShowEditDialog(true);
   };
 
-  const toggleShotComplete = (shotId: string) => {
+  const toggleShotComplete = async (shotId: string) => {
     if (!shotList?.items) return;
+    const item = shotList.items.find((i) => i.id === shotId);
+    if (!item) return;
+    const newVal = !item.is_complete;
+    // Optimistic update
     setShotList({
       ...shotList,
-      items: shotList.items.map((item) =>
-        item.id === shotId ? { ...item, is_complete: !item.is_complete } : item
-      ),
+      items: shotList.items.map((i) => i.id === shotId ? { ...i, is_complete: newVal } : i),
     });
+    try {
+      await updateShotListItem(shotId, { is_complete: newVal });
+    } catch {
+      // Revert
+      setShotList({
+        ...shotList,
+        items: shotList.items.map((i) => i.id === shotId ? { ...i, is_complete: item.is_complete } : i),
+      });
+      toast.error("Failed to update shot.");
+    }
   };
 
   const handleAddRevisionComment = (revisionId: string) => {

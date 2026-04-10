@@ -1,25 +1,45 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { getProfile, updateProfile } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SettingsClient() {
-  const [avatarUrl, setAvatarUrl] = useState(
-    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80"
-  );
-  const [firstName, setFirstName] = useState("Kenneth");
-  const [lastName, setLastName] = useState("Garcia");
-  const [email, setEmail] = useState("kenny@maltavmedia.com");
-  const [company, setCompany] = useState("Maltav Media");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [company, setCompany] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const profile = await getProfile();
+        if (profile) {
+          setFirstName(profile.first_name ?? "");
+          setLastName(profile.last_name ?? "");
+          setEmail(profile.email ?? "");
+          setCompany(profile.company ?? "");
+          setAvatarUrl(profile.avatar_url ?? "");
+        }
+      } catch {
+        toast.error("Failed to load profile");
+      }
+    }
+    load();
+  }, []);
 
   const handlePhotoChange = (file?: File) => {
     if (!file) return;
@@ -27,36 +47,60 @@ export default function SettingsClient() {
     reader.onload = () => {
       if (typeof reader.result === "string") {
         setAvatarUrl(reader.result);
-        toast.success("Profile photo updated.");
+        toast.success("Photo updated locally — save changes to persist.");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSaveProfile = () => {
-    toast.success("Profile changes saved.");
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      await updateProfile({
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        company: company.trim(),
+        avatar_url: avatarUrl || undefined,
+      });
+      toast.success("Profile saved.");
+    } catch {
+      toast.error("Failed to save profile.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleUpdatePassword = () => {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      toast.error("Fill out all password fields before updating.");
+  const handleUpdatePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error("Fill out all password fields.");
       return;
     }
-
     if (newPassword !== confirmPassword) {
       toast.error("New passwords do not match.");
       return;
     }
-
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    toast.success("Password updated successfully.");
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
+    setIsUpdatingPassword(true);
+    try {
+      const { error } = await createClient().auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password updated.");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to update password.");
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   const handleDeleteAccount = () => {
     if (window.confirm("Are you sure you want to delete your account? This cannot be undone.")) {
-      toast.success("Account deletion requested. This is a demo flow.");
+      toast.error("Account deletion requires contacting support for now.");
     }
   };
 
@@ -124,8 +168,8 @@ export default function SettingsClient() {
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button variant="gold" size="sm" onClick={handleSaveProfile}>
-                  Save changes
+                <Button variant="gold" size="sm" onClick={handleSaveProfile} disabled={isSaving}>
+                  {isSaving ? "Saving…" : "Save changes"}
                 </Button>
               </div>
             </div>
@@ -165,8 +209,8 @@ export default function SettingsClient() {
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={handleUpdatePassword}>
-                  Update password
+                <Button variant="outline" size="sm" onClick={handleUpdatePassword} disabled={isUpdatingPassword}>
+                  {isUpdatingPassword ? "Updating…" : "Update password"}
                 </Button>
               </div>
             </div>

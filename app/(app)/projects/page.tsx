@@ -32,6 +32,7 @@ import {
 import type { ProjectStatus } from "@/types";
 
 type ViewMode = "grid" | "list";
+type Density = "compact" | "default" | "comfortable";
 
 const STATUS_FILTERS: { value: "all" | ProjectStatus; label: string }[] = [
   { value: "all", label: "All" },
@@ -45,7 +46,13 @@ function ProjectsPageInner() {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [density, setDensity] = useState<Density>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("projects-density") as Density) ?? "default";
+    }
+    return "default";
+  });
   const [modalOpen, setModalOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,7 +168,7 @@ function ProjectsPageInner() {
             })}
           </div>
 
-          {/* Search + view toggle */}
+          {/* Search + density + view toggle */}
           <div className="flex shrink-0 items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -172,6 +179,32 @@ function ProjectsPageInner() {
                 className="h-8 w-40 rounded-md border border-border bg-muted/50 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
+            {/* Density — only shown in list mode */}
+            {viewMode === "list" && (
+              <div className="flex overflow-hidden rounded-md border border-border">
+                {(["compact", "default", "comfortable"] as Density[]).map((d) => (
+                  <button
+                    key={d}
+                    title={d.charAt(0).toUpperCase() + d.slice(1)}
+                    onClick={() => {
+                      setDensity(d);
+                      localStorage.setItem("projects-density", d);
+                    }}
+                    className={`flex h-8 w-8 items-center justify-center transition-colors ${
+                      density === d ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {d === "compact" ? (
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="1" width="13" height="1.5" rx="0.75" fill="currentColor"/><rect x="0" y="4.5" width="13" height="1.5" rx="0.75" fill="currentColor"/><rect x="0" y="8" width="13" height="1.5" rx="0.75" fill="currentColor"/><rect x="0" y="11.5" width="13" height="1.5" rx="0.75" fill="currentColor"/></svg>
+                    ) : d === "default" ? (
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="0" width="13" height="2" rx="1" fill="currentColor"/><rect x="0" y="5.5" width="13" height="2" rx="1" fill="currentColor"/><rect x="0" y="11" width="13" height="2" rx="1" fill="currentColor"/></svg>
+                    ) : (
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="0" y="0" width="13" height="3" rx="1.5" fill="currentColor"/><rect x="0" y="5" width="13" height="3" rx="1.5" fill="currentColor"/><rect x="0" y="10" width="13" height="3" rx="1.5" fill="currentColor"/></svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex overflow-hidden rounded-md border border-border">
               {(["grid", "list"] as ViewMode[]).map((m) => (
                 <button
@@ -217,6 +250,7 @@ function ProjectsPageInner() {
           ) : (
             <ListView 
               projects={filtered}
+              density={density}
               onDelete={(id, title) => setDeleteConfirm({ id, title })}
             />
           )}
@@ -399,9 +433,12 @@ function GridView({
 
 // ── List view ──────────────────────────────────────────────────────────────────
 
-function ListView({ projects, onDelete }: { projects: Project[]; onDelete: (id: string, title: string) => void }) {
+function ListView({ projects, density = "default", onDelete }: { projects: Project[]; density?: Density; onDelete: (id: string, title: string) => void }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const router = useRouter();
+
+  const rowPadding = density === "compact" ? "py-2" : density === "comfortable" ? "py-4" : "py-3";
+  const thumbSize = density === "compact" ? "h-7 w-11" : density === "comfortable" ? "h-12 w-[4.5rem]" : "h-9 w-14";
 
   return (
     <div className="overflow-hidden rounded-xl border border-border">
@@ -423,11 +460,11 @@ function ListView({ projects, onDelete }: { projects: Project[]; onDelete: (id: 
         <Link
           key={project.id}
           href={`/projects/${project.id}`}
-          className="group grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-4 border-b border-border bg-card px-4 py-3 transition-colors last:border-0 hover:bg-accent/40"
+          className={`group grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-4 border-b border-border bg-card px-4 transition-colors last:border-0 hover:bg-accent/40 ${rowPadding}`}
         >
           {/* Project */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="relative h-9 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
+            <div className={`relative shrink-0 overflow-hidden rounded-md bg-muted ${thumbSize}`}>
               {project.thumbnail_url ? (
                 <Image
                   src={project.thumbnail_url}
