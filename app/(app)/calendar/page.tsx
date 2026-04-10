@@ -76,6 +76,8 @@ export default function CalendarPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [typePickerId, setTypePickerId] = useState<string | null>(null);
+  const [editingField, setEditingField] = useState<{ id: string; field: "description" | "location" | "time" } | null>(null);
+  const [editingFieldValue, setEditingFieldValue] = useState("");
 
   const commitTitle = async (id: string) => {
     const trimmed = editingTitle.trim();
@@ -89,6 +91,41 @@ export default function CalendarPage() {
     setTypePickerId(null);
     setEvents((prev) => prev.map((e) => e.id === id ? { ...e, type } : e));
     try { await updateCalendarEvent(id, { type }); } catch { /* silent */ }
+  };
+
+  const startFieldEdit = (id: string, field: "description" | "location" | "time", currentValue: string) => {
+    setEditingField({ id, field });
+    setEditingFieldValue(currentValue);
+  };
+
+  const commitField = async (id: string, field: "description" | "location" | "time") => {
+    const val = editingFieldValue.trim();
+    setEditingField(null);
+    if (field === "description") {
+      setEvents((prev) => prev.map((e) => e.id === id ? { ...e, description: val || undefined } : e));
+      try { await updateCalendarEvent(id, { description: val || undefined }); } catch { /* silent */ }
+    } else if (field === "location") {
+      setEvents((prev) => prev.map((e) => e.id === id ? { ...e, location: val || undefined } : e));
+      try { await updateCalendarEvent(id, { location: val || undefined }); } catch { /* silent */ }
+    } else if (field === "time") {
+      if (!val) return;
+      setEvents((prev) => prev.map((e) => {
+        if (e.id !== id) return e;
+        const existing = new Date(e.start_date);
+        const [h, m] = val.split(":").map(Number);
+        existing.setHours(h, m);
+        return { ...e, start_date: existing.toISOString() };
+      }));
+      try {
+        const ev = events.find((e) => e.id === id);
+        if (ev) {
+          const d = new Date(ev.start_date);
+          const [h, m] = val.split(":").map(Number);
+          d.setHours(h, m);
+          await updateCalendarEvent(id, { start_date: d.toISOString() });
+        }
+      } catch { /* silent */ }
+    }
   };
 
   useEffect(() => {
@@ -458,15 +495,74 @@ export default function CalendarPage() {
                         </p>
                       )}
                     </div>
-                    {ev.description && <p className="mt-1.5 text-xs text-muted-foreground">{ev.description}</p>}
-                    {ev.location && (
-                      <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />{ev.location}
+                    {/* Description */}
+                    {editingField?.id === ev.id && editingField.field === "description" ? (
+                      <textarea
+                        autoFocus
+                        rows={2}
+                        value={editingFieldValue}
+                        onChange={(e) => setEditingFieldValue(e.target.value)}
+                        onBlur={() => commitField(ev.id, "description")}
+                        onKeyDown={(e) => { if (e.key === "Escape") setEditingField(null); if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitField(ev.id, "description"); } }}
+                        placeholder="Add notes…"
+                        className="mt-1.5 w-full resize-none rounded bg-accent/40 px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <p
+                        className={`mt-1.5 cursor-text text-xs transition-colors ${ev.description ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/30 hover:text-muted-foreground/60"}`}
+                        onClick={(e) => { e.stopPropagation(); startFieldEdit(ev.id, "description", ev.description ?? ""); }}
+                      >
+                        {ev.description || "Add notes…"}
                       </p>
                     )}
-                    <p className="mt-1.5 text-[10px] text-muted-foreground">
-                      {new Date(ev.start_date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
+                    {/* Location */}
+                    {editingField?.id === ev.id && editingField.field === "location" ? (
+                      <input
+                        autoFocus
+                        value={editingFieldValue}
+                        onChange={(e) => setEditingFieldValue(e.target.value)}
+                        onBlur={() => commitField(ev.id, "location")}
+                        onKeyDown={(e) => { if (e.key === "Enter") commitField(ev.id, "location"); if (e.key === "Escape") setEditingField(null); }}
+                        placeholder="Add location…"
+                        className="mt-1.5 w-full rounded bg-accent/40 px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground/50"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <p
+                        className={`mt-1.5 flex cursor-text items-center gap-1 text-xs transition-colors ${ev.location ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/30 hover:text-muted-foreground/60"}`}
+                        onClick={(e) => { e.stopPropagation(); startFieldEdit(ev.id, "location", ev.location ?? ""); }}
+                      >
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        {ev.location || "Add location…"}
+                      </p>
+                    )}
+                    {/* Time */}
+                    {editingField?.id === ev.id && editingField.field === "time" ? (
+                      <input
+                        autoFocus
+                        type="time"
+                        value={editingFieldValue}
+                        onChange={(e) => setEditingFieldValue(e.target.value)}
+                        onBlur={() => commitField(ev.id, "time")}
+                        onKeyDown={(e) => { if (e.key === "Enter") commitField(ev.id, "time"); if (e.key === "Escape") setEditingField(null); }}
+                        className="mt-1.5 rounded bg-accent/40 px-2 py-1 text-[10px] text-foreground outline-none"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <p
+                        className="mt-1.5 cursor-text text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const d = new Date(ev.start_date);
+                          const hh = String(d.getHours()).padStart(2, "0");
+                          const mm = String(d.getMinutes()).padStart(2, "0");
+                          startFieldEdit(ev.id, "time", `${hh}:${mm}`);
+                        }}
+                      >
+                        {new Date(ev.start_date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
