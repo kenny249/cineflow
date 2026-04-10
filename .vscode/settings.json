@@ -1,6 +1,7 @@
 {
     "chat.tools.terminal.autoApprove": {
         "npx tsc": true,
-        "supabase": true
+        "supabase": true,
+        "npm install": true
     }
 }

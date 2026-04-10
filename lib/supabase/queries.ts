@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -570,5 +570,36 @@ export async function updateBudgetLine(id: string, updates: Partial<BudgetLine>)
 
 export async function deleteBudgetLine(id: string): Promise<void> {
   const { error } = await db().from('budget_lines').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Invoices ────────────────────────────────────────────────────────────────
+
+export async function getInvoices(): Promise<Invoice[]> {
+  const { data, error } = await db().from('invoices').select('*').order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Invoice[];
+}
+
+export async function getInvoicesByProject(projectId: string): Promise<Invoice[]> {
+  const { data, error } = await db().from('invoices').select('*').eq('project_id', projectId).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Invoice[];
+}
+
+export async function createInvoice(invoice: Omit<Invoice, 'id' | 'created_at' | 'updated_at'>): Promise<Invoice> {
+  const { data, error } = await db().from('invoices').insert(invoice).select().single();
+  if (error) throw error;
+  return data as Invoice;
+}
+
+export async function updateInvoice(id: string, updates: Partial<Invoice>): Promise<Invoice> {
+  const { data, error } = await db().from('invoices').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+  if (error) throw error;
+  return data as Invoice;
+}
+
+export async function deleteInvoice(id: string): Promise<void> {
+  const { error } = await db().from('invoices').delete().eq('id', id);
   if (error) throw error;
 }

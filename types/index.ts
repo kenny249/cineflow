@@ -348,3 +348,22 @@ export interface BudgetLine {
   created_at: string;
   updated_at: string;
 }
+
+export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue";
+
+export interface Invoice {
+  id: string;
+  project_id?: string;
+  invoice_number: string;
+  client_name?: string;
+  description?: string;
+  amount: number;
+  status: InvoiceStatus;
+  amount_paid: number;
+  due_date?: string;
+  paid_date?: string;
+  notes?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
