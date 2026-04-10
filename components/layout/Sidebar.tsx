@@ -16,6 +16,7 @@ import {
   PanelLeftOpen,
   Users,
   UsersRound,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,6 +31,7 @@ const NAV_MAIN = [
   { label: "Calendar",    href: "/calendar",   icon: Calendar },
   { label: "Shot Lists",  href: "/shot-lists", icon: List },
   { label: "Storyboard",  href: "/storyboard", icon: Layers },
+  { label: "Scripts",     href: "/scripts",    icon: ScrollText },
   { label: "Revisions",   href: "/revisions",  icon: UploadCloud },
   { label: "Team",        href: "/team",       icon: UsersRound },
 ];

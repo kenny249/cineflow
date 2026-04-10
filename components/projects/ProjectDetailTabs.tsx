@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X } from "lucide-react";
+import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, ShotList, StoryboardFrame, ShotListItem } from "@/types";
@@ -83,6 +83,53 @@ export default function ProjectDetailTabs({
   const [newRevisionTitle, setNewRevisionTitle] = useState("");
   const [newRevisionFile, setNewRevisionFile] = useState<File | null>(null);
   const [newRevisionDescription, setNewRevisionDescription] = useState("");
+
+  // ── Script state ──
+  const [scriptContent, setScriptContent] = useState("");
+  const [scriptDirty, setScriptDirty] = useState(false);
+  const scriptAutoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scriptKey = `cineflow-scripts`;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(scriptKey);
+      if (raw) {
+        const all: { projectId: string; content: string }[] = JSON.parse(raw);
+        const found = all.find((s) => s.projectId === project.id);
+        if (found) setScriptContent(found.content);
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
+
+  function saveScriptContent(val: string) {
+    try {
+      const raw = localStorage.getItem(scriptKey);
+      const all: { projectId: string; title: string; content: string; updatedAt: string }[] = raw ? JSON.parse(raw) : [];
+      const idx = all.findIndex((s) => s.projectId === project.id);
+      const entry = { projectId: project.id, title: project.title, content: val, updatedAt: new Date().toISOString() };
+      if (idx >= 0) all[idx] = entry; else all.push(entry);
+      localStorage.setItem(scriptKey, JSON.stringify(all));
+    } catch {}
+  }
+
+  function handleScriptChange(val: string) {
+    setScriptContent(val);
+    setScriptDirty(true);
+    if (scriptAutoSaveRef.current) clearTimeout(scriptAutoSaveRef.current);
+    scriptAutoSaveRef.current = setTimeout(() => {
+      saveScriptContent(val);
+      setScriptDirty(false);
+    }, 1500);
+  }
+
+  const scriptScenes = scriptContent.split("\n").reduce<{ line: number; heading: string }[]>((acc, line, i) => {
+    const t = line.trim().toUpperCase();
+    if (t.startsWith("INT.") || t.startsWith("EXT.") || t.startsWith("INT/EXT.") || t.startsWith("I/E.")) {
+      acc.push({ line: i, heading: line.trim() });
+    }
+    return acc;
+  }, []);
 
   // ── Inline video player state ──
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
@@ -547,6 +594,7 @@ export default function ProjectDetailTabs({
                 { value: "overview", label: "Overview" },
                 { value: "shot-list", label: `Shot List ${totalShots ? `(${completedShots}/${totalShots})` : ""}` },
                 { value: "storyboard", label: "Storyboard" },
+                { value: "script", label: "Script" },
                 { value: "revisions", label: `Revisions ${revisions.length ? `(${revisions.length})` : ""}` },
                 { value: "notes", label: `Notes ${notes.length ? `(${notes.length})` : ""}` },
               ].map((tab) => (
@@ -776,6 +824,50 @@ export default function ProjectDetailTabs({
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="script" className="m-0 flex h-full overflow-hidden">
+              <div className="flex flex-1 flex-col overflow-hidden">
+                <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-2.5">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <ScrollText className="h-3.5 w-3.5" />
+                    <span>{scriptContent.split(/\s+/).filter(Boolean).length} words · {scriptScenes.length} scene{scriptScenes.length !== 1 ? "s" : ""}</span>
+                    {scriptDirty && <span className="h-1.5 w-1.5 rounded-full bg-[#d4a853]" />}
+                  </div>
+                  <Button
+                    variant="gold"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={() => { saveScriptContent(scriptContent); setScriptDirty(false); toast.success("Script saved"); }}
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    Save
+                  </Button>
+                </div>
+                <div className="flex flex-1 overflow-hidden">
+                  <textarea
+                    value={scriptContent}
+                    onChange={(e) => handleScriptChange(e.target.value)}
+                    placeholder={`Write your screenplay here...\n\nINT. LOCATION - DAY\n\nScene description. Action lines.\n\n\t\tCHARACTER\n\t(parenthetical)\n\tDialogue goes here.\n\nEXT. LOCATION - NIGHT\n\nScene headings are detected as scenes automatically.`}
+                    className="flex-1 resize-none bg-transparent px-8 py-6 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none custom-scrollbar"
+                    spellCheck
+                    style={{ fontFamily: "'Courier New', Courier, monospace" }}
+                  />
+                  {scriptScenes.length > 0 && (
+                    <div className="hidden lg:flex w-52 shrink-0 flex-col border-l border-border bg-muted/10">
+                      <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground border-b border-border">Scenes</p>
+                      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5 custom-scrollbar">
+                        {scriptScenes.map((scene, i) => (
+                          <div key={i} className="rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-colors cursor-default">
+                            <span className="mr-1.5 font-bold text-[#d4a853]/60">{i + 1}.</span>
+                            <span className="truncate">{scene.heading}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </TabsContent>
 
             <TabsContent value="revisions" className="m-0 p-6">

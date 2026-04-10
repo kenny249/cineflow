@@ -12,8 +12,10 @@ import {
   getTeamMessages,
   sendTeamMessage,
   deleteTeamMessage,
+  getProjects,
 } from "@/lib/supabase/queries";
 import type { TeamMember, TeamTopic, TeamMessage } from "@/types";
+import type { Project } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import {
   Users,
@@ -29,6 +31,8 @@ import {
   MoreHorizontal,
   X,
   MessageSquare,
+  Film,
+  FolderKanban,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -256,6 +260,103 @@ function NewTopicModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   );
 }
 
+// ─── Project Channel Modal ────────────────────────────────────────────────────
+
+function NewProjectTopicModal({
+  projects,
+  existingTopics,
+  onClose,
+  onCreated,
+}: {
+  projects: Project[];
+  existingTopics: TeamTopic[];
+  onClose: () => void;
+  onCreated: (t: TeamTopic) => void;
+}) {
+  const [selected, setSelected] = useState<Project | null>(null);
+  const [loading, setLoading] = useState(false);
+  const existingProjectIds = new Set(
+    existingTopics
+      .filter((t) => t.name.startsWith("proj:"))
+      .map((t) => t.description ?? "")
+  );
+
+  async function handleCreate() {
+    if (!selected) return;
+    setLoading(true);
+    try {
+      const topicName = `proj:${selected.title}`;
+      const topic = await createTeamTopic(topicName, selected.id, "🎬");
+      onCreated(topic);
+      toast.success(`Project channel created`);
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to create channel");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-lg font-bold text-foreground">Project Channel</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">Create a dedicated chat for a project</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+          {projects.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No projects found</p>
+          ) : (
+            projects.map((p) => {
+              const alreadyExists = existingProjectIds.has(p.id);
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => !alreadyExists && setSelected(p)}
+                  disabled={alreadyExists}
+                  className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                    alreadyExists
+                      ? "cursor-not-allowed border-border opacity-40"
+                      : selected?.id === p.id
+                      ? "border-[#d4a853]/50 bg-[#d4a853]/10"
+                      : "border-border hover:border-[#d4a853]/30 hover:bg-muted/20"
+                  }`}
+                >
+                  <Film className="h-4 w-4 shrink-0 text-[#d4a853]/60" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{p.title}</p>
+                    {alreadyExists && <p className="text-[10px] text-muted-foreground">Channel already exists</p>}
+                  </div>
+                  {selected?.id === p.id && <Check className="ml-auto h-4 w-4 shrink-0 text-[#d4a853]" />}
+                </button>
+              );
+            })
+          )}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleCreate}
+            disabled={!selected || loading}
+            className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-4 py-2 text-sm font-semibold text-black hover:bg-[#c49843] transition-colors disabled:opacity-60"
+          >
+            {loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : <Film className="h-3.5 w-3.5" />}
+            Create Channel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Chat bubble ─────────────────────────────────────────────────────────────
 
 function ChatBubble({
@@ -355,8 +456,10 @@ export default function TeamPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [newTopicOpen, setNewTopicOpen] = useState(false);
+  const [newProjectTopicOpen, setNewProjectTopicOpen] = useState(false);
   const [memberMenuId, setMemberMenuId] = useState<string | null>(null);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -366,6 +469,7 @@ export default function TeamPage() {
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
     getTeamMembers().then(setMembers).catch(() => {});
+    getProjects().then(setProjects).catch(() => {});
     getTeamTopics().then((ts) => {
       setTopics(ts);
       if (ts.length > 0) setActiveTopic(ts[0]);
@@ -539,34 +643,78 @@ export default function TeamPage() {
               <Plus className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar space-y-0.5">
             {topics.length === 0 ? (
               <p className="px-2 py-4 text-center text-xs text-muted-foreground/60">No topics yet</p>
             ) : (
-              topics.map((topic) => (
-                <div key={topic.id} className="group relative">
-                  <button
-                    onClick={() => { setActiveTopic(topic); setPanel("chat"); }}
-                    className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-all ${
-                      activeTopic?.id === topic.id
-                        ? "bg-[#d4a853]/10 text-foreground"
-                        : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
-                    }`}
-                  >
-                    <span className="text-sm leading-none">{topic.emoji}</span>
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium">{topic.name}</span>
-                    {activeTopic?.id === topic.id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#d4a853]" />}
-                  </button>
-                  {topic.name !== "general" && (
+              <>
+                {/* General channels */}
+                {topics.filter((t) => !t.name.startsWith("proj:")).map((topic) => (
+                  <div key={topic.id} className="group relative">
                     <button
-                      onClick={() => handleDeleteTopic(topic.id)}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 hidden rounded p-0.5 text-muted-foreground hover:text-red-400 group-hover:flex transition-colors"
+                      onClick={() => { setActiveTopic(topic); setPanel("chat"); }}
+                      className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-all ${
+                        activeTopic?.id === topic.id
+                          ? "bg-[#d4a853]/10 text-foreground"
+                          : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                      }`}
                     >
-                      <X className="h-3 w-3" />
+                      <span className="text-sm leading-none">{topic.emoji}</span>
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium">{topic.name}</span>
+                      {activeTopic?.id === topic.id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#d4a853]" />}
                     </button>
-                  )}
-                </div>
-              ))
+                    {topic.name !== "general" && (
+                      <button
+                        onClick={() => handleDeleteTopic(topic.id)}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 hidden rounded p-0.5 text-muted-foreground hover:text-red-400 group-hover:flex transition-colors"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {/* Project channels section */}
+                {topics.some((t) => t.name.startsWith("proj:")) && (
+                  <div className="mt-3">
+                    <p className="mb-1 px-1 text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Projects</p>
+                    {topics.filter((t) => t.name.startsWith("proj:")).map((topic) => {
+                      const displayName = topic.name.replace(/^proj:/, "");
+                      return (
+                        <div key={topic.id} className="group relative">
+                          <button
+                            onClick={() => { setActiveTopic(topic); setPanel("chat"); }}
+                            className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-all ${
+                              activeTopic?.id === topic.id
+                                ? "bg-[#d4a853]/10 text-foreground"
+                                : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+                            }`}
+                          >
+                            <Film className="h-3.5 w-3.5 shrink-0 text-[#d4a853]/60" />
+                            <span className="min-w-0 flex-1 truncate text-xs font-medium">{displayName}</span>
+                            {activeTopic?.id === topic.id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#d4a853]" />}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTopic(topic.id)}
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 hidden rounded p-0.5 text-muted-foreground hover:text-red-400 group-hover:flex transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Add project channel */}
+                <button
+                  onClick={() => setNewProjectTopicOpen(true)}
+                  className="mt-2 flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-muted-foreground/60 hover:text-[#d4a853] hover:bg-[#d4a853]/5 transition-colors"
+                >
+                  <FolderKanban className="h-3 w-3" />
+                  + Project channel
+                </button>
+              </>
             )}
           </div>
 
@@ -800,6 +948,18 @@ export default function TeamPage() {
       {newTopicOpen && (
         <NewTopicModal
           onClose={() => setNewTopicOpen(false)}
+          onCreated={(t) => {
+            setTopics((prev) => [...prev, t]);
+            setActiveTopic(t);
+            setPanel("chat");
+          }}
+        />
+      )}
+      {newProjectTopicOpen && (
+        <NewProjectTopicModal
+          projects={projects}
+          existingTopics={topics}
+          onClose={() => setNewProjectTopicOpen(false)}
           onCreated={(t) => {
             setTopics((prev) => [...prev, t]);
             setActiveTopic(t);

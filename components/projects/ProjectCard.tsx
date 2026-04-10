@@ -186,7 +186,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="shrink-0 opacity-60 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();

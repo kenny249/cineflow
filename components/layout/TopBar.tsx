@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, ChevronDown, LogOut, User, Settings, Clapperboard, CalendarDays, Upload, CheckCheck } from "lucide-react";
+import { Bell, Search, ChevronDown, LogOut, User, Settings, Clapperboard, CalendarDays, Upload, CheckCheck, Sun, Moon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,9 +67,11 @@ interface TopBarProps {
   };
   onSignOut?: () => void;
   onOpenPalette?: () => void;
+  theme?: "dark" | "light";
+  onToggleTheme?: () => void;
 }
 
-export function TopBar({ action, onSignOut, onOpenPalette }: TopBarProps) {
+export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme }: TopBarProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("Studio User");
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
@@ -112,6 +114,17 @@ export function TopBar({ action, onSignOut, onOpenPalette }: TopBarProps) {
             {action.label}
           </Button>
         )}
+
+        {/* Theme toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleTheme}
+          className="h-8 w-8 text-muted-foreground hover:text-foreground transition-colors"
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
 
         {/* Notifications */}
         <DropdownMenu>

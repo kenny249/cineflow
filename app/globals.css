@@ -35,6 +35,37 @@
 
     --radius: 0.5rem;
   }
+
+  /* ── Light mode overrides ── */
+  [data-theme="light"] {
+    --background: 0 0% 97%;           /* #f7f7f7 */
+    --foreground: 0 0% 8%;            /* #141414 */
+
+    --card: 0 0% 100%;                /* #ffffff */
+    --card-foreground: 0 0% 8%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 8%;
+
+    --primary: 38 58% 44%;            /* deeper gold for light bg */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 93%;
+    --secondary-foreground: 0 0% 10%;
+
+    --muted: 0 0% 92%;
+    --muted-foreground: 0 0% 38%;
+
+    --accent: 0 0% 91%;
+    --accent-foreground: 0 0% 8%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 86%;               /* #dbdbdb */
+    --input: 0 0% 91%;
+    --ring: 38 58% 44%;
+  }
 }
 
 @layer base {

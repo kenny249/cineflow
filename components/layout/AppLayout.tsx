@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, UploadCloud, Settings } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, UploadCloud, Settings, ScrollText, UsersRound } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { MobileSplash } from "./MobileSplash";
@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils";
 const MOBILE_NAV = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Projects",  href: "/projects",  icon: FolderKanban },
-  { label: "Calendar",  href: "/calendar",  icon: Calendar },
-  { label: "Revisions", href: "/revisions", icon: UploadCloud },
+  { label: "Scripts",   href: "/scripts",   icon: ScrollText },
+  { label: "Team",      href: "/team",      icon: UsersRound },
   { label: "Settings",  href: "/settings",  icon: Settings },
 ];
 
@@ -33,9 +33,19 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [collapsed, setCollapsed] = useLocalStorage("sidebar-collapsed", false);
+  const [theme, setTheme] = useLocalStorage<"dark" | "light">("cineflow-theme", "dark");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Apply theme to document
+  useEffect(() => {
+    if (theme === "light") {
+      document.documentElement.dataset.theme = "light";
+    } else {
+      delete document.documentElement.dataset.theme;
+    }
+  }, [theme]);
 
   // Global ⌘K / Ctrl+K listener
   useEffect(() => {
@@ -94,7 +104,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
-          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} />
+          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} />
         </Suspense>
         {/* pb-16 on mobile for bottom nav clearance */}
         <main className="flex-1 overflow-hidden pb-16 md:pb-0">{children}</main>
