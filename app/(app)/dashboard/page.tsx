@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Camera,
   Clock,
   CheckCircle2,
   TrendingUp,
@@ -14,8 +12,9 @@ import {
   LogOut,
   Sparkles,
   Film,
+  Camera,
 } from "lucide-react";
-import { getCinematicGradient } from "@/lib/cinematic-images";
+import { ProjectCard } from "@/components/projects/ProjectCard";
 import { getOrCreateDisplayName } from "@/lib/random-name";
 
 const COMPLIMENTS = [
@@ -41,11 +40,8 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardParticles } from "@/components/dashboard/DashboardParticles";
-import { StatusBadge } from "@/components/shared/StatusBadge";
-import { Progress } from "@/components/ui/progress";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { getProjects } from "@/lib/supabase/queries";
-import { formatDate, getProgressColor } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { MOCK_ACTIVITY } from "@/mock/activity";
 import { MOCK_EVENTS } from "@/mock/calendar";
@@ -239,78 +235,7 @@ export default function DashboardPage() {
                   ) : (
                     <>
                   {activeProjects.map((project) => (
-                    <Link
-                      key={project.id}
-                      href={`/projects/${project.id}`}
-                      className="group relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:border-border/60 hover:shadow-xl hover:shadow-black/30"
-                    >
-                      {/* Thumbnail */}
-                      {(() => {
-                        const seed = project.id || project.title;
-                        const realThumb =
-                          project.thumbnail_url &&
-                          !project.thumbnail_url.includes("unsplash.com") &&
-                          !project.thumbnail_url.includes("picsum.photos")
-                            ? project.thumbnail_url
-                            : null;
-                        return (
-                          <div
-                            className="relative h-36 w-full overflow-hidden"
-                            style={{ background: realThumb ? undefined : getCinematicGradient(seed) }}
-                          >
-                            {realThumb && (
-                              <Image
-                                src={realThumb}
-                                alt={project.title}
-                                fill
-                                className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                unoptimized
-                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                              />
-                            )}
-                            {/* Gradient overlay */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
-                            {/* Status */}
-                            <div className="absolute left-3 top-3">
-                              <StatusBadge status={project.status} />
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Info */}
-                      <div className="p-3.5">
-                        <h3 className="truncate font-display text-sm font-semibold text-foreground transition-colors group-hover:text-[#d4a853]">
-                          {project.title}
-                        </h3>
-                        {project.client_name && (
-                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                            {project.client_name}
-                          </p>
-                        )}
-
-                        <div className="mt-3">
-                          <div className="mb-1.5 flex items-center justify-between">
-                            <span className="text-[10px] text-muted-foreground">Progress</span>
-                            <span className="text-[10px] font-medium text-muted-foreground">
-                              {project.progress}%
-                            </span>
-                          </div>
-                          <Progress
-                            value={project.progress}
-                            className="h-1"
-                            indicatorClassName={getProgressColor(project.progress)}
-                          />
-                        </div>
-
-                        {project.due_date && (
-                          <p className="mt-2.5 text-[10px] text-muted-foreground">
-                            Due {formatDate(project.due_date, "MMM d, yyyy")}
-                          </p>
-                        )}
-                      </div>
-                    </Link>
+                    <ProjectCard key={project.id} project={project} />
                   ))}
 
                   {/* Add project card */}

@@ -19,7 +19,9 @@ import {
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Progress } from "@/components/ui/progress";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
+import { ProjectCard } from "@/components/projects/ProjectCard";
 import { getProjects, deleteProject } from "@/lib/supabase/queries";
+import { getCinematicGradient } from "@/lib/cinematic-images";
 import { toast } from "sonner";
 import type { Project } from "@/types";
 import {
@@ -302,14 +304,11 @@ function ProjectsPageInner() {
 function GridView({
   projects,
   onNew,
-  onDelete,
 }: {
   projects: Project[];
   onNew: () => void;
   onDelete: (id: string, title: string) => void;
 }) {
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {/* New project card */}
@@ -326,106 +325,7 @@ function GridView({
       </button>
 
       {projects.map((project) => (
-        <Link
-          key={project.id}
-          href={`/projects/${project.id}`}
-          className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:border-border/60 hover:shadow-xl hover:shadow-black/25"
-        >
-          {/* Thumbnail */}
-          <div className="relative aspect-video w-full overflow-hidden bg-muted">
-            {project.thumbnail_url ? (
-              <Image
-                src={project.thumbnail_url}
-                alt={project.title}
-                fill
-                className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                unoptimized
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white">
-                <span className="text-base font-semibold">
-                  {project.title
-                    .split(" ")
-                    .slice(0, 2)
-                    .map((word) => word[0])
-                    .join("")
-                    .toUpperCase()}
-                </span>
-              </div>
-            )}
-            <div className="absolute inset-0 bg-gradient-to-t from-card/60 to-transparent" />
-            <div className="absolute left-3 top-3">
-              <StatusBadge status={project.status} />
-            </div>
-            <div className="absolute -right-1 -top-1 flex h-8 w-8 items-center justify-center">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setOpenMenuId(openMenuId === project.id ? null : project.id);
-                }}
-                className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white/80 opacity-0 transition-opacity backdrop-blur-sm group-hover:opacity-100 hover:text-white"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-              
-              {/* Dropdown menu */}
-              {openMenuId === project.id && (
-                <div className="absolute -right-1 top-8 w-40 rounded-lg border border-border bg-card shadow-lg z-50">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onDelete(project.id, project.title);
-                      setOpenMenuId(null);
-                    }}
-                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Info */}
-          <div className="flex flex-1 flex-col p-4">
-            <div className="mb-1 flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <h3 className="truncate font-display text-sm font-semibold text-foreground transition-colors group-hover:text-[#d4a853]">
-                  {project.title}
-                </h3>
-                {project.client_name && (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                    {project.client_name}
-                  </p>
-                )}
-              </div>
-              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {PROJECT_TYPE_LABELS[project.type]}
-              </span>
-            </div>
-
-            <div className="mt-auto pt-3">
-              <div className="mb-1.5 flex items-center justify-between text-[10px] text-muted-foreground">
-                <span>Progress</span>
-                <span>{project.progress}%</span>
-              </div>
-              <Progress
-                value={project.progress}
-                className="h-1"
-                indicatorClassName={getProgressColor(project.progress)}
-              />
-              {project.due_date && (
-                <p className="mt-2.5 text-[10px] text-muted-foreground">
-                  Due {formatDate(project.due_date, "MMM d, yyyy")}
-                </p>
-              )}
-            </div>
-          </div>
-        </Link>
+        <ProjectCard key={project.id} project={project} />
       ))}
     </div>
   );
@@ -464,29 +364,33 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
         >
           {/* Project */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className={`relative shrink-0 overflow-hidden rounded-md bg-muted ${thumbSize}`}>
-              {project.thumbnail_url ? (
-                <Image
-                  src={project.thumbnail_url}
-                  alt={project.title}
-                  fill
-                  className="object-cover"
-                  sizes="56px"
-                  unoptimized
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white">
-                  <span className="text-[10px] font-semibold">
-                    {project.title
-                      .split(" ")
-                      .slice(0, 2)
-                      .map((word) => word[0])
-                      .join("")
-                      .toUpperCase()}
-                  </span>
+            {(() => {
+              const seed = project.id || project.title;
+              const realThumb =
+                project.thumbnail_url &&
+                !project.thumbnail_url.includes("unsplash.com") &&
+                !project.thumbnail_url.includes("picsum.photos")
+                  ? project.thumbnail_url
+                  : null;
+              return (
+                <div
+                  className={`relative shrink-0 overflow-hidden rounded-md ${thumbSize}`}
+                  style={{ background: realThumb ? undefined : getCinematicGradient(seed) }}
+                >
+                  {realThumb && (
+                    <Image
+                      src={realThumb}
+                      alt={project.title}
+                      fill
+                      className="object-cover"
+                      sizes="56px"
+                      unoptimized
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-[#d4a853]">
                 {project.title}
