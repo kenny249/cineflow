@@ -136,8 +136,10 @@ export default function CalendarPage() {
       setNewLocation("");
       setNewType("shoot");
       toast.success("Event created");
-    } catch {
-      toast.error("Failed to create event");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("createCalendarEvent error:", err);
+      toast.error(`Failed to create event: ${msg}`);
     } finally {
       setIsCreating(false);
     }
