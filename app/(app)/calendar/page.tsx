@@ -474,7 +474,7 @@ export default function CalendarPage() {
             ) : (
               <div className="space-y-2">
                 {selectedDayEvents.map((ev) => (
-                  <div key={ev.id} className="group rounded-xl border border-border bg-background p-3 transition-colors hover:border-border/80" onClick={() => setTypePickerId(null)}>
+                  <div key={ev.id} className="group cursor-pointer rounded-xl border border-border bg-background p-3 transition-colors hover:border-[#d4a853]/30 hover:bg-accent/20" onClick={() => { if (cardEditId !== ev.id) openCardEdit(ev); }}>
                     {cardEditId === ev.id && cardEdit ? (
                       /* ── Edit mode ── */
                       <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -552,13 +552,7 @@ export default function CalendarPage() {
                             <span className={`h-2 w-2 shrink-0 rounded-full ${EVENT_DOT[ev.type]}`} />
                             <p className="text-sm font-medium text-foreground truncate">{ev.title}</p>
                           </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); openCardEdit(ev); }}
-                            className="invisible shrink-0 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:bg-accent hover:text-foreground group-hover:visible"
-                            title="Edit event"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
+                          <Pencil className="h-3 w-3 shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
                         </div>
                         {ev.description && <p className="mt-1.5 text-xs text-muted-foreground">{ev.description}</p>}
                         {ev.location && (
