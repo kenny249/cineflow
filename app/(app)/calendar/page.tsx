@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3 } from "lucide-react";
-import { getCalendarEvents, createCalendarEvent, getProjects } from "@/lib/supabase/queries";
+import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, getProjects } from "@/lib/supabase/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -71,6 +71,25 @@ export default function CalendarPage() {
   const [newEndDate, setNewEndDate] = useState("");
   const [newLocation, setNewLocation] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+
+  // Inline editing
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [typePickerId, setTypePickerId] = useState<string | null>(null);
+
+  const commitTitle = async (id: string) => {
+    const trimmed = editingTitle.trim();
+    setEditingId(null);
+    if (!trimmed) return;
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, title: trimmed } : e));
+    try { await updateCalendarEvent(id, { title: trimmed }); } catch { /* silent */ }
+  };
+
+  const commitType = async (id: string, type: CalendarEventType) => {
+    setTypePickerId(null);
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, type } : e));
+    try { await updateCalendarEvent(id, { type }); } catch { /* silent */ }
+  };
 
   useEffect(() => {
     async function load() {
@@ -304,12 +323,51 @@ export default function CalendarPage() {
                 </div>
               ) : (
                 listEvents.map((event) => (
-                  <div key={event.id} className="flex items-start gap-4 rounded-xl border border-border bg-card p-4">
-                    <div className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${EVENT_DOT[event.type] || EVENT_DOT.other}`} />
+                  <div key={event.id} className="flex items-start gap-4 rounded-xl border border-border bg-card p-4" onClick={() => setTypePickerId(null)}>
+                    {/* Type dot */}
+                    <div className="relative mt-1 shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setTypePickerId(typePickerId === event.id ? null : event.id); }}
+                        title="Change type"
+                        className={`h-2.5 w-2.5 rounded-full ${EVENT_DOT[event.type] || EVENT_DOT.other} hover:ring-2 hover:ring-offset-1 hover:ring-offset-background hover:ring-current transition-all`}
+                      />
+                      {typePickerId === event.id && (
+                        <div className="absolute left-0 top-5 z-50 rounded-lg border border-border bg-popover shadow-lg py-1 w-28" onClick={(e) => e.stopPropagation()}>
+                          {EVENT_TYPES.map((t) => (
+                            <button
+                              key={t.value}
+                              onClick={() => commitType(event.id, t.value as CalendarEventType)}
+                              className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${event.type === t.value ? "text-foreground font-medium" : "text-muted-foreground"}`}
+                            >
+                              <span className={`h-2 w-2 rounded-full ${EVENT_DOT[t.value]}`} />
+                              {t.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-foreground">{event.title}</p>
+                        <div className="flex-1 min-w-0">
+                          {editingId === event.id ? (
+                            <input
+                              autoFocus
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onBlur={() => commitTitle(event.id)}
+                              onKeyDown={(e) => { if (e.key === "Enter") commitTitle(event.id); if (e.key === "Escape") setEditingId(null); }}
+                              className="w-full border-0 bg-transparent text-sm font-medium text-foreground outline-none ring-0 p-0"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            <p
+                              className="font-medium text-foreground cursor-text hover:text-[#d4a853] transition-colors"
+                              title="Click to edit"
+                              onClick={(e) => { e.stopPropagation(); setEditingId(event.id); setEditingTitle(event.title); }}
+                            >
+                              {event.title}
+                            </p>
+                          )}
                           {event.description && <p className="mt-0.5 text-sm text-muted-foreground">{event.description}</p>}
                         </div>
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${EVENT_COLORS[event.type]}`}>
@@ -355,10 +413,50 @@ export default function CalendarPage() {
             ) : (
               <div className="space-y-2">
                 {selectedDayEvents.map((ev) => (
-                  <div key={ev.id} className="rounded-xl border border-border bg-background p-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`h-2 w-2 shrink-0 rounded-full ${EVENT_DOT[ev.type]}`} />
-                      <p className="font-medium text-sm text-foreground truncate">{ev.title}</p>
+                  <div key={ev.id} className="rounded-xl border border-border bg-background p-3" onClick={() => setTypePickerId(null)}>
+                    <div className="flex items-start gap-2">
+                      {/* Type dot — click to pick type */}
+                      <div className="relative mt-0.5 shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setTypePickerId(typePickerId === ev.id ? null : ev.id); }}
+                          title="Change type"
+                          className={`h-2.5 w-2.5 rounded-full ${EVENT_DOT[ev.type]} hover:ring-2 hover:ring-offset-1 hover:ring-offset-background hover:ring-current transition-all`}
+                        />
+                        {typePickerId === ev.id && (
+                          <div className="absolute left-0 top-5 z-50 rounded-lg border border-border bg-popover shadow-lg py-1 w-28" onClick={(e) => e.stopPropagation()}>
+                            {EVENT_TYPES.map((t) => (
+                              <button
+                                key={t.value}
+                                onClick={() => commitType(ev.id, t.value as CalendarEventType)}
+                                className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${ev.type === t.value ? "text-foreground font-medium" : "text-muted-foreground"}`}
+                              >
+                                <span className={`h-2 w-2 rounded-full ${EVENT_DOT[t.value]}`} />
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {/* Inline title edit */}
+                      {editingId === ev.id ? (
+                        <input
+                          autoFocus
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onBlur={() => commitTitle(ev.id)}
+                          onKeyDown={(e) => { if (e.key === "Enter") commitTitle(ev.id); if (e.key === "Escape") setEditingId(null); }}
+                          className="flex-1 border-0 bg-transparent text-sm font-medium text-foreground outline-none ring-0 p-0 leading-tight"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <p
+                          className="flex-1 text-sm font-medium text-foreground truncate cursor-text hover:text-[#d4a853] transition-colors"
+                          title="Click to edit"
+                          onClick={(e) => { e.stopPropagation(); setEditingId(ev.id); setEditingTitle(ev.title); }}
+                        >
+                          {ev.title}
+                        </p>
+                      )}
                     </div>
                     {ev.description && <p className="mt-1.5 text-xs text-muted-foreground">{ev.description}</p>}
                     {ev.location && (

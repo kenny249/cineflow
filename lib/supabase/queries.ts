@@ -293,6 +293,39 @@ export async function deleteCalendarEvent(id: string) {
   if (error) throw error;
 }
 
+export async function updateCalendarEvent(id: string, updates: {
+  title?: string;
+  type?: CalendarEventType;
+  description?: string;
+  location?: string;
+  start_date?: string;
+  end_date?: string;
+}) {
+  const dbUpdates: Record<string, unknown> = {};
+  if (updates.title !== undefined) dbUpdates.title = updates.title;
+  if (updates.type !== undefined) dbUpdates.event_type = updates.type;
+  if (updates.description !== undefined) dbUpdates.description = updates.description;
+  if (updates.location !== undefined) dbUpdates.location = updates.location;
+  if (updates.start_date !== undefined) dbUpdates.start_time = updates.start_date;
+  if (updates.end_date !== undefined) dbUpdates.end_time = updates.end_date;
+
+  const { data, error } = await db()
+    .from('calendar_events')
+    .update(dbUpdates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  return {
+    ...data,
+    type: (data as any).event_type as CalendarEventType,
+    start_date: (data as any).start_time,
+    end_date: (data as any).end_time,
+  } as CalendarEvent;
+}
+
 // ─── Profile ─────────────────────────────────────────────────────────────────
 
 export async function getProfile(): Promise<Profile | null> {
