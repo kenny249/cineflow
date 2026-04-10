@@ -24,20 +24,19 @@ export function DashboardParticles() {
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    // Fewer, more subtle particles than login page
-    particles.current = Array.from({ length: 38 }, () => ({
+    particles.current = Array.from({ length: 60 }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
       vx: (Math.random() - 0.5) * 0.18,
       vy: (Math.random() - 0.5) * 0.18,
-      r: 0.5 + Math.random() * 1.0,
-      gold: Math.random() < 0.18,
-      o: 0.025 + Math.random() * 0.055,
+      r: 0.6 + Math.random() * 1.2,
+      gold: Math.random() < 0.25,
+      o: 0.1 + Math.random() * 0.15,
     }));
 
     const REPEL = 90;
     const ATTRACT = 200;
-    const CONNECT = 90;
+    const CONNECT = 120;
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -69,33 +68,43 @@ export function DashboardParticles() {
         if (p.y > canvas.height + 10) p.y = -10;
       }
 
-      // Connection lines — more transparent than login
+      // Connection lines
       for (let i = 0; i < pts.length; i++) {
         for (let j = i + 1; j < pts.length; j++) {
           const dx = pts[i].x - pts[j].x;
           const dy = pts[i].y - pts[j].y;
           const d = Math.sqrt(dx * dx + dy * dy);
           if (d < CONNECT) {
-            const alpha = (1 - d / CONNECT) * 0.045;
+            const alpha = (1 - d / CONNECT) * 0.1;
             ctx.beginPath();
             ctx.moveTo(pts[i].x, pts[i].y);
             ctx.lineTo(pts[j].x, pts[j].y);
             ctx.strokeStyle = (pts[i].gold || pts[j].gold)
               ? `rgba(212,168,83,${alpha})`
-              : `rgba(229,231,235,${alpha * 0.6})`;
+              : `rgba(229,231,235,${alpha})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
         }
       }
 
-      // Dots
+      // Dots with radial glow for gold
       for (const p of pts) {
+        if (p.gold) {
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 6);
+          g.addColorStop(0, `rgba(212,168,83,${p.o})`);
+          g.addColorStop(0.4, `rgba(212,168,83,${p.o * 0.25})`);
+          g.addColorStop(1, `rgba(212,168,83,0)`);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r * 6, 0, Math.PI * 2);
+          ctx.fillStyle = g;
+          ctx.fill();
+        }
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fillStyle = p.gold
           ? `rgba(212,168,83,${p.o})`
-          : `rgba(229,231,235,${p.o * 0.6})`;
+          : `rgba(229,231,235,${p.o})`;
         ctx.fill();
       }
 
@@ -108,14 +117,15 @@ export function DashboardParticles() {
       mouse.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
     const onLeave = () => { mouse.current = { x: -9999, y: -9999 }; };
-    canvas.addEventListener("mousemove", onMove);
-    canvas.addEventListener("mouseleave", onLeave);
+    const parent = canvas.parentElement ?? window;
+    parent.addEventListener("mousemove", onMove as EventListener);
+    parent.addEventListener("mouseleave", onLeave);
 
     return () => {
       cancelAnimationFrame(raf.current);
       ro.disconnect();
-      canvas.removeEventListener("mousemove", onMove);
-      canvas.removeEventListener("mouseleave", onLeave);
+      parent.removeEventListener("mousemove", onMove as EventListener);
+      parent.removeEventListener("mouseleave", onLeave);
     };
   }, []);
 
