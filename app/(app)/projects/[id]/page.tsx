@@ -75,6 +75,7 @@ export default async function SingleProjectPage({ params }: PageProps) {
         initialStoryboardFrames={storyboardFrames}
         initialRevisions={revisions}
         initialMembers={members}
+        userRole="owner"
       />
     </div>
   );

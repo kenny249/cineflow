@@ -414,12 +414,15 @@ export default function ProjectDetailTabs({
     try {
       await updateShotListItem(shotId, { is_complete: newVal });
     } catch {
-      // Revert
-      setShotList({
-        ...shotList,
-        items: shotList.items.map((i) => i.id === shotId ? { ...i, is_complete: item.is_complete } : i),
-      });
-      toast.error("Failed to update shot.");
+      // Only revert + warn for real DB IDs (UUIDs), not locally-generated mock IDs
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shotId);
+      if (isUUID) {
+        setShotList({
+          ...shotList,
+          items: shotList.items.map((i) => i.id === shotId ? { ...i, is_complete: item.is_complete } : i),
+        });
+        toast.error("Failed to update shot.");
+      }
     }
   };
 
