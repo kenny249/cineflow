@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -455,5 +455,120 @@ export async function sendTeamMessage(topicId: string, content: string): Promise
 
 export async function deleteTeamMessage(id: string): Promise<void> {
   const { error } = await db().from('team_messages').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Project Files ────────────────────────────────────────────────────────────
+
+export async function getProjectFiles(projectId: string, tab?: ProjectFileTab): Promise<ProjectFile[]> {
+  let q = db().from('project_files').select('*').eq('project_id', projectId);
+  if (tab) q = q.eq('tab', tab);
+  const { data, error } = await q.order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as ProjectFile[];
+}
+
+export async function createProjectFile(file: Omit<ProjectFile, 'id' | 'created_at'>): Promise<ProjectFile> {
+  const { data, error } = await db().from('project_files').insert(file).select().single();
+  if (error) throw error;
+  return data as ProjectFile;
+}
+
+export async function deleteProjectFile(id: string): Promise<void> {
+  const { error } = await db().from('project_files').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Crew ─────────────────────────────────────────────────────────────────────
+
+export async function getCrewContacts(projectId: string): Promise<CrewContact[]> {
+  const { data, error } = await db().from('crew_contacts').select('*').eq('project_id', projectId).order('sort_order').order('created_at');
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as CrewContact[];
+}
+
+export async function createCrewContact(contact: Omit<CrewContact, 'id' | 'created_at'>): Promise<CrewContact> {
+  const { data, error } = await db().from('crew_contacts').insert(contact).select().single();
+  if (error) throw error;
+  return data as CrewContact;
+}
+
+export async function updateCrewContact(id: string, updates: Partial<CrewContact>): Promise<CrewContact> {
+  const { data, error } = await db().from('crew_contacts').update(updates).eq('id', id).select().single();
+  if (error) throw error;
+  return data as CrewContact;
+}
+
+export async function deleteCrewContact(id: string): Promise<void> {
+  const { error } = await db().from('crew_contacts').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Locations ───────────────────────────────────────────────────────────────
+
+export async function getProjectLocations(projectId: string): Promise<ProjectLocation[]> {
+  const { data, error } = await db().from('project_locations').select('*').eq('project_id', projectId).order('sort_order').order('created_at');
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as ProjectLocation[];
+}
+
+export async function createProjectLocation(location: Omit<ProjectLocation, 'id' | 'created_at'>): Promise<ProjectLocation> {
+  const { data, error } = await db().from('project_locations').insert(location).select().single();
+  if (error) throw error;
+  return data as ProjectLocation;
+}
+
+export async function updateProjectLocation(id: string, updates: Partial<ProjectLocation>): Promise<ProjectLocation> {
+  const { data, error } = await db().from('project_locations').update(updates).eq('id', id).select().single();
+  if (error) throw error;
+  return data as ProjectLocation;
+}
+
+export async function deleteProjectLocation(id: string): Promise<void> {
+  const { error } = await db().from('project_locations').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Wrap Notes ───────────────────────────────────────────────────────────────
+
+export async function getWrapNotes(projectId: string): Promise<WrapNote[]> {
+  const { data, error } = await db().from('wrap_notes').select('*').eq('project_id', projectId).order('production_day', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as WrapNote[];
+}
+
+export async function upsertWrapNote(note: Omit<WrapNote, 'id' | 'created_at' | 'updated_at'>): Promise<WrapNote> {
+  const { data, error } = await db().from('wrap_notes').upsert({ ...note, updated_at: new Date().toISOString() }, { onConflict: 'project_id,production_day' }).select().single();
+  if (error) throw error;
+  return data as WrapNote;
+}
+
+export async function deleteWrapNote(id: string): Promise<void> {
+  const { error } = await db().from('wrap_notes').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Budget ───────────────────────────────────────────────────────────────────
+
+export async function getBudgetLines(projectId: string): Promise<BudgetLine[]> {
+  const { data, error } = await db().from('budget_lines').select('*').eq('project_id', projectId).order('category').order('sort_order');
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as BudgetLine[];
+}
+
+export async function createBudgetLine(line: Omit<BudgetLine, 'id' | 'created_at' | 'updated_at'>): Promise<BudgetLine> {
+  const { data, error } = await db().from('budget_lines').insert(line).select().single();
+  if (error) throw error;
+  return data as BudgetLine;
+}
+
+export async function updateBudgetLine(id: string, updates: Partial<BudgetLine>): Promise<BudgetLine> {
+  const { data, error } = await db().from('budget_lines').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+  if (error) throw error;
+  return data as BudgetLine;
+}
+
+export async function deleteBudgetLine(id: string): Promise<void> {
+  const { error } = await db().from('budget_lines').delete().eq('id', id);
   if (error) throw error;
 }

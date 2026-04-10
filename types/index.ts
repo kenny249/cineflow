@@ -266,3 +266,85 @@ export interface TeamMessage {
   created_at: string;
   updated_at?: string;
 }
+
+// ─── Project Role ─────────────────────────────────────────────────────────────
+// owner / admin → full access including finance
+// team          → upload, edit, view everything except finance
+// client        → view-only restricted scope
+export type ProjectRole = "owner" | "admin" | "team" | "client" | "member";
+
+// ─── Project Files ────────────────────────────────────────────────────────────
+export type ProjectFileTab = "scripts" | "docs" | "locations" | "other";
+
+export interface ProjectFile {
+  id: string;
+  project_id: string;
+  tab: ProjectFileTab;
+  category?: string;
+  name: string;
+  storage_path: string;
+  public_url?: string;
+  size?: number;
+  mime_type?: string;
+  uploaded_by?: string;
+  created_at: string;
+}
+
+// ─── Crew ────────────────────────────────────────────────────────────────────
+export interface CrewContact {
+  id: string;
+  project_id: string;
+  name: string;
+  role: string;
+  department?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+  sort_order?: number;
+  created_by?: string;
+  created_at: string;
+}
+
+// ─── Locations ───────────────────────────────────────────────────────────────
+export interface ProjectLocation {
+  id: string;
+  project_id: string;
+  name: string;
+  address?: string;
+  maps_url?: string;
+  notes?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  sort_order?: number;
+  created_by?: string;
+  created_at: string;
+}
+
+// ─── Wrap Notes ──────────────────────────────────────────────────────────────
+export interface WrapNote {
+  id: string;
+  project_id: string;
+  production_day: string;
+  content: string;
+  issues?: string;
+  outstanding?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Budget ──────────────────────────────────────────────────────────────────
+export interface BudgetLine {
+  id: string;
+  project_id: string;
+  category: string;
+  description: string;
+  budgeted: number;
+  actual?: number;
+  vendor?: string;
+  notes?: string;
+  sort_order?: number;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}

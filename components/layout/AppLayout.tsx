@@ -111,13 +111,13 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
       </div>
 
       {/* ── Mobile bottom navigation ── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-border bg-[#0b0b0b]/95 backdrop-blur-md md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-border bg-[#0b0b0b]/95 backdrop-blur-md md:hidden safe-area-bottom">
         {MOBILE_NAV.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[9px] font-medium tracking-wide transition-colors",
+              "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-[9px] font-medium tracking-wide transition-colors",
               isActive(item.href)
                 ? "text-[#d4a853]"
                 : "text-muted-foreground active:text-foreground"

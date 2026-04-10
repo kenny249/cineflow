@@ -135,6 +135,18 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+  /* Mobile safe area bottom padding */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Touch-friendly tap targets */
+  @media (max-width: 768px) {
+    button, [role="button"], a {
+      -webkit-tap-highlight-color: transparent;
+    }
+  }
+
   /* Scrollbar styling */
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
