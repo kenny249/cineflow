@@ -44,7 +44,38 @@ const COVER_UPDATES = [
   "creative director mood",
 ];
 
-const PROJECT_ROLES = ["Director", "Producer", "Editor", "Client", "DP", "Stylist"] as const;
+const PROJECT_ROLES = [
+  // Direction
+  "Director", "Co-Director", "Assistant Director (1st AD)", "2nd AD", "Script Supervisor",
+  // Production
+  "Producer", "Executive Producer", "Line Producer", "Production Manager",
+  "Production Coordinator", "Production Assistant",
+  // Camera
+  "Director of Photography (DP)", "Camera Operator", "1st AC", "2nd AC",
+  "DIT", "Steadicam Operator", "Drone Operator",
+  // Lighting & Grip
+  "Gaffer", "Best Boy Electric", "Key Grip", "Best Boy Grip", "Spark",
+  // Sound
+  "Sound Mixer", "Boom Operator", "Sound Designer",
+  // Art & Set
+  "Production Designer", "Art Director", "Set Decorator", "Props Master",
+  // Wardrobe
+  "Costume Designer", "Wardrobe Stylist",
+  // Hair & Makeup
+  "Hair Stylist", "Makeup Artist", "SFX Makeup Artist",
+  // Post Production
+  "Editor", "Colorist", "VFX Supervisor", "Motion Graphics Designer", "Post Supervisor",
+  // Music
+  "Composer", "Music Supervisor",
+  // Cast
+  "Lead Actor", "Supporting Actor", "Background / Extra",
+  // Other On-Set
+  "Stunt Coordinator", "Location Manager", "Transport Coordinator",
+  // Creative & Brand
+  "Creative Director", "Agency", "Social Media Manager",
+  // Client-Side
+  "Client", "Client Representative",
+] as const;
 
 export default function ProjectDetailTabs({
   project,
@@ -467,13 +498,26 @@ export default function ProjectDetailTabs({
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    setCoverUrl(url);
+    // Optimistic preview
+    const localUrl = URL.createObjectURL(file);
+    setCoverUrl(localUrl);
+
     try {
-      await updateProject(project.id, { thumbnail_url: url });
-      toast.success("Cover photo updated.");
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${project.id}/cover/cover.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("project-files")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
+      setCoverUrl(publicUrl);
+      await updateProject(project.id, { thumbnail_url: publicUrl });
+      toast.success("Cover photo saved.");
     } catch {
-      toast.error("Cover updated locally.");
+      // Keep local preview but warn it won't persist
+      toast.error("Couldn't save to cloud — cover will reset on refresh.");
     }
   };
 

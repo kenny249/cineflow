@@ -17,6 +17,7 @@ import {
   Users,
   UsersRound,
   ScrollText,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -33,6 +34,7 @@ const NAV_MAIN = [
   { label: "Storyboard",  href: "/storyboard", icon: Layers },
   { label: "Scripts",     href: "/scripts",    icon: ScrollText },
   { label: "Revisions",   href: "/revisions",  icon: UploadCloud },
+  { label: "Finance",     href: "/finance",    icon: DollarSign },
   { label: "Team",        href: "/team",       icon: UsersRound },
 ];
 
