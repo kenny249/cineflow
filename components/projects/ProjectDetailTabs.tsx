@@ -522,15 +522,12 @@ export default function ProjectDetailTabs({
   };
 
   const handleRefreshCover = async () => {
-    const { getCinematicImageUrl } = await import("@/lib/cinematic-images");
-    const url = getCinematicImageUrl(project.title, Math.floor(Math.random() * 12));
-    setCoverUrl(url);
-    try {
-      await updateProject(project.id, { thumbnail_url: url });
-      toast.success("Cover photo refreshed.");
-    } catch {
-      toast.success("Cover refreshed locally.");
-    }
+    const { getCinematicGradient, CINEMATIC_COUNT } = await import("@/lib/cinematic-images");
+    const variant = Math.floor(Math.random() * CINEMATIC_COUNT);
+    const gradient = getCinematicGradient(project.title, variant);
+    // Store variant so the card picks it up, but don't persist a data-URI to DB
+    localStorage.setItem(`cf_thumb_${project.id}`, `__variant:${variant}`);
+    toast.success("Cover style refreshed — upload a photo to make it permanent.");
   };
 
   const availableImageQuery = useMemo(

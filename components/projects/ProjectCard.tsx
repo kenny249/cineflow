@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, PROJECT_TYPE_LABELS, getProgressColor } from "@/lib/utils";
-import { getCinematicImageUrl, CINEMATIC_COUNT } from "@/lib/cinematic-images";
+import { getCinematicGradient, CINEMATIC_COUNT } from "@/lib/cinematic-images";
 import { PhotoCropModal } from "./PhotoCropModal";
 import type { Project } from "@/types";
 
@@ -49,15 +49,17 @@ export function ProjectCard({ project }: ProjectCardProps) {
   }, [storageKey, thumbPosKey]);
 
   const seed = project.id || project.title;
-  // Treat stale Unsplash URLs stored on the project as absent
+  // Only use real uploaded images — stale Unsplash/picsum URLs treated as absent
   const dbThumb =
-    project.thumbnail_url && !project.thumbnail_url.includes("unsplash.com")
+    project.thumbnail_url &&
+    !project.thumbnail_url.includes("unsplash.com") &&
+    !project.thumbnail_url.includes("picsum.photos")
       ? project.thumbnail_url
       : null;
-  const activeThumbnail =
-    (imgError ? null : thumbOverride) ??
-    dbThumb ??
-    getCinematicImageUrl(seed, thumbVariant);
+  // Real image URL to show — null means use gradient fallback
+  const activeThumbnail: string | null = imgError ? null : (thumbOverride ?? dbThumb ?? null);
+  // Gradient shown when no real image exists
+  const gradientBg = getCinematicGradient(seed, thumbVariant);
 
   const handleRegenerate = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -96,33 +98,38 @@ export function ProjectCard({ project }: ProjectCardProps) {
         open={cropOpen}
         onClose={() => setCropOpen(false)}
         onApply={handleCropApply}
-        initialUrl={activeThumbnail}
+        initialUrl={activeThumbnail ?? undefined}
       />
 
       <Link href={`/projects/${project.id}`} className="group block">
         <article className="relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:border-border/60 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5">
           {/* Thumbnail */}
-          <div className="relative aspect-video w-full overflow-hidden bg-muted">
-            <Image
-              src={activeThumbnail}
-              alt={project.title}
-              fill
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              style={{
-                objectPosition: `${thumbPos.x}% ${thumbPos.y}%`,
-                transform: `scale(${thumbPos.scale})`,
-                transformOrigin: `${thumbPos.x}% ${thumbPos.y}%`,
-              }}
-              unoptimized
-              onError={() => {
-                setImgError(true);
-                if (thumbOverride) {
-                  localStorage.removeItem(storageKey);
-                  setThumbOverride(null);
-                }
-              }}
-            />
+          <div
+            className="relative aspect-video w-full overflow-hidden"
+            style={{ background: activeThumbnail ? undefined : gradientBg }}
+          >
+            {activeThumbnail && (
+              <Image
+                src={activeThumbnail}
+                alt={project.title}
+                fill
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                style={{
+                  objectPosition: `${thumbPos.x}% ${thumbPos.y}%`,
+                  transform: `scale(${thumbPos.scale})`,
+                  transformOrigin: `${thumbPos.x}% ${thumbPos.y}%`,
+                }}
+                unoptimized
+                onError={() => {
+                  setImgError(true);
+                  if (thumbOverride) {
+                    localStorage.removeItem(storageKey);
+                    setThumbOverride(null);
+                  }
+                }}
+              />
+            )}
 
             {/* Overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Folder, ChevronDown, ChevronRight, Users, Briefcase } from "lucide-react";
 import { MOCK_PROJECTS } from "@/mock/projects";
-import { getCinematicImageUrl } from "@/lib/cinematic-images";
+import { getCinematicGradient } from "@/lib/cinematic-images";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ export default function ClientsPage() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       description: `Project started for ${newClientName.trim()}`,
-      thumbnail_url: getCinematicImageUrl(newProjectTitle.trim()),
+      thumbnail_url: undefined,
     } as Project;
     setProjects((prev) => [newProject, ...prev]);
     setNewClientName("");

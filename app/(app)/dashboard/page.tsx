@@ -15,7 +15,7 @@ import {
   Sparkles,
   Film,
 } from "lucide-react";
-import { getCinematicImageUrl } from "@/lib/cinematic-images";
+import { getCinematicGradient } from "@/lib/cinematic-images";
 import { getOrCreateDisplayName } from "@/lib/random-name";
 
 const COMPLIMENTS = [
@@ -245,29 +245,39 @@ export default function DashboardPage() {
                       className="group relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:border-border/60 hover:shadow-xl hover:shadow-black/30"
                     >
                       {/* Thumbnail */}
-                      <div className="relative h-36 w-full overflow-hidden bg-muted">
-                        <Image
-                          src={
-                            (project.thumbnail_url && !project.thumbnail_url.includes("unsplash.com"))
-                              ? project.thumbnail_url
-                              : getCinematicImageUrl(project.id || project.title)
-                          }
-                          alt={project.title}
-                          fill
-                          className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                          unoptimized
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src = getCinematicImageUrl(project.title, 1);
-                          }}
-                        />
-                        {/* Gradient */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
-                        {/* Status */}
-                        <div className="absolute left-3 top-3">
-                          <StatusBadge status={project.status} />
-                        </div>
-                      </div>
+                      {(() => {
+                        const seed = project.id || project.title;
+                        const realThumb =
+                          project.thumbnail_url &&
+                          !project.thumbnail_url.includes("unsplash.com") &&
+                          !project.thumbnail_url.includes("picsum.photos")
+                            ? project.thumbnail_url
+                            : null;
+                        return (
+                          <div
+                            className="relative h-36 w-full overflow-hidden"
+                            style={{ background: realThumb ? undefined : getCinematicGradient(seed) }}
+                          >
+                            {realThumb && (
+                              <Image
+                                src={realThumb}
+                                alt={project.title}
+                                fill
+                                className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                                unoptimized
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                              />
+                            )}
+                            {/* Gradient overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-card via-card/20 to-transparent" />
+                            {/* Status */}
+                            <div className="absolute left-3 top-3">
+                              <StatusBadge status={project.status} />
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Info */}
                       <div className="p-3.5">
