@@ -72,14 +72,71 @@ export default function CalendarPage() {
   const [newLocation, setNewLocation] = useState("");
   const [isCreating, setIsCreating] = useState(false);
 
-  // Inline editing
+  // Inline editing — per field
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [typePickerId, setTypePickerId] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<{ id: string; field: "description" | "location" | "time" } | null>(null);
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [editingFieldName, setEditingFieldName] = useState<"description" | "location" | "time" | null>(null);
   const [editingFieldValue, setEditingFieldValue] = useState("");
+  // time picker state (hour 1-12, minute 00/15/30/45, ampm)
+  const [timeHour, setTimeHour] = useState("12");
+  const [timeMinute, setTimeMinute] = useState("00");
+  const [timeAmPm, setTimeAmPm] = useState<"AM" | "PM">("PM");
 
-  // Card edit mode
+  const openTimeEdit = (ev: CalendarEvent) => {
+    const d = new Date(ev.start_date);
+    let h = d.getHours();
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    setTimeHour(String(h));
+    setTimeMinute(String(d.getMinutes()).padStart(2, "0"));
+    setTimeAmPm(ampm);
+    setEditingFieldId(ev.id);
+    setEditingFieldName("time");
+  };
+
+  const commitTimeEdit = async (id: string) => {
+    setEditingFieldId(null);
+    setEditingFieldName(null);
+    let h = Number(timeHour) % 12;
+    if (timeAmPm === "PM") h += 12;
+    const ev = events.find((e) => e.id === id);
+    if (!ev) return;
+    const d = new Date(ev.start_date);
+    d.setHours(h, Number(timeMinute));
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, start_date: d.toISOString() } : e));
+    try { await updateCalendarEvent(id, { start_date: d.toISOString() }); } catch { /* silent */ }
+  };
+
+  const commitTitle = async (id: string) => {
+    const trimmed = editingTitle.trim();
+    setEditingId(null);
+    if (!trimmed) return;
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, title: trimmed } : e));
+    try { await updateCalendarEvent(id, { title: trimmed }); } catch { /* silent */ }
+  };
+
+  const commitType = async (id: string, type: CalendarEventType) => {
+    setTypePickerId(null);
+    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, type } : e));
+    try { await updateCalendarEvent(id, { type }); } catch { /* silent */ }
+  };
+
+  const commitFieldText = async (id: string, field: "description" | "location") => {
+    const val = editingFieldValue.trim();
+    setEditingFieldId(null);
+    setEditingFieldName(null);
+    if (field === "description") {
+      setEvents((prev) => prev.map((e) => e.id === id ? { ...e, description: val || undefined } : e));
+      try { await updateCalendarEvent(id, { description: val || undefined }); } catch { /* silent */ }
+    } else {
+      setEvents((prev) => prev.map((e) => e.id === id ? { ...e, location: val || undefined } : e));
+      try { await updateCalendarEvent(id, { location: val || undefined }); } catch { /* silent */ }
+    }
+  };
+
+  // Card edit (full form via pencil)
   const [cardEditId, setCardEditId] = useState<string | null>(null);
   const [cardEdit, setCardEdit] = useState<{ title: string; type: CalendarEventType; description: string; location: string; time: string } | null>(null);
 
@@ -101,55 +158,6 @@ export default function CalendarPage() {
     setCardEditId(null);
     setCardEdit(null);
     try { await updateCalendarEvent(id, updates); } catch { toast.error("Failed to save"); }
-  };
-
-  const commitTitle = async (id: string) => {
-    const trimmed = editingTitle.trim();
-    setEditingId(null);
-    if (!trimmed) return;
-    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, title: trimmed } : e));
-    try { await updateCalendarEvent(id, { title: trimmed }); } catch { /* silent */ }
-  };
-
-  const commitType = async (id: string, type: CalendarEventType) => {
-    setTypePickerId(null);
-    setEvents((prev) => prev.map((e) => e.id === id ? { ...e, type } : e));
-    try { await updateCalendarEvent(id, { type }); } catch { /* silent */ }
-  };
-
-  const startFieldEdit = (id: string, field: "description" | "location" | "time", currentValue: string) => {
-    setEditingField({ id, field });
-    setEditingFieldValue(currentValue);
-  };
-
-  const commitField = async (id: string, field: "description" | "location" | "time") => {
-    const val = editingFieldValue.trim();
-    setEditingField(null);
-    if (field === "description") {
-      setEvents((prev) => prev.map((e) => e.id === id ? { ...e, description: val || undefined } : e));
-      try { await updateCalendarEvent(id, { description: val || undefined }); } catch { /* silent */ }
-    } else if (field === "location") {
-      setEvents((prev) => prev.map((e) => e.id === id ? { ...e, location: val || undefined } : e));
-      try { await updateCalendarEvent(id, { location: val || undefined }); } catch { /* silent */ }
-    } else if (field === "time") {
-      if (!val) return;
-      setEvents((prev) => prev.map((e) => {
-        if (e.id !== id) return e;
-        const existing = new Date(e.start_date);
-        const [h, m] = val.split(":").map(Number);
-        existing.setHours(h, m);
-        return { ...e, start_date: existing.toISOString() };
-      }));
-      try {
-        const ev = events.find((e) => e.id === id);
-        if (ev) {
-          const d = new Date(ev.start_date);
-          const [h, m] = val.split(":").map(Number);
-          d.setHours(h, m);
-          await updateCalendarEvent(id, { start_date: d.toISOString() });
-        }
-      } catch { /* silent */ }
-    }
   };
 
   useEffect(() => {
@@ -474,7 +482,7 @@ export default function CalendarPage() {
             ) : (
               <div className="space-y-2">
                 {selectedDayEvents.map((ev) => (
-                  <div key={ev.id} className="group cursor-pointer rounded-xl border border-border bg-background p-3 transition-colors hover:border-[#d4a853]/30 hover:bg-accent/20" onClick={() => { if (cardEditId !== ev.id) openCardEdit(ev); }}>
+                  <div key={ev.id} className="group rounded-xl border border-border bg-background p-3 transition-colors hover:border-border/60">
                     {cardEditId === ev.id && cardEdit ? (
                       /* ── Edit mode ── */
                       <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -548,22 +556,123 @@ export default function CalendarPage() {
                       /* ── Read mode ── */
                       <>
                         <div className="flex items-start justify-between gap-1">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className={`h-2 w-2 shrink-0 rounded-full ${EVENT_DOT[ev.type]}`} />
-                            <p className="text-sm font-medium text-foreground truncate">{ev.title}</p>
+                          {/* Type dot — click to change */}
+                          <div className="relative mt-1 shrink-0">
+                            <button
+                              onClick={() => setTypePickerId(typePickerId === ev.id ? null : ev.id)}
+                              title="Change type"
+                              className={`h-2.5 w-2.5 rounded-full ${EVENT_DOT[ev.type]} ring-offset-background transition-all hover:ring-2 hover:ring-current hover:ring-offset-1`}
+                            />
+                            {typePickerId === ev.id && (
+                              <div className="absolute left-0 top-5 z-50 w-28 rounded-lg border border-border bg-popover py-1 shadow-lg">
+                                {EVENT_TYPES.map((t) => (
+                                  <button
+                                    key={t.value}
+                                    onClick={() => commitType(ev.id, t.value as CalendarEventType)}
+                                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${ev.type === t.value ? "font-semibold text-foreground" : "text-muted-foreground"}`}
+                                  >
+                                    <span className={`h-2 w-2 rounded-full ${EVENT_DOT[t.value]}`} />{t.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <Pencil className="h-3 w-3 shrink-0 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
+
+                          {/* Title — click to edit inline */}
+                          <div className="flex-1 min-w-0 mx-2">
+                            {editingId === ev.id ? (
+                              <input
+                                autoFocus
+                                value={editingTitle}
+                                onChange={(e) => setEditingTitle(e.target.value)}
+                                onBlur={() => commitTitle(ev.id)}
+                                onKeyDown={(e) => { if (e.key === "Enter") commitTitle(ev.id); if (e.key === "Escape") setEditingId(null); }}
+                                className="w-full rounded bg-accent/40 px-1.5 py-0.5 text-sm font-medium text-foreground outline-none"
+                              />
+                            ) : (
+                              <p
+                                className="cursor-text text-sm font-medium text-foreground truncate hover:text-[#d4a853] transition-colors"
+                                onClick={() => { setEditingId(ev.id); setEditingTitle(ev.title); }}
+                              >{ev.title}</p>
+                            )}
+                          </div>
+
+                          {/* Pencil — opens full edit form */}
+                          <button
+                            onClick={() => openCardEdit(ev)}
+                            className="shrink-0 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-accent hover:text-foreground group-hover:text-muted-foreground"
+                            title="Edit all fields"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
                         </div>
-                        {ev.description && <p className="mt-1.5 text-xs text-muted-foreground">{ev.description}</p>}
-                        {ev.location && (
-                          <p className="mt-1.5 flex items-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="h-3 w-3 shrink-0" />{ev.location}
+
+                        {/* Description */}
+                        {editingFieldId === ev.id && editingFieldName === "description" ? (
+                          <textarea
+                            autoFocus
+                            rows={2}
+                            value={editingFieldValue}
+                            onChange={(e) => setEditingFieldValue(e.target.value)}
+                            onBlur={() => commitFieldText(ev.id, "description")}
+                            onKeyDown={(e) => { if (e.key === "Escape") { setEditingFieldId(null); setEditingFieldName(null); } if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitFieldText(ev.id, "description"); } }}
+                            placeholder="Add notes…"
+                            className="mt-1.5 w-full resize-none rounded bg-accent/40 px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground/40"
+                          />
+                        ) : (
+                          <p
+                            className={`mt-1.5 cursor-text text-xs transition-colors ${ev.description ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/25 hover:text-muted-foreground/50"}`}
+                            onClick={() => { setEditingFieldId(ev.id); setEditingFieldName("description"); setEditingFieldValue(ev.description ?? ""); }}
+                          >{ev.description || "Add notes…"}</p>
+                        )}
+
+                        {/* Location */}
+                        {editingFieldId === ev.id && editingFieldName === "location" ? (
+                          <input
+                            autoFocus
+                            value={editingFieldValue}
+                            onChange={(e) => setEditingFieldValue(e.target.value)}
+                            onBlur={() => commitFieldText(ev.id, "location")}
+                            onKeyDown={(e) => { if (e.key === "Enter") commitFieldText(ev.id, "location"); if (e.key === "Escape") { setEditingFieldId(null); setEditingFieldName(null); } }}
+                            placeholder="Add location…"
+                            className="mt-1.5 w-full rounded bg-accent/40 px-2 py-0.5 text-xs text-foreground outline-none placeholder:text-muted-foreground/40"
+                          />
+                        ) : (
+                          <p
+                            className={`mt-1.5 flex cursor-text items-center gap-1 text-xs transition-colors ${ev.location ? "text-muted-foreground hover:text-foreground" : "text-muted-foreground/25 hover:text-muted-foreground/50"}`}
+                            onClick={() => { setEditingFieldId(ev.id); setEditingFieldName("location"); setEditingFieldValue(ev.location ?? ""); }}
+                          >
+                            <MapPin className="h-3 w-3 shrink-0" />{ev.location || "Add location…"}
                           </p>
                         )}
-                        <p className="mt-1.5 flex items-center gap-1 text-[10px] text-muted-foreground">
-                          <Clock className="h-3 w-3 shrink-0" />
-                          {new Date(ev.start_date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                        </p>
+
+                        {/* Time — custom hour/min/ampm selects */}
+                        {editingFieldId === ev.id && editingFieldName === "time" ? (
+                          <div className="mt-1.5 flex items-center gap-1">
+                            <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                            <select value={timeHour} onChange={(e) => setTimeHour(e.target.value)} className="rounded bg-accent/40 px-1 py-0.5 text-xs text-foreground outline-none">
+                              {[1,2,3,4,5,6,7,8,9,10,11,12].map((h) => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            <span className="text-xs text-muted-foreground">:</span>
+                            <select value={timeMinute} onChange={(e) => setTimeMinute(e.target.value)} className="rounded bg-accent/40 px-1 py-0.5 text-xs text-foreground outline-none">
+                              {["00","15","30","45"].map((m) => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                            <select value={timeAmPm} onChange={(e) => setTimeAmPm(e.target.value as "AM" | "PM")} className="rounded bg-accent/40 px-1 py-0.5 text-xs text-foreground outline-none">
+                              <option>AM</option>
+                              <option>PM</option>
+                            </select>
+                            <button onClick={() => commitTimeEdit(ev.id)} className="ml-1 rounded bg-[#d4a853] px-1.5 py-0.5 text-[10px] font-semibold text-black">✓</button>
+                            <button onClick={() => { setEditingFieldId(null); setEditingFieldName(null); }} className="rounded px-1 py-0.5 text-[10px] text-muted-foreground hover:text-foreground">✕</button>
+                          </div>
+                        ) : (
+                          <p
+                            className="mt-1.5 flex cursor-pointer items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                            onClick={() => openTimeEdit(ev)}
+                          >
+                            <Clock className="h-3 w-3 shrink-0" />
+                            {new Date(ev.start_date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                          </p>
+                        )}
                       </>
                     )}
                   </div>
