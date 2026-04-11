@@ -20,7 +20,7 @@ import { useCompletionBurst, BurstRenderer } from "@/components/shared/Completio
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole, ReviewToken, PortalDeliverable } from "@/types";
-import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame, createStoryboardFrame } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
 import { WrapNotesTab } from "@/components/projects/tabs/WrapNotesTab";
@@ -698,34 +698,51 @@ export default function ProjectDetailTabs({
     }
   };
 
-  const handleAddFrame = () => {
+  const [addingFrame, setAddingFrame] = useState(false);
+
+  const handleAddFrame = async () => {
     if (!newFrameTitle.trim() || !newFrameDescription.trim()) {
       toast.error("Please add a title and description for the frame.");
       return;
     }
 
-    const nextFrame: StoryboardFrame = {
-      id: `sb_${Math.random().toString(36).slice(2)}`,
-      project_id: project.id,
-      frame_number: storyboardFrames.length + 1,
-      title: newFrameTitle.trim(),
-      description: newFrameDescription.trim(),
-      image_url: undefined,
-      shot_duration: newFrameDuration.trim() || "00:00:05",
-      camera_angle: newFrameCameraAngle.trim() || undefined,
-      mood: newFrameMood.trim() || undefined,
-      notes: undefined,
-      created_at: new Date().toISOString(),
-    };
-
-    setStoryboardFrames((prev) => [...prev, nextFrame]);
-    setShowFrameDialog(false);
-    setNewFrameTitle("");
-    setNewFrameDescription("");
-    setNewFrameCameraAngle("");
-    setNewFrameDuration("00:00:05");
-    setNewFrameMood("");
-    toast.success("Storyboard frame created.");
+    setAddingFrame(true);
+    try {
+      const created = await createStoryboardFrame({
+        project_id: project.id,
+        frame_number: storyboardFrames.length + 1,
+        title: newFrameTitle.trim(),
+        description: newFrameDescription.trim(),
+        shot_duration: newFrameDuration.trim() || "00:00:05",
+        camera_angle: newFrameCameraAngle.trim() || undefined,
+        mood: newFrameMood.trim() || undefined,
+      });
+      setStoryboardFrames((prev) => [...prev, created]);
+      toast.success("Storyboard frame created.");
+    } catch {
+      // Fallback: add locally with temp ID so the UI isn't broken
+      const fallback: StoryboardFrame = {
+        id: `sb_${Math.random().toString(36).slice(2)}`,
+        project_id: project.id,
+        frame_number: storyboardFrames.length + 1,
+        title: newFrameTitle.trim(),
+        description: newFrameDescription.trim(),
+        shot_duration: newFrameDuration.trim() || "00:00:05",
+        camera_angle: newFrameCameraAngle.trim() || undefined,
+        mood: newFrameMood.trim() || undefined,
+        created_at: new Date().toISOString(),
+      };
+      setStoryboardFrames((prev) => [...prev, fallback]);
+      toast.success("Frame added locally.");
+    } finally {
+      setAddingFrame(false);
+      setShowFrameDialog(false);
+      setNewFrameTitle("");
+      setNewFrameDescription("");
+      setNewFrameCameraAngle("");
+      setNewFrameDuration("00:00:05");
+      setNewFrameMood("");
+    }
   };
 
   // ── Storyboard image upload ──
@@ -2316,7 +2333,10 @@ export default function ProjectDetailTabs({
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowFrameDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddFrame}>Add frame</Button>
+            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddFrame} disabled={addingFrame}>
+              {addingFrame ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black mr-1.5" /> : null}
+              Add frame
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
