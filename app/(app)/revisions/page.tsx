@@ -176,9 +176,6 @@ export default function RevisionsPage() {
 
     try {
       const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
 
       const sanitized = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const storagePath = `${selectedProjectId}/revisions/${Date.now()}_${sanitized}`;
@@ -206,7 +203,6 @@ export default function RevisionsPage() {
         file_url: urlData.publicUrl,
         file_type: uploadFile.type || "video/mp4",
         file_size: uploadFile.size,
-        created_by: user?.id,
       });
 
       clearInterval(timer);
