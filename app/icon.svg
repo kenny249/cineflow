@@ -1,18 +1,12 @@
-<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cineflow favicon">
   <defs>
-    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="2.5" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <radialGradient id="ambient" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#d4a853" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
-    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f0c97a"/>
+      <stop offset="100%" stop-color="#d4a853"/>
+    </linearGradient>
   </defs>
-  <!-- Black background -->
-  <rect width="32" height="32" rx="6" fill="#000000"/>
-  <!-- Soft ambient glow -->
-  <rect width="32" height="32" rx="6" fill="url(#ambient)"/>
-  <!-- Glowing play triangle -->
-  <polygon points="12,9.5 12,22.5 23,16" fill="#d4a853" filter="url(#glow)"/>
+
+  <rect x="1" y="1" width="30" height="30" rx="8" fill="#080808"/>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="none" stroke="rgba(255,255,255,0.08)"/>
+  <polygon points="12,9.5 12,22.5 22.5,16" fill="url(#gold)"/>
 </svg>

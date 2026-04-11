@@ -117,8 +117,8 @@ function InviteModal({ onClose, onInvited }: { onClose: () => void; onInvited: (
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold text-foreground">Invite Team Member</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
@@ -228,8 +228,8 @@ function NewTopicModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold text-foreground">New Topic</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
@@ -306,26 +306,59 @@ function NewProjectTopicModal({
   existingTopics,
   onClose,
   onCreated,
+  onOpenExisting,
 }: {
   projects: Project[];
   existingTopics: TeamTopic[];
   onClose: () => void;
   onCreated: (t: TeamTopic) => void;
+  onOpenExisting: (t: TeamTopic) => void;
 }) {
   const [selected, setSelected] = useState<Project | null>(null);
   const [loading, setLoading] = useState(false);
-  const existingProjectIds = new Set(
-    existingTopics
-      .filter((t) => t.name.startsWith("proj:"))
-      .map((t) => t.description ?? "")
-  );
+  const selectedOrFirst = selected ?? projects[0] ?? null;
+
+  function normalizeChannelName(value: string) {
+    return value
+      .toLowerCase()
+      .replace(/^proj:/, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function findExistingTopicForProject(project: Project) {
+    const byId = existingTopics.find(
+      (t) => t.name.startsWith("proj:") && t.description === project.id
+    );
+    if (byId) return byId;
+
+    const projectKey = normalizeChannelName(project.title);
+    return existingTopics.find((t) => t.name.startsWith("proj:") && normalizeChannelName(t.name) === projectKey) ?? null;
+  }
+
+  useEffect(() => {
+    if (projects.length === 0) {
+      setSelected(null);
+      return;
+    }
+    setSelected((prev) => {
+      if (prev && projects.some((p) => p.id === prev.id)) return prev;
+      return projects[0];
+    });
+  }, [projects]);
 
   async function handleCreate() {
-    if (!selected) return;
+    if (!selectedOrFirst) return;
+    const existingTopic = findExistingTopicForProject(selectedOrFirst);
+    if (existingTopic) {
+      onOpenExisting(existingTopic);
+      onClose();
+      return;
+    }
     setLoading(true);
     try {
-      const topicName = `proj:${selected.title}`;
-      const topic = await createTeamTopic(topicName, selected.id, "🎬");
+      const topicName = `proj:${selectedOrFirst.title}`;
+      const topic = await createTeamTopic(topicName, selectedOrFirst.id, "🎬");
       onCreated(topic);
       toast.success(`Project channel created`);
       onClose();
@@ -337,8 +370,8 @@ function NewProjectTopicModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl">
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h2 className="font-display text-lg font-bold text-foreground">Project Channel</h2>
@@ -353,17 +386,17 @@ function NewProjectTopicModal({
             <p className="py-8 text-center text-sm text-muted-foreground">No projects found</p>
           ) : (
             projects.map((p) => {
-              const alreadyExists = existingProjectIds.has(p.id);
+              const alreadyExists = !!findExistingTopicForProject(p);
               return (
                 <button
                   key={p.id}
-                  onClick={() => !alreadyExists && setSelected(p)}
-                  disabled={alreadyExists}
+                  onClick={() => setSelected(p)}
+                  onMouseDown={() => setSelected(p)}
                   className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
-                    alreadyExists
-                      ? "cursor-not-allowed border-border opacity-40"
-                      : selected?.id === p.id
+                    selected?.id === p.id
                       ? "border-[#d4a853]/50 bg-[#d4a853]/10"
+                      : alreadyExists
+                      ? "border-border/70 hover:border-[#d4a853]/20 hover:bg-muted/10"
                       : "border-border hover:border-[#d4a853]/30 hover:bg-muted/20"
                   }`}
                 >
@@ -384,11 +417,11 @@ function NewProjectTopicModal({
           </button>
           <button
             onClick={handleCreate}
-            disabled={!selected || loading}
+            disabled={!selectedOrFirst || loading}
             className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-4 py-2 text-sm font-semibold text-black hover:bg-[#c49843] transition-colors disabled:opacity-60"
           >
             {loading ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : <Film className="h-3.5 w-3.5" />}
-            Create Channel
+            {selectedOrFirst && findExistingTopicForProject(selectedOrFirst) ? "Open Channel" : "Create Channel"}
           </button>
         </div>
       </div>
@@ -1005,6 +1038,10 @@ export default function TeamPage() {
           onClose={() => setNewProjectTopicOpen(false)}
           onCreated={(t) => {
             setTopics((prev) => [...prev, t]);
+            setActiveTopic(t);
+            setPanel("chat");
+          }}
+          onOpenExisting={(t) => {
             setActiveTopic(t);
             setPanel("chat");
           }}

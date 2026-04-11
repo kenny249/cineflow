@@ -8,6 +8,11 @@
         "/^node --input-type=module --eval \"import\\('\\./app/\\(app\\)/tasks/page\\.tsx'\\)\" 2>&1 \\| head -5; grep -n \"export default\\\\\\|function TasksPage\\\\\\|function CheckButton\\\\\\|function TasksCanvas\\\\\\|function computeStreak\" \"app/\\(app\\)/tasks/page\\.tsx\"$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "git remote": true,
+        "true": true,
+        "command": true,
+        "npx --yes vercel": true,
+        "vercel": true
     }
 }

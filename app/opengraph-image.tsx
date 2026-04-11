@@ -1,11 +1,9 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "Cineflow · Creative Project Management for Filmmakers";
+export const alt = "Cineflow";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-
-const PERFS = Array.from({ length: 22 });
 
 export default function Image() {
   return new ImageResponse(
@@ -15,179 +13,89 @@ export default function Image() {
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "#0a0a0a",
-          position: "relative",
-          overflow: "hidden",
+          background: "#090909",
           fontFamily: "sans-serif",
+          position: "relative",
         }}
       >
-        {/* Ambient gold glow */}
         <div
           style={{
             position: "absolute",
-            top: "-100px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "900px",
-            height: "600px",
-            borderRadius: "50%",
+            inset: 0,
             background:
-              "radial-gradient(ellipse at center, rgba(212,168,83,0.12) 0%, transparent 65%)",
+              "radial-gradient(circle at 50% 35%, rgba(212,168,83,0.14) 0%, rgba(212,168,83,0.03) 32%, transparent 65%)",
             display: "flex",
           }}
         />
 
-        {/* Top film strip */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "72px",
-            background: "#111111",
-            display: "flex",
-            alignItems: "center",
-            paddingLeft: "20px",
-            gap: "16px",
-            borderBottom: "1px solid rgba(212,168,83,0.08)",
-          }}
-        >
-          {PERFS.map((_, i) => (
-            <div
-              key={i}
-              style={{
-                width: "36px",
-                height: "38px",
-                borderRadius: "5px",
-                background: "rgba(212,168,83,0.18)",
-                flexShrink: 0,
-                display: "flex",
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Bottom film strip */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: "72px",
-            background: "#111111",
-            display: "flex",
-            alignItems: "center",
-            paddingLeft: "20px",
-            gap: "16px",
-            borderTop: "1px solid rgba(212,168,83,0.08)",
-          }}
-        >
-          {PERFS.map((_, i) => (
-            <div
-              key={i}
-              style={{
-                width: "36px",
-                height: "38px",
-                borderRadius: "5px",
-                background: "rgba(212,168,83,0.18)",
-                flexShrink: 0,
-                display: "flex",
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Center content */}
         <div
           style={{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: "0px",
+            gap: "24px",
             zIndex: 1,
           }}
         >
-          {/* Film icon badge */}
           <div
             style={{
-              width: "68px",
-              height: "68px",
+              width: "64px",
+              height: "64px",
               borderRadius: "16px",
-              background: "rgba(212,168,83,0.1)",
-              border: "1.5px solid rgba(212,168,83,0.35)",
+              background: "#0d0d0d",
+              border: "1px solid rgba(255,255,255,0.12)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              marginBottom: "28px",
             }}
           >
-            {/* SVG film strip icon */}
-            <svg width="38" height="38" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="9" width="28" height="14" rx="2" fill="#1c1c1c"/>
-              <rect x="4" y="11" width="3.5" height="4" rx="0.8" fill="#d4a853"/>
-              <rect x="4" y="17" width="3.5" height="4" rx="0.8" fill="#d4a853"/>
-              <rect x="24.5" y="11" width="3.5" height="4" rx="0.8" fill="#d4a853"/>
-              <rect x="24.5" y="17" width="3.5" height="4" rx="0.8" fill="#d4a853"/>
-              <rect x="9" y="10" width="14" height="12" rx="1" fill="#2a2a2a"/>
-              <polygon points="13.5,13 13.5,19 20,16" fill="#d4a853"/>
+            <svg width="34" height="34" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#f0c97a" />
+                  <stop offset="100%" stopColor="#d4a853" />
+                </linearGradient>
+              </defs>
+              <polygon points="11,8.5 11,23.5 23,16" fill="url(#g)" />
             </svg>
           </div>
 
-          {/* Wordmark */}
           <div
             style={{
-              fontSize: "100px",
-              fontWeight: 800,
-              letterSpacing: "-3px",
-              color: "#ffffff",
-              lineHeight: 1,
               display: "flex",
+              alignItems: "baseline",
+              letterSpacing: "-2px",
+              lineHeight: 1,
+              fontWeight: 800,
+              fontSize: "92px",
+              color: "#ffffff",
             }}
           >
             CINE
             <span style={{ color: "#d4a853", display: "flex" }}>FLOW</span>
           </div>
 
-          {/* Gold divider */}
           <div
             style={{
-              width: "240px",
-              height: "2px",
-              background:
-                "linear-gradient(90deg, transparent 0%, #d4a853 30%, #d4a853 70%, transparent 100%)",
-              margin: "28px 0 24px",
-              display: "flex",
-            }}
-          />
-
-          {/* Tagline */}
-          <div
-            style={{
-              fontSize: "22px",
-              color: "rgba(255,255,255,0.45)",
-              letterSpacing: "4px",
-              textTransform: "uppercase",
+              fontSize: "30px",
+              color: "rgba(255,255,255,0.64)",
+              letterSpacing: "0.4px",
               display: "flex",
             }}
           >
-            Creative project management for filmmakers
+            Project workspace for film teams.
           </div>
         </div>
 
-        {/* URL badge bottom-right */}
         <div
           style={{
             position: "absolute",
-            bottom: "88px",
-            right: "56px",
-            fontSize: "16px",
-            color: "rgba(212,168,83,0.65)",
-            letterSpacing: "1px",
+            bottom: "38px",
+            fontSize: "20px",
+            color: "rgba(255,255,255,0.34)",
+            letterSpacing: "0.6px",
             display: "flex",
           }}
         >
