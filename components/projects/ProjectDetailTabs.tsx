@@ -15,12 +15,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package } from "lucide-react";
+import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon } from "lucide-react";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole, ReviewToken, PortalDeliverable } from "@/types";
-import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
 import { WrapNotesTab } from "@/components/projects/tabs/WrapNotesTab";
@@ -436,9 +436,59 @@ export default function ProjectDetailTabs({
   // ── Storyboard image upload ──
   const [uploadingFrameId, setUploadingFrameId] = useState<string | null>(null);
 
+  // ── Storyboard edit / delete ──
+  const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null);
+  const [editFrameForm, setEditFrameForm] = useState<Partial<StoryboardFrame>>({});
+  const [savingEditFrame, setSavingEditFrame] = useState(false);
+  const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null);
+
+  async function saveEditFrame() {
+    if (!editingFrame) return;
+    setSavingEditFrame(true);
+    try {
+      const updates: Partial<StoryboardFrame> = {
+        title: editFrameForm.title ?? "",
+        description: editFrameForm.description ?? "",
+        camera_angle: editFrameForm.camera_angle ?? "",
+        shot_duration: editFrameForm.shot_duration ?? "",
+        mood: editFrameForm.mood ?? "",
+        notes: editFrameForm.notes ?? "",
+      };
+      // Only call DB if it's a real persisted frame
+      if (!editingFrame.id.startsWith("sb_")) {
+        await updateStoryboardFrame(editingFrame.id, updates);
+      }
+      setStoryboardFrames((prev) => prev.map((f) => f.id === editingFrame.id ? { ...f, ...updates } : f));
+      setEditingFrame(null);
+      toast.success("Frame updated.");
+    } catch {
+      toast.error("Failed to save frame.");
+    } finally {
+      setSavingEditFrame(false);
+    }
+  }
+
+  async function handleDeleteFrame(frameId: string) {
+    setDeletingFrameId(frameId);
+    try {
+      if (!frameId.startsWith("sb_")) {
+        await deleteStoryboardFrame(frameId);
+      }
+      setStoryboardFrames((prev) => prev.filter((f) => f.id !== frameId));
+      toast.success("Frame deleted.");
+    } catch {
+      toast.error("Failed to delete frame.");
+    } finally {
+      setDeletingFrameId(null);
+    }
+  }
+
   const [showFrameDialog, setShowFrameDialog] = useState(false);
   const [newFrameTitle, setNewFrameTitle] = useState("");
   const [newFrameDescription, setNewFrameDescription] = useState("");
+  const [newFrameCameraAngle, setNewFrameCameraAngle] = useState("");
+  const [newFrameDuration, setNewFrameDuration] = useState("00:00:05");
+  const [newFrameMood, setNewFrameMood] = useState("");
 
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [newRevisionTitle, setNewRevisionTitle] = useState("");
@@ -660,17 +710,21 @@ export default function ProjectDetailTabs({
       frame_number: storyboardFrames.length + 1,
       title: newFrameTitle.trim(),
       description: newFrameDescription.trim(),
-      image_url: `https://source.unsplash.com/1200x675/?cinematic,${encodeURIComponent(project.title)}`,
-      shot_duration: "00:00:05",
-      camera_angle: "Wide / Eye level",
-      notes: "Created for the storyboard.",
+      image_url: undefined,
+      shot_duration: newFrameDuration.trim() || "00:00:05",
+      camera_angle: newFrameCameraAngle.trim() || undefined,
+      mood: newFrameMood.trim() || undefined,
+      notes: undefined,
       created_at: new Date().toISOString(),
     };
 
-    setStoryboardFrames((prev) => [nextFrame, ...prev]);
+    setStoryboardFrames((prev) => [...prev, nextFrame]);
     setShowFrameDialog(false);
     setNewFrameTitle("");
     setNewFrameDescription("");
+    setNewFrameCameraAngle("");
+    setNewFrameDuration("00:00:05");
+    setNewFrameMood("");
     toast.success("Storyboard frame created.");
   };
 
@@ -1473,28 +1527,62 @@ export default function ProjectDetailTabs({
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {storyboardFrames.map((frame) => (
-                    <div key={frame.id} className="group overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-[#d4a853]/20">
+                    <div key={frame.id} className="group overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-[#d4a853]/40 hover:shadow-md">
+                      {/* Image area */}
                       <div className="relative aspect-video overflow-hidden bg-muted">
                         {frame.image_url ? (
                           <Image src={frame.image_url} alt={frame.title || `Frame ${frame.frame_number}`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 25vw" unoptimized />
                         ) : (
-                          <div className="flex h-full items-center justify-center text-muted-foreground text-xs">No image</div>
+                          <div className="flex h-full items-center justify-center">
+                            <div className="flex flex-col items-center gap-1 text-muted-foreground/40">
+                              <ImageIcon className="h-8 w-8" />
+                              <span className="text-[10px]">No image</span>
+                            </div>
+                          </div>
                         )}
+                        {/* Frame number badge */}
                         <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-mono text-white/80 backdrop-blur-sm">{String(frame.frame_number).padStart(2, "0")}</div>
+                        {/* Duration badge */}
                         {frame.shot_duration && <div className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">{frame.shot_duration}</div>}
-                        {/* Upload overlay */}
-                        <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                          {uploadingFrameId === frame.id
-                            ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                            : <><Upload className="h-5 w-5 text-white mb-1" /><span className="text-[11px] text-white font-medium">Upload image</span></>
-                          }
-                          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFrameImageUpload(frame.id, e.target.files[0])} />
-                        </label>
+                        {/* Hover action overlay */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                          {/* Upload image */}
+                          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors">
+                            {uploadingFrameId === frame.id
+                              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                              : <Upload className="h-3.5 w-3.5" />
+                            }
+                            {uploadingFrameId === frame.id ? "Uploading…" : "Upload image"}
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFrameImageUpload(frame.id, e.target.files[0])} />
+                          </label>
+                          {/* Edit + Delete row */}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => { setEditingFrame(frame); setEditFrameForm({ title: frame.title, description: frame.description, camera_angle: frame.camera_angle, shot_duration: frame.shot_duration, mood: frame.mood, notes: frame.notes }); }}
+                              className="flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-[#d4a853]/80 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" /> Edit
+                            </button>
+                            <button
+                              onClick={() => { if (confirm("Delete this frame?")) handleDeleteFrame(frame.id); }}
+                              disabled={deletingFrameId === frame.id}
+                              className="flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors disabled:opacity-50"
+                            >
+                              {deletingFrameId === frame.id ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Trash2 className="h-3.5 w-3.5" />}
+                              Delete
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                      {/* Card info */}
                       <div className="p-3">
                         {frame.title && <p className="text-xs font-semibold text-foreground mb-1">{frame.title}</p>}
                         {frame.description && <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{frame.description}</p>}
-                        {frame.camera_angle && <p className="mt-1.5 text-[10px] text-muted-foreground">{frame.camera_angle}</p>}
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                          {frame.camera_angle && <p className="text-[10px] text-muted-foreground">{frame.camera_angle}</p>}
+                          {frame.mood && <p className="text-[10px] text-[#d4a853]/70 italic">{frame.mood}</p>}
+                        </div>
+                        {frame.notes && <p className="mt-1 text-[10px] text-muted-foreground/60 line-clamp-1 italic">{frame.notes}</p>}
                       </div>
                     </div>
                   ))}
@@ -2204,17 +2292,76 @@ export default function ProjectDetailTabs({
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
-              <Label htmlFor="frame-title">Title</Label>
-              <Input id="frame-title" value={newFrameTitle} onChange={(e) => setNewFrameTitle(e.target.value)} placeholder="Frame title" />
+              <Label htmlFor="frame-title">Title *</Label>
+              <Input id="frame-title" value={newFrameTitle} onChange={(e) => setNewFrameTitle(e.target.value)} placeholder="e.g. Hero walks into light" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="frame-description">Description</Label>
-              <Textarea id="frame-description" value={newFrameDescription} onChange={(e) => setNewFrameDescription(e.target.value)} rows={4} placeholder="Describe the shot and mood." />
+              <Label htmlFor="frame-description">Description *</Label>
+              <Textarea id="frame-description" value={newFrameDescription} onChange={(e) => setNewFrameDescription(e.target.value)} rows={3} placeholder="Describe what happens in this frame." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="frame-camera">Camera Angle</Label>
+                <Input id="frame-camera" value={newFrameCameraAngle} onChange={(e) => setNewFrameCameraAngle(e.target.value)} placeholder="e.g. Wide / Eye level" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="frame-duration">Shot Duration</Label>
+                <Input id="frame-duration" value={newFrameDuration} onChange={(e) => setNewFrameDuration(e.target.value)} placeholder="00:00:05" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="frame-mood">Mood / Feel</Label>
+              <Input id="frame-mood" value={newFrameMood} onChange={(e) => setNewFrameMood(e.target.value)} placeholder="e.g. Tense, joyful, cinematic…" />
             </div>
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowFrameDialog(false)}>Cancel</Button>
             <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddFrame}>Add frame</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Frame dialog ── */}
+      <Dialog open={!!editingFrame} onOpenChange={(open) => { if (!open) setEditingFrame(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit frame</DialogTitle>
+            <DialogDescription>Update this storyboard frame&apos;s details.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label>Title</Label>
+              <Input value={editFrameForm.title ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, title: e.target.value }))} placeholder="Frame title" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Textarea value={editFrameForm.description ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, description: e.target.value }))} rows={3} placeholder="Describe the shot." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Camera Angle</Label>
+                <Input value={editFrameForm.camera_angle ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, camera_angle: e.target.value }))} placeholder="e.g. Wide / Eye level" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Shot Duration</Label>
+                <Input value={editFrameForm.shot_duration ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, shot_duration: e.target.value }))} placeholder="00:00:05" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Mood / Feel</Label>
+              <Input value={editFrameForm.mood ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, mood: e.target.value }))} placeholder="e.g. Tense, cinematic…" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Production Notes</Label>
+              <Textarea value={editFrameForm.notes ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any additional notes for this frame." />
+            </div>
+          </div>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setEditingFrame(null)}>Cancel</Button>
+            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={saveEditFrame} disabled={savingEditFrame}>
+              {savingEditFrame ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black mr-1.5" /> : null}
+              Save changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
