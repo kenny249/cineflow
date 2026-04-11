@@ -186,7 +186,10 @@ export default function RevisionsPage() {
       const { error: uploadError } = await supabase.storage
         .from("project-files")
         .upload(storagePath, uploadFile, { cacheControl: "3600", upsert: false });
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        throw new Error(uploadError.message || JSON.stringify(uploadError));
+      }
 
       const { data: urlData } = supabase.storage
         .from("project-files")
