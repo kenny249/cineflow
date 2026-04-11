@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import Image from "next/image";
 import { formatDate, formatRelative, formatFileSize, getProgressColor, getInitials, PROJECT_TYPE_LABELS } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText } from "lucide-react";
+import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText } from "lucide-react";
+import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, ShotList, StoryboardFrame, ShotListItem, ProjectRole } from "@/types";
@@ -77,6 +79,46 @@ const PROJECT_ROLES = [
   "Client", "Client Representative",
 ] as const;
 
+// ── Production phase definitions ─────────────────────────────────────────────
+const PROD_PHASES = [
+  {
+    id: "pre_prod" as const,
+    label: "Pre-Production",
+    weight: 20,
+    items: [
+      { id: "script_ready", label: "Script finalized" },
+      { id: "locations_locked", label: "Locations locked" },
+      { id: "crew_confirmed", label: "Crew confirmed" },
+      { id: "shot_list_built", label: "Shot list created" },
+    ],
+  },
+  {
+    id: "shoot" as const,
+    label: "Production / Shoot",
+    weight: 40,
+    items: [] as { id: string; label: string }[],
+  },
+  {
+    id: "post_prod" as const,
+    label: "Post-Production",
+    weight: 25,
+    items: [
+      { id: "editing_complete", label: "Editing complete" },
+      { id: "color_sound", label: "Color & sound done" },
+      { id: "revisions_approved", label: "Client revisions approved" },
+    ],
+  },
+  {
+    id: "delivery" as const,
+    label: "Delivery",
+    weight: 15,
+    items: [
+      { id: "final_export", label: "Final export ready" },
+      { id: "delivered_to_client", label: "Delivered to client" },
+    ],
+  },
+];
+
 // Inline gradient background used as the cover fallback
 function CoverGradient({ seed }: { seed: string }) {
   // 12 film-noir palettes matching cinematic-images.ts
@@ -119,17 +161,58 @@ export default function ProjectDetailTabs({
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description ?? "");
   const [status, setStatus] = useState<Project["status"]>(project.status);
-  const [progressValue, setProgressValue] = useState(project.progress ?? 0);
   const [shotList, setShotList] = useState<ShotList | null>(initialShotList);
   const [storyboardFrames, setStoryboardFrames] = useState<StoryboardFrame[]>(initialStoryboardFrames);
   const [revisions, setRevisions] = useState<Revision[]>(initialRevisions);
   const [notes, setNotes] = useState<ProjectNote[]>(initialNotes);
 
+  // ── Phase milestones (stored in localStorage) ─────────────────────
+  const [checkedPhaseItems, setCheckedPhaseItems] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set<string>();
+    try {
+      const raw = localStorage.getItem(`cf_phases_${project.id}`);
+      return new Set<string>(raw ? JSON.parse(raw) : []);
+    } catch { return new Set<string>(); }
+  });
+
+  const completedShots = useMemo(
+    () => shotList?.items?.filter((item) => item.is_complete).length ?? 0,
+    [shotList]
+  );
+  const totalShots = useMemo(() => shotList?.items?.length ?? 0, [shotList]);
+
+  // Fully computed — delivery checkbox locks to 100%
+  const computedProgress = useMemo(() => {
+    if (checkedPhaseItems.has("delivered_to_client")) return 100;
+    let pct = 0;
+    for (const phase of PROD_PHASES) {
+      if (phase.id === "shoot") {
+        pct += totalShots > 0 ? (completedShots / totalShots) * 40 : 0;
+      } else {
+        const done = phase.items.filter((i) => checkedPhaseItems.has(i.id)).length;
+        pct += phase.items.length > 0 ? (done / phase.items.length) * phase.weight : 0;
+      }
+    }
+    return Math.round(pct);
+  }, [checkedPhaseItems, completedShots, totalShots]);
+
+  // Auto-save computed progress to Supabase (debounced 2s)
+  const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
+    progressSaveTimer.current = setTimeout(async () => {
+      try { await updateProject(project.id, { progress: computedProgress }); } catch { /* silent */ }
+    }, 2000);
+    return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedProgress]);
+
+  const burst = useCompletionBurst();
+
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description);
   const [editStatus, setEditStatus] = useState<Project["status"]>(status);
-  const [editProgress, setEditProgress] = useState(progressValue);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
 
   const [showMemberDialog, setShowMemberDialog] = useState(false);
@@ -206,9 +289,6 @@ export default function ProjectDetailTabs({
   const [playerDuration, setPlayerDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
-
-  const completedShots = shotList?.items?.filter((item) => item.is_complete).length ?? 0;
-  const totalShots = shotList?.items?.length ?? 0;
 
   // ── Reload persisted revisions: merge server data + localStorage meta + session/IDB cache ──
   useEffect(() => {
@@ -432,13 +512,10 @@ export default function ProjectDetailTabs({
       title: editTitle.trim() || title,
       description: editDescription,
       status: editStatus,
-      progress: editProgress,
     };
-    // Optimistic update
     setTitle(updates.title);
     setDescription(updates.description);
     setStatus(updates.status);
-    setProgressValue(updates.progress);
     setShowEditDialog(false);
     try {
       await updateProject(project.id, updates);
@@ -452,15 +529,26 @@ export default function ProjectDetailTabs({
     setEditTitle(title);
     setEditDescription(description);
     setEditStatus(status);
-    setEditProgress(progressValue);
     setShowEditDialog(true);
   };
 
-  const toggleShotComplete = async (shotId: string) => {
+  const togglePhaseItem = (itemId: string, event: MouseEvent) => {
+    const willCheck = !checkedPhaseItems.has(itemId);
+    if (willCheck) burst.fire(event.clientX, event.clientY);
+    setCheckedPhaseItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
+      try { localStorage.setItem(`cf_phases_${project.id}`, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+  };
+
+  const toggleShotComplete = async (shotId: string, event?: MouseEvent) => {
     if (!shotList?.items) return;
     const item = shotList.items.find((i) => i.id === shotId);
     if (!item) return;
     const newVal = !item.is_complete;
+    if (newVal && event) burst.fire(event.clientX, event.clientY);
     // Optimistic update
     setShotList({
       ...shotList,
@@ -469,7 +557,6 @@ export default function ProjectDetailTabs({
     try {
       await updateShotListItem(shotId, { is_complete: newVal });
     } catch {
-      // Only revert + warn for real DB IDs (UUIDs), not locally-generated mock IDs
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shotId);
       if (isUUID) {
         setShotList({
@@ -651,9 +738,9 @@ export default function ProjectDetailTabs({
             <div className="w-full sm:flex-1 sm:min-w-[200px]">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Overall progress</span>
-                <span className="text-xs font-medium text-foreground">{progressValue}%</span>
+                <span className="text-xs font-medium text-foreground">{computedProgress}%</span>
               </div>
-              <Progress value={progressValue} className="h-1.5" indicatorClassName={getProgressColor(progressValue)} />
+              <Progress value={computedProgress} className="h-1.5" indicatorClassName={getProgressColor(computedProgress)} />
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Calendar className="h-3.5 w-3.5 text-[#d4a853]" />
@@ -733,6 +820,95 @@ export default function ProjectDetailTabs({
                     </section>
                   )}
 
+                  {/* \u2500\u2500 Production Phases \u2500\u2500 */}
+                  <section>
+                    <h3 className="mb-3 font-display text-sm font-semibold text-foreground flex items-center gap-2">
+                      Production Phases
+                      <span className="font-mono text-xs font-normal text-muted-foreground">{computedProgress}%</span>
+                    </h3>
+                    <div className="space-y-2">
+                      {PROD_PHASES.map((phase) => {
+                        const isShoot = phase.id === "shoot";
+                        const checkedCount = isShoot
+                          ? completedShots
+                          : phase.items.filter((i) => checkedPhaseItems.has(i.id)).length;
+                        const total = isShoot ? totalShots : phase.items.length;
+                        const phasePct = total > 0 ? checkedCount / total : 0;
+                        const isComplete = total > 0 && phasePct >= 1;
+                        return (
+                          <div
+                            key={phase.id}
+                            className={`rounded-xl border overflow-hidden transition-colors ${
+                              isComplete ? "border-emerald-500/20 bg-emerald-500/[0.02]" : "border-border bg-card"
+                            }`}
+                          >
+                            <div className="px-3 py-2.5">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  {isComplete
+                                    ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                    : <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30 shrink-0" />
+                                  }
+                                  <span className="text-xs font-medium text-foreground">{phase.label}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-muted-foreground">{total > 0 ? `${checkedCount}/${total}` : "\u2014"}</span>
+                                  <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">{phase.weight}%</span>
+                                </div>
+                              </div>
+                              {total > 0 && (
+                                <div className="mb-2 h-[2px] rounded-full bg-border overflow-hidden">
+                                  <motion.div
+                                    className="h-full bg-[#d4a853]"
+                                    initial={false}
+                                    animate={{ width: `${phasePct * 100}%` }}
+                                    transition={{ duration: 0.4, ease: "easeOut" }}
+                                  />
+                                </div>
+                              )}
+                              {isShoot ? (
+                                <div className="flex items-center gap-1.5">
+                                  <Film className="h-3 w-3 text-muted-foreground shrink-0" />
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {totalShots === 0
+                                      ? "Add shots to the shot list to track production"
+                                      : <><span className="text-foreground font-medium">{completedShots}</span> of {totalShots} shots complete</>
+                                    }
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="space-y-0.5">
+                                  {phase.items.map((item) => {
+                                    const done = checkedPhaseItems.has(item.id);
+                                    return (
+                                      <button
+                                        key={item.id}
+                                        type="button"
+                                        className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-accent/50 transition-colors group"
+                                        onClick={(e) => togglePhaseItem(item.id, e.nativeEvent)}
+                                      >
+                                        <div className={`h-3.5 w-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                          done
+                                            ? "bg-[#d4a853] border-[#d4a853]"
+                                            : "border-muted-foreground/40 group-hover:border-[#d4a853]/50"
+                                        }`}>
+                                          {done && <Check className="h-2 w-2 text-black" />}
+                                        </div>
+                                        <span className={`text-[11px] transition-colors ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                                          {item.label}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+
                   {shotList && (
                     <section>
                       <div className="mb-2 flex items-center justify-between">
@@ -744,13 +920,16 @@ export default function ProjectDetailTabs({
                       <div className="rounded-xl border border-border bg-card overflow-hidden">
                         {shotList.items?.slice(0, 3).map((shot) => (
                           <div key={shot.id} className="flex items-start gap-3 border-b border-border p-3 last:border-0">
-                            <div className="mt-0.5 shrink-0">
-                              {shot.is_complete ? (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                              ) : (
-                                <Circle className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </div>
+                            <button
+                              type="button"
+                              className="mt-0.5 shrink-0 transition-transform active:scale-90"
+                              onClick={(e) => toggleShotComplete(shot.id, e.nativeEvent)}
+                            >
+                              {shot.is_complete
+                                ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                : <Circle className="h-4 w-4 text-muted-foreground hover:text-[#d4a853] transition-colors" />
+                              }
+                            </button>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-mono text-muted-foreground">#{shot.shot_number}</span>
@@ -847,7 +1026,15 @@ export default function ProjectDetailTabs({
                         <tr key={shot.id} className={`group bg-card transition-colors hover:bg-accent/30 ${shot.is_complete ? "opacity-60" : ""}`}>
                           <td className="px-4 py-3 w-8">
                             <div className="flex items-center gap-2">
-                              {shot.is_complete ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> : <Circle className="h-4 w-4 text-muted-foreground shrink-0" />}
+                              <button
+                                type="button"
+                                className="shrink-0 transition-transform active:scale-90"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleShotComplete(shot.id, e.nativeEvent); }}
+                              >
+                                {shot.is_complete
+                                  ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                  : <Circle className="h-4 w-4 text-muted-foreground hover:text-[#d4a853] transition-colors" />}
+                              </button>
                               <span className="font-mono text-xs text-muted-foreground">{shot.shot_number}</span>
                             </div>
                           </td>
@@ -868,7 +1055,7 @@ export default function ProjectDetailTabs({
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                toggleShotComplete(shot.id);
+                                toggleShotComplete(shot.id, e.nativeEvent);
                               }}
                             >
                               {shot.is_complete ? "Undo" : "Complete"}
@@ -1221,20 +1408,18 @@ export default function ProjectDetailTabs({
               <Label htmlFor="edit-description">Description</Label>
               <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} placeholder="Project description" />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-status">Status</Label>
-                <select id="edit-status" value={editStatus} onChange={(e) => setEditStatus(e.target.value as Project["status"])} className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground">
-                  <option value="draft">Draft</option>
-                  <option value="active">In production</option>
-                  <option value="review">In review</option>
-                  <option value="delivered">Delivered</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-progress">Progress</Label>
-                <Input id="edit-progress" type="number" min={0} max={100} value={editProgress} onChange={(e) => setEditProgress(Number(e.target.value))} placeholder="Progress" />
-              </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-status">Status</Label>
+              <select id="edit-status" value={editStatus} onChange={(e) => setEditStatus(e.target.value as Project["status"])} className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground">
+                <option value="draft">Draft</option>
+                <option value="active">In production</option>
+                <option value="review">In review</option>
+                <option value="delivered">Delivered</option>
+              </select>
+            </div>
+            <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Progress is automatic — driven by phases &amp; shot list</span>
+              <span className="font-mono text-sm font-semibold text-[#d4a853]">{computedProgress}%</span>
             </div>
           </div>
           <DialogFooter className="flex justify-end gap-2">
@@ -1351,6 +1536,7 @@ export default function ProjectDetailTabs({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <BurstRenderer particles={burst.particles} />
     </div>
   );
 }
