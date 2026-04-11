@@ -544,9 +544,9 @@ export default function ProjectDetailTabs({
         localStorage.setItem(`cf_thumb_pos_${project.id}`, JSON.stringify({ x: 50, y: 50, scale: 1 }));
       }
       toast.success("Cover photo saved.");
-    } catch {
-      // Keep local preview but warn it won't persist
-      toast.error("Couldn't save to cloud — cover will reset on refresh.");
+    } catch (err) {
+      console.error("Cover upload failed:", err);
+      toast.error("Couldn't save cover photo. Please try again.");
     }
   };
 
