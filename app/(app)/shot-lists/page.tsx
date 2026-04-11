@@ -226,15 +226,18 @@ export default function ShotListsPage() {
           {/* Project selector */}
           <div className="mb-4">
             <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Project</label>
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground"
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>{p.title}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.title}</option>
+                ))}
+              </select>
+              <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
+            </div>
           </div>
 
           {/* Category filter */}
@@ -440,15 +443,18 @@ export default function ShotListsPage() {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>Project</Label>
-              <select
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground"
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+                <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Title</Label>
@@ -512,15 +518,18 @@ export default function ShotListsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Shot type</Label>
-                <select
-                  value={shotType}
-                  onChange={(e) => setShotType(e.target.value as ShotListItem["shot_type"])}
-                  className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground"
-                >
-                  {SHOT_TYPES.map((t) => (
-                    <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={shotType}
+                    onChange={(e) => setShotType(e.target.value as ShotListItem["shot_type"])}
+                    className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {SHOT_TYPES.map((t) => (
+                      <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                    ))}
+                  </select>
+                  <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label>Scene</Label>
