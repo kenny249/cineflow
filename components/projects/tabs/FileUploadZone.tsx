@@ -17,6 +17,7 @@ interface FileUploadZoneProps {
   readOnly?: boolean;
   accept?: string;
   label?: string;
+  compact?: boolean;
 }
 
 function fileIcon(mime?: string): string {
@@ -41,6 +42,7 @@ export function FileUploadZone({
   readOnly = false,
   accept,
   label = "Drop files here or click to upload",
+  compact = false,
 }: FileUploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -133,21 +135,29 @@ export function FileUploadZone({
           onDragLeave={() => setDragging(false)}
           onDrop={(e) => { e.preventDefault(); setDragging(false); uploadFiles(e.dataTransfer.files); }}
           onClick={() => inputRef.current?.click()}
-          className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
-            dragging
-              ? "border-[#d4a853]/60 bg-[#d4a853]/10"
-              : "border-border hover:border-[#d4a853]/30 hover:bg-[#d4a853]/5"
-          }`}
+          className={compact
+            ? `flex cursor-pointer items-center gap-2 rounded-lg border border-dashed px-3 py-2 transition-colors ${dragging ? "border-[#d4a853]/60 bg-[#d4a853]/10" : "border-border hover:border-[#d4a853]/30 hover:bg-[#d4a853]/5"}`
+            : `flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${dragging ? "border-[#d4a853]/60 bg-[#d4a853]/10" : "border-border hover:border-[#d4a853]/30 hover:bg-[#d4a853]/5"}`
+          }
         >
-          <Upload className="h-6 w-6 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-medium text-foreground">{label}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">All file types supported · Up to 5 GB per file</p>
-          </div>
-          {uploading.length > 0 && (
-            <div className="mt-1 flex items-center gap-1.5 text-xs text-[#d4a853]">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Uploading {uploading.join(", ")}…
+          {uploading.length > 0
+            ? <Loader2 className={`shrink-0 animate-spin text-[#d4a853] ${compact ? "h-3.5 w-3.5" : "h-6 w-6"}`} />
+            : <Upload className={`shrink-0 text-muted-foreground ${compact ? "h-3.5 w-3.5" : "h-6 w-6"}`} />
+          }
+          {compact ? (
+            <span className="text-xs text-muted-foreground">
+              {uploading.length > 0 ? `Uploading ${uploading.join(", ")}…` : label}
+            </span>
+          ) : (
+            <div>
+              <p className="text-sm font-medium text-foreground">{label}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">All file types supported · Up to 5 GB per file</p>
+              {uploading.length > 0 && (
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-[#d4a853]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Uploading {uploading.join(", ")}…
+                </div>
+              )}
             </div>
           )}
           <input

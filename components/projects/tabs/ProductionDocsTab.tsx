@@ -24,7 +24,7 @@ interface ProductionDocsTabProps {
 export function ProductionDocsTab({ projectId, canEdit }: ProductionDocsTabProps) {
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set(["call-sheets", "breakdowns"]));
+  const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     getProjectFiles(projectId, "docs").then(setFiles).catch(() => {}).finally(() => setLoading(false));
@@ -47,7 +47,7 @@ export function ProductionDocsTab({ projectId, canEdit }: ProductionDocsTabProps
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto custom-scrollbar px-4 sm:px-5 py-4 space-y-2">
+    <div className="flex h-full flex-col overflow-y-auto custom-scrollbar px-4 sm:px-5 py-3 space-y-1.5">
       {DOC_CATEGORIES.map(({ key, label }) => {
         const catFiles = files.filter((f) => (f.category || "other") === key);
         const isOpen = openCategories.has(key);
@@ -55,16 +55,16 @@ export function ProductionDocsTab({ projectId, canEdit }: ProductionDocsTabProps
         return (
           <div key={key} className="overflow-hidden rounded-xl border border-border bg-card/50">
             <button
-              className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-card transition-colors"
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-card transition-colors"
               onClick={() => toggle(key)}
             >
-              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-sm font-semibold text-foreground">{label}</span>
+              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="flex-1 text-sm font-medium text-foreground">{label}</span>
               <span className="mr-2 rounded-full bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground">{catFiles.length}</span>
-              {isOpen ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              {isOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
             </button>
             {isOpen && (
-              <div className="border-t border-border px-4 py-3">
+              <div className="border-t border-border px-3 py-2.5 space-y-2">
                 <FileUploadZone
                   projectId={projectId}
                   tab="docs"
@@ -77,6 +77,7 @@ export function ProductionDocsTab({ projectId, canEdit }: ProductionDocsTabProps
                     ]);
                   }}
                   readOnly={!canEdit}
+                  compact
                   label={`Upload ${label.toLowerCase()}`}
                 />
               </div>
