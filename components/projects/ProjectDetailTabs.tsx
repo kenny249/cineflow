@@ -228,6 +228,8 @@ export default function ProjectDetailTabs({
 
   const burst = useCompletionBurst();
 
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description);
@@ -822,7 +824,7 @@ export default function ProjectDetailTabs({
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        <Tabs defaultValue={initialTab} className="flex h-full flex-col">
+        <Tabs defaultValue={initialTab} onValueChange={() => tabScrollRef.current?.scrollTo({ top: 0, behavior: "instant" })} className="flex h-full flex-col">
           <div className="border-b border-border">
             <div className="overflow-x-auto no-scrollbar">
               <TabsList className="flex h-10 w-max min-w-full bg-transparent gap-0 rounded-none border-b-0 p-0 px-4 sm:px-6">
@@ -851,8 +853,8 @@ export default function ProjectDetailTabs({
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <TabsContent value="overview" className="m-0 h-full overflow-y-auto custom-scrollbar p-5 sm:p-6">
+          <div ref={tabScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+            <TabsContent value="overview" className="m-0 p-5 sm:p-6">
               <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
                 <div className="space-y-5">
                   {description && (
@@ -1056,7 +1058,7 @@ export default function ProjectDetailTabs({
               </div>
             </TabsContent>
 
-            <TabsContent value="shot-list" className="m-0 h-full overflow-y-auto custom-scrollbar p-4 sm:p-6">
+            <TabsContent value="shot-list" className="m-0 p-4 sm:p-6">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-display text-sm font-semibold text-foreground">{shotList?.title || "Shot List"}</h3>
@@ -1134,7 +1136,7 @@ export default function ProjectDetailTabs({
               )}
             </TabsContent>
 
-            <TabsContent value="storyboard" className="m-0 h-full overflow-y-auto custom-scrollbar p-6">
+            <TabsContent value="storyboard" className="m-0 p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-sm font-semibold text-foreground">Storyboard</h3>
                 <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowFrameDialog(true)}>
@@ -1203,7 +1205,7 @@ export default function ProjectDetailTabs({
               </TabsContent>
             )}
 
-            <TabsContent value="revisions" className="m-0 h-full overflow-y-auto custom-scrollbar p-6">
+            <TabsContent value="revisions" className="m-0 p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-sm font-semibold text-foreground">Revisions</h3>
                 <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowRevisionDialog(true)}>
@@ -1430,7 +1432,7 @@ export default function ProjectDetailTabs({
               )}
             </TabsContent>
 
-            <TabsContent value="notes" className="m-0 h-full overflow-y-auto custom-scrollbar p-6">
+            <TabsContent value="notes" className="m-0 p-6">
               <div className="space-y-4">
                 {notes.length === 0 ? (
                   <div className="rounded-3xl border border-border bg-card p-8 text-center text-muted-foreground">
