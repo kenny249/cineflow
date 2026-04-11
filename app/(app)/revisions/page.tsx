@@ -162,8 +162,8 @@ export default function RevisionsPage() {
   // ── Upload handler ──────────────────────────────────────────────────────────
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
-    if (!uploadFile || !selectedProjectId || !uploadTitle.trim()) {
-      toast.error("Title and video file are required");
+    if (!uploadFile || !selectedProjectId) {
+      toast.error("Please choose a video file");
       return;
     }
     setUploading(true);
@@ -193,9 +193,10 @@ export default function RevisionsPage() {
         .getPublicUrl(storagePath);
 
       const versionNumber = revisions.length + 1;
+      const fallbackTitle = uploadTitle.trim() || uploadFile.name.replace(/\.[^/.]+$/, "");
       const created = await createRevision({
         project_id: selectedProjectId,
-        title: uploadTitle.trim(),
+        title: fallbackTitle,
         description: uploadDescription.trim() || undefined,
         status: "pending",
         version_number: versionNumber,
@@ -383,8 +384,7 @@ export default function RevisionsPage() {
               type="text"
               value={uploadTitle}
               onChange={(e) => setUploadTitle(e.target.value)}
-              placeholder="Title (e.g. Director's cut, v2 rough)"
-              required
+              placeholder="Title (optional — defaults to filename)"
               className="min-w-[200px] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
             />
             <input
@@ -431,7 +431,7 @@ export default function RevisionsPage() {
               )}
               <button
                 type="submit"
-                disabled={uploading || !uploadFile || !uploadTitle.trim()}
+                disabled={uploading || !uploadFile}
                 className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-2 text-xs font-semibold text-black transition-colors hover:bg-[#c49843] disabled:opacity-50"
               >
                 {uploading ? (
@@ -540,7 +540,10 @@ export default function RevisionsPage() {
                 </p>
               </div>
               <button
-                onClick={() => setShowUploadForm(true)}
+                onClick={() => {
+                  setShowUploadForm(true);
+                  setTimeout(() => fileInputRef.current?.click(), 50);
+                }}
                 className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#c49843]"
               >
                 <Upload className="h-4 w-4" />
