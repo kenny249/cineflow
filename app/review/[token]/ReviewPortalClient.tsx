@@ -483,7 +483,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                           type="text"
                           value={commentName}
                           onChange={(e) => setCommentName(e.target.value)}
-                          placeholder={`Your name (defaults to "${clientName}")`}
+                          placeholder="Your name"
                           className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-[#d4a853]/40 focus:outline-none"
                         />
                       )}
