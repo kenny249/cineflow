@@ -217,7 +217,12 @@ export default function RevisionsPage() {
       toast.success(`v${versionNumber} uploaded`);
     } catch (err: unknown) {
       clearInterval(timer);
-      toast.error(err instanceof Error ? err.message : "Upload failed");
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      if (msg.toLowerCase().includes("maximum allowed size") || msg.toLowerCase().includes("payload too large")) {
+        toast.error("File too large — increase the upload limit in your Supabase dashboard under Storage → Configuration");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setTimeout(() => {
         setUploading(false);
