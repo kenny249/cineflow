@@ -790,17 +790,35 @@ export default function RevisionsPage() {
                                   </div>
                                   <div className="flex items-center gap-0.5">
                                     {revision.file_url && (
-                                      <a
-                                        href={revision.file_url}
-                                        download={revision.title}
-                                        onClick={() =>
-                                          toast.success("Download started")
-                                        }
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          if (!revision.file_url) return;
+                                          try {
+                                            toast.loading("Preparing download…", { id: "dl" });
+                                            const res = await fetch(revision.file_url);
+                                            if (!res.ok) throw new Error("Fetch failed");
+                                            const blob = await res.blob();
+                                            const ext = revision.file_type?.split("/")[1] ?? "mp4";
+                                            const filename = `${revision.title ?? "revision"}.${ext}`;
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement("a");
+                                            a.href = url;
+                                            a.download = filename;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            document.body.removeChild(a);
+                                            URL.revokeObjectURL(url);
+                                            toast.success("Download saved", { id: "dl" });
+                                          } catch {
+                                            toast.error("Download failed — try again", { id: "dl" });
+                                          }
+                                        }}
                                         className="rounded-lg p-2 text-white transition-colors hover:bg-white/15"
                                         title="Download"
                                       >
                                         <Download className="h-4 w-4" />
-                                      </a>
+                                      </button>
                                     )}
                                     <button
                                       onClick={() =>
