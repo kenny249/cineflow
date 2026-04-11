@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { formatDate, formatRelative, formatFileSize, getProgressColor, getInitials, PROJECT_TYPE_LABELS } from "@/lib/utils";
@@ -149,6 +150,8 @@ export default function ProjectDetailTabs({
   userRole = "team",
 }: ProjectDetailTabsProps) {
   // Role helpers
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") ?? "overview";
   const isAdmin = userRole === "owner" || userRole === "admin";
   const isClient = userRole === "client";
   const canEdit = !isClient;
@@ -819,7 +822,7 @@ export default function ProjectDetailTabs({
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        <Tabs defaultValue="overview" className="flex h-full flex-col">
+        <Tabs defaultValue={initialTab} className="flex h-full flex-col">
           <div className="border-b border-border">
             <div className="overflow-x-auto no-scrollbar">
               <TabsList className="flex h-10 w-max min-w-full bg-transparent gap-0 rounded-none border-b-0 p-0 px-4 sm:px-6">
