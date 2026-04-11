@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -40,6 +40,7 @@ export async function createProject(project: Omit<Project, 'id' | 'created_at' |
     throw new Error(message);
   }
 
+  logActivity({ project_id: data.id, type: 'project_created', description: 'Created project' }).catch(() => {});
   return data as Project;
 }
 
@@ -675,6 +676,7 @@ export async function createRevision(
     .select()
     .single();
   if (error) throw error;
+  logActivity({ project_id: (data as Revision).project_id, type: 'revision_uploaded', description: `Uploaded revision "${(data as Revision).title}"` }).catch(() => {});
   return { ...(data as Revision), comments: [] };
 }
 
@@ -752,4 +754,45 @@ export async function revokeReviewToken(id: string): Promise<void> {
     .update({ is_active: false })
     .eq('id', id);
   if (error) throw error;
+}
+
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+
+export async function getActivityLog(limit = 20): Promise<ActivityItem[]> {
+  const { data, error } = await db()
+    .from('activity_log')
+    .select('*, projects(id, title), profiles(id, full_name, avatar_url)')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    project_id: row.project_id,
+    user_id: row.user_id,
+    type: row.type as ActivityType,
+    description: row.description,
+    metadata: row.metadata,
+    created_at: row.created_at,
+    project: row.projects ?? undefined,
+    user: row.profiles ?? undefined,
+  })) as ActivityItem[];
+}
+
+export async function logActivity(item: {
+  project_id: string;
+  type: ActivityType;
+  description: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  try {
+    const supabase = db();
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from('activity_log').insert({
+      project_id: item.project_id,
+      user_id: user?.id ?? null,
+      type: item.type,
+      description: item.description,
+      metadata: item.metadata ?? {},
+    });
+  } catch { /* fire-and-forget */ }
 }

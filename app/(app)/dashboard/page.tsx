@@ -41,16 +41,16 @@ import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardParticles } from "@/components/dashboard/DashboardParticles";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
-import { getProjects } from "@/lib/supabase/queries";
+import { getProjects, getActivityLog } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
-import { MOCK_ACTIVITY } from "@/mock/activity";
 import { MOCK_EVENTS } from "@/mock/calendar";
-import type { Project } from "@/types";
+import type { Project, ActivityItem } from "@/types";
 
 export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState("Early Tester");
   const router = useRouter();
@@ -68,6 +68,8 @@ export default function DashboardPage() {
 
       const projectsData = await getProjects();
       setProjects(projectsData);
+      const activityData = await getActivityLog(10);
+      setActivity(activityData);
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
@@ -298,7 +300,11 @@ export default function DashboardPage() {
                   Recent Activity
                 </h2>
                 <div className="rounded-xl border border-border bg-card p-4">
-                  <ActivityFeed items={MOCK_ACTIVITY.slice(0, 7)} />
+                  {activity.length === 0 ? (
+                    <p className="py-4 text-center text-xs text-muted-foreground">No activity yet — create a project or upload a revision to get started.</p>
+                  ) : (
+                    <ActivityFeed items={activity} />
+                  )}
                 </div>
               </section>
             </div>

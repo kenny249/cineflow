@@ -13,6 +13,7 @@ import {
   createStoryboardFrame,
   updateStoryboardFrame,
   deleteStoryboardFrame,
+  logActivity,
 } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import type { Project, StoryboardFrame } from "@/types";
@@ -505,6 +506,7 @@ export default function StoryboardPage() {
         created.push(frame);
       }
       setFrames((prev) => [...prev, ...created]);
+      logActivity({ project_id: projectId, type: 'storyboard_updated', description: `Generated ${created.length} storyboard frames with AI` }).catch(() => {});
       setChatMessages((prev) => [
         ...prev,
         {
