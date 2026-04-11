@@ -3,6 +3,7 @@
         "npx tsc": true,
         "supabase": true,
         "npm install": true,
-        "npx supabase": true
+        "npx supabase": true,
+        "mkdir": true
     }
 }

@@ -172,9 +172,35 @@ export default function CalendarPage() {
     async function load() {
       try {
         const [evts, projs] = await Promise.all([getCalendarEvents(), getProjects()]);
-        setEvents(evts || []);
         setProjects(projs || []);
         if (projs?.length) setNewProjectId(projs[0].id);
+
+        if ((evts || []).length === 0) {
+          // Seed demo events so beta testers see a populated calendar
+          const p1 = projs?.[0];
+          const p2 = projs?.[1];
+          function dt(daysOffset: number, hour: number, min = 0) {
+            const d = new Date(); d.setDate(d.getDate() + daysOffset); d.setHours(hour, min, 0, 0); return d.toISOString();
+          }
+          const seeds: Parameters<typeof createCalendarEvent>[0][] = [
+            { title: "Pre-production kickoff", type: "meeting",  start_date: dt(0, 10, 0),  location: "Studio Office",         project_id: p1?.id, description: "Review shot list, timeline, and crew assignments." },
+            { title: "Location scout review",  type: "meeting",  start_date: dt(0, 15, 30), location: "Scouting HQ",            description: "Walk through shortlisted locations and lock final choice." },
+            { title: "Gear rental pickup",     type: "other",    start_date: dt(1,  9, 0),  location: "LensRentals, LA",        description: "Collect camera package and lighting kit." },
+            { title: `${p1?.title ?? "Project"} — Storyboard session`, type: "meeting", start_date: dt(3, 14, 0), project_id: p1?.id, location: "Zoom", description: "Walk client through full storyboard frame by frame." },
+            { title: `${p1?.title ?? "Project"} — Shoot Day 1`,        type: "shoot",   start_date: dt(7,  8, 0), project_id: p1?.id, location: "Studio One, Los Angeles", description: "First principal photography day. Call time 07:30." },
+            { title: "Client check-in",        type: "meeting",  start_date: dt(9, 11, 0),  location: "Zoom",                  project_id: p2?.id, description: "Mid-production update with client stakeholders." },
+            { title: `${p1?.title ?? "Project"} — Shoot Day 2`,        type: "shoot",   start_date: dt(10, 8, 0), project_id: p1?.id, location: "Studio One, Los Angeles", description: "Second principal photography day." },
+            { title: "Color grade review",     type: "meeting",  start_date: dt(12, 13, 0), project_id: p1?.id,                description: "Review offline grade with colorist and approve LUT." },
+            { title: `${p2?.title ?? "Project 2"} — Shoot Day`, type: "shoot", start_date: dt(18, 9, 0), project_id: p2?.id, location: "Client HQ", description: "Full shoot day on location." },
+            { title: `${p1?.title ?? "Project"} — First cut delivery`, type: "delivery", start_date: dt(21, 17, 0), project_id: p1?.id, description: "Deliver rough cut to client for first review." },
+            { title: `${p2?.title ?? "Project 2"} — Final delivery`,   type: "deadline", start_date: dt(30, 12, 0), project_id: p2?.id, description: "Hard deadline for final deliverables to client." },
+          ];
+          await Promise.allSettled(seeds.map((s) => createCalendarEvent(s)));
+          const seeded = await getCalendarEvents();
+          setEvents(seeded || []);
+        } else {
+          setEvents(evts || []);
+        }
       } catch {
         toast.error("Failed to load calendar");
       } finally {

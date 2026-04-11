@@ -102,7 +102,11 @@ export default function DashboardPage() {
 
   const activeProjects = projects.filter((p) => p.status === "active" || p.status === "review");
   const now = new Date();
-  const upcomingShoots = calendarEvents.filter((e) => e.type === "shoot" && new Date(e.start_date) >= now).length;
+  const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7);
+  const thisWeekEvents = calendarEvents.filter((e) => {
+    const d = new Date(e.start_date);
+    return d >= now && d <= weekEnd;
+  }).length;
 
   const stats = [
     {
@@ -113,8 +117,8 @@ export default function DashboardPage() {
       bg: "bg-[#d4a853]/10",
     },
     {
-      label: "Upcoming shoots",
-      value: upcomingShoots,
+      label: "This Week",
+      value: thisWeekEvents,
       icon: Camera,
       color: "text-blue-400",
       bg: "bg-blue-400/10",
@@ -264,12 +268,12 @@ export default function DashboardPage() {
                 </div>
               </section>
 
-              {/* Upcoming Shoots */}
+              {/* Schedule */}
               <section>
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
                     <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                    Upcoming Shoots
+                    Schedule
                   </h2>
                   <Link
                     href="/calendar"

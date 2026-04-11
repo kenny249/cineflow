@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, UploadCloud, Settings, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, List, Layers, Users } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, UploadCloud, Settings, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, List, Layers, Users } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { MobileSplash } from "./MobileSplash";
@@ -25,6 +25,7 @@ const MOBILE_NAV_PRIMARY = [
 
 const MOBILE_NAV_MORE = [
   { label: "Calendar",   href: "/calendar",   icon: Calendar },
+  { label: "Tasks",      href: "/tasks",      icon: CheckSquare },
   { label: "Scripts",    href: "/scripts",    icon: ScrollText },
   { label: "Shot Lists", href: "/shot-lists", icon: List },
   { label: "Storyboard", href: "/storyboard", icon: Layers },
