@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -359,6 +359,51 @@ export async function updateProfile(updates: Partial<Omit<Profile, 'id' | 'creat
 
   if (error) throw error;
   return { ...data, email: user.email } as Profile;
+}
+
+// ─── Storyboard ───────────────────────────────────────────────────────────────
+
+export async function getStoryboardFrames(projectId: string) {
+  const { data, error } = await db()
+    .from('storyboard_frames')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('frame_number', { ascending: true });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return data as StoryboardFrame[];
+}
+
+export async function createStoryboardFrame(frame: Omit<StoryboardFrame, 'id' | 'created_at' | 'updated_at'>) {
+  const { data, error } = await db()
+    .from('storyboard_frames')
+    .insert(frame)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as StoryboardFrame;
+}
+
+export async function updateStoryboardFrame(id: string, updates: Partial<StoryboardFrame>) {
+  const { data, error } = await db()
+    .from('storyboard_frames')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as StoryboardFrame;
+}
+
+export async function deleteStoryboardFrame(id: string) {
+  const { error } = await db().from('storyboard_frames').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function reorderStoryboardFrames(frames: { id: string; frame_number: number }[]) {
+  const updates = frames.map(f =>
+    db().from('storyboard_frames').update({ frame_number: f.frame_number }).eq('id', f.id)
+  );
+  await Promise.all(updates);
 }
 
 // ─── Team ─────────────────────────────────────────────────────────────────────

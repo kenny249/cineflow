@@ -131,6 +131,8 @@ export interface StoryboardFrame {
   thumbnail_url?: string;
   shot_duration?: string;
   camera_angle?: string;
+  shot_type?: string;
+  mood?: string;
   notes?: string;
   created_by?: string;
   created_at: string;
