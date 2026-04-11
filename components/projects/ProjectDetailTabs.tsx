@@ -77,6 +77,26 @@ const PROJECT_ROLES = [
   "Client", "Client Representative",
 ] as const;
 
+// Inline gradient background used as the cover fallback
+function CoverGradient({ seed }: { seed: string }) {
+  // 12 film-noir palettes matching cinematic-images.ts
+  const PALETTES: [string, string][] = [
+    ["#0d0d1a", "#1e1230"], ["#0a1420", "#0e2535"], ["#1a1208", "#2e200a"],
+    ["#0a1a12", "#10281a"], ["#1a0a0a", "#2e1212"], ["#0a0a1a", "#141438"],
+    ["#121828", "#182640"], ["#201815", "#342510"], ["#0f1520", "#182540"],
+    ["#191520", "#282038"], ["#10180f", "#1a2a18"], ["#1e1020", "#30183a"],
+  ];
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) { hash = (hash << 5) - hash + seed.charCodeAt(i); hash |= 0; }
+  const [c1, c2] = PALETTES[Math.abs(hash) % PALETTES.length];
+  return (
+    <div
+      className="absolute inset-0 -z-10"
+      style={{ background: `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)` }}
+    />
+  );
+}
+
 export default function ProjectDetailTabs({
   project,
   initialNotes,
@@ -91,7 +111,11 @@ export default function ProjectDetailTabs({
   const isClient = userRole === "client";
   const canEdit = !isClient;
   const [members, setMembers] = useState<ProjectMember[]>(initialMembers);
-  const [coverUrl, setCoverUrl] = useState(project.thumbnail_url ?? "");
+  const isStaleUrl = (url?: string | null) =>
+    !url || url.includes("unsplash.com") || url.includes("picsum.photos") || url.startsWith("data:");
+  const [coverUrl, setCoverUrl] = useState(
+    isStaleUrl(project.thumbnail_url) ? "" : (project.thumbnail_url ?? "")
+  );
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description ?? "");
   const [status, setStatus] = useState<Project["status"]>(project.status);
@@ -514,6 +538,11 @@ export default function ProjectDetailTabs({
       const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
       setCoverUrl(publicUrl);
       await updateProject(project.id, { thumbnail_url: publicUrl });
+      // Also sync to the card's localStorage key so ProjectCard reflects it immediately
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`cf_thumb_${project.id}`, publicUrl);
+        localStorage.setItem(`cf_thumb_pos_${project.id}`, JSON.stringify({ x: 50, y: 50, scale: 1 }));
+      }
       toast.success("Cover photo saved.");
     } catch {
       // Keep local preview but warn it won't persist
@@ -563,7 +592,7 @@ export default function ProjectDetailTabs({
           </div>
         </div>
 
-        <div className="relative h-28 sm:h-36 w-full overflow-hidden">
+        <div className="relative h-28 sm:h-36 w-full overflow-hidden" data-cover>
           {coverUrl ? (
             <Image
               src={coverUrl}
@@ -571,10 +600,11 @@ export default function ProjectDetailTabs({
               fill
               className="object-cover"
               unoptimized
+              onError={() => setCoverUrl("")}
             />
-          ) : (
-            <div className="h-full bg-muted" />
-          )}
+          ) : null}
+          {/* Gradient fallback always rendered behind the image */}
+          <CoverGradient seed={project.id || project.title} />
           <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
           <div className="absolute right-4 bottom-4 flex gap-2">
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#0a0a0a]/80 px-3 py-2 text-xs font-medium text-white shadow-sm transition hover:bg-[#0a0a0a]">
