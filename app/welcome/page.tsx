@@ -359,6 +359,7 @@ export default function WelcomePage() {
     if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
     setPhase("exit");
     localStorage.setItem("cf_onboarded", "1");
+    localStorage.setItem("cf_onboarded_v3", "1"); // dismiss AppLayout's OnboardingIntro
     setTimeout(() => window.location.assign("/dashboard"), 350);
   }
 
@@ -384,6 +385,7 @@ export default function WelcomePage() {
     const t1 = setTimeout(() => {
       setPhase("exit");
       localStorage.setItem("cf_onboarded", "1");
+      localStorage.setItem("cf_onboarded_v3", "1"); // dismiss AppLayout's OnboardingIntro
       // Navigate as the black overlay starts — it IS the transition
       setTimeout(() => window.location.assign("/dashboard"), 350);
     }, 1900);
