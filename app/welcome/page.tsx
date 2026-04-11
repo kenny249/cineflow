@@ -4,9 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { Film, Layers, Eye, Users } from "lucide-react";
 import { getOrCreateDisplayName, setDisplayName, generateDisplayName } from "@/lib/random-name";
 
-// Minimal ambient particles — only gold, very sparse
-function AmbientDots() {
+type WPt = { x: number; y: number; vx: number; vy: number; r: number; gold: boolean; o: number };
+
+// Interactive cursor-reactive particles with DNA-like connections (matches login page)
+function InteractiveParticles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouse     = useRef({ x: -9999, y: -9999 });
+  const particles = useRef<WPt[]>([]);
+  const raf       = useRef<number>(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -14,46 +19,100 @@ function AmbientDots() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    resize();
+    window.addEventListener("resize", resize);
 
-    const pts = Array.from({ length: 40 }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - 0.5) * 0.25,
-      vy: (Math.random() - 0.5) * 0.25,
-      r: 0.5 + Math.random() * 1.1,
-      o: 0.03 + Math.random() * 0.08,
-      gold: Math.random() < 0.3,
+    particles.current = Array.from({ length: 70 }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r: 0.7 + Math.random() * 1.4,
+      gold: Math.random() < 0.22,
+      o: 0.04 + Math.random() * 0.1,
     }));
 
-    let raf: number;
+    const REPEL = 110, ATTRACT = 260, CONNECT = 110;
+
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const { x: mx, y: my } = mouse.current;
+
+      if (mx > -500) {
+        const outer = ctx.createRadialGradient(mx, my, 0, mx, my, 320);
+        outer.addColorStop(0, "rgba(212,168,83,0.028)");
+        outer.addColorStop(0.45, "rgba(212,168,83,0.009)");
+        outer.addColorStop(1, "rgba(212,168,83,0)");
+        ctx.fillStyle = outer;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const inner = ctx.createRadialGradient(mx, my, 0, mx, my, 72);
+        inner.addColorStop(0, "rgba(255,245,210,0.04)");
+        inner.addColorStop(1, "rgba(255,245,210,0)");
+        ctx.fillStyle = inner;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      const pts = particles.current;
       for (const p of pts) {
+        const dx = p.x - mx, dy = p.y - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < REPEL && dist > 0) {
+          const f = ((REPEL - dist) / REPEL) * 0.6;
+          p.vx += (dx / dist) * f; p.vy += (dy / dist) * f;
+        } else if (dist < ATTRACT && dist > REPEL) {
+          const f = ((ATTRACT - dist) / (ATTRACT - REPEL)) * 0.07;
+          p.vx -= (dx / dist) * f; p.vy -= (dy / dist) * f;
+        }
+        p.vx *= 0.972; p.vy *= 0.972;
+        const spd = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
+        if (spd > 2) { p.vx = (p.vx / spd) * 2; p.vy = (p.vy / spd) * 2; }
         p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = canvas.width;
-        if (p.x > canvas.width) p.x = 0;
-        if (p.y < 0) p.y = canvas.height;
-        if (p.y > canvas.height) p.y = 0;
+        if (p.x < -10) p.x = canvas.width + 10; if (p.x > canvas.width + 10) p.x = -10;
+        if (p.y < -10) p.y = canvas.height + 10; if (p.y > canvas.height + 10) p.y = -10;
+      }
+
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < CONNECT) {
+            const alpha = (1 - d / CONNECT) * 0.08;
+            ctx.beginPath();
+            ctx.moveTo(pts[i].x, pts[i].y);
+            ctx.lineTo(pts[j].x, pts[j].y);
+            ctx.strokeStyle = (pts[i].gold || pts[j].gold) ? `rgba(212,168,83,${alpha})` : `rgba(229,231,235,${alpha})`;
+            ctx.lineWidth = 0.6;
+            ctx.stroke();
+          }
+        }
+      }
+
+      for (const p of pts) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.gold ? `rgba(212,168,83,${p.o})` : `rgba(255,255,255,${p.o * 0.5})`;
+        ctx.fillStyle = p.gold ? `rgba(212,168,83,${p.o})` : `rgba(229,231,235,${p.o})`;
         ctx.fill();
       }
-      raf = requestAnimationFrame(draw);
+
+      raf.current = requestAnimationFrame(draw);
     };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+    raf.current = requestAnimationFrame(draw);
+
+    const onMove  = (e: MouseEvent) => { mouse.current = { x: e.clientX, y: e.clientY }; };
+    const onLeave = () => { mouse.current = { x: -9999, y: -9999 }; };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseleave", onLeave);
+
+    return () => {
+      cancelAnimationFrame(raf.current);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseleave", onLeave);
+    };
   }, []);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="pointer-events-none fixed inset-0 z-0"
-      aria-hidden="true"
-    />
-  );
+  return <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-0" aria-hidden="true" />;
 }
 
 const FEATURES = [
@@ -132,6 +191,28 @@ export default function WelcomePage() {
     setTimeout(() => { setPhase("features"); setFeatureIdx(0); }, 1800);
   }
 
+  // Director's "Cut" — skip straight to dashboard
+  function handleCut() {
+    if (phase === "exit" || phase === "gone") return;
+    if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
+    setPhase("exit");
+    localStorage.setItem("cf_onboarded", "1");
+    setTimeout(() => window.location.assign("/dashboard"), 350);
+  }
+
+  // Click anywhere on background to advance phases
+  function handleBgClick() {
+    if (phase === "dormant" || phase === "name_ask" || phase === "exit" || phase === "gone") return;
+    if (phase === "logo") return; // too brief, let it play
+    if (phase === "name_ack") { setPhase("features"); setFeatureIdx(0); return; }
+    if (phase === "features") {
+      if (featureIdx < FEATURES.length - 1) { setFeatureIdx((i) => i + 1); }
+      else { setPhase("headline"); }
+      return;
+    }
+    if (phase === "headline") handleCut();
+  }
+
   // Feature carousel
   useEffect(() => {
     if (phase !== "features") return;
@@ -163,8 +244,22 @@ export default function WelcomePage() {
   const FeatureIcon = Feature.icon;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060606]">
-      <AmbientDots />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060606]" onClick={handleBgClick}>
+      <InteractiveParticles />
+
+      {/* ─── "Cut" — one-word film skip button ─── */}
+      <button
+        onClick={(e) => { e.stopPropagation(); handleCut(); }}
+        style={{
+          opacity: phase !== "dormant" && !isExit ? 1 : 0,
+          pointerEvents: phase !== "dormant" && !isExit ? "auto" : "none",
+          transition: "opacity 600ms ease 800ms",
+        }}
+        className="fixed right-5 top-5 z-40 flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-black/20 px-4 py-1.5 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-zinc-500 backdrop-blur-sm hover:border-[#d4a853]/40 hover:text-[#d4a853] transition-colors duration-200"
+      >
+        <Film className="h-2.5 w-2.5" />
+        Cut
+      </button>
 
       {/* Radial ambient glow */}
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_60%_55%_at_50%_50%,rgba(212,168,83,0.07)_0%,transparent_70%)]" />
