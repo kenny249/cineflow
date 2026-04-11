@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Film, Layers, Eye, Users } from "lucide-react";
 import { getOrCreateDisplayName, setDisplayName, generateDisplayName } from "@/lib/random-name";
 
@@ -136,6 +136,168 @@ const FEATURES = [
   },
 ] as const;
 
+const FEATURE_BTNS = ["Action", "Scene", "Wrap"] as const;
+
+function FeatureSlide({
+  idx,
+  total,
+  onNext,
+}: {
+  idx: number;
+  total: number;
+  onNext: () => void;
+}) {
+  const feature  = FEATURES[idx];
+  const Icon     = feature.icon;
+  const cardRef  = useRef<HTMLDivElement>(null);
+  const btnRef   = useRef<HTMLButtonElement>(null);
+  const [tilt, setTilt]             = useState({ x: 0, y: 0 });
+  const [btnShift, setBtnShift]     = useState({ x: 0, y: 0 });
+  const [showRipple, setShowRipple] = useState(false);
+  const [rippleKey, setRippleKey]   = useState(0);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const card = cardRef.current;
+    if (!card) return;
+    const r  = card.getBoundingClientRect();
+    const cx = r.left + r.width  / 2;
+    const cy = r.top  + r.height / 2;
+    const nx = (e.clientX - cx) / (r.width  / 2);
+    const ny = (e.clientY - cy) / (r.height / 2);
+    setTilt({ x: -ny * 7, y: nx * 7 });
+    const btn = btnRef.current;
+    if (btn) {
+      const br   = btn.getBoundingClientRect();
+      const bdx  = e.clientX - (br.left + br.width  / 2);
+      const bdy  = e.clientY - (br.top  + br.height / 2);
+      const dist = Math.sqrt(bdx * bdx + bdy * bdy);
+      setBtnShift(dist < 90 ? { x: bdx * 0.38, y: bdy * 0.38 } : { x: 0, y: 0 });
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setTilt({ x: 0, y: 0 });
+    setBtnShift({ x: 0, y: 0 });
+  };
+
+  const handleNext = () => {
+    setRippleKey(k => k + 1);
+    setShowRipple(true);
+    setTimeout(() => setShowRipple(false), 700);
+    setTimeout(onNext, 160);
+  };
+
+  const progress = (idx + 1) / total;
+  const btnLabel = FEATURE_BTNS[idx] ?? "Next";
+
+  return (
+    <div
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onClick={(e) => e.stopPropagation()}
+      className="flex flex-col items-center"
+      style={{
+        transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+        transition: "transform 150ms ease-out",
+        transformStyle: "preserve-3d",
+      }}
+    >
+      {/* Icon with scan line + pulse rings */}
+      <div
+        className="relative mb-6 flex items-center justify-center"
+        style={{ animation: "wt-feature-in 500ms cubic-bezier(0.22,1,0.36,1) both" }}
+      >
+        <div className="absolute h-24 w-24 rounded-full border border-[#d4a853]/15" style={{ animation: "wt-pulse-ring 2.4s ease-out infinite" }} />
+        <div className="absolute h-24 w-24 rounded-full border border-[#d4a853]/[0.08]" style={{ animation: "wt-pulse-ring 2.4s ease-out 0.9s infinite" }} />
+        <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[#d4a853]/40 bg-[#d4a853]/10 shadow-[0_0_60px_rgba(212,168,83,0.3)]">
+          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+            <div
+              className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#d4a853]/70 to-transparent"
+              style={{ animation: "wt-scan 2.5s linear infinite" }}
+            />
+          </div>
+          <Icon className="relative z-10 h-8 w-8 text-[#d4a853]" />
+        </div>
+      </div>
+
+      {/* Eyebrow */}
+      <p
+        className="mb-3 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]"
+        style={{ animation: "wt-feature-in 500ms 80ms cubic-bezier(0.22,1,0.36,1) both" }}
+      >
+        {feature.eyebrow}
+      </p>
+
+      {/* Headline */}
+      <h3
+        className="mb-3 font-display text-3xl font-bold leading-tight text-white sm:text-4xl"
+        style={{ whiteSpace: "pre-line", animation: "wt-feature-in 500ms 180ms cubic-bezier(0.22,1,0.36,1) both" }}
+      >
+        {feature.headline}
+      </h3>
+
+      {/* Sub */}
+      <p
+        className="max-w-xs text-sm leading-relaxed text-zinc-400"
+        style={{ animation: "wt-feature-in 500ms 300ms cubic-bezier(0.22,1,0.36,1) both" }}
+      >
+        {feature.sub}
+      </p>
+
+      {/* Cinematic progress bar */}
+      <div
+        className="relative mt-8 h-px w-48 overflow-hidden rounded-full bg-white/[0.07]"
+        style={{ animation: "wt-feature-in 400ms 420ms ease both" }}
+      >
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-[#d4a853]/60 to-[#d4a853]"
+          style={{ width: `${progress * 100}%`, transition: "width 600ms cubic-bezier(0.22,1,0.36,1)" }}
+        />
+        <div
+          className="absolute inset-y-0 w-8 rounded-full"
+          style={{
+            background: "linear-gradient(90deg, transparent, rgba(255,245,210,0.5), transparent)",
+            left: `calc(${progress * 100}% - 16px)`,
+            transition: "left 600ms cubic-bezier(0.22,1,0.36,1)",
+          }}
+        />
+      </div>
+      <p
+        className="mt-2 text-[0.5rem] font-bold uppercase tracking-[0.4em] text-zinc-600"
+        style={{ animation: "wt-feature-in 400ms 460ms ease both" }}
+      >
+        {idx + 1} of {total}
+      </p>
+
+      {/* Magnetic Next button with ripple */}
+      <div
+        className="mt-8"
+        style={{
+          transform: `translate(${btnShift.x}px, ${btnShift.y}px)`,
+          transition: "transform 200ms cubic-bezier(0.34,1.56,0.64,1)",
+          animation: "wt-feature-in 500ms 540ms cubic-bezier(0.22,1,0.36,1) both",
+        }}
+      >
+        <button
+          ref={btnRef}
+          onClick={handleNext}
+          className="group relative overflow-hidden rounded-full border border-[#d4a853]/30 bg-[#d4a853]/[0.08] px-8 py-3 text-[0.65rem] font-bold uppercase tracking-[0.35em] text-[#d4a853] backdrop-blur-sm transition-all duration-200 hover:border-[#d4a853]/70 hover:bg-[#d4a853]/[0.18] hover:shadow-[0_0_30px_rgba(212,168,83,0.25)] active:scale-95"
+        >
+          {showRipple && (
+            <span
+              key={rippleKey}
+              className="pointer-events-none absolute left-1/2 top-1/2 h-40 w-40 rounded-full bg-[#d4a853]/20"
+              style={{ animation: "wt-ripple 700ms ease-out forwards" }}
+            />
+          )}
+          <span className="relative z-10">{btnLabel} →</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type Phase =
   | "dormant"
   | "logo"
@@ -200,30 +362,21 @@ export default function WelcomePage() {
     setTimeout(() => window.location.assign("/dashboard"), 350);
   }
 
-  // Click anywhere on background to advance phases
+  // Click background to advance (features phase handled by manual buttons)
   function handleBgClick() {
-    if (phase === "dormant" || phase === "name_ask" || phase === "exit" || phase === "gone") return;
-    if (phase === "logo") return; // too brief, let it play
+    if (phase === "dormant" || phase === "name_ask" || phase === "features" || phase === "exit" || phase === "gone") return;
+    if (phase === "logo") return;
     if (phase === "name_ack") { setPhase("features"); setFeatureIdx(0); return; }
-    if (phase === "features") {
-      if (featureIdx < FEATURES.length - 1) { setFeatureIdx((i) => i + 1); }
-      else { setPhase("headline"); }
-      return;
-    }
     if (phase === "headline") handleCut();
   }
 
-  // Feature carousel
-  useEffect(() => {
-    if (phase !== "features") return;
+  function handleFeatureNext() {
     if (featureIdx < FEATURES.length - 1) {
-      const t = setTimeout(() => setFeatureIdx((i) => i + 1), 1600);
-      return () => clearTimeout(t);
+      setFeatureIdx(i => i + 1);
     } else {
-      const t = setTimeout(() => setPhase("headline"), 2000);
-      return () => clearTimeout(t);
+      setPhase("headline");
     }
-  }, [phase, featureIdx]);
+  }
 
   // Exit after headline
   useEffect(() => {
@@ -237,11 +390,8 @@ export default function WelcomePage() {
     return () => clearTimeout(t1);
   }, [phase]);
 
-  const isExit   = phase === "exit" || phase === "gone";
+  const isExit    = phase === "exit" || phase === "gone";
   const firstName = resolvedName.split(" ")[0] ?? resolvedName;
-
-  const Feature = FEATURES[featureIdx];
-  const FeatureIcon = Feature.icon;
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060606]" onClick={handleBgClick}>
@@ -258,7 +408,7 @@ export default function WelcomePage() {
         className="fixed right-5 top-5 z-40 flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-black/20 px-4 py-1.5 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-zinc-500 backdrop-blur-sm hover:border-[#d4a853]/40 hover:text-[#d4a853] transition-colors duration-200"
       >
         <Film className="h-2.5 w-2.5" />
-        Cut
+        Skip Intro
       </button>
 
       {/* Radial ambient glow */}
@@ -428,39 +578,19 @@ export default function WelcomePage() {
 
       {/* ── FEATURES ── */}
       <div
-        className="pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
+        className="fixed inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
         style={{
           opacity: phase === "features" ? 1 : 0,
+          pointerEvents: phase === "features" ? "auto" : "none",
           transition: "opacity 600ms ease",
         }}
       >
-        <div
+        <FeatureSlide
           key={featureIdx}
-          className="flex flex-col items-center"
-          style={{ animation: "wt-feature-in 600ms cubic-bezier(0.22,1,0.36,1) forwards" }}
-        >
-          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10 shadow-[0_0_50px_rgba(212,168,83,0.2)]">
-            <FeatureIcon className="h-8 w-8 text-[#d4a853]" />
-          </div>
-          <p className="mb-3 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">{Feature.eyebrow}</p>
-          <h3 className="mb-3 font-display text-3xl font-bold leading-tight text-white sm:text-4xl" style={{ whiteSpace: "pre-line" }}>
-            {Feature.headline}
-          </h3>
-          <p className="max-w-xs text-sm leading-relaxed text-zinc-400">{Feature.sub}</p>
-          {/* Dot indicators */}
-          <div className="mt-8 flex gap-2">
-            {FEATURES.map((_, i) => (
-              <div
-                key={i}
-                className="h-1 rounded-full transition-all duration-500"
-                style={{
-                  width: i === featureIdx ? "24px" : "6px",
-                  background: i === featureIdx ? "#d4a853" : "rgba(255,255,255,0.15)",
-                }}
-              />
-            ))}
-          </div>
-        </div>
+          idx={featureIdx}
+          total={FEATURES.length}
+          onNext={handleFeatureNext}
+        />
       </div>
 
       <style>{`
@@ -469,8 +599,18 @@ export default function WelcomePage() {
           to   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0);  }
         }
         @keyframes wt-pulse-ring {
-          0%   { transform: scale(1);   opacity: 0.5; }
-          100% { transform: scale(2.2); opacity: 0;   }
+          0%   { transform: scale(1);   opacity: 0.4; }
+          100% { transform: scale(2.0); opacity: 0;   }
+        }
+        @keyframes wt-scan {
+          0%   { top: 0%;   opacity: 0; }
+          10%  { opacity: 1; }
+          90%  { opacity: 1; }
+          100% { top: 100%; opacity: 0; }
+        }
+        @keyframes wt-ripple {
+          from { transform: translate(-50%, -50%) scale(0); opacity: 0.7; }
+          to   { transform: translate(-50%, -50%) scale(5); opacity: 0;   }
         }
       `}</style>
     </div>
