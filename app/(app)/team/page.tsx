@@ -33,6 +33,18 @@ import {
   MessageSquare,
   Film,
   FolderKanban,
+  Megaphone,
+  Clapperboard,
+  Camera,
+  PenLine,
+  ClipboardList,
+  Target,
+  Zap,
+  Lightbulb,
+  Sparkles,
+  Music2,
+  Wrench,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -171,12 +183,32 @@ function InviteModal({ onClose, onInvited }: { onClose: () => void; onInvited: (
 
 // ─── New topic modal ──────────────────────────────────────────────────────────
 
-const EMOJIS = ["💬", "📢", "🎬", "📷", "✏️", "📋", "🎯", "🔥", "💡", "🌟", "🎵", "🛠️"];
+const TOPIC_ICONS: { key: string; icon: LucideIcon; label: string }[] = [
+  { key: "MessageSquare", icon: MessageSquare, label: "General" },
+  { key: "Megaphone",     icon: Megaphone,     label: "Announce" },
+  { key: "Clapperboard", icon: Clapperboard,  label: "Production" },
+  { key: "Camera",       icon: Camera,        label: "Camera" },
+  { key: "Film",         icon: Film,          label: "Film" },
+  { key: "PenLine",      icon: PenLine,       label: "Script" },
+  { key: "ClipboardList",icon: ClipboardList, label: "Planning" },
+  { key: "Target",       icon: Target,        label: "Goals" },
+  { key: "Zap",          icon: Zap,           label: "Urgent" },
+  { key: "Lightbulb",    icon: Lightbulb,     label: "Ideas" },
+  { key: "Sparkles",     icon: Sparkles,      label: "Creative" },
+  { key: "Music2",       icon: Music2,        label: "Audio" },
+  { key: "Wrench",       icon: Wrench,        label: "Tech" },
+];
+
+function TopicIcon({ value, className }: { value: string; className?: string }) {
+  const found = TOPIC_ICONS.find((i) => i.key === value);
+  const Ic = found?.icon ?? Hash;
+  return <Ic className={className ?? "h-4 w-4"} />;
+}
 
 function NewTopicModal({ onClose, onCreated }: { onClose: () => void; onCreated: (t: TeamTopic) => void }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [emoji, setEmoji] = useState("💬");
+  const [emoji, setEmoji] = useState("MessageSquare");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -207,15 +239,22 @@ function NewTopicModal({ onClose, onCreated }: { onClose: () => void; onCreated:
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-2 block text-xs font-medium text-muted-foreground">Icon</label>
-            <div className="flex flex-wrap gap-2">
-              {EMOJIS.map((e) => (
+            <div className="grid grid-cols-7 gap-1.5">
+              {TOPIC_ICONS.map(({ key, icon: Ic, label }) => (
                 <button
-                  key={e}
+                  key={key}
                   type="button"
-                  onClick={() => setEmoji(e)}
-                  className={`rounded-lg p-2 text-lg transition-all ${emoji === e ? "bg-[#d4a853]/20 ring-1 ring-[#d4a853]/50" : "hover:bg-muted/50"}`}
+                  title={label}
+                  onClick={() => setEmoji(key)}
+                  className={`group flex items-center justify-center rounded-xl p-2.5 transition-all duration-150 ${
+                    emoji === key
+                      ? "bg-[#d4a853]/15 ring-1 ring-[#d4a853]/60 shadow-[0_0_12px_rgba(212,168,83,0.2)]"
+                      : "bg-white/[0.03] hover:bg-white/[0.07] ring-1 ring-white/[0.06]"
+                  }`}
                 >
-                  {e}
+                  <Ic className={`h-4 w-4 transition-colors ${
+                    emoji === key ? "text-[#d4a853]" : "text-muted-foreground group-hover:text-foreground"
+                  }`} />
                 </button>
               ))}
             </div>
@@ -659,7 +698,7 @@ export default function TeamPage() {
                           : "text-muted-foreground hover:bg-muted/30 hover:text-foreground"
                       }`}
                     >
-                      <span className="text-sm leading-none">{topic.emoji}</span>
+                      <TopicIcon value={topic.emoji} className="h-3.5 w-3.5 shrink-0 text-[#d4a853]/70" />
                       <span className="min-w-0 flex-1 truncate text-xs font-medium">{topic.name}</span>
                       {activeTopic?.id === topic.id && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#d4a853]" />}
                     </button>
@@ -766,7 +805,9 @@ export default function TeamPage() {
             <>
               {activeTopic && (
                 <div className="shrink-0 flex items-center gap-2.5 border-b border-border px-5 py-3">
-                  <span className="text-xl leading-none">{activeTopic.emoji}</span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#d4a853]/10">
+                    <TopicIcon value={activeTopic.emoji} className="h-4 w-4 text-[#d4a853]" />
+                  </div>
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">{activeTopic.name}</h2>
                     {activeTopic.description && <p className="text-[11px] text-muted-foreground">{activeTopic.description}</p>}
@@ -788,7 +829,9 @@ export default function TeamPage() {
                 )}
                 {activeTopic && !loadingMsgs && messages.length === 0 && (
                   <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-                    <div className="text-5xl">{activeTopic.emoji}</div>
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/20 bg-[#d4a853]/[0.07] shadow-[0_0_30px_rgba(212,168,83,0.1)]">
+                    <TopicIcon value={activeTopic.emoji} className="h-7 w-7 text-[#d4a853]/80" />
+                  </div>
                     <div>
                       <p className="text-sm font-semibold text-foreground">Welcome to #{activeTopic.name}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{activeTopic.description ?? "Be the first to say something."}</p>
