@@ -20,7 +20,7 @@ import { useCompletionBurst, BurstRenderer } from "@/components/shared/Completio
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, ShotList, StoryboardFrame, ShotListItem, ProjectRole } from "@/types";
-import { updateProject, updateShotListItem } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
 import { WrapNotesTab } from "@/components/projects/tabs/WrapNotesTab";
@@ -235,6 +235,59 @@ export default function ProjectDetailTabs({
   const [editDescription, setEditDescription] = useState(description);
   const [editStatus, setEditStatus] = useState<Project["status"]>(status);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteContent, setNoteContent] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+
+  async function handleAddNote() {
+    if (!noteContent.trim()) { toast.error("Note content is required"); return; }
+    setSavingNote(true);
+    try {
+      const created = await createProjectNote({
+        project_id: project.id,
+        title: noteTitle.trim() || undefined,
+        content: noteContent.trim(),
+        pinned: false,
+        created_by: undefined,
+      });
+      setNotes((prev) => [created, ...prev]);
+      setNoteTitle("");
+      setNoteContent("");
+      setShowNoteForm(false);
+      toast.success("Note added");
+    } catch {
+      toast.error("Failed to save note");
+    } finally {
+      setSavingNote(false);
+    }
+  }
+
+  async function handleDeleteNote(id: string) {
+    setDeletingNoteId(id);
+    try {
+      await deleteProjectNote(id);
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+      toast.success("Note deleted");
+    } catch {
+      toast.error("Failed to delete note");
+    } finally {
+      setDeletingNoteId(null);
+    }
+  }
+
+  async function handleTogglePin(note: ProjectNote) {
+    const next = !note.pinned;
+    setNotes((prev) => prev.map((n) => n.id === note.id ? { ...n, pinned: next } : n));
+    try {
+      await updateProjectNote(note.id, { pinned: next });
+    } catch {
+      setNotes((prev) => prev.map((n) => n.id === note.id ? { ...n, pinned: note.pinned } : n));
+      toast.error("Failed to update note");
+    }
+  }
 
   const [showMemberDialog, setShowMemberDialog] = useState(false);
   const [newMemberName, setNewMemberName] = useState("");
@@ -1434,22 +1487,77 @@ export default function ProjectDetailTabs({
 
             <TabsContent value="notes" className="m-0 p-6">
               <div className="space-y-4">
-                {notes.length === 0 ? (
-                  <div className="rounded-3xl border border-border bg-card p-8 text-center text-muted-foreground">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-sm font-semibold text-foreground">Notes</h3>
+                  {canEdit && (
+                    <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowNoteForm((v) => !v)}>
+                      {showNoteForm ? "Cancel" : "+ Add Note"}
+                    </Button>
+                  )}
+                </div>
+
+                {showNoteForm && (
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                    <input
+                      type="text"
+                      value={noteTitle}
+                      onChange={(e) => setNoteTitle(e.target.value)}
+                      placeholder="Title (optional)"
+                      className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                    />
+                    <textarea
+                      value={noteContent}
+                      onChange={(e) => setNoteContent(e.target.value)}
+                      placeholder="Write your note…"
+                      rows={4}
+                      className="w-full resize-none rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setShowNoteForm(false); setNoteTitle(""); setNoteContent(""); }} className="rounded-lg px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+                      <button onClick={handleAddNote} disabled={savingNote} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-60">
+                        {savingNote ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : null}
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {notes.length === 0 && !showNoteForm ? (
+                  <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
                     No notes yet. Use this space to capture creative direction, technical calls, and client feedback.
                   </div>
                 ) : (
-                  <div className="grid gap-4">
+                  <div className="grid gap-3">
                     {notes.map((note) => (
-                      <div key={note.id} className="rounded-3xl border border-border bg-card p-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <h3 className="text-sm font-semibold text-foreground">{note.title || "Note"}</h3>
-                            <p className="text-[11px] text-muted-foreground">{formatRelative(note.created_at)}</p>
+                      <div key={note.id} className={`rounded-xl border bg-card p-4 ${note.pinned ? "border-[#d4a853]/30 bg-[#d4a853]/[0.03]" : "border-border"}` }>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            {note.title && <h3 className="text-sm font-semibold text-foreground">{note.title}</h3>}
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{formatRelative(note.created_at)}</p>
                           </div>
-                          {note.pinned && <Badge variant="outline">Pinned</Badge>}
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              onClick={() => handleTogglePin(note)}
+                              title={note.pinned ? "Unpin" : "Pin to overview"}
+                              className={`rounded-lg p-1.5 transition-colors ${ note.pinned ? "text-[#d4a853] hover:bg-[#d4a853]/10" : "text-muted-foreground hover:text-[#d4a853] hover:bg-[#d4a853]/10" }`}
+                            >
+                              <Pin className="h-3.5 w-3.5" />
+                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => handleDeleteNote(note.id)}
+                                disabled={deletingNoteId === note.id}
+                                className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-400"
+                              >
+                                {deletingNoteId === note.id
+                                  ? <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+                                  : <X className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <p className="mt-3 text-sm text-muted-foreground">{note.content}</p>
+                        <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{note.content}</p>
+                        {note.pinned && <p className="mt-2 text-[10px] text-[#d4a853]/70 flex items-center gap-1"><Pin className="h-2.5 w-2.5" /> Pinned to overview</p>}
                       </div>
                     ))}
                   </div>
