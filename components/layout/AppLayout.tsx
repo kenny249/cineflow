@@ -3,8 +3,9 @@
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, UploadCloud, Settings, ScrollText, UsersRound } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, UploadCloud, Settings, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, List, Layers, Users } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { MobileSplash } from "./MobileSplash";
@@ -15,12 +16,21 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-const MOBILE_NAV = [
+const MOBILE_NAV_PRIMARY = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Projects",  href: "/projects",  icon: FolderKanban },
-  { label: "Scripts",   href: "/scripts",   icon: ScrollText },
-  { label: "Team",      href: "/team",      icon: UsersRound },
+  { label: "Revisions", href: "/revisions", icon: UploadCloud },
   { label: "Settings",  href: "/settings",  icon: Settings },
+];
+
+const MOBILE_NAV_MORE = [
+  { label: "Calendar",   href: "/calendar",   icon: Calendar },
+  { label: "Scripts",    href: "/scripts",    icon: ScrollText },
+  { label: "Shot Lists", href: "/shot-lists", icon: List },
+  { label: "Storyboard", href: "/storyboard", icon: Layers },
+  { label: "Clients",    href: "/clients",    icon: Users },
+  { label: "Finance",    href: "/finance",    icon: DollarSign },
+  { label: "Team",       href: "/team",       icon: UsersRound },
 ];
 
 interface AppLayoutProps {
@@ -35,6 +45,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [collapsed, setCollapsed] = useLocalStorage("sidebar-collapsed", false);
   const [theme, setTheme] = useLocalStorage<"dark" | "light">("cineflow-theme", "dark");
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -111,8 +122,8 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
       </div>
 
       {/* ── Mobile bottom navigation ── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-border bg-[#0b0b0b]/95 backdrop-blur-md md:hidden safe-area-bottom">
-        {MOBILE_NAV.map((item) => (
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-border bg-[#0b0b0b]/95 backdrop-blur-md md:hidden">
+        {MOBILE_NAV_PRIMARY.map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -132,7 +143,75 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
             <span>{item.label}</span>
           </Link>
         ))}
+        {/* More button */}
+        <button
+          onClick={() => setMoreOpen(true)}
+          className={cn(
+            "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-[9px] font-medium tracking-wide transition-colors",
+            moreOpen ? "text-[#d4a853]" : "text-muted-foreground"
+          )}
+        >
+          <MoreHorizontal className={cn("h-5 w-5 transition-all duration-200", moreOpen ? "text-[#d4a853]" : "text-muted-foreground")} />
+          <span>More</span>
+        </button>
       </nav>
+
+      {/* ── More drawer (bottom sheet) ── */}
+      <AnimatePresence>
+        {moreOpen && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="more-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-50 bg-black/60 md:hidden"
+              onClick={() => setMoreOpen(false)}
+            />
+            {/* Sheet */}
+            <motion.div
+              key="more-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl border-t border-border bg-[#0f0f0f] pb-[env(safe-area-inset-bottom)] md:hidden"
+            >
+              {/* Handle + header */}
+              <div className="flex items-center justify-between px-5 py-4">
+                <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-border absolute top-3 left-1/2 -translate-x-1/2" />
+                <span className="text-sm font-semibold text-foreground">More pages</span>
+                <button
+                  onClick={() => setMoreOpen(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-px border-t border-border bg-border px-0">
+                {MOBILE_NAV_MORE.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMoreOpen(false)}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-2 bg-[#0f0f0f] px-2 py-4 text-[10px] font-medium tracking-wide transition-colors active:bg-accent",
+                      isActive(item.href) ? "text-[#d4a853]" : "text-muted-foreground"
+                    )}
+                  >
+                    <item.icon className={cn("h-6 w-6", isActive(item.href) ? "text-[#d4a853]" : "text-muted-foreground")} />
+                    <span className="text-center leading-tight">{item.label}</span>
+                  </Link>
+                ))}
+              </div>
+              {/* extra bottom padding for safe area */}
+              <div className="h-5" />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

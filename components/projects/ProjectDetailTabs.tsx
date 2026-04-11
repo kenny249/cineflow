@@ -1053,7 +1053,7 @@ export default function ProjectDetailTabs({
               </div>
             </TabsContent>
 
-            <TabsContent value="shot-list" className="m-0 p-6">
+            <TabsContent value="shot-list" className="m-0 p-4 sm:p-6">
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-display text-sm font-semibold text-foreground">{shotList?.title || "Shot List"}</h3>
@@ -1070,20 +1070,24 @@ export default function ProjectDetailTabs({
                   <p className="mt-1 text-sm text-muted-foreground">Create your first shot list to start planning your shoot.</p>
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-border">
-                  <table className="w-full">
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="w-full min-w-[420px]">
                     <thead>
                       <tr className="border-b border-border bg-muted/50">
-                        {['#', 'Description', 'Location', 'Type', 'Movement', 'Lens', ''].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{h}</th>
-                        ))}
+                        <th className="px-3 py-2.5 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">#</th>
+                        <th className="px-3 py-2.5 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Description</th>
+                        <th className="hidden sm:table-cell px-3 py-2.5 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Location</th>
+                        <th className="px-3 py-2.5 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Type</th>
+                        <th className="hidden md:table-cell px-3 py-2.5 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Movement</th>
+                        <th className="hidden md:table-cell px-3 py-2.5 text-left text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lens</th>
+                        <th className="px-3 py-2.5"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {shotList.items?.map((shot) => (
                         <tr key={shot.id} className={`group bg-card transition-colors hover:bg-accent/30 ${shot.is_complete ? "opacity-60" : ""}`}>
-                          <td className="px-4 py-3 w-8">
-                            <div className="flex items-center gap-2">
+                          <td className="px-3 py-3 w-14">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
                                 className="shrink-0 transition-transform active:scale-90"
@@ -1096,27 +1100,27 @@ export default function ProjectDetailTabs({
                               <span className="font-mono text-xs text-muted-foreground">{shot.shot_number}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-3 max-w-xs">
+                          <td className="px-3 py-3 max-w-[160px] sm:max-w-xs">
                             <p className="text-sm text-foreground leading-snug">{shot.description}</p>
                             {shot.notes && <p className="mt-0.5 text-xs text-muted-foreground italic truncate">{shot.notes}</p>}
                           </td>
-                          <td className="px-4 py-3"><span className="text-xs text-muted-foreground whitespace-nowrap">{shot.location || "—"}</span></td>
-                          <td className="px-4 py-3"><Badge variant="outline" className="text-[10px] whitespace-nowrap">{shot.shot_type.replace("_", " ")}</Badge></td>
-                          <td className="px-4 py-3"><span className="text-xs text-muted-foreground capitalize">{shot.camera_movement}</span></td>
-                          <td className="px-4 py-3"><span className="font-mono text-xs text-muted-foreground">{shot.lens || "—"}</span></td>
-                          <td className="px-4 py-3 w-8">
+                          <td className="hidden sm:table-cell px-3 py-3"><span className="text-xs text-muted-foreground whitespace-nowrap">{shot.location || "—"}</span></td>
+                          <td className="px-3 py-3"><Badge variant="outline" className="text-[10px] whitespace-nowrap">{shot.shot_type.replace("_", " ")}</Badge></td>
+                          <td className="hidden md:table-cell px-3 py-3"><span className="text-xs text-muted-foreground capitalize">{shot.camera_movement}</span></td>
+                          <td className="hidden md:table-cell px-3 py-3"><span className="font-mono text-xs text-muted-foreground">{shot.lens || "—"}</span></td>
+                          <td className="px-3 py-3 w-16 text-right">
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              className="transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+                              className="h-7 px-2 text-xs transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 toggleShotComplete(shot.id, e.nativeEvent);
                               }}
                             >
-                              {shot.is_complete ? "Undo" : "Complete"}
+                              {shot.is_complete ? "Undo" : "Done"}
                             </Button>
                           </td>
                         </tr>
@@ -1480,9 +1484,9 @@ export default function ProjectDetailTabs({
               <span className="font-mono text-sm font-semibold text-[#d4a853]">{computedProgress}%</span>
             </div>
           </div>
-          <DialogFooter className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowEditDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" onClick={handleSaveProject}>Save</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleSaveProject}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1511,23 +1515,63 @@ export default function ProjectDetailTabs({
               </select>
             </div>
           </div>
-          <DialogFooter className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowMemberDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" onClick={handleAddMember}>Add member</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowMemberDialog(false)}>Cancel</Button>
+            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddMember}>Add member</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showShotDialog} onOpenChange={setShowShotDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add shot</DialogTitle>
             <DialogDescription>Add a new shot to the active shot list for this project.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Shot number — stepper */}
             <div className="space-y-1.5">
-              <Label htmlFor="shot-number">Shot number</Label>
-              <Input id="shot-number" type="number" value={newShotNumber} onChange={(e) => setNewShotNumber(Number(e.target.value))} placeholder="1" />
+              <Label>Shot number</Label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewShotNumber((n) => Math.max(1, n - 1))}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-lg font-bold text-foreground transition hover:bg-accent active:scale-95"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={newShotNumber}
+                  onChange={(e) => setNewShotNumber(Math.max(1, Number(e.target.value)))}
+                  className="h-10 w-full rounded-lg border border-border bg-input px-3 text-center text-sm font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <button
+                  type="button"
+                  onClick={() => setNewShotNumber((n) => n + 1)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-lg font-bold text-foreground transition hover:bg-accent active:scale-95"
+                >
+                  +
+                </button>
+              </div>
+              {/* Quick-pick row */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {Array.from({ length: Math.min(12, (shotList?.items?.length ?? 0) + 6) }, (_, i) => i + 1).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setNewShotNumber(n)}
+                    className={`h-7 w-7 rounded-md border text-[11px] font-medium transition active:scale-95 ${
+                      newShotNumber === n
+                        ? "border-[#d4a853] bg-[#d4a853]/15 text-[#d4a853]"
+                        : "border-border bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="shot-scene">Scene</Label>
@@ -1535,12 +1579,12 @@ export default function ProjectDetailTabs({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="shot-description">Description</Label>
-              <Textarea id="shot-description" value={newShotDescription} onChange={(e) => setNewShotDescription(e.target.value)} rows={4} placeholder="Describe the shot." />
+              <Textarea id="shot-description" value={newShotDescription} onChange={(e) => setNewShotDescription(e.target.value)} rows={3} placeholder="Describe the shot." />
             </div>
           </div>
-          <DialogFooter className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowShotDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" onClick={handleAddShot}>Add shot</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowShotDialog(false)}>Cancel</Button>
+            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddShot}>Add shot</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1561,9 +1605,9 @@ export default function ProjectDetailTabs({
               <Textarea id="frame-description" value={newFrameDescription} onChange={(e) => setNewFrameDescription(e.target.value)} rows={4} placeholder="Describe the shot and mood." />
             </div>
           </div>
-          <DialogFooter className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowFrameDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" onClick={handleAddFrame}>Add frame</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowFrameDialog(false)}>Cancel</Button>
+            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddFrame}>Add frame</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1588,9 +1632,9 @@ export default function ProjectDetailTabs({
               <input id="revision-file" type="file" accept="video/*" onChange={(e) => setNewRevisionFile(e.target.files?.[0] ?? null)} className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground" />
             </div>
           </div>
-          <DialogFooter className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowRevisionDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" onClick={handleUploadRevision}>Upload</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowRevisionDialog(false)}>Cancel</Button>
+            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleUploadRevision}>Upload</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

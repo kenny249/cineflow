@@ -124,14 +124,14 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
       onClick={handleBackdropClick}
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
       {/* Panel */}
-      <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
+      <div className="relative w-full max-w-lg rounded-t-2xl rounded-b-2xl sm:rounded-2xl border border-border bg-card shadow-2xl animate-in fade-in-0 slide-in-from-bottom-4 sm:zoom-in-95 duration-200 max-h-[90dvh] overflow-y-auto">
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
@@ -219,14 +219,15 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border mt-2">
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          <div className="flex flex-col-reverse gap-2 pt-2 border-t border-border mt-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="ghost" size="sm" className="w-full sm:w-auto" onClick={onClose}>
               Cancel
             </Button>
             <Button
               type="submit"
               variant="gold"
               size="sm"
+              className="w-full sm:w-auto"
               disabled={!form.title.trim() || isLoading}
             >
               {isLoading ? "Creating..." : "Create Project"}

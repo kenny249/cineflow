@@ -343,11 +343,11 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
   return (
     <div className="overflow-hidden rounded-xl border border-border">
       {/* Header */}
-      <div className="grid grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 border-b border-border bg-muted/50 px-4 py-2.5">
+      <div className="grid grid-cols-[2fr_auto] sm:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 border-b border-border bg-muted/50 px-4 py-2.5">
         {["Project", "Type", "Status", "Progress", ""].map((h) => (
           <div
             key={h}
-            className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+            className={`flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground ${ (h === "Type" || h === "Progress") ? "hidden sm:flex" : h === "Status" ? "hidden xs:flex sm:flex" : "" }`}
           >
             {h}
             {h === "Project" && <ArrowUpDown className="h-2.5 w-2.5" />}
@@ -360,7 +360,7 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
         <Link
           key={project.id}
           href={`/projects/${project.id}`}
-          className={`group grid grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-4 border-b border-border bg-card px-4 transition-colors last:border-0 hover:bg-accent/40 ${rowPadding}`}
+          className={`group grid grid-cols-[2fr_auto] sm:grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-4 border-b border-border bg-card px-4 transition-colors last:border-0 hover:bg-accent/40 ${rowPadding}`}
         >
           {/* Project */}
           <div className="flex items-center gap-3 min-w-0">
@@ -402,7 +402,7 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
           </div>
 
           {/* Type */}
-          <span className="text-xs text-muted-foreground">
+          <span className="hidden sm:block text-xs text-muted-foreground">
             {PROJECT_TYPE_LABELS[project.type]}
           </span>
 
@@ -410,7 +410,7 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
           <StatusBadge status={project.status} />
 
           {/* Progress */}
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2">
             <Progress
               value={project.progress}
               className="h-1 w-20"
