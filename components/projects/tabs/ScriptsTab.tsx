@@ -168,7 +168,7 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
     e.target.value = "";
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext === "pdf") {
-      toast.info("PDFs can't be edited as text — upload them via the Files mode instead.");
+      toast.info("PDFs can't be edited as text. Upload them via the Files mode instead.");
       return;
     }
     const reader = new FileReader();

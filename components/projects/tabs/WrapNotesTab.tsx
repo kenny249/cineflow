@@ -117,7 +117,7 @@ export function WrapNotesTab({ projectId, canEdit }: WrapNotesTabProps) {
           <div className="flex flex-col items-center justify-center py-16">
             <ClipboardList className="mb-3 h-10 w-10 text-muted-foreground/20" />
             <p className="font-display font-semibold">No wrap notes yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">Track each production day — notes, issues, and outstanding items</p>
+            <p className="mt-1 text-sm text-muted-foreground">Track each production day: notes, issues, and outstanding items</p>
           </div>
         ) : (
           notes.map((note) => {

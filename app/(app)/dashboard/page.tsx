@@ -18,7 +18,7 @@ import { ProjectCard } from "@/components/projects/ProjectCard";
 import { getOrCreateDisplayName } from "@/lib/random-name";
 
 const COMPLIMENTS = [
-  "The lens never lies — and today, you're looking sharp.",
+  "The lens never lies, and today you're looking sharp.",
   "Every great film starts with one bold decision. Make yours today.",
   "Your vision is your superpower. Trust it.",
   "Lights. Camera. You've got this.",
@@ -26,7 +26,7 @@ const COMPLIMENTS = [
   "Frame it, shoot it, own it.",
   "Today's cut could be tomorrow's masterpiece.",
   "The story you tell matters. Keep telling it.",
-  "Cinematic excellence isn't accidental — and neither are you.",
+  "Cinematic excellence isn't accidental, and neither are you.",
   "Roll camera. The world is watching.",
   "You're not just making content. You're making history.",
   "Stay curious. The best shot is always the next one.",
@@ -222,7 +222,7 @@ export default function DashboardPage() {
                       </div>
                       <h3 className="font-display text-base font-semibold text-foreground">Your slate is empty</h3>
                       <p className="mt-2 max-w-xs text-xs leading-relaxed text-muted-foreground">
-                        Start by creating your first project. Track shoots, revisions, and shot lists — all in one place.
+                        Start by creating your first project. Track shoots, revisions, and shot lists, all in one place.
                       </p>
                       <button
                         onClick={() => setModalOpen(true)}

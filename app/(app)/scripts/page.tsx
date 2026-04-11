@@ -38,7 +38,7 @@ export default function ScriptsPage() {
             <div>
               <p className="text-sm font-medium text-foreground">Scripts live inside each project</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Write directly in the browser or upload a PDF / Final Draft file — all from the Scripts tab inside your project.
+                Write directly in the browser or upload a PDF or Final Draft file, all from the Scripts tab inside your project.
               </p>
             </div>
           </div>

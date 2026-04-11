@@ -61,7 +61,7 @@ const FEATURES = [
     icon: Layers,
     eyebrow: "Projects & Shot Lists",
     headline: "Every production,\norganized.",
-    sub: "From pre-prod to delivery — schedules, shot lists, crew, all in one place.",
+    sub: "From pre-prod to delivery: schedules, shot lists, and crew all in one place.",
   },
   {
     icon: Eye,
@@ -73,7 +73,7 @@ const FEATURES = [
     icon: Users,
     eyebrow: "Client Hub",
     headline: "A portal your\nclients will love.",
-    sub: "Professional review pages. No logins, no confusion — just feedback.",
+    sub: "Professional review pages. No logins, no confusion, just feedback.",
   },
 ] as const;
 

@@ -302,7 +302,7 @@ export default function ProjectDetailTabs({
           portalUrl: portalUrl(token.token),
         }),
       });
-      toast.success(`Portal created — invite sent to ${token.client_email}`);
+      toast.success(`Portal created, invite sent to ${token.client_email}`);
     } catch {
       toast.error("Failed to create portal");
     } finally {
@@ -617,7 +617,7 @@ export default function ProjectDetailTabs({
       description: newFrameDescription.trim(),
       image_url: `https://source.unsplash.com/1200x675/?cinematic,${encodeURIComponent(project.title)}`,
       shot_duration: "00:00:05",
-      camera_angle: "Wide — Eye level",
+      camera_angle: "Wide / Eye level",
       notes: "Created for the storyboard.",
       created_at: new Date().toISOString(),
     };
@@ -684,7 +684,7 @@ export default function ProjectDetailTabs({
     setNewRevisionTitle("");
     setNewRevisionDescription("");
     setNewRevisionFile(null);
-    toast.success("Revision uploaded — it will persist across navigation.");
+    toast.success("Revision uploaded successfully.");
   };
 
   const handleSaveProject = async () => {
@@ -701,7 +701,7 @@ export default function ProjectDetailTabs({
       await updateProject(project.id, updates);
       toast.success("Project details updated.");
     } catch {
-      toast.error("Failed to save — changes may not persist.");
+      toast.error("Failed to save, changes may not persist.");
     }
   };
 
@@ -823,7 +823,7 @@ export default function ProjectDetailTabs({
     const gradient = getCinematicGradient(project.title, variant);
     // Store variant so the card picks it up, but don't persist a data-URI to DB
     localStorage.setItem(`cf_thumb_${project.id}`, `__variant:${variant}`);
-    toast.success("Cover style refreshed — upload a photo to make it permanent.");
+    toast.success("Cover style refreshed. Upload a photo to make it permanent.");
   };
 
   const availableImageQuery = useMemo(
@@ -1557,7 +1557,7 @@ export default function ProjectDetailTabs({
                               </div>
                             ))
                           ) : (
-                            <div className="px-4 py-4 text-sm text-muted-foreground">No comments yet — leave feedback on this revision.</div>
+                            <div className="px-4 py-4 text-sm text-muted-foreground">No comments yet. Leave feedback on this revision.</div>
                           )}
                           <div className="flex gap-3 px-4 py-3 bg-muted/30">
                             <Avatar className="h-6 w-6 shrink-0 mt-0.5">
@@ -1733,7 +1733,7 @@ export default function ProjectDetailTabs({
                         <Package className="h-3.5 w-3.5 text-[#d4a853]" /> Deliverables
                       </h4>
                       {deliverables.length === 0 && (
-                        <p className="text-xs text-muted-foreground">Add what the client is receiving — e.g. "Feature Cut (4K)", "3× Social Edits".</p>
+                        <p className="text-xs text-muted-foreground">Add what the client is receiving, e.g. "Feature Cut (4K)" or "3× Social Edits".</p>
                       )}
                       <div className="space-y-1.5">
                         {deliverables.map((d) => (
@@ -1845,7 +1845,7 @@ export default function ProjectDetailTabs({
               </select>
             </div>
             <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Progress is automatic — driven by phases &amp; shot list</span>
+              <span className="text-xs text-muted-foreground">Progress is automatic, driven by phases &amp; shot list</span>
               <span className="font-mono text-sm font-semibold text-[#d4a853]">{computedProgress}%</span>
             </div>
           </div>

@@ -162,7 +162,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
       );
       setCommentDraft(""); setNoteTs(null);
     } catch {
-      alert("Couldn't submit your note — please try again.");
+      alert("Couldn't submit your note. Please try again.");
     } finally {
       setSubmittingComment(false);
     }
@@ -189,7 +189,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      alert("Download failed — please try again.");
+      alert("Download failed. Please try again.");
     }
   }
 
@@ -314,7 +314,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                           : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-600"
                       }`}
                     >
-                      v{r.version_number} — {r.title}
+                      v{r.version_number} · {r.title}
                     </button>
                   ))}
                 </div>

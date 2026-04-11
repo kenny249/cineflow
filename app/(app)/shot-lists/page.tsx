@@ -452,7 +452,7 @@ export default function ShotListsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Title</Label>
-              <Input value={listTitle} onChange={(e) => setListTitle(e.target.value)} placeholder="Principal photography — day 1" />
+              <Input value={listTitle} onChange={(e) => setListTitle(e.target.value)} placeholder="Principal photography, day 1" />
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>

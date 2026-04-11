@@ -47,7 +47,7 @@ export default function SettingsClient() {
     reader.onload = () => {
       if (typeof reader.result === "string") {
         setAvatarUrl(reader.result);
-        toast.success("Photo updated locally — save changes to persist.");
+        toast.success("Photo updated locally. Save changes to persist.");
       }
     };
     reader.readAsDataURL(file);

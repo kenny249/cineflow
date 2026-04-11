@@ -36,7 +36,7 @@ const STATUS_CONFIG: Record<RevisionStatus, { label: string; color: string; desc
   draft: {
     label: "Draft",
     color: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-    description: "Internal only — not ready for client",
+    description: "Internal only, not ready for client",
   },
   in_review: {
     label: "In Review",
@@ -229,7 +229,7 @@ export default function RevisionsPage() {
       clearInterval(timer);
       const msg = err instanceof Error ? err.message : "Upload failed";
       if (msg.toLowerCase().includes("maximum allowed size") || msg.toLowerCase().includes("payload too large")) {
-        toast.error("File too large — increase the upload limit in your Supabase dashboard under Storage → Configuration");
+        toast.error("File too large. Increase the upload limit in your Supabase dashboard under Storage > Configuration");
       } else {
         toast.error(msg);
       }
@@ -376,7 +376,7 @@ export default function RevisionsPage() {
               ·{" "}
               <span className="text-foreground font-medium">
                 {selectedProject.client_name
-                  ? `${selectedProject.client_name} — `
+                  ? `${selectedProject.client_name} · `
                   : ""}
                 {selectedProject.title}
               </span>
@@ -421,7 +421,7 @@ export default function RevisionsPage() {
               type="text"
               value={uploadTitle}
               onChange={(e) => setUploadTitle(e.target.value)}
-              placeholder="Title (optional — defaults to filename)"
+              placeholder="Title (optional, defaults to filename)"
               className="min-w-[200px] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
             />
             <input
@@ -834,7 +834,7 @@ export default function RevisionsPage() {
                                             URL.revokeObjectURL(url);
                                             toast.success("Download saved", { id: "dl" });
                                           } catch {
-                                            toast.error("Download failed — try again", { id: "dl" });
+                                            toast.error("Download failed, try again", { id: "dl" });
                                           }
                                         }}
                                         className="rounded-lg p-2 text-white transition-colors hover:bg-white/15"

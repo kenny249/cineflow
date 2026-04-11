@@ -166,7 +166,7 @@ export function LoginPageClient() {
               Studio flow for<br />every production.
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Built for filmmakers, directors<br className="hidden sm:block" /> &amp; creative teams.
+              Built for filmmakers, directors,<br className="hidden sm:block" /> &amp; creative teams.
             </p>
           </div>
 
@@ -191,7 +191,7 @@ export function LoginPageClient() {
           </button>
 
           <p className="mt-5 text-center text-[11px] text-zinc-600">
-            No account needed &mdash; one tap &amp; you&apos;re in.
+            No account needed, one tap &amp; you&apos;re in.
           </p>
         </div>
       </div>

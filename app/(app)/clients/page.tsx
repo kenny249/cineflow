@@ -249,7 +249,7 @@ export default function ClientsPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
             <Film className="h-10 w-10 text-muted-foreground/20" />
             <p className="text-sm font-semibold text-foreground">No clients yet</p>
-            <p className="text-xs text-muted-foreground max-w-xs">Create your first project and assign a client name — it will appear here automatically.</p>
+            <p className="text-xs text-muted-foreground max-w-xs">Create your first project and assign a client name, it will appear here automatically.</p>
             <Button variant="gold" size="sm" className="mt-2" onClick={() => setShowForm(true)}>+ New Project</Button>
           </div>
         )}

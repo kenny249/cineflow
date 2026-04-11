@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import ReviewPortalClient from "./ReviewPortalClient";
 
 export const metadata: Metadata = {
-  title: "Client Portal — CineFlow",
+  title: "Client Portal · CineFlow",
   description: "View your project progress and review cuts.",
 };
 

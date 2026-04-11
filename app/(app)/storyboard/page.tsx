@@ -74,7 +74,7 @@ export default function StoryboardPage() {
       description: frameDescription.trim(),
       image_url: buildCoverUrl(selectedProject?.title ?? "storyboard"),
       shot_duration: frameDuration || "00:00:05",
-      camera_angle: frameAngle || "Wide — Eye level",
+      camera_angle: frameAngle || "Wide / Eye level",
       notes: "Auto-generated mood frame.",
       created_at: new Date().toISOString(),
     };
@@ -246,7 +246,7 @@ export default function StoryboardPage() {
                   id="camera-angle"
                   value={frameAngle}
                   onChange={(e) => setFrameAngle(e.target.value)}
-                  placeholder="Wide — Eye level"
+                  placeholder="Wide / Eye level"
                 />
               </div>
             </div>

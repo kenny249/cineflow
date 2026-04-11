@@ -16,7 +16,7 @@ const FEATURES = [
   {
     icon: GitBranch,
     label: "Revision Workflows",
-    desc: "Track every cut, note, and approval — no more email chains.",
+    desc: "Track every cut, note, and approval, with no more email chains.",
   },
   {
     icon: Users,
