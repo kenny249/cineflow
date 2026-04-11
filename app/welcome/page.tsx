@@ -155,6 +155,7 @@ function FeatureSlide({
   const [btnShift, setBtnShift]     = useState({ x: 0, y: 0 });
   const [showRipple, setShowRipple] = useState(false);
   const [rippleKey, setRippleKey]   = useState(0);
+  const pending = useRef(false);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const card = cardRef.current;
@@ -181,10 +182,12 @@ function FeatureSlide({
   };
 
   const handleNext = () => {
+    if (pending.current) return;
+    pending.current = true;
     setRippleKey(k => k + 1);
     setShowRipple(true);
     setTimeout(() => setShowRipple(false), 700);
-    setTimeout(onNext, 160);
+    setTimeout(() => { pending.current = false; onNext(); }, 160);
   };
 
   const progress = (idx + 1) / total;
@@ -538,9 +541,11 @@ export default function WelcomePage() {
             onChange={(e) => setNameInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && nameInput.trim()) advanceFromName(nameInput); }}
             placeholder="Your name"
-            autoComplete="name"
+            autoComplete="off"
             autoCapitalize="words"
             maxLength={40}
+            disabled={phase !== "name_ask"}
+            tabIndex={phase !== "name_ask" ? -1 : 0}
             className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-center text-lg text-white placeholder:text-zinc-600 focus:border-[#d4a853]/50 focus:outline-none focus:shadow-[0_0_0_3px_rgba(212,168,83,0.12)] transition-all"
           />
         </div>
