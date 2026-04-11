@@ -15,12 +15,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText } from "lucide-react";
+import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package } from "lucide-react";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
-import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole } from "@/types";
-import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote } from "@/lib/supabase/queries";
+import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole, ReviewToken, PortalDeliverable } from "@/types";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
 import { WrapNotesTab } from "@/components/projects/tabs/WrapNotesTab";
@@ -241,6 +241,112 @@ export default function ProjectDetailTabs({
   const [noteContent, setNoteContent] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+
+  // ── Client Portal state ──
+  const [portalToken, setPortalToken] = useState<ReviewToken | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalCreating, setPortalCreating] = useState(false);
+  const [portalClientName, setPortalClientName] = useState("");
+  const [portalClientEmail, setPortalClientEmail] = useState("");
+  const [portalShowForm, setPortalShowForm] = useState(false);
+  const [portalCopied, setPortalCopied] = useState(false);
+  const [deliverables, setDeliverables] = useState<PortalDeliverable[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem(`cf_deliverables_${project.id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  const [newDeliverable, setNewDeliverable] = useState("");
+
+  // Load existing token when portal tab is first mounted
+  const portalLoadedRef = useRef(false);
+  function loadPortalToken() {
+    if (portalLoadedRef.current) return;
+    portalLoadedRef.current = true;
+    setPortalLoading(true);
+    getProjectReviewToken(project.id)
+      .then(setPortalToken)
+      .catch(() => {})
+      .finally(() => setPortalLoading(false));
+  }
+
+  function portalUrl(token: string) {
+    const base = typeof window !== "undefined" ? window.location.origin : "https://usecineflow.com";
+    return `${base}/review/${token}`;
+  }
+
+  async function handleCreatePortal() {
+    if (!portalClientName.trim() || !portalClientEmail.trim()) {
+      toast.error("Client name and email are required");
+      return;
+    }
+    setPortalCreating(true);
+    try {
+      const token = await createReviewToken({
+        project_id: project.id,
+        client_name: portalClientName.trim(),
+        client_email: portalClientEmail.trim(),
+      });
+      setPortalToken(token);
+      setPortalShowForm(false);
+      // Send portal live email
+      await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "portal_live",
+          clientName: token.client_name,
+          clientEmail: token.client_email,
+          projectTitle: title,
+          portalUrl: portalUrl(token.token),
+        }),
+      });
+      toast.success(`Portal created — invite sent to ${token.client_email}`);
+    } catch {
+      toast.error("Failed to create portal");
+    } finally {
+      setPortalCreating(false);
+    }
+  }
+
+  async function handleRevokePortal() {
+    if (!portalToken) return;
+    try {
+      await revokeReviewToken(portalToken.id);
+      setPortalToken(null);
+      toast.success("Portal link revoked");
+    } catch {
+      toast.error("Failed to revoke portal");
+    }
+  }
+
+  function handleCopyPortalUrl() {
+    if (!portalToken) return;
+    navigator.clipboard.writeText(portalUrl(portalToken.token));
+    setPortalCopied(true);
+    setTimeout(() => setPortalCopied(false), 2000);
+  }
+
+  function saveDeliverables(updated: PortalDeliverable[]) {
+    setDeliverables(updated);
+    try { localStorage.setItem(`cf_deliverables_${project.id}`, JSON.stringify(updated)); } catch {}
+  }
+
+  function addDeliverable() {
+    if (!newDeliverable.trim()) return;
+    const updated = [...deliverables, { id: `dlv_${Date.now()}`, label: newDeliverable.trim(), done: false }];
+    saveDeliverables(updated);
+    setNewDeliverable("");
+  }
+
+  function toggleDeliverable(id: string) {
+    saveDeliverables(deliverables.map((d) => d.id === id ? { ...d, done: !d.done } : d));
+  }
+
+  function removeDeliverable(id: string) {
+    saveDeliverables(deliverables.filter((d) => d.id !== id));
+  }
 
   async function handleAddNote() {
     if (!noteContent.trim()) { toast.error("Note content is required"); return; }
@@ -892,6 +998,7 @@ export default function ProjectDetailTabs({
                 { value: "wrap",         label: "Wrap Notes" },
                 { value: "revisions",    label: `Revisions ${revisions.length ? `(${revisions.length})` : ""}` },
                 { value: "notes",        label: `Notes ${notes.length ? `(${notes.length})` : ""}` },
+                { value: "client-portal", label: "Client Portal" },
                 ...(isAdmin ? [{ value: "finance", label: "Finance 🔒" }] : []),
               ].map((tab) => (
                 <TabsTrigger
@@ -1562,6 +1669,292 @@ export default function ProjectDetailTabs({
                         {note.pinned && <p className="mt-2 text-[10px] text-[#d4a853]/70 flex items-center gap-1"><Pin className="h-2.5 w-2.5" /> Pinned to overview</p>}
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* ── Client Portal ── */}
+            <TabsContent value="client-portal" className="m-0 p-6" onFocus={loadPortalToken}>
+              <div onClick={loadPortalToken} className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-display text-sm font-semibold text-foreground">Client Portal</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Share a private link so your client can track progress, review cuts, and download deliverables.</p>
+                  </div>
+                  {portalToken && (
+                    <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-red-400" onClick={handleRevokePortal}>
+                      <Trash2 className="h-3 w-3" /> Revoke
+                    </Button>
+                  )}
+                </div>
+
+                {portalLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-6">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />
+                    Loading…
+                  </div>
+                ) : portalToken ? (
+                  <div className="space-y-4">
+                    {/* Active portal card */}
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-xs font-semibold text-emerald-400">Portal Active</span>
+                          </div>
+                          <p className="text-sm font-medium text-foreground">{portalToken.client_name}</p>
+                          <p className="text-xs text-muted-foreground">{portalToken.client_email}</p>
+                        </div>
+                        <div className="text-right">
+                          {portalToken.last_viewed_at ? (
+                            <p className="text-[10px] text-muted-foreground">Last viewed<br/><span className="text-foreground">{new Date(portalToken.last_viewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></p>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">Not yet viewed</p>
+                          )}
+                        </div>
+                      </div>
+                      {/* Portal URL */}
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                        <span className="flex-1 truncate font-mono text-[11px] text-muted-foreground">{portalUrl(portalToken.token)}</span>
+                        <button type="button" onClick={handleCopyPortalUrl} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#d4a853]/10 px-2.5 py-1 text-[11px] font-medium text-[#d4a853] transition hover:bg-[#d4a853]/20">
+                          {portalCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
+                        </button>
+                        <a href={portalUrl(portalToken.token)} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:text-foreground">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Deliverables */}
+                    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                      <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Package className="h-3.5 w-3.5 text-[#d4a853]" /> Deliverables
+                      </h4>
+                      {deliverables.length === 0 && (
+                        <p className="text-xs text-muted-foreground">Add what the client is receiving — e.g. "Feature Cut (4K)", "3× Social Edits".</p>
+                      )}
+                      <div className="space-y-1.5">
+                        {deliverables.map((d) => (
+                          <div key={d.id} className="flex items-center gap-2 group">
+                            <button type="button" onClick={() => toggleDeliverable(d.id)} className="shrink-0 transition-transform active:scale-90">
+                              {d.done
+                                ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                : <Circle className="h-4 w-4 text-muted-foreground hover:text-[#d4a853]" />}
+                            </button>
+                            <span className={`flex-1 text-sm ${d.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{d.label}</span>
+                            <button type="button" onClick={() => removeDeliverable(d.id)} className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={newDeliverable}
+                          onChange={(e) => setNewDeliverable(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && addDeliverable()}
+                          placeholder="Add a deliverable…"
+                          className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                        />
+                        <button type="button" onClick={addDeliverable} className="rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/80">Add</button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* No portal yet */
+                  <div className="space-y-4">
+                    {!portalShowForm ? (
+                      <div className="rounded-xl border border-dashed border-border bg-card/30 p-8 text-center">
+                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#d4a853]/10">
+                          <Link2 className="h-5 w-5 text-[#d4a853]" />
+                        </div>
+                        <p className="font-display text-sm font-semibold text-foreground">No portal yet</p>
+                        <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">Create a private portal link and send it to your client. One link, active for the life of the project.</p>
+                        <Button variant="gold" size="sm" className="mt-4 h-8 gap-1.5 text-xs" onClick={() => setPortalShowForm(true)}>
+                          <Link2 className="h-3.5 w-3.5" /> Create client portal
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                        <h4 className="text-sm font-semibold text-foreground">Create client portal</h4>
+                        <div className="space-y-2.5">
+                          <div>
+                            <label className="mb-1 block text-xs text-muted-foreground">Client name</label>
+                            <input
+                              type="text"
+                              value={portalClientName}
+                              onChange={(e) => setPortalClientName(e.target.value)}
+                              placeholder="e.g. Alex Johnson"
+                              className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-muted-foreground">Client email</label>
+                            <input
+                              type="email"
+                              value={portalClientEmail}
+                              onChange={(e) => setPortalClientEmail(e.target.value)}
+                              placeholder="client@example.com"
+                              className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">An invite email will be sent to the client when the portal is created.</p>
+                        <div className="flex gap-2 pt-1">
+                          <button type="button" onClick={() => setPortalShowForm(false)} className="rounded-lg px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+                          <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleCreatePortal} disabled={portalCreating}>
+                            {portalCreating ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : <Send className="h-3.5 w-3.5" />}
+                            {portalCreating ? "Creating…" : "Create & send invite"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            {/* ── Client Portal ── */}
+            <TabsContent value="client-portal" className="m-0 p-6" onFocus={loadPortalToken}>
+              <div onClick={loadPortalToken} className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-display text-sm font-semibold text-foreground">Client Portal</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Share a private link so your client can track progress, review cuts, and download deliverables.</p>
+                  </div>
+                  {portalToken && (
+                    <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-red-400" onClick={handleRevokePortal}>
+                      <Trash2 className="h-3 w-3" /> Revoke
+                    </Button>
+                  )}
+                </div>
+
+                {portalLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-6">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />
+                    Loading…
+                  </div>
+                ) : portalToken ? (
+                  <div className="space-y-4">
+                    {/* Active portal card */}
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-xs font-semibold text-emerald-400">Portal Active</span>
+                          </div>
+                          <p className="text-sm font-medium text-foreground">{portalToken.client_name}</p>
+                          <p className="text-xs text-muted-foreground">{portalToken.client_email}</p>
+                        </div>
+                        <div className="text-right">
+                          {portalToken.last_viewed_at ? (
+                            <p className="text-[10px] text-muted-foreground">Last viewed<br/><span className="text-foreground">{new Date(portalToken.last_viewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></p>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">Not yet viewed</p>
+                          )}
+                        </div>
+                      </div>
+                      {/* Portal URL */}
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                        <span className="flex-1 truncate font-mono text-[11px] text-muted-foreground">{portalUrl(portalToken.token)}</span>
+                        <button type="button" onClick={handleCopyPortalUrl} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#d4a853]/10 px-2.5 py-1 text-[11px] font-medium text-[#d4a853] transition hover:bg-[#d4a853]/20">
+                          {portalCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
+                        </button>
+                        <a href={portalUrl(portalToken.token)} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:text-foreground">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Deliverables */}
+                    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                      <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                        <Package className="h-3.5 w-3.5 text-[#d4a853]" /> Deliverables
+                      </h4>
+                      {deliverables.length === 0 && (
+                        <p className="text-xs text-muted-foreground">Add what the client is receiving — e.g. "Feature Cut (4K)", "3× Social Edits".</p>
+                      )}
+                      <div className="space-y-1.5">
+                        {deliverables.map((d) => (
+                          <div key={d.id} className="flex items-center gap-2 group">
+                            <button type="button" onClick={() => toggleDeliverable(d.id)} className="shrink-0 transition-transform active:scale-90">
+                              {d.done
+                                ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                : <Circle className="h-4 w-4 text-muted-foreground hover:text-[#d4a853]" />}
+                            </button>
+                            <span className={`flex-1 text-sm ${d.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{d.label}</span>
+                            <button type="button" onClick={() => removeDeliverable(d.id)} className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-400 transition-all">
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="text"
+                          value={newDeliverable}
+                          onChange={(e) => setNewDeliverable(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && addDeliverable()}
+                          placeholder="Add a deliverable…"
+                          className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                        />
+                        <button type="button" onClick={addDeliverable} className="rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/80">Add</button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* No portal yet */
+                  <div className="space-y-4">
+                    {!portalShowForm ? (
+                      <div className="rounded-xl border border-dashed border-border bg-card/30 p-8 text-center">
+                        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#d4a853]/10">
+                          <Link2 className="h-5 w-5 text-[#d4a853]" />
+                        </div>
+                        <p className="font-display text-sm font-semibold text-foreground">No portal yet</p>
+                        <p className="mt-1 text-xs text-muted-foreground max-w-xs mx-auto">Create a private portal link and send it to your client. One link, active for the life of the project.</p>
+                        <Button variant="gold" size="sm" className="mt-4 h-8 gap-1.5 text-xs" onClick={() => setPortalShowForm(true)}>
+                          <Link2 className="h-3.5 w-3.5" /> Create client portal
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                        <h4 className="text-sm font-semibold text-foreground">Create client portal</h4>
+                        <div className="space-y-2.5">
+                          <div>
+                            <label className="mb-1 block text-xs text-muted-foreground">Client name</label>
+                            <input
+                              type="text"
+                              value={portalClientName}
+                              onChange={(e) => setPortalClientName(e.target.value)}
+                              placeholder="e.g. Alex Johnson"
+                              className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs text-muted-foreground">Client email</label>
+                            <input
+                              type="email"
+                              value={portalClientEmail}
+                              onChange={(e) => setPortalClientEmail(e.target.value)}
+                              placeholder="client@example.com"
+                              className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">An invite email will be sent to the client when the portal is created.</p>
+                        <div className="flex gap-2 pt-1">
+                          <button type="button" onClick={() => setPortalShowForm(false)} className="rounded-lg px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+                          <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleCreatePortal} disabled={portalCreating}>
+                            {portalCreating ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : <Send className="h-3.5 w-3.5" />}
+                            {portalCreating ? "Creating…" : "Create & send invite"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

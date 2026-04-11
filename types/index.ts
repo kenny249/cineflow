@@ -367,3 +367,21 @@ export interface Invoice {
   created_at: string;
   updated_at: string;
 }
+
+// ─── Review Tokens ────────────────────────────────────────────────────────────
+export interface ReviewToken {
+  id: string;
+  token: string;
+  project_id: string;
+  client_name: string;
+  client_email: string;
+  is_active: boolean;
+  last_viewed_at?: string;
+  created_at: string;
+}
+
+export interface PortalDeliverable {
+  id: string;
+  label: string;
+  done: boolean;
+}

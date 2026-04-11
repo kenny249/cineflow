@@ -26,6 +26,7 @@ import {
   deleteRevision,
   createRevisionComment,
   deleteRevisionComment,
+  getProjectReviewToken,
 } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import type { Project, Revision, RevisionStatus } from "@/types";
@@ -275,6 +276,28 @@ export default function RevisionsPage() {
     try {
       await updateRevision(revision.id, { status });
       toast.success(STATUS_CONFIG[status].label);
+      // Send portal notification for status changes the client cares about
+      if (status === "in_review" || status === "approved" || status === "final") {
+        getProjectReviewToken(revision.project_id).then((portalToken) => {
+          if (!portalToken) return;
+          const event =
+            status === "in_review" ? "revision_ready" :
+            status === "approved" ? "approved" : "final_delivery";
+          fetch("/api/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event,
+              clientName: portalToken.client_name,
+              clientEmail: portalToken.client_email,
+              projectTitle: selectedProject?.title ?? "",
+              revisionTitle: revision.title,
+              versionNumber: revision.version_number,
+              portalUrl: `${window.location.origin}/review/${portalToken.token}`,
+            }),
+          });
+        });
+      }
     } catch {
       // Revert
       setRevisions((prev) =>

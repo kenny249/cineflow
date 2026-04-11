@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -669,5 +669,42 @@ export async function createRevisionComment(comment: {
 
 export async function deleteRevisionComment(id: string): Promise<void> {
   const { error } = await db().from('revision_comments').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Review Tokens ────────────────────────────────────────────────────────────
+
+export async function createReviewToken(payload: {
+  project_id: string;
+  client_name: string;
+  client_email: string;
+}): Promise<ReviewToken> {
+  const { data, error } = await db()
+    .from('review_tokens')
+    .insert(payload)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ReviewToken;
+}
+
+export async function getProjectReviewToken(projectId: string): Promise<ReviewToken | null> {
+  const { data, error } = await db()
+    .from('review_tokens')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) { if (isMissingTableError(error)) return null; throw error; }
+  return data as ReviewToken | null;
+}
+
+export async function revokeReviewToken(id: string): Promise<void> {
+  const { error } = await db()
+    .from('review_tokens')
+    .update({ is_active: false })
+    .eq('id', id);
   if (error) throw error;
 }
