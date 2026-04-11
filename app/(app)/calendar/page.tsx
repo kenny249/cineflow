@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock } from "lucide-react";
-import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, getProjects } from "@/lib/supabase/queries";
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2 } from "lucide-react";
+import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getProjects } from "@/lib/supabase/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -147,6 +147,13 @@ export default function CalendarPage() {
     const mm = String(d.getMinutes()).padStart(2, "0");
     setCardEditId(ev.id);
     setCardEdit({ title: ev.title, type: ev.type, description: ev.description ?? "", location: ev.location ?? "", time: `${hh}:${mm}` });
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm("Delete this event?")) return;
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    setSelectedDay((d) => d); // keep panel open
+    try { await deleteCalendarEvent(id); toast.success("Event deleted."); } catch { toast.error("Failed to delete."); }
   };
 
   const saveCardEdit = async (id: string) => {
@@ -393,7 +400,7 @@ export default function CalendarPage() {
                 </div>
               ) : (
                 listEvents.map((event) => (
-                  <div key={event.id} className="flex items-start gap-4 rounded-xl border border-border bg-card p-4" onClick={() => setTypePickerId(null)}>
+                    <div key={event.id} className="group flex items-start gap-4 rounded-xl border border-border bg-card p-4" onClick={() => setTypePickerId(null)}>
                     {/* Type dot */}
                     <div className="relative mt-1 shrink-0">
                       <button
@@ -440,9 +447,18 @@ export default function CalendarPage() {
                           )}
                           {event.description && <p className="mt-0.5 text-sm text-muted-foreground">{event.description}</p>}
                         </div>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${EVENT_COLORS[event.type]}`}>
-                          {event.type}
-                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${EVENT_COLORS[event.type]}`}>
+                            {event.type}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }}
+                            title="Delete event"
+                            className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/0 transition-colors hover:bg-red-500/15 hover:text-red-400 group-hover:text-muted-foreground/40"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <span>{new Date(event.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
@@ -598,14 +614,23 @@ export default function CalendarPage() {
                             )}
                           </div>
 
-                          {/* Pencil — opens full edit form */}
-                          <button
-                            onClick={() => openCardEdit(ev)}
-                            className="shrink-0 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-accent hover:text-foreground group-hover:text-muted-foreground"
-                            title="Edit all fields"
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </button>
+                          {/* Actions — edit + delete */}
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              onClick={() => openCardEdit(ev)}
+                              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-accent hover:text-foreground group-hover:text-muted-foreground"
+                              title="Edit"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEvent(ev.id)}
+                              className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/30 transition-colors hover:bg-red-500/15 hover:text-red-400 group-hover:text-muted-foreground"
+                              title="Delete event"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Description */}
