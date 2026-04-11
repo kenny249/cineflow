@@ -142,7 +142,7 @@ export default function DashboardPage() {
               </p>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                  {greeting}, {displayName}<span className="text-[#d4a853]">.</span>
+                  {greeting}, {displayName}
                 </h1>
                 <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/25 bg-[#d4a853]/10 px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-[#d4a853] uppercase">
                   <Sparkles className="h-2.5 w-2.5" />
