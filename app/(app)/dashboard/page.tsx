@@ -41,16 +41,16 @@ import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardParticles } from "@/components/dashboard/DashboardParticles";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
-import { getProjects, getActivityLog } from "@/lib/supabase/queries";
+import { getProjects, getActivityLog, getCalendarEvents } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
-import { MOCK_EVENTS } from "@/mock/calendar";
-import type { Project, ActivityItem } from "@/types";
+import type { Project, ActivityItem, CalendarEvent } from "@/types";
 
 export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState("Early Tester");
   const router = useRouter();
@@ -70,6 +70,12 @@ export default function DashboardPage() {
       setProjects(projectsData);
       const activityData = await getActivityLog(10);
       setActivity(activityData);
+      try {
+        const eventsData = await getCalendarEvents();
+        setCalendarEvents(eventsData);
+      } catch {
+        // calendar_events table may not exist yet
+      }
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
@@ -95,7 +101,8 @@ export default function DashboardPage() {
   })();
 
   const activeProjects = projects.filter((p) => p.status === "active" || p.status === "review");
-  const upcomingShoots = MOCK_EVENTS.filter((event) => event.type === "shoot").length;
+  const now = new Date();
+  const upcomingShoots = calendarEvents.filter((e) => e.type === "shoot" && new Date(e.start_date) >= now).length;
 
   const stats = [
     {
@@ -273,7 +280,7 @@ export default function DashboardPage() {
                   </Link>
                 </div>
                 <div className="rounded-xl border border-border bg-card">
-                  <UpcomingShoots />
+                  <UpcomingShoots events={calendarEvents} />
                 </div>
               </section>
             </div>

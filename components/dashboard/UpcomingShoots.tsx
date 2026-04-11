@@ -1,9 +1,7 @@
 import { MapPin, Clock } from "lucide-react";
-import { MOCK_EVENTS } from "@/mock/calendar";
 import { formatDate, formatTime } from "@/lib/utils";
 import Link from "next/link";
-
-const SHOOT_EVENTS = MOCK_EVENTS.filter((e) => e.type === "shoot" || e.type === "deadline").slice(0, 4);
+import type { CalendarEvent } from "@/types";
 
 const TYPE_DOT: Record<string, string> = {
   shoot: "bg-amber-400",
@@ -14,18 +12,25 @@ const TYPE_DOT: Record<string, string> = {
   other: "bg-zinc-500",
 };
 
-export function UpcomingShoots() {
-  if (SHOOT_EVENTS.length === 0) {
+export function UpcomingShoots({ events }: { events: CalendarEvent[] }) {
+  const now = new Date();
+  const upcoming = events
+    .filter((e) => (e.type === "shoot" || e.type === "deadline") && new Date(e.start_date) >= now)
+    .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+    .slice(0, 4);
+
+  if (upcoming.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-center">
         <p className="text-sm text-muted-foreground">No upcoming shoots</p>
+        <Link href="/calendar" className="mt-2 text-[11px] text-[#d4a853] hover:underline">Open calendar →</Link>
       </div>
     );
   }
 
   return (
     <div className="space-y-1">
-      {SHOOT_EVENTS.map((event) => (
+      {upcoming.map((event) => (
         <Link
           key={event.id}
           href="/calendar"
