@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { ScrollText, ChevronRight, Plus, Save, Search, X, FileText, Film, Trash2, ArrowLeft } from "lucide-react";
+import { ScrollText, ChevronRight, Plus, Save, Search, FileText, Film, Trash2, ArrowLeft, Upload } from "lucide-react";
 import { getProjects } from "@/lib/supabase/queries";
 import { toast } from "sonner";
 import type { Project } from "@/types";
@@ -130,6 +130,30 @@ export default function ScriptsPage() {
     toast.success("Script deleted");
   }
 
+  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext === "pdf") {
+      toast.info("PDF scripts can't be imported as text. Upload them in the project's Scripts tab instead.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      let text = ev.target?.result as string;
+      // Strip Final Draft XML tags, keep text content
+      if (ext === "fdx") {
+        text = text.replace(/<[^>]+>/g, "").replace(/\n{3,}/g, "\n\n").trim();
+      }
+      handleChange(text);
+      toast.success(`Imported "${file.name}"`);
+    };
+    reader.readAsText(file);
+  }
+
   function jumpToScene(lineNum: number) {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -161,7 +185,7 @@ export default function ScriptsPage() {
           {dirty && <span className="h-1.5 w-1.5 rounded-full bg-[#d4a853]" title="Unsaved changes" />}
         </div>
         {selectedId && mobileView === "editor" && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 md:hidden">
             <button
               onClick={handleDelete}
               className="rounded-lg p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -245,7 +269,7 @@ export default function ScriptsPage() {
               <div>
                 <p className="text-sm font-semibold text-foreground">Select a project</p>
                 <p className="mt-1 text-xs text-muted-foreground max-w-xs">
-                  Choose a project from the left to start writing or editing its script.
+                  Choose a project from the left to write or import its script.
                 </p>
               </div>
             </div>
@@ -261,6 +285,19 @@ export default function ScriptsPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    <label
+                      className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      title="Import .txt, .fountain, or .fdx"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      Import
+                      <input
+                        type="file"
+                        accept=".txt,.fountain,.fdx"
+                        className="hidden"
+                        onChange={handleImport}
+                      />
+                    </label>
                     <button
                       onClick={handleDelete}
                       className="rounded-lg p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -287,6 +324,18 @@ export default function ScriptsPage() {
                   spellCheck
                   style={{ fontFamily: "'Courier New', Courier, monospace" }}
                 />
+
+                {/* Import nudge — shown only when editor is empty */}
+                {!content && (
+                  <div className="shrink-0 border-t border-border px-4 py-3 flex items-center justify-between gap-3">
+                    <p className="text-xs text-muted-foreground">Already have a script file?</p>
+                    <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/5 px-3 py-1.5 text-xs font-medium text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors">
+                      <Upload className="h-3.5 w-3.5" />
+                      Import .txt / .fountain / .fdx
+                      <input type="file" accept=".txt,.fountain,.fdx" className="hidden" onChange={handleImport} />
+                    </label>
+                  </div>
+                )}
 
                 <div className="shrink-0 border-t border-border px-4 py-2 flex items-center justify-between text-[11px] text-muted-foreground">
                   <span>{content.split(/\s+/).filter(Boolean).length} words · {content.length} chars</span>
