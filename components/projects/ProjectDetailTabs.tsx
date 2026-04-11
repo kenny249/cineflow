@@ -198,11 +198,27 @@ export default function ProjectDetailTabs({
 
   // Auto-save computed progress to Supabase (debounced 2s)
   const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevProgressRef = useRef(computedProgress);
+  const [showCompletionGlow, setShowCompletionGlow] = useState(computedProgress === 100);
   useEffect(() => {
     if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
     progressSaveTimer.current = setTimeout(async () => {
       try { await updateProject(project.id, { progress: computedProgress }); } catch { /* silent */ }
     }, 2000);
+    // Fire celebration when hitting 100% for the first time
+    if (computedProgress === 100 && prevProgressRef.current < 100) {
+      setShowCompletionGlow(true);
+      // Fire 5 burst salvos spread across the progress bar area
+      const barEl = document.querySelector("[data-progress-bar]");
+      if (barEl) {
+        const rect = barEl.getBoundingClientRect();
+        [0.15, 0.35, 0.5, 0.65, 0.85].forEach((frac, i) => {
+          setTimeout(() => burst.fire(rect.left + rect.width * frac, rect.top + rect.height / 2), i * 120);
+        });
+      }
+    }
+    if (computedProgress < 100) setShowCompletionGlow(false);
+    prevProgressRef.current = computedProgress;
     return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [computedProgress]);
@@ -738,9 +754,51 @@ export default function ProjectDetailTabs({
             <div className="w-full sm:flex-1 sm:min-w-[200px]">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Overall progress</span>
-                <span className="text-xs font-medium text-foreground">{computedProgress}%</span>
+                <motion.span
+                  key={computedProgress}
+                  className="text-xs font-medium text-foreground"
+                  initial={{ scale: 1.2, color: "#d4a853" }}
+                  animate={{ scale: 1, color: computedProgress === 100 ? "#34d399" : "#ffffff" }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {computedProgress}%
+                </motion.span>
               </div>
-              <Progress value={computedProgress} className="h-1.5" indicatorClassName={getProgressColor(computedProgress)} />
+              {/* Custom animated progress bar */}
+              <div
+                data-progress-bar
+                className="relative h-1.5 w-full overflow-hidden rounded-full"
+                style={{ background: "rgba(255,255,255,0.07)" }}
+              >
+                <motion.div
+                  className="absolute left-0 top-0 h-full rounded-full"
+                  style={{
+                    background: computedProgress === 100
+                      ? "linear-gradient(90deg, #34d399, #059669)"
+                      : computedProgress >= 60
+                      ? "linear-gradient(90deg, #d4a853, #e8c06e)"
+                      : "linear-gradient(90deg, #b8904a, #d4a853)",
+                    boxShadow: computedProgress === 100
+                      ? "0 0 8px rgba(52,211,153,0.6)"
+                      : computedProgress > 0
+                      ? "0 0 6px rgba(212,168,83,0.4)"
+                      : "none",
+                  }}
+                  initial={false}
+                  animate={{ width: `${computedProgress}%` }}
+                  transition={{ duration: 0.6, ease: [0.34, 1.2, 0.64, 1] }}
+                />
+                {/* Shimmer on 100% */}
+                {showCompletionGlow && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)" }}
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "100%" }}
+                    transition={{ duration: 0.8, ease: "easeInOut", repeat: 2, repeatDelay: 0.1 }}
+                  />
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Calendar className="h-3.5 w-3.5 text-[#d4a853]" />
