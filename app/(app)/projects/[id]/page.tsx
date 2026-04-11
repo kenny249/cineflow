@@ -67,7 +67,7 @@ export default async function SingleProjectPage({ params }: PageProps) {
   const storyboardFrames: StoryboardFrame[] = MOCK_STORYBOARD[id] ?? [];
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-background">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
       <ProjectDetailTabs
         project={project}
         initialNotes={notes}
