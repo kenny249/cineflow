@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock } from "lucide-react";
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, getProjects } from "@/lib/supabase/queries";
 import { Button } from "@/components/ui/button";
@@ -257,8 +258,8 @@ export default function CalendarPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-6 py-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <div>
             <h1 className="font-display text-xl font-bold text-foreground">Calendar</h1>
             <p className="text-xs text-muted-foreground">{MONTHS[viewMonth]} {viewYear}</p>
@@ -297,7 +298,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Event type legend */}
-      <div className="flex items-center gap-3 border-b border-border/50 px-6 py-2.5">
+      <div className="flex items-center gap-3 overflow-x-auto no-scrollbar border-b border-border/50 px-4 py-2.5 sm:px-6">
         {EVENT_TYPES.map((t) => (
           <span key={t.value} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className={`h-2 w-2 rounded-full ${EVENT_DOT[t.value]}`} />
@@ -682,6 +683,94 @@ export default function CalendarPage() {
           </aside>
         )}
       </div>
+
+      {/* ── Mobile day events bottom sheet ── */}
+      <AnimatePresence>
+        {selectedDay !== null && viewMode === "month" && (
+          <>
+            <motion.div
+              key="cal-day-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-40 bg-black/60 md:hidden"
+              onClick={() => setSelectedDay(null)}
+            />
+            <motion.div
+              key="cal-day-sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl border-t border-border bg-[#0f0f0f] pb-[env(safe-area-inset-bottom)] md:hidden"
+            >
+              <div className="mx-auto mt-2.5 h-1 w-10 rounded-full bg-border" />
+              <div className="flex items-center justify-between px-5 py-3.5">
+                <p className="font-display font-semibold text-foreground">
+                  {MONTHS[viewMonth]} {selectedDay}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => openCreateForDay(selectedDay)}
+                    className="flex items-center gap-1 rounded-lg bg-[#d4a853]/15 px-2.5 py-1 text-xs font-semibold text-[#d4a853]"
+                  >
+                    <Plus className="h-3 w-3" /> Add
+                  </button>
+                  <button
+                    onClick={() => setSelectedDay(null)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="max-h-[50vh] overflow-y-auto px-5 pb-4">
+                {selectedDayEvents.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <p className="text-sm text-muted-foreground">No events this day</p>
+                    <button
+                      onClick={() => openCreateForDay(selectedDay)}
+                      className="mt-2 text-xs text-[#d4a853] hover:underline"
+                    >
+                      Add one
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {selectedDayEvents.map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="flex items-start gap-3 rounded-xl border border-border bg-card/50 p-3"
+                      >
+                        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${EVENT_DOT[ev.type] || EVENT_DOT.other}`} />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground text-sm">{ev.title}</p>
+                          {ev.description && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">{ev.description}</p>
+                          )}
+                          <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {new Date(ev.start_date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                            </span>
+                            {ev.location && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {ev.location}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Create Event Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
