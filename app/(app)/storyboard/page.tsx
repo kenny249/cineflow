@@ -467,11 +467,7 @@ export default function StoryboardPage() {
   const generateFrames = async (brief: string) => {
     if (!projectId || !brief.trim()) return;
     setGenerating(true);
-    const userMsg: ChatMessage = {
-      role: "user",
-      content: `Generate a storyboard for: "${brief}". Return 5-6 frames as a JSON array only.`,
-    };
-    setChatMessages((prev) => [...prev, userMsg]);
+    setChatMessages((prev) => [...prev, { role: "user", content: brief }]);
     try {
       const res = await fetch("/api/claude", {
         method: "POST",
