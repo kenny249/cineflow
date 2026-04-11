@@ -448,7 +448,6 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                                 className="h-1 w-20 cursor-pointer accent-[#d4a853]"
                               />
                             </div>
-                            </div>
                             <div className="flex items-center gap-1.5">
                               <button
                                 type="button"
