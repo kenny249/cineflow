@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  UploadCloud,
-  Plus,
+  Film,
   Play,
   Pause,
   Volume2,
@@ -13,547 +12,875 @@ import {
   MessageSquare,
   X,
   Trash2,
+  Upload,
+  ChevronRight,
+  Search,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { MOCK_PROJECTS } from "@/mock/projects";
-import { formatDate } from "@/lib/utils";
-import { saveVideoBlob, deleteVideoBlob, cacheUrl, getOrFetchUrl } from "@/lib/revision-store";
+import {
+  getProjects,
+  getProjectRevisions,
+  createRevision,
+  updateRevision,
+  deleteRevision,
+  createRevisionComment,
+  deleteRevisionComment,
+} from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
+import type { Project, Revision, RevisionStatus } from "@/types";
 
-/** Serialisable metadata that lives in localStorage */
-interface VideoMeta {
-  id: string;
-  name: string;
-  size: number;
-  duration: number;
-  uploadedAt: string;
-  project_id: string;
+
+const STATUS_CONFIG: Record<RevisionStatus, { label: string; color: string }> = {
+  pending: {
+    label: "Pending review",
+    color: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+  },
+  approved: {
+    label: "Approved",
+    color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  },
+  changes_requested: {
+    label: "Changes requested",
+    color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  },
+  rejected: {
+    label: "Rejected",
+    color: "bg-red-500/10 text-red-400 border-red-500/20",
+  },
+};
+
+const ALL_STATUSES: RevisionStatus[] = [
+  "pending",
+  "approved",
+  "changes_requested",
+  "rejected",
+];
+
+function formatTime(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/** Runtime shape — extends meta with a freshly-generated blob URL each session */
-interface VideoFile extends VideoMeta {
-  url: string;
+function formatFileSize(bytes: number) {
+  if (!bytes || bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
-interface TimestampNote {
-  id: string;
-  text: string;
-  timestamp: number;
-  author: string;
-  createdAt: string;
+function formatRelative(isoDate: string) {
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Date(isoDate).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
-
-/** Metadata in localStorage (no File object, no blob URL — both survive serialisation) */
-const META_KEY  = "cineflow-revision-meta";
-const NOTES_KEY = "cineflow-revision-notes";
 
 export default function RevisionsPage() {
-  const [selectedProjectId, setSelectedProjectId] = useState(MOCK_PROJECTS[0]?.id ?? "");
-  const [videos, setVideos] = useState<VideoFile[]>([]);
-  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [notes, setNotes] = useState<Record<string, TimestampNote[]>>({});
-  const [noteText, setNoteText] = useState("");
-  const [showNoteForm, setShowNoteForm] = useState(false);
+  // ── Project / revision data ─────────────────────────────────────────────────
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [revisions, setRevisions] = useState<Revision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
+  const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
+  const [projectSearch, setProjectSearch] = useState("");
 
+  // ── Upload form ─────────────────────────────────────────────────────────────
+  const [showUploadForm, setShowUploadForm] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Comment form ────────────────────────────────────────────────────────────
+  const [commentDraft, setCommentDraft] = useState("");
+  const [savingComment, setSavingComment] = useState(false);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+
+  // ── Revision ops ────────────────────────────────────────────────────────────
+  const [deletingRevisionId, setDeletingRevisionId] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  // ── Video player ────────────────────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
-
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [playerDuration, setPlayerDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
 
-  /* ── Load: restore metadata from localStorage, re-hydrate blobs from IndexedDB ── */
+  // ── Load projects ───────────────────────────────────────────────────────────
   useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      const rawNotes = localStorage.getItem(NOTES_KEY);
-      if (rawNotes) {
-        try { setNotes(JSON.parse(rawNotes)); } catch { /* ignore */ }
-      }
-
-      const rawMeta = localStorage.getItem(META_KEY);
-      if (!rawMeta) return;
-
-      let metas: VideoMeta[];
-      try { metas = JSON.parse(rawMeta); } catch { return; }
-
-      const loaded: VideoFile[] = [];
-      for (const meta of metas) {
-        if (!alive) return;
-        const url = await getOrFetchUrl(meta.id);
-        if (url) loaded.push({ ...meta, url });
-      }
-
-      if (!alive) return;
-      if (loaded.length > 0) {
-        setVideos(loaded);
-        setSelectedVideoId(loaded[0].id);
-      }
-    })();
-
-    // No URL revocation — session cache keeps URLs alive across remounts.
-    return () => { alive = false; };
+    getProjects()
+      .then((data) => {
+        setProjects(data);
+        if (data.length > 0) setSelectedProjectId(data[0].id);
+      })
+      .catch(() => toast.error("Failed to load projects"))
+      .finally(() => setLoadingProjects(false));
   }, []);
 
-  /* ── Persist: save serialisable metadata whenever videos list changes ── */
+  // ── Load revisions when project changes ─────────────────────────────────────
   useEffect(() => {
-    const metas: VideoMeta[] = videos.map(({ url: _url, ...meta }) => meta);
-    localStorage.setItem(META_KEY, JSON.stringify(metas));
-  }, [videos]);
+    if (!selectedProjectId) return;
+    setLoadingRevisions(true);
+    setRevisions([]);
+    setActiveRevisionId(null);
+    setCurrentTime(0);
+    setIsPlaying(false);
+    setPlayerDuration(0);
+    getProjectRevisions(selectedProjectId)
+      .then(setRevisions)
+      .catch(() => toast.error("Failed to load revisions"))
+      .finally(() => setLoadingRevisions(false));
+  }, [selectedProjectId]);
 
+  // ── Reset player state when switching active revision ───────────────────────
   useEffect(() => {
-    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
-  }, [notes]);
+    setCurrentTime(0);
+    setIsPlaying(false);
+    setPlayerDuration(0);
+  }, [activeRevisionId]);
 
-  const selectedVideo = useMemo(
-    () => videos.find((video) => video.id === selectedVideoId) ?? videos[0] ?? null,
-    [videos, selectedVideoId]
-  );
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const activeRevision = revisions.find((r) => r.id === activeRevisionId);
 
-  useEffect(() => {
-    if (!selectedVideo && videos.length > 0) {
-      setSelectedVideoId(videos[0].id);
-    }
-  }, [videos, selectedVideo]);
+  const filteredProjects = projectSearch.trim()
+    ? projects.filter(
+        (p) =>
+          p.title.toLowerCase().includes(projectSearch.toLowerCase()) ||
+          p.client_name?.toLowerCase().includes(projectSearch.toLowerCase())
+      )
+    : projects;
 
-  const filteredVideoCount = useMemo(
-    () => videos.filter((video) => video.project_id === selectedProjectId).length,
-    [videos, selectedProjectId]
-  );
-
-  const handleVideoUpload = async (file: File) => {
-    if (!file.type.startsWith("video/")) {
-      toast.error("Please upload a video file");
+  // ── Upload handler ──────────────────────────────────────────────────────────
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!uploadFile || !selectedProjectId || !uploadTitle.trim()) {
+      toast.error("Title and video file are required");
       return;
     }
-
-    if (file.size > 2 * 1024 * 1024 * 1024) {
-      toast.error("File size must be less than 2GB");
-      return;
-    }
-
-    setIsUploading(true);
+    setUploading(true);
     setUploadProgress(0);
 
-    const simulateProgress = setInterval(() => {
-      setUploadProgress((prev) => {
-        const next = Math.min(prev + Math.random() * 25, 90);
-        if (next >= 90) clearInterval(simulateProgress);
-        return next;
-      });
-    }, 300);
+    const timer = setInterval(
+      () => setUploadProgress((p) => Math.min(p + Math.random() * 18, 85)),
+      400
+    );
 
     try {
-      // Create a temporary blob URL just to read duration metadata
-      const tempUrl = URL.createObjectURL(file);
-      const meta = await new Promise<VideoMeta>((resolve, reject) => {
-        const v = document.createElement("video");
-        v.onloadedmetadata = () => {
-          URL.revokeObjectURL(tempUrl);
-          resolve({
-            id: Math.random().toString(36).slice(2),
-            name: file.name,
-            size: file.size,
-            duration: v.duration,
-            uploadedAt: new Date().toISOString(),
-            project_id: selectedProjectId,
-          });
-        };
-        v.onerror = () => { URL.revokeObjectURL(tempUrl); reject(new Error("metadata")); };
-        v.src = tempUrl;
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const sanitized = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = `${selectedProjectId}/revisions/${Date.now()}_${sanitized}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("project-files")
+        .upload(storagePath, uploadFile, { cacheControl: "3600", upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("project-files")
+        .getPublicUrl(storagePath);
+
+      const versionNumber = revisions.length + 1;
+      const created = await createRevision({
+        project_id: selectedProjectId,
+        title: uploadTitle.trim(),
+        description: uploadDescription.trim() || undefined,
+        status: "pending",
+        version_number: versionNumber,
+        file_url: urlData.publicUrl,
+        file_type: uploadFile.type || "video/mp4",
+        file_size: uploadFile.size,
+        created_by: user?.id,
       });
 
-      // Persist blob to IndexedDB so it survives navigation
-      await saveVideoBlob(meta.id, file);
-
-      // Create the session URL and register it in the session cache
-      const url = URL.createObjectURL(file);
-      cacheUrl(meta.id, url);
-
-      const newVideo: VideoFile = { ...meta, url };
-      setVideos((prev) => [newVideo, ...prev]);
-      setSelectedVideoId(newVideo.id);
-      setNotes((prev) => ({ ...prev, [newVideo.id]: [] }));
-
-      clearInterval(simulateProgress);
+      clearInterval(timer);
       setUploadProgress(100);
+      setRevisions((prev) => [created, ...prev]);
+      setActiveRevisionId(created.id);
+      setShowUploadForm(false);
+      setUploadTitle("");
+      setUploadDescription("");
+      setUploadFile(null);
+      toast.success(`v${versionNumber} uploaded`);
+    } catch (err: unknown) {
+      clearInterval(timer);
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
       setTimeout(() => {
-        setIsUploading(false);
+        setUploading(false);
         setUploadProgress(0);
-        toast.success("Revision uploaded — it will persist across navigation");
-      }, 300);
+      }, 500);
+    }
+  }
+
+  // ── Delete revision ─────────────────────────────────────────────────────────
+  async function handleDeleteRevision(revision: Revision) {
+    if (deletingRevisionId) return;
+    setDeletingRevisionId(revision.id);
+    try {
+      if (revision.file_url) {
+        const supabase = createClient();
+        const url = new URL(revision.file_url);
+        const parts = url.pathname.split("/project-files/");
+        if (parts.length > 1) {
+          await supabase.storage.from("project-files").remove([decodeURIComponent(parts[1])]);
+        }
+      }
+      await deleteRevision(revision.id);
+      setRevisions((prev) => prev.filter((r) => r.id !== revision.id));
+      if (activeRevisionId === revision.id) setActiveRevisionId(null);
+      toast.success("Revision deleted");
     } catch {
-      clearInterval(simulateProgress);
-      toast.error("Failed to upload video");
-      setIsUploading(false);
-      setUploadProgress(0);
+      toast.error("Failed to delete revision");
+    } finally {
+      setDeletingRevisionId(null);
     }
-  };
+  }
 
-  const handleDeleteVideo = async (videoId: string) => {
-    const video = videos.find((v) => v.id === videoId);
-    if (!video) return;
-
-    URL.revokeObjectURL(video.url);
-    await deleteVideoBlob(videoId).catch(() => {});
-
-    setVideos((prev) => prev.filter((v) => v.id !== videoId));
-    setNotes((prev) => {
-      const next = { ...prev };
-      delete next[videoId];
-      return next;
-    });
-
-    if (selectedVideoId === videoId) {
-      const remaining = videos.filter((v) => v.id !== videoId);
-      setSelectedVideoId(remaining[0]?.id ?? null);
+  // ── Update status ────────────────────────────────────────────────────────────
+  async function handleUpdateStatus(revision: Revision, status: RevisionStatus) {
+    if (updatingStatusId) return;
+    setUpdatingStatusId(revision.id);
+    // Optimistic update
+    setRevisions((prev) =>
+      prev.map((r) => (r.id === revision.id ? { ...r, status } : r))
+    );
+    try {
+      await updateRevision(revision.id, { status });
+      toast.success(STATUS_CONFIG[status].label);
+    } catch {
+      // Revert
+      setRevisions((prev) =>
+        prev.map((r) => (r.id === revision.id ? { ...r, status: revision.status } : r))
+      );
+      toast.error("Failed to update status");
+    } finally {
+      setUpdatingStatusId(null);
     }
+  }
 
-    toast.success("Revision removed");
-  };
+  // ── Add comment ──────────────────────────────────────────────────────────────
+  async function handleAddComment() {
+    if (!commentDraft.trim() || !activeRevision) return;
+    setSavingComment(true);
+    try {
+      const created = await createRevisionComment({
+        revision_id: activeRevision.id,
+        content: commentDraft.trim(),
+        timestamp_seconds: videoRef.current
+          ? Math.floor(videoRef.current.currentTime)
+          : undefined,
+        author_name: "You",
+      });
+      setRevisions((prev) =>
+        prev.map((r) =>
+          r.id === activeRevision.id
+            ? {
+                ...r,
+                comments: [...(r.comments ?? []), created].sort(
+                  (a, b) => (a.timestamp_seconds ?? 0) - (b.timestamp_seconds ?? 0)
+                ),
+              }
+            : r
+        )
+      );
+      setCommentDraft("");
+    } catch {
+      toast.error("Failed to save comment");
+    } finally {
+      setSavingComment(false);
+    }
+  }
 
-  const handleAddNote = () => {
-    if (!noteText.trim() || !selectedVideo || !videoRef.current) return;
+  // ── Delete comment ───────────────────────────────────────────────────────────
+  async function handleDeleteComment(revisionId: string, commentId: string) {
+    setDeletingCommentId(commentId);
+    try {
+      await deleteRevisionComment(commentId);
+      setRevisions((prev) =>
+        prev.map((r) =>
+          r.id === revisionId
+            ? { ...r, comments: r.comments?.filter((c) => c.id !== commentId) }
+            : r
+        )
+      );
+    } catch {
+      toast.error("Failed to delete comment");
+    } finally {
+      setDeletingCommentId(null);
+    }
+  }
 
-    const newNote: TimestampNote = {
-      id: Math.random().toString(36).slice(2),
-      text: noteText.trim(),
-      timestamp: videoRef.current.currentTime,
-      author: "You",
-      createdAt: new Date().toISOString(),
-    };
-
-    setNotes((prev) => ({
-      ...prev,
-      [selectedVideo.id]: [...(prev[selectedVideo.id] || []), newNote].sort((a, b) => a.timestamp - b.timestamp),
-    }));
-
-    setNoteText("");
-    setShowNoteForm(false);
-    toast.success("Timestamp note created");
-  };
-
-  const handleDeleteNote = (noteId: string) => {
-    if (!selectedVideo) return;
-    setNotes((prev) => ({
-      ...prev,
-      [selectedVideo.id]: prev[selectedVideo.id]?.filter((note) => note.id !== noteId) ?? [],
-    }));
-  };
-
-  const handleNoteClick = (timestamp: number) => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = timestamp;
-    setCurrentTime(timestamp);
-    videoRef.current.play();
-    setIsPlaying(true);
-  };
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    return hours > 0
-      ? `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
-      : `${minutes}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
-  };
-
-  const noteCount = selectedVideo ? notes[selectedVideo.id]?.length ?? 0 : 0;
-
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="border-b border-border px-6 py-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="font-display text-xl font-bold text-foreground">Revisions</h1>
-            <p className="text-xs text-muted-foreground">Keep each revision tied to a project, and return to work without losing your uploads.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="rounded-2xl border border-border bg-card px-3 py-2 text-xs text-foreground">
-              {filteredVideoCount} revision{filteredVideoCount === 1 ? "" : "s"} for this project
-            </div>
-            <label className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-4 py-2 text-sm font-semibold text-[#0a0a0a] transition-all hover:bg-[#e0b866] cursor-pointer">
-              <Plus className="h-4 w-4" />
-              Upload revision
-              <input
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && handleVideoUpload(e.target.files[0])}
-                disabled={isUploading}
-              />
-            </label>
-          </div>
+      {/* ── Page header ── */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
+        <div className="flex items-center gap-2.5">
+          <Film className="h-4 w-4 text-[#d4a853]" />
+          <h1 className="font-display text-xl font-bold tracking-tight text-foreground">
+            Revisions
+          </h1>
+          {selectedProject && (
+            <span className="hidden sm:inline text-sm text-muted-foreground">
+              ·{" "}
+              <span className="text-foreground font-medium">
+                {selectedProject.client_name
+                  ? `${selectedProject.client_name} — `
+                  : ""}
+                {selectedProject.title}
+              </span>
+              <span className="ml-1.5 text-xs text-muted-foreground">
+                ({revisions.length} revision{revisions.length === 1 ? "" : "s"})
+              </span>
+            </span>
+          )}
         </div>
+        {selectedProject && (
+          <button
+            onClick={() => setShowUploadForm((v) => !v)}
+            className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-[#c49843]"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Upload revision
+          </button>
+        )}
       </div>
 
+      {/* ── Upload form panel ── */}
+      {showUploadForm && selectedProject && (
+        <form
+          onSubmit={handleUpload}
+          className="shrink-0 border-b border-border bg-card/60 px-5 py-4 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">
+              New revision for{" "}
+              <span className="text-[#d4a853]">{selectedProject.title}</span>
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowUploadForm(false)}
+              className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <input
+              type="text"
+              value={uploadTitle}
+              onChange={(e) => setUploadTitle(e.target.value)}
+              placeholder="Title (e.g. Director's cut, v2 rough)"
+              required
+              className="min-w-[200px] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+            />
+            <input
+              type="text"
+              value={uploadDescription}
+              onChange={(e) => setUploadDescription(e.target.value)}
+              placeholder="Notes (optional)"
+              className="min-w-[200px] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-2 text-xs text-muted-foreground transition-colors hover:border-[#d4a853]/40 hover:text-foreground"
+            >
+              {uploadFile ? uploadFile.name : "Choose video file…"}
+            </button>
+            {uploadFile && (
+              <span className="text-xs text-muted-foreground">
+                {formatFileSize(uploadFile.size)}
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {uploading && (
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-[#d4a853] transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {Math.round(uploadProgress)}%
+                  </span>
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={uploading || !uploadFile || !uploadTitle.trim()}
+                className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-2 text-xs font-semibold text-black transition-colors hover:bg-[#c49843] disabled:opacity-50"
+              >
+                {uploading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="h-3.5 w-3.5" />
+                )}
+                {uploading ? "Uploading…" : "Upload"}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
+
+      {/* ── Body ── */}
       <div className="flex flex-1 overflow-hidden">
-        <aside className="hidden w-72 border-r border-border bg-card/70 p-5 sm:block">
-          <div className="space-y-5">
-            <div className="rounded-3xl border border-border bg-muted p-4">
-              <h2 className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Projects</h2>
-              <div className="mt-4 space-y-2">
-                {MOCK_PROJECTS.map((project) => (
-                  <button
-                    key={project.id}
-                    type="button"
-                    onClick={() => setSelectedProjectId(project.id)}
-                    className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all ${
-                      project.id === selectedProjectId
-                        ? "border-[#d4a853] bg-[#d4a853]/10 text-foreground"
-                        : "border-border bg-card text-muted-foreground hover:border-[#d4a853]/30 hover:bg-[#d4a853]/[0.05]"
-                    }`}
-                  >
-                    <span className="text-sm font-medium truncate">{project.title}</span>
-                    <span className="text-[10px] text-muted-foreground">{project.status}</span>
-                  </button>
-                ))}
-              </div>
+        {/* ── Sidebar ── */}
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-border sm:flex overflow-hidden">
+          <div className="border-b border-border px-3 py-2.5">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={projectSearch}
+                onChange={(e) => setProjectSearch(e.target.value)}
+                placeholder="Search projects…"
+                className="w-full rounded-lg border border-border bg-muted/30 py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/40 focus:outline-none"
+              />
             </div>
-            <div className="rounded-3xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                <UploadCloud className="h-4 w-4 text-[#d4a853]" />
-                Revision library
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-0.5">
+            {loadingProjects ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Videos are stored in browser storage and persist across navigation and page reloads.
+            ) : filteredProjects.length === 0 ? (
+              <p className="px-2 py-6 text-center text-xs text-muted-foreground">
+                No projects found
               </p>
-            </div>
+            ) : (
+              filteredProjects.map((project) => (
+                <button
+                  key={project.id}
+                  onClick={() => setSelectedProjectId(project.id)}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors ${
+                    project.id === selectedProjectId
+                      ? "bg-[#d4a853]/10 text-foreground"
+                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  }`}
+                >
+                  <div
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      project.id === selectedProjectId
+                        ? "bg-[#d4a853]"
+                        : "bg-muted-foreground/30"
+                    }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium leading-tight">
+                      {project.title}
+                    </p>
+                    {project.client_name && (
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {project.client_name}
+                      </p>
+                    )}
+                  </div>
+                  {project.id === selectedProjectId && revisions.length > 0 && (
+                    <span className="shrink-0 rounded-full bg-[#d4a853]/20 px-1.5 py-0.5 text-[10px] font-semibold text-[#d4a853]">
+                      {revisions.length}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
           </div>
         </aside>
 
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {selectedVideo ? (
-            <div className="flex flex-1 overflow-hidden">
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="flex-1 bg-black/40 flex items-center justify-center overflow-hidden relative">
-                  <video
-                    ref={videoRef}
-                    src={selectedVideo.url}
-                    className="max-w-full max-h-full"
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                    onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                    onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                  />
-
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                    <div className="mb-4 flex items-center gap-2">
-                      <input
-                        type="range"
-                        min="0"
-                        max={duration || 0}
-                        value={currentTime}
-                        onChange={(e) => {
-                          const newTime = parseFloat(e.target.value);
-                          setCurrentTime(newTime);
-                          if (videoRef.current) videoRef.current.currentTime = newTime;
-                        }}
-                        className="flex-1 h-1 bg-white/30 rounded cursor-pointer"
-                      />
-                      <span className="text-xs text-white/70">
-                        {formatTime(currentTime)} / {formatTime(duration)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            if (videoRef.current) {
-                              if (isPlaying) videoRef.current.pause();
-                              else videoRef.current.play();
-                            }
-                          }}
-                          className="p-2 hover:bg-white/15 rounded-lg transition-all duration-150 active:scale-90"
-                        >
-                          {isPlaying ? (
-                            <Pause className="h-4 w-4 text-white" />
-                          ) : (
-                            <Play className="h-4 w-4 text-white" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setIsMuted((prev) => !prev);
-                            if (videoRef.current) videoRef.current.muted = !isMuted;
-                          }}
-                          className="p-1 hover:bg-white/15 rounded-lg transition-all duration-150 active:scale-90"
-                        >
-                          {isMuted ? (
-                            <VolumeX className="h-4 w-4 text-white" />
-                          ) : (
-                            <Volume2 className="h-4 w-4 text-white" />
-                          )}
-                        </button>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.1"
-                          value={volume}
-                          onChange={(e) => {
-                            const newVolume = parseFloat(e.target.value);
-                            setVolume(newVolume);
-                            if (videoRef.current) videoRef.current.volume = newVolume;
-                          }}
-                          className="w-20 h-1 bg-white/30 rounded cursor-pointer"
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            const anchor = document.createElement("a");
-                            anchor.href = selectedVideo.url;
-                            anchor.download = selectedVideo.name;
-                            anchor.click();
-                            toast.success("Download started");
-                          }}
-                          className="p-2 hover:bg-white/15 rounded-lg transition-all duration-150 active:scale-90"
-                          title="Download"
-                        >
-                          <Download className="h-4 w-4 text-white" />
-                        </button>
-                        <button
-                          onClick={() => videoRef.current?.requestFullscreen()}
-                          className="p-2 hover:bg-white/15 rounded-lg transition-all duration-150 active:scale-90"
-                          title="Fullscreen"
-                        >
-                          <Maximize className="h-4 w-4 text-white" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-border p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4" />
-                      Frame Notes ({noteCount})
-                    </h3>
-                    <button
-                      onClick={() => setShowNoteForm(true)}
-                      className="rounded-md bg-[#d4a853]/20 px-3 py-1 text-xs font-semibold text-[#0a0a0a] hover:bg-[#e0b866] transition"
-                    >
-                      Add note
-                    </button>
-                  </div>
-
-                  {showNoteForm && (
-                    <div className="mb-4 flex gap-2">
-                      <input
-                        type="text"
-                        value={noteText}
-                        onChange={(e) => setNoteText(e.target.value)}
-                        placeholder="Write a timecode note..."
-                        className="flex-1 rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleAddNote();
-                          if (e.key === "Escape") setShowNoteForm(false);
-                        }}
-                      />
-                      <button
-                        onClick={handleAddNote}
-                        className="rounded-md bg-[#d4a853] px-4 py-2 text-sm font-semibold text-[#0a0a0a] hover:bg-[#e0b866]"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setShowNoteForm(false)}
-                        className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="space-y-3 max-h-40 overflow-y-auto">
-                    {(notes[selectedVideo.id] || []).map((note) => (
-                      <div
-                        key={note.id}
-                        className="group relative w-full rounded-2xl border border-border bg-muted p-3 text-left transition hover:border-[#d4a853]/30 hover:bg-[#d4a853]/[0.05]"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleNoteClick(note.timestamp)}
-                          className="w-full text-left"
-                        >
-                          <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground pr-6">
-                            <span>{formatTime(note.timestamp)}</span>
-                            <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                          </div>
-                          <p className="mt-2 text-sm text-foreground">{note.text}</p>
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id); }}
-                          className="absolute right-2 top-2 rounded p-1 opacity-0 group-hover:opacity-100 transition-all duration-150 hover:bg-red-500/20 text-muted-foreground hover:text-red-400"
-                          title="Delete note"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+        {/* ── Main content ── */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {!selectedProjectId ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <Film className="mb-4 h-10 w-10 text-muted-foreground/20" />
+              <p className="text-sm font-semibold text-foreground">Select a project</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Choose a project from the sidebar to view its revisions
+              </p>
+            </div>
+          ) : loadingRevisions ? (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : revisions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-border">
+                <Film className="h-7 w-7 text-muted-foreground/30" />
               </div>
-
-              <div className="hidden md:block w-64 border-l border-border bg-card/50 p-4">
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Revision library</h2>
-                    <p className="mt-2 text-xs text-muted-foreground">Select a revision to continue editing, or upload a new one to attach to this project.</p>
-                  </div>
-                  <div className="space-y-3">
-                    {videos
-                      .filter((video) => video.project_id === selectedProjectId)
-                      .map((video) => (
-                        <div
-                          key={video.id}
-                          className={`group relative w-full rounded-2xl border px-4 py-3 text-left transition ${
-                            selectedVideo?.id === video.id
-                              ? "border-[#d4a853] bg-[#d4a853]/10"
-                              : "border-border bg-card hover:border-[#d4a853]/30 hover:bg-[#d4a853]/[0.05]"
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setSelectedVideoId(video.id)}
-                            className="w-full text-left"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-sm font-medium text-foreground truncate pr-6">{video.name}</span>
-                              <span className="shrink-0 text-[10px] text-muted-foreground">{formatDate(video.uploadedAt, "MMM d")}</span>
-                            </div>
-                            <p className="mt-2 text-[11px] text-muted-foreground">{formatFileSize(video.size)}</p>
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteVideo(video.id); }}
-                            className="absolute right-2 top-2 rounded p-1 opacity-0 group-hover:opacity-100 transition-all duration-150 hover:bg-red-500/20 text-muted-foreground hover:text-red-400"
-                            title="Remove revision"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  No revisions yet
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Upload a cut for{" "}
+                  <span className="text-foreground">{selectedProject?.title}</span> to
+                  start reviewing
+                </p>
               </div>
+              <button
+                onClick={() => setShowUploadForm(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#c49843]"
+              >
+                <Upload className="h-4 w-4" />
+                Upload first revision
+              </button>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center p-8 text-center text-muted-foreground">
-              Select a revision on the right or upload one to start reviewing footage.
+            <div className="divide-y divide-border">
+              {revisions.map((revision) => {
+                const isActive = activeRevisionId === revision.id;
+                const comments = revision.comments ?? [];
+                const statusCfg =
+                  STATUS_CONFIG[revision.status] ?? STATUS_CONFIG.pending;
+
+                return (
+                  <div key={revision.id}>
+                    {/* ── Revision row ── */}
+                    <div
+                      className="flex cursor-pointer items-center gap-3 px-5 py-4 transition-colors hover:bg-muted/10"
+                      onClick={() =>
+                        setActiveRevisionId(isActive ? null : revision.id)
+                      }
+                    >
+                      {/* Version badge */}
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-xs font-bold text-muted-foreground">
+                        v{revision.version_number}
+                      </div>
+
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">
+                            {revision.title}
+                          </span>
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusCfg.color}`}
+                          >
+                            {statusCfg.label}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                          {revision.file_size != null && (
+                            <span>{formatFileSize(revision.file_size)}</span>
+                          )}
+                          <span>·</span>
+                          <span>{formatRelative(revision.created_at)}</span>
+                          {comments.length > 0 && (
+                            <>
+                              <span>·</span>
+                              <span className="flex items-center gap-0.5">
+                                <MessageSquare className="h-3 w-3" />
+                                {comments.length}
+                              </span>
+                            </>
+                          )}
+                          {revision.description && (
+                            <>
+                              <span>·</span>
+                              <span className="italic">{revision.description}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteRevision(revision);
+                          }}
+                          disabled={deletingRevisionId === revision.id}
+                          className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+                          title="Delete revision"
+                        >
+                          {deletingRevisionId === revision.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                        <ChevronRight
+                          className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+                            isActive ? "rotate-90" : ""
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* ── Expanded player + controls ── */}
+                    {isActive && (
+                      <div className="border-t border-border bg-card/30">
+                        {revision.file_url ? (
+                          <>
+                            {/* Video player */}
+                            <div className="relative bg-black">
+                              <video
+                                ref={videoRef}
+                                src={revision.file_url}
+                                className="max-h-[55vh] w-full object-contain"
+                                onPlay={() => setIsPlaying(true)}
+                                onPause={() => setIsPlaying(false)}
+                                onTimeUpdate={(e) =>
+                                  setCurrentTime(e.currentTarget.currentTime)
+                                }
+                                onLoadedMetadata={(e) =>
+                                  setPlayerDuration(e.currentTarget.duration)
+                                }
+                              />
+
+                              {/* Controls overlay */}
+                              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-4 pb-3 pt-10">
+                                {/* Scrubber */}
+                                <div className="mb-2.5 flex items-center gap-2">
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={playerDuration || 0}
+                                    step={0.1}
+                                    value={currentTime}
+                                    onChange={(e) => {
+                                      const t = parseFloat(e.target.value);
+                                      setCurrentTime(t);
+                                      if (videoRef.current)
+                                        videoRef.current.currentTime = t;
+                                    }}
+                                    className="h-1 flex-1 cursor-pointer rounded-full bg-white/30 accent-[#d4a853]"
+                                  />
+                                  <span className="font-mono text-[11px] text-white/70">
+                                    {formatTime(currentTime)} /{" "}
+                                    {formatTime(playerDuration)}
+                                  </span>
+                                </div>
+
+                                {/* Controls row */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-0.5">
+                                    <button
+                                      onClick={() => {
+                                        if (!videoRef.current) return;
+                                        if (isPlaying) videoRef.current.pause();
+                                        else videoRef.current.play();
+                                      }}
+                                      className="rounded-lg p-2 text-white transition-colors hover:bg-white/15"
+                                    >
+                                      {isPlaying ? (
+                                        <Pause className="h-4 w-4" />
+                                      ) : (
+                                        <Play className="h-4 w-4" />
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const next = !isMuted;
+                                        setIsMuted(next);
+                                        if (videoRef.current)
+                                          videoRef.current.muted = next;
+                                      }}
+                                      className="rounded-lg p-2 text-white transition-colors hover:bg-white/15"
+                                    >
+                                      {isMuted ? (
+                                        <VolumeX className="h-4 w-4" />
+                                      ) : (
+                                        <Volume2 className="h-4 w-4" />
+                                      )}
+                                    </button>
+                                    <input
+                                      type="range"
+                                      min={0}
+                                      max={1}
+                                      step={0.05}
+                                      value={isMuted ? 0 : volume}
+                                      onChange={(e) => {
+                                        const v = parseFloat(e.target.value);
+                                        setVolume(v);
+                                        setIsMuted(v === 0);
+                                        if (videoRef.current) {
+                                          videoRef.current.volume = v;
+                                          videoRef.current.muted = v === 0;
+                                        }
+                                      }}
+                                      className="h-1 w-20 cursor-pointer accent-[#d4a853]"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-0.5">
+                                    {revision.file_url && (
+                                      <a
+                                        href={revision.file_url}
+                                        download={revision.title}
+                                        onClick={() =>
+                                          toast.success("Download started")
+                                        }
+                                        className="rounded-lg p-2 text-white transition-colors hover:bg-white/15"
+                                        title="Download"
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </a>
+                                    )}
+                                    <button
+                                      onClick={() =>
+                                        videoRef.current?.requestFullscreen()
+                                      }
+                                      className="rounded-lg p-2 text-white transition-colors hover:bg-white/15"
+                                      title="Fullscreen"
+                                    >
+                                      <Maximize className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Status + comments */}
+                            <div className="px-5 py-4 space-y-4">
+                              {/* Status controls */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  Status:
+                                </span>
+                                {ALL_STATUSES.map((s) => (
+                                  <button
+                                    key={s}
+                                    onClick={() =>
+                                      handleUpdateStatus(revision, s)
+                                    }
+                                    disabled={
+                                      revision.status === s ||
+                                      updatingStatusId === revision.id
+                                    }
+                                    className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                                      revision.status === s
+                                        ? STATUS_CONFIG[s].color
+                                        : "border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
+                                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                                  >
+                                    {updatingStatusId === revision.id &&
+                                    revision.status !== s ? (
+                                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                    ) : null}
+                                    {STATUS_CONFIG[s].label}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Timestamp comments */}
+                              <div>
+                                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                  <MessageSquare className="h-3.5 w-3.5" />
+                                  Timestamp notes ({comments.length})
+                                </p>
+
+                                {comments.length > 0 && (
+                                  <div className="mb-3 space-y-1.5">
+                                    {comments.map((comment) => (
+                                      <div
+                                        key={comment.id}
+                                        className="group flex items-start gap-3 rounded-xl bg-muted/30 px-3 py-2.5"
+                                      >
+                                        <button
+                                          onClick={() => {
+                                            if (!videoRef.current) return;
+                                            videoRef.current.currentTime =
+                                              comment.timestamp_seconds ?? 0;
+                                            videoRef.current.play();
+                                            setIsPlaying(true);
+                                          }}
+                                          className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:text-[#d4a853]"
+                                          title="Seek to this timestamp"
+                                        >
+                                          {formatTime(
+                                            comment.timestamp_seconds ?? 0
+                                          )}
+                                        </button>
+                                        <p className="flex-1 text-xs leading-relaxed text-foreground">
+                                          {comment.content}
+                                        </p>
+                                        <button
+                                          onClick={() =>
+                                            handleDeleteComment(
+                                              revision.id,
+                                              comment.id
+                                            )
+                                          }
+                                          disabled={
+                                            deletingCommentId === comment.id
+                                          }
+                                          className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:text-red-400 disabled:opacity-50"
+                                        >
+                                          {deletingCommentId === comment.id ? (
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                          ) : (
+                                            <X className="h-3 w-3" />
+                                          )}
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Add comment */}
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={commentDraft}
+                                    onChange={(e) =>
+                                      setCommentDraft(e.target.value)
+                                    }
+                                    placeholder={`Note at ${formatTime(currentTime)}…`}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") handleAddComment();
+                                    }}
+                                    className="flex-1 rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/40 focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={handleAddComment}
+                                    disabled={
+                                      savingComment || !commentDraft.trim()
+                                    }
+                                    className="rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:bg-[#c49843] disabled:opacity-50"
+                                  >
+                                    {savingComment ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      "Add"
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+                            Video file is no longer available
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -601,5 +601,73 @@ export async function updateInvoice(id: string, updates: Partial<Invoice>): Prom
 
 export async function deleteInvoice(id: string): Promise<void> {
   const { error } = await db().from('invoices').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Revisions ───────────────────────────────────────────────────────────────
+
+export async function getProjectRevisions(projectId: string): Promise<Revision[]> {
+  const { data, error } = await db()
+    .from('revisions')
+    .select('*, revision_comments(*)')
+    .eq('project_id', projectId)
+    .order('version_number', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []).map((r: any) => ({
+    ...r,
+    comments: ((r.revision_comments ?? []) as any[]).sort(
+      (a, b) => (a.timestamp_seconds ?? 0) - (b.timestamp_seconds ?? 0)
+    ),
+  })) as Revision[];
+}
+
+export async function createRevision(
+  revision: Omit<Revision, 'id' | 'created_at' | 'updated_at' | 'comments'>
+): Promise<Revision> {
+  const { data, error } = await db()
+    .from('revisions')
+    .insert(revision)
+    .select()
+    .single();
+  if (error) throw error;
+  return { ...(data as Revision), comments: [] };
+}
+
+export async function updateRevision(
+  id: string,
+  updates: Partial<Omit<Revision, 'comments'>>
+): Promise<Revision> {
+  const { data, error } = await db()
+    .from('revisions')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Revision;
+}
+
+export async function deleteRevision(id: string): Promise<void> {
+  const { error } = await db().from('revisions').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function createRevisionComment(comment: {
+  revision_id: string;
+  content: string;
+  timestamp_seconds?: number;
+  author_name?: string;
+}): Promise<RevisionComment> {
+  const { data, error } = await db()
+    .from('revision_comments')
+    .insert(comment)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as RevisionComment;
+}
+
+export async function deleteRevisionComment(id: string): Promise<void> {
+  const { error } = await db().from('revision_comments').delete().eq('id', id);
   if (error) throw error;
 }
