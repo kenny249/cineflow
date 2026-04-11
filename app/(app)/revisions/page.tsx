@@ -653,12 +653,12 @@ export default function RevisionsPage() {
                         {revision.file_url ? (
                           <>
                             {/* Video player */}
-                            <div className="relative flex items-center justify-center bg-black">
+                            <div className="w-full bg-black flex justify-center">
+                              <div className="relative">
                               <video
                                 ref={videoRef}
                                 src={revision.file_url}
-                                className="max-h-[55vh] max-w-full"
-                                style={{ objectFit: "contain" }}
+                                className="block max-w-full max-h-[78vh]"
                                 onPlay={() => setIsPlaying(true)}
                                 onPause={() => setIsPlaying(false)}
                                 onTimeUpdate={(e) =>
@@ -694,7 +694,6 @@ export default function RevisionsPage() {
                                         <button
                                           key={c.id}
                                           type="button"
-                                          title={c.content}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             const t = c.timestamp_seconds ?? 0;
@@ -702,9 +701,15 @@ export default function RevisionsPage() {
                                             if (videoRef.current) { videoRef.current.currentTime = t; videoRef.current.play(); }
                                             setIsPlaying(true);
                                           }}
-                                          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-sky-400 ring-2 ring-black/60 transition-transform hover:scale-150 z-10"
+                                          className="group/dot absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10"
                                           style={{ left: `${((c.timestamp_seconds ?? 0) / playerDuration) * 100}%` }}
-                                        />
+                                        >
+                                          <div className="h-2.5 w-2.5 rounded-full ring-2 ring-black/60 transition-transform group-hover/dot:scale-150 dot-silver-shimmer" />
+                                          <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-max max-w-[180px] rounded-lg bg-zinc-900/95 border border-white/10 px-2.5 py-1.5 invisible group-hover/dot:visible z-50 shadow-lg">
+                                            <span className="block font-mono text-[10px] text-[#d4a853] mb-0.5">{formatTime(c.timestamp_seconds ?? 0)}</span>
+                                            <span className="block text-[11px] leading-snug text-white/90">{c.content}</span>
+                                          </div>
+                                        </button>
                                       ))}
                                       {/* Thumb */}
                                       <div
@@ -808,6 +813,7 @@ export default function RevisionsPage() {
                                     </button>
                                   </div>
                                 </div>
+                              </div>
                               </div>
                             </div>
 
