@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, UploadCloud, Settings, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, List, Layers, Users } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, UploadCloud, Settings, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, List, Layers, Users, FlaskConical } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { MobileSplash } from "./MobileSplash";
@@ -30,8 +30,9 @@ const MOBILE_NAV_MORE = [
   { label: "Shot Lists", href: "/shot-lists", icon: List },
   { label: "Storyboard", href: "/storyboard", icon: Layers },
   { label: "Clients",    href: "/clients",    icon: Users },
-  { label: "Finance",    href: "/finance",    icon: DollarSign },
-  { label: "Team",       href: "/team",       icon: UsersRound },
+  { label: "Finance",       href: "/finance",        icon: DollarSign },
+  { label: "Team",          href: "/team",           icon: UsersRound },
+  { label: "Beta Feedback", href: "/beta-feedback",  icon: FlaskConical },
 ];
 
 interface AppLayoutProps {

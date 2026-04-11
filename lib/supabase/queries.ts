@@ -813,6 +813,22 @@ export async function getActivityLog(limit = 20): Promise<ActivityItem[]> {
   })) as ActivityItem[];
 }
 
+// ─── Beta Feedback ───────────────────────────────────────────────────────────
+
+export async function submitBetaFeedback(payload: {
+  usage_frequency: string;
+  top_features: string[];
+  workflow_fit: string;
+  would_pay: string;
+  price_range: string;
+  pricing_model: string;
+  missing_feature?: string;
+  star_rating?: number;
+}) {
+  const { error } = await db().from('beta_feedback').insert(payload);
+  if (error) throw error;
+}
+
 export async function logActivity(item: {
   project_id: string;
   type: ActivityType;
