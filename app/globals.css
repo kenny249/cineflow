@@ -309,8 +309,8 @@
 
 /* Scrubber comment dot — silver shimmer */
 .dot-silver-shimmer {
-  background: linear-gradient(90deg, #9ca3af 0%, #d1d5db 25%, #ffffff 50%, #d1d5db 75%, #9ca3af 100%);
+  background: linear-gradient(90deg, #9ca3af 0%, #c4c9cf 30%, #e8eaec 50%, #c4c9cf 70%, #9ca3af 100%);
   background-size: 300% 100%;
-  animation: silver-sweep 2s linear infinite;
-  box-shadow: 0 0 5px rgba(255,255,255,0.35), 0 1px 2px rgba(0,0,0,0.4);
+  animation: silver-sweep 3s linear infinite;
+  box-shadow: 0 0 3px rgba(255,255,255,0.18), 0 1px 2px rgba(0,0,0,0.4);
 }

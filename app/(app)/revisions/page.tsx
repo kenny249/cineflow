@@ -658,7 +658,7 @@ export default function RevisionsPage() {
                               <video
                                 ref={videoRef}
                                 src={revision.file_url}
-                                className="block max-w-full max-h-[78vh]"
+                                className="block max-w-full max-h-[52vh]"
                                 onPlay={() => setIsPlaying(true)}
                                 onPause={() => setIsPlaying(false)}
                                 onTimeUpdate={(e) =>
@@ -704,7 +704,7 @@ export default function RevisionsPage() {
                                           className="group/dot absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10"
                                           style={{ left: `${((c.timestamp_seconds ?? 0) / playerDuration) * 100}%` }}
                                         >
-                                          <div className="h-2.5 w-2.5 rounded-full ring-2 ring-black/60 transition-transform group-hover/dot:scale-150 dot-silver-shimmer" />
+                                          <div className="h-[11px] w-[11px] rounded-full ring-2 ring-black/60 transition-transform group-hover/dot:scale-150 dot-silver-shimmer" />
                                           <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-max max-w-[180px] rounded-lg bg-zinc-900/95 border border-white/10 px-2.5 py-1.5 invisible group-hover/dot:visible z-50 shadow-lg">
                                             <span className="block font-mono text-[10px] text-[#d4a853] mb-0.5">{formatTime(c.timestamp_seconds ?? 0)}</span>
                                             <span className="block text-[11px] leading-snug text-white/90">{c.content}</span>
