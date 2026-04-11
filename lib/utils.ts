@@ -96,5 +96,5 @@ export function getProgressColor(progress: number): string {
   if (progress >= 80) return "bg-emerald-500";
   if (progress >= 50) return "bg-amber-500";
   if (progress >= 25) return "bg-blue-500";
-  return "bg-zinc-600";
+  return "bg-[#d4a853]";
 }
