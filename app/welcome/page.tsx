@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Film } from "lucide-react";
+import { Film, Layers, Eye, Users } from "lucide-react";
+import { getOrCreateDisplayName, setDisplayName, generateDisplayName } from "@/lib/random-name";
 
 // Minimal ambient particles — only gold, very sparse
 function AmbientDots() {
@@ -56,56 +56,118 @@ function AmbientDots() {
   );
 }
 
+const FEATURES = [
+  {
+    icon: Layers,
+    eyebrow: "Projects & Shot Lists",
+    headline: "Every production,\norganized.",
+    sub: "From pre-prod to delivery — schedules, shot lists, crew, all in one place.",
+  },
+  {
+    icon: Eye,
+    eyebrow: "Revisions & Feedback",
+    headline: "Share cuts.\nCapture notes.",
+    sub: "Frame-accurate comments, approval tracking, and a clean revision history.",
+  },
+  {
+    icon: Users,
+    eyebrow: "Client Hub",
+    headline: "A portal your\nclients will love.",
+    sub: "Professional review pages. No logins, no confusion — just feedback.",
+  },
+] as const;
+
 type Phase =
   | "dormant"
-  | "icon"
-  | "line"
+  | "logo"
+  | "name_ask"
+  | "name_ack"
+  | "features"
   | "headline"
-  | "wordmark"
-  | "hold"
   | "exit"
   | "gone";
 
 export default function WelcomePage() {
-  const router = useRouter();
-  const [phase, setPhase] = useState<Phase>("dormant");
-  const [overlayOpacity, setOverlayOpacity] = useState(0);
+  const [phase, setPhase]         = useState<Phase>("dormant");
+  const [nameInput, setNameInput] = useState("");
+  const [resolvedName, setResolvedName] = useState("");
+  const [featureIdx, setFeatureIdx] = useState(0);
+  const inputRef      = useRef<HTMLInputElement>(null);
+  const isReturning   = useRef(false);
+  const autoTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Boot sequence
   useEffect(() => {
-    const q = (delay: number, fn: () => void) =>
-      setTimeout(fn, delay);
+    isReturning.current = Boolean(localStorage.getItem("cf_onboarded"));
+    const name = getOrCreateDisplayName();
 
-    const t1 = q(180,  () => setPhase("icon"));
-    const t2 = q(620,  () => setPhase("line"));
-    const t3 = q(900,  () => setPhase("headline"));
-    const t4 = q(1500, () => setPhase("wordmark"));
-    const t5 = q(2600, () => setPhase("exit"));
-    const t6 = q(3100, () => {
-      setPhase("gone");
-      window.location.assign("/dashboard");
-    });
-
-    return () => [t1, t2, t3, t4, t5, t6].forEach(clearTimeout);
+    if (isReturning.current) {
+      setResolvedName(name);
+      const t1 = setTimeout(() => setPhase("logo"),     120);
+      const t2 = setTimeout(() => setPhase("headline"), 980);
+      const t3 = setTimeout(() => setPhase("exit"),     2400);
+      const t4 = setTimeout(() => { setPhase("gone"); window.location.assign("/dashboard"); }, 2950);
+      return () => [t1, t2, t3, t4].forEach(clearTimeout);
+    } else {
+      const t1 = setTimeout(() => setPhase("logo"),     120);
+      const t2 = setTimeout(() => {
+        setPhase("name_ask");
+        setTimeout(() => inputRef.current?.focus(), 80);
+        // Auto-advance after 12s with a generated name
+        autoTimer.current = setTimeout(() => advanceFromName(""), 12000);
+      }, 1050);
+      return () => [t1, t2].forEach(clearTimeout);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isExit = phase === "exit" || phase === "gone";
+  function advanceFromName(raw: string) {
+    if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
+    const final = raw.trim() || generateDisplayName();
+    setDisplayName(final);
+    setResolvedName(final);
+    setPhase("name_ack");
+    setTimeout(() => { setPhase("features"); setFeatureIdx(0); }, 1800);
+  }
+
+  // Feature carousel
+  useEffect(() => {
+    if (phase !== "features") return;
+    if (featureIdx < FEATURES.length - 1) {
+      const t = setTimeout(() => setFeatureIdx((i) => i + 1), 1600);
+      return () => clearTimeout(t);
+    } else {
+      const t = setTimeout(() => setPhase("headline"), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [phase, featureIdx]);
+
+  // Exit after headline
+  useEffect(() => {
+    if (phase !== "headline") return;
+    const t1 = setTimeout(() => setPhase("exit"), 1900);
+    const t2 = setTimeout(() => {
+      localStorage.setItem("cf_onboarded", "1");
+      window.location.assign("/dashboard");
+    }, 2500);
+    return () => [t1, t2].forEach(clearTimeout);
+  }, [phase]);
+
+  const isExit   = phase === "exit" || phase === "gone";
+  const firstName = resolvedName.split(" ")[0] ?? resolvedName;
+
+  const Feature = FEATURES[featureIdx];
+  const FeatureIcon = Feature.icon;
 
   return (
-    <div
-      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060606]"
-      style={{ fontFamily: "inherit" }}
-    >
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060606]">
       <AmbientDots />
 
       {/* Radial ambient glow */}
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_60%_55%_at_50%_50%,rgba(212,168,83,0.07)_0%,transparent_70%)]" />
 
       {/* Film grain */}
-      <svg
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 z-[1] h-full w-full"
-        style={{ opacity: 0.12, mixBlendMode: "overlay" }}
-      >
+      <svg aria-hidden="true" className="pointer-events-none fixed inset-0 z-[1] h-full w-full" style={{ opacity: 0.12, mixBlendMode: "overlay" }}>
         <defs>
           <filter id="wt-grain">
             <feTurbulence type="fractalNoise" baseFrequency="0.68" numOctaves="3" stitchTiles="stitch" />
@@ -115,44 +177,32 @@ export default function WelcomePage() {
         <rect width="100%" height="100%" filter="url(#wt-grain)" />
       </svg>
 
-      {/* Exit overlay — sweeps to black */}
+      {/* Exit overlay */}
       <div
         className="pointer-events-none fixed inset-0 z-50 bg-[#060606] transition-opacity"
-        style={{
-          opacity: isExit ? 1 : 0,
-          transitionDuration: isExit ? "480ms" : "0ms",
-          transitionTimingFunction: "cubic-bezier(0.4,0,1,1)",
-        }}
+        style={{ opacity: isExit ? 1 : 0, transitionDuration: isExit ? "480ms" : "0ms", transitionTimingFunction: "cubic-bezier(0.4,0,1,1)" }}
       />
 
-      {/* Content */}
+      {/* ── LOGO (shown in all phases except dormant) ── */}
       <div
-        className="relative z-10 flex flex-col items-center gap-0 text-center"
+        className="fixed inset-0 z-10 flex flex-col items-center justify-center gap-5"
         style={{
-          opacity: isExit ? 0 : 1,
-          transition: isExit ? "opacity 350ms ease" : "none",
+          opacity: phase === "dormant" || phase === "name_ask" || phase === "name_ack" || phase === "features" ? 0 : 1,
+          pointerEvents: "none",
+          transition: "opacity 500ms ease",
         }}
       >
-        {/* Film icon with pulse ring */}
+        {/* Film icon */}
         <div
-          className="relative mb-8 flex items-center justify-center"
           style={{
             opacity: phase === "dormant" ? 0 : 1,
             transform: phase === "dormant" ? "scale(0.55) rotate(-18deg)" : "scale(1) rotate(0deg)",
             filter: phase === "dormant" ? "blur(10px)" : "blur(0px)",
             transition: "opacity 600ms cubic-bezier(0.22,1,0.36,1), transform 600ms cubic-bezier(0.22,1,0.36,1), filter 600ms ease",
           }}
+          className="relative flex items-center justify-center"
         >
-          {/* Expanding pulse ring */}
-          {(phase === "icon" || phase === "line") && (
-            <span
-              className="absolute h-20 w-20 rounded-full border border-[#d4a853]/30"
-              style={{ animation: "wt-pulse-ring 1.4s ease-out forwards" }}
-            />
-          )}
-          {/* Static glow ring */}
           <div className="absolute h-16 w-16 rounded-full bg-[#d4a853]/10 blur-xl" />
-          {/* Icon container */}
           <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10 shadow-[0_0_40px_rgba(212,168,83,0.25)]">
             <Film className="h-7 w-7 text-[#d4a853]" />
           </div>
@@ -160,55 +210,171 @@ export default function WelcomePage() {
 
         {/* Gold line */}
         <div
-          className="mb-9 h-px bg-gradient-to-r from-transparent via-[#d4a853] to-transparent"
+          className="h-px bg-gradient-to-r from-transparent via-[#d4a853] to-transparent"
           style={{
-            width: (phase === "dormant" || phase === "icon") ? "0px" : "120px",
-            opacity: (phase === "dormant" || phase === "icon") ? 0 : 1,
+            width: phase === "dormant" || phase === "logo" ? "0px" : "100px",
+            opacity: phase === "dormant" || phase === "logo" ? 0 : 1,
             transition: "width 550ms cubic-bezier(0.22,1,0.36,1), opacity 400ms ease",
           }}
         />
 
-        {/* Headline */}
+        {/* Headline — returning user OR "finally" */}
         <div
           style={{
-            opacity: phase === "dormant" || phase === "icon" || phase === "line" ? 0 : 1,
-            transform: (phase === "dormant" || phase === "icon" || phase === "line")
-              ? "translateY(36px)"
-              : "translateY(0)",
-            filter: (phase === "dormant" || phase === "icon" || phase === "line")
-              ? "blur(8px)"
-              : "blur(0px)",
+            opacity: phase === "headline" ? 1 : 0,
+            transform: phase === "headline" ? "translateY(0)" : "translateY(24px)",
+            filter: phase === "headline" ? "blur(0px)" : "blur(8px)",
             transition: "opacity 700ms cubic-bezier(0.22,1,0.36,1), transform 700ms cubic-bezier(0.22,1,0.36,1), filter 600ms ease",
           }}
+          className="text-center"
         >
-          <p className="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">
-            You&apos;re in.
-          </p>
-          <h1
-            className="font-display text-4xl font-bold leading-[1.12] tracking-tight text-foreground sm:text-5xl md:text-6xl"
-            style={{ maxWidth: "660px" }}
-          >
-            finally, you can
-            <br />
-            <span className="text-gradient-gold">ease your mind.</span>
-          </h1>
+          {isReturning.current ? (
+            <>
+              <p className="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">Welcome back.</p>
+              <h1 className="font-display text-4xl font-bold leading-[1.12] tracking-tight text-foreground sm:text-5xl">
+                Good to see you,<br />
+                <span className="text-gradient-gold">{firstName}.</span>
+              </h1>
+            </>
+          ) : (
+            <>
+              <p className="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">Your studio awaits.</p>
+              <h1 className="font-display text-4xl font-bold leading-[1.12] tracking-tight text-foreground sm:text-5xl">
+                finally, you can<br />
+                <span className="text-gradient-gold">ease your mind.</span>
+              </h1>
+            </>
+          )}
         </div>
 
         {/* Wordmark */}
         <div
-          className="mt-12 flex flex-col items-center gap-3"
+          className="mt-2 flex flex-col items-center gap-2"
           style={{
-            opacity: phase === "wordmark" || phase === "hold" ? 1 : 0,
-            transform: phase === "wordmark" || phase === "hold" ? "translateY(0)" : "translateY(12px)",
-            transition: "opacity 600ms ease, transform 600ms cubic-bezier(0.22,1,0.36,1)",
+            opacity: phase === "headline" ? 1 : 0,
+            transform: phase === "headline" ? "translateY(0)" : "translateY(12px)",
+            transition: "opacity 600ms ease 300ms, transform 600ms cubic-bezier(0.22,1,0.36,1) 300ms",
           }}
         >
-          <div className="h-px w-12 bg-[#d4a853]/30" />
-          <p className="text-[0.6rem] font-bold uppercase tracking-[0.45em] text-[#d4a853]/60">
-            CINEFLOW
-          </p>
+          <div className="h-px w-10 bg-[#d4a853]/30" />
+          <p className="text-[0.6rem] font-bold uppercase tracking-[0.45em] text-[#d4a853]/60">CINEFLOW</p>
         </div>
       </div>
+
+      {/* ── NAME ASK ── */}
+      <div
+        className="relative z-20 flex w-full max-w-sm flex-col items-center px-6 text-center"
+        style={{
+          opacity: phase === "name_ask" ? 1 : 0,
+          transform: phase === "name_ask" ? "translateY(0)" : "translateY(32px)",
+          filter: phase === "name_ask" ? "blur(0px)" : "blur(6px)",
+          pointerEvents: phase === "name_ask" ? "auto" : "none",
+          transition: "opacity 700ms cubic-bezier(0.22,1,0.36,1), transform 700ms cubic-bezier(0.22,1,0.36,1), filter 600ms ease",
+        }}
+      >
+        <div className="relative mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10 shadow-[0_0_40px_rgba(212,168,83,0.2)]">
+          <Film className="h-7 w-7 text-[#d4a853]" />
+        </div>
+        <p className="mb-1 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">CineFlow Beta</p>
+        <h2 className="mb-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          What should we<br />call you?
+        </h2>
+        <p className="mb-7 text-sm text-zinc-500">We&apos;ll personalise your studio experience.</p>
+        <div className="relative w-full">
+          <input
+            ref={inputRef}
+            type="text"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && nameInput.trim()) advanceFromName(nameInput); }}
+            placeholder="Your name"
+            autoComplete="name"
+            autoCapitalize="words"
+            maxLength={40}
+            className="w-full rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-4 text-center text-lg text-white placeholder:text-zinc-600 focus:border-[#d4a853]/50 focus:outline-none focus:shadow-[0_0_0_3px_rgba(212,168,83,0.12)] transition-all"
+          />
+        </div>
+        <div className="mt-4 flex w-full gap-3">
+          <button
+            onClick={() => advanceFromName(nameInput)}
+            disabled={!nameInput.trim()}
+            className="flex-1 rounded-2xl bg-[#d4a853] py-3.5 text-sm font-bold text-black hover:bg-[#e0b55e] disabled:opacity-40 transition-all active:scale-[0.98]"
+          >
+            Let&apos;s go →
+          </button>
+          <button
+            onClick={() => advanceFromName("")}
+            className="rounded-2xl border border-white/10 px-4 py-3.5 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            Skip
+          </button>
+        </div>
+      </div>
+
+      {/* ── NAME ACK ── */}
+      <div
+        className="pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-center text-center px-6"
+        style={{
+          opacity: phase === "name_ack" ? 1 : 0,
+          transform: phase === "name_ack" ? "translateY(0)" : "translateY(20px)",
+          filter: phase === "name_ack" ? "blur(0px)" : "blur(8px)",
+          transition: "opacity 600ms cubic-bezier(0.22,1,0.36,1), transform 600ms cubic-bezier(0.22,1,0.36,1), filter 500ms ease",
+        }}
+      >
+        <p className="mb-2 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">Welcome to the team.</p>
+        <h2 className="font-display text-4xl font-bold text-white sm:text-5xl">
+          Nice to meet you,<br />
+          <span className="text-gradient-gold">{firstName}.</span>
+        </h2>
+      </div>
+
+      {/* ── FEATURES ── */}
+      <div
+        className="pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
+        style={{
+          opacity: phase === "features" ? 1 : 0,
+          transition: "opacity 600ms ease",
+        }}
+      >
+        <div
+          key={featureIdx}
+          className="flex flex-col items-center"
+          style={{ animation: "wt-feature-in 600ms cubic-bezier(0.22,1,0.36,1) forwards" }}
+        >
+          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10 shadow-[0_0_50px_rgba(212,168,83,0.2)]">
+            <FeatureIcon className="h-8 w-8 text-[#d4a853]" />
+          </div>
+          <p className="mb-3 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">{Feature.eyebrow}</p>
+          <h3 className="mb-3 font-display text-3xl font-bold leading-tight text-white sm:text-4xl" style={{ whiteSpace: "pre-line" }}>
+            {Feature.headline}
+          </h3>
+          <p className="max-w-xs text-sm leading-relaxed text-zinc-400">{Feature.sub}</p>
+          {/* Dot indicators */}
+          <div className="mt-8 flex gap-2">
+            {FEATURES.map((_, i) => (
+              <div
+                key={i}
+                className="h-1 rounded-full transition-all duration-500"
+                style={{
+                  width: i === featureIdx ? "24px" : "6px",
+                  background: i === featureIdx ? "#d4a853" : "rgba(255,255,255,0.15)",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes wt-feature-in {
+          from { opacity: 0; transform: translateY(28px) scale(0.97); filter: blur(6px); }
+          to   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0);  }
+        }
+        @keyframes wt-pulse-ring {
+          0%   { transform: scale(1);   opacity: 0.5; }
+          100% { transform: scale(2.2); opacity: 0;   }
+        }
+      `}</style>
     </div>
   );
 }

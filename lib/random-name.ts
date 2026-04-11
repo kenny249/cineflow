@@ -29,6 +29,11 @@ export function getOrCreateDisplayName(): string {
   return name;
 }
 
+export function setDisplayName(name: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, name);
+}
+
 export function resetDisplayName(): string {
   if (typeof window === "undefined") return "Studio User";
   const name = generateDisplayName();

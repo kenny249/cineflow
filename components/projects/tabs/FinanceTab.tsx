@@ -191,8 +191,8 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
                   {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
                 </select>
                 <input className="budget-input sm:col-span-2" placeholder="Description *" value={lineForm.description} onChange={(e) => setLineForm({ ...lineForm, description: e.target.value })} />
-                <div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="budget-input pl-5" placeholder="Budgeted" type="number" step="0.01" value={lineForm.budgeted} onChange={(e) => setLineForm({ ...lineForm, budgeted: e.target.value })} /></div>
-                <div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="budget-input pl-5" placeholder="Actual" type="number" step="0.01" value={lineForm.actual} onChange={(e) => setLineForm({ ...lineForm, actual: e.target.value })} /></div>
+                <div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="budget-input pl-6" placeholder="Budgeted" type="number" step="0.01" value={lineForm.budgeted} onChange={(e) => setLineForm({ ...lineForm, budgeted: e.target.value })} /></div>
+                <div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="budget-input pl-6" placeholder="Actual" type="number" step="0.01" value={lineForm.actual} onChange={(e) => setLineForm({ ...lineForm, actual: e.target.value })} /></div>
                 <input className="budget-input" placeholder="Vendor" value={lineForm.vendor} onChange={(e) => setLineForm({ ...lineForm, vendor: e.target.value })} />
                 <input className="budget-input col-span-2 sm:col-span-3" placeholder="Notes" value={lineForm.notes} onChange={(e) => setLineForm({ ...lineForm, notes: e.target.value })} />
               </div>
