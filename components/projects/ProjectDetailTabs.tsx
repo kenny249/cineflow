@@ -760,7 +760,7 @@ export default function ProjectDetailTabs({
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <Tabs defaultValue="overview" className="flex h-full flex-col">
           <div className="border-b border-border">
             <div className="overflow-x-auto no-scrollbar">
@@ -790,7 +790,7 @@ export default function ProjectDetailTabs({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
             <TabsContent value="overview" className="m-0 p-5 sm:p-6">
               <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
                 <div className="space-y-5">
