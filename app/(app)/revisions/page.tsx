@@ -643,11 +643,12 @@ export default function RevisionsPage() {
                         {revision.file_url ? (
                           <>
                             {/* Video player */}
-                            <div className="relative bg-black">
+                            <div className="relative flex items-center justify-center bg-black">
                               <video
                                 ref={videoRef}
                                 src={revision.file_url}
-                                className="max-h-[55vh] w-full object-contain"
+                                className="max-h-[55vh] max-w-full"
+                                style={{ objectFit: "contain" }}
                                 onPlay={() => setIsPlaying(true)}
                                 onPause={() => setIsPlaying(false)}
                                 onTimeUpdate={(e) =>
@@ -662,20 +663,60 @@ export default function RevisionsPage() {
                               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-4 pb-3 pt-10">
                                 {/* Scrubber */}
                                 <div className="mb-2.5 flex items-center gap-2">
-                                  <input
-                                    type="range"
-                                    min={0}
-                                    max={playerDuration || 0}
-                                    step={0.1}
-                                    value={currentTime}
-                                    onChange={(e) => {
-                                      const t = parseFloat(e.target.value);
-                                      setCurrentTime(t);
-                                      if (videoRef.current)
-                                        videoRef.current.currentTime = t;
-                                    }}
-                                    className="h-1 flex-1 cursor-pointer rounded-full bg-white/30 accent-[#d4a853]"
-                                  />
+                                  <div className="relative flex-1 group">
+                                    {/* Track */}
+                                    <div
+                                      className="relative h-1 cursor-pointer rounded-full bg-white/20"
+                                      onClick={(e) => {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const t = ((e.clientX - rect.left) / rect.width) * (playerDuration || 0);
+                                        setCurrentTime(t);
+                                        if (videoRef.current) videoRef.current.currentTime = t;
+                                      }}
+                                    >
+                                      {/* Filled portion */}
+                                      <div
+                                        className="absolute inset-y-0 left-0 rounded-full bg-[#d4a853]"
+                                        style={{ width: `${playerDuration ? (currentTime / playerDuration) * 100 : 0}%` }}
+                                      />
+                                      {/* Comment markers */}
+                                      {playerDuration > 0 && comments.map((c) => (
+                                        <button
+                                          key={c.id}
+                                          type="button"
+                                          title={c.content}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const t = c.timestamp_seconds ?? 0;
+                                            setCurrentTime(t);
+                                            if (videoRef.current) { videoRef.current.currentTime = t; videoRef.current.play(); }
+                                            setIsPlaying(true);
+                                          }}
+                                          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-sky-400 ring-2 ring-black/60 transition-transform hover:scale-150 z-10"
+                                          style={{ left: `${((c.timestamp_seconds ?? 0) / playerDuration) * 100}%` }}
+                                        />
+                                      ))}
+                                      {/* Thumb */}
+                                      <div
+                                        className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-[#d4a853] shadow ring-2 ring-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        style={{ left: `${playerDuration ? (currentTime / playerDuration) * 100 : 0}%` }}
+                                      />
+                                      {/* Hidden range input for drag support */}
+                                      <input
+                                        type="range"
+                                        min={0}
+                                        max={playerDuration || 0}
+                                        step={0.1}
+                                        value={currentTime}
+                                        onChange={(e) => {
+                                          const t = parseFloat(e.target.value);
+                                          setCurrentTime(t);
+                                          if (videoRef.current) videoRef.current.currentTime = t;
+                                        }}
+                                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                      />
+                                    </div>
+                                  </div>
                                   <span className="font-mono text-[11px] text-white/70">
                                     {formatTime(currentTime)} /{" "}
                                     {formatTime(playerDuration)}
