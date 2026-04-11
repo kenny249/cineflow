@@ -100,8 +100,9 @@ export default function ReviewPortalClient({ token }: { token: string }) {
 
   // Comment state
   const [commentDraft, setCommentDraft] = useState("");
-  const [commentName, setCommentName] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [noteTs, setNoteTs] = useState<number | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Deliverables
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
@@ -139,7 +140,6 @@ export default function ReviewPortalClient({ token }: { token: string }) {
 
   async function handleSubmitComment() {
     if (!activeRevision || !commentDraft.trim()) return;
-    const name = commentName.trim() || data?.clientName || "Client";
     setSubmittingComment(true);
     try {
       const res = await fetch(`/api/review/${token}`, {
@@ -148,12 +148,11 @@ export default function ReviewPortalClient({ token }: { token: string }) {
         body: JSON.stringify({
           revision_id: activeRevision.id,
           content: commentDraft.trim(),
-          timestamp_seconds: videoRef.current ? Math.floor(videoRef.current.currentTime) : null,
+          timestamp_seconds: noteTs,
         }),
       });
       if (!res.ok) throw new Error("Failed to submit");
       const { comment } = await res.json();
-      // Optimistically add
       setRevisions((prev) =>
         prev.map((r) =>
           r.id === activeRevision.id
@@ -161,12 +160,18 @@ export default function ReviewPortalClient({ token }: { token: string }) {
             : r
         )
       );
-      setCommentDraft("");
+      setCommentDraft(""); setNoteTs(null);
     } catch {
       alert("Couldn't submit your note — please try again.");
     } finally {
       setSubmittingComment(false);
     }
+  }
+
+  function captureTimestamp() {
+    setNoteTs(videoRef.current ? Math.floor(videoRef.current.currentTime) : null);
+    if (videoRef.current && !videoRef.current.paused) videoRef.current.pause();
+    setTimeout(() => textareaRef.current?.focus(), 50);
   }
 
   async function handleDownload() {
@@ -345,17 +350,33 @@ export default function ReviewPortalClient({ token }: { token: string }) {
 
                   {/* Video player */}
                   {activeRevision.file_url && (
-                    <div className="bg-black flex justify-center">
+                    <div className="relative bg-black overflow-hidden">
                       <div className="relative w-full">
                         <video
                           ref={videoRef}
                           src={activeRevision.file_url}
-                          className="block max-w-full max-h-[55vh] mx-auto"
+                          playsInline
+                          preload="metadata"
+                          className="mx-auto block w-full"
+                          style={{ maxHeight: "62vh", objectFit: "contain" }}
+                          onClick={() => { if (!videoRef.current) return; if (isPlaying) videoRef.current.pause(); else videoRef.current.play(); }}
                           onPlay={() => setIsPlaying(true)}
                           onPause={() => setIsPlaying(false)}
                           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
                         />
+                        {/* Big play overlay — shows when paused */}
+                        {!isPlaying && (
+                          <button
+                            type="button"
+                            onClick={() => videoRef.current?.play()}
+                            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                          >
+                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm ring-1 ring-white/20">
+                              <Play className="h-7 w-7 translate-x-0.5 text-white" />
+                            </div>
+                          </button>
+                        )}
                         {/* Controls overlay */}
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-4 pb-3 pt-10">
                           {/* Scrubber */}
@@ -427,9 +448,20 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                                 className="h-1 w-20 cursor-pointer accent-[#d4a853]"
                               />
                             </div>
-                            <button onClick={() => videoRef.current?.requestFullscreen()} className="rounded-lg p-2 text-white hover:bg-white/15 transition-colors">
-                              <Maximize className="h-4 w-4" />
-                            </button>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={captureTimestamp}
+                                className="flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-white/20 transition-colors active:scale-95"
+                              >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                                Note · {formatTime(currentTime)}
+                              </button>
+                              <button onClick={() => videoRef.current?.requestFullscreen()} className="rounded-lg p-2 text-white hover:bg-white/15 transition-colors">
+                                <Maximize className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -474,38 +506,42 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                     )}
 
                     {/* Add comment */}
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                        Leave a note {videoRef.current && duration > 0 ? <span className="ml-1 font-mono font-normal text-zinc-600 text-[10px] normal-case tracking-normal">at {formatTime(currentTime)}</span> : ""}
-                      </h4>
-                      {!commentName && (
-                        <input
-                          type="text"
-                          value={commentName}
-                          onChange={(e) => setCommentName(e.target.value)}
-                          placeholder="Your name"
-                          className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-[#d4a853]/40 focus:outline-none"
-                        />
+                    <div className="space-y-2.5">
+                      <h4 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-widest">Leave a note</h4>
+                      {/* Timestamp badge */}
+                      {noteTs !== null && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 rounded-full bg-[#d4a853]/10 border border-[#d4a853]/20 px-2.5 py-1 text-xs font-medium text-[#d4a853]">
+                            <Clock className="h-3 w-3" /> Stamped at {formatTime(noteTs)}
+                          </div>
+                          <button type="button" onClick={() => setNoteTs(null)} className="text-zinc-600 hover:text-zinc-400 transition-colors">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       )}
-                      <div className="flex gap-2 items-start">
+                      <div className="flex gap-2.5 items-end">
                         <textarea
+                          ref={textareaRef}
                           value={commentDraft}
                           onChange={(e) => setCommentDraft(e.target.value)}
-                          placeholder="Type your note here — pause the video at any point to attach it to that moment…"
+                          placeholder="Share your thoughts on this cut…"
                           rows={3}
-                          className="flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-[#d4a853]/40 focus:outline-none"
+                          className="flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 text-sm text-white placeholder:text-zinc-600 focus:border-[#d4a853]/40 focus:outline-none leading-relaxed"
                         />
                         <button
                           type="button"
                           disabled={!commentDraft.trim() || submittingComment}
                           onClick={handleSubmitComment}
-                          className="shrink-0 rounded-xl bg-[#d4a853] px-4 py-2 text-sm font-bold text-black hover:bg-[#c49843] disabled:opacity-40 transition-colors flex items-center gap-1.5"
+                          className="shrink-0 mb-0.5 rounded-xl bg-[#d4a853] p-3 text-black hover:bg-[#c49843] disabled:opacity-40 transition-all active:scale-95"
                         >
                           {submittingComment
-                            ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-                            : <Send className="h-3.5 w-3.5" />}
+                            ? <span className="block h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                            : <Send className="h-4 w-4" />}
                         </button>
                       </div>
+                      <p className="text-[11px] text-zinc-600">
+                        Tap <span className="text-zinc-400 font-medium">Note · {formatTime(currentTime)}</span> in the player to stamp a timestamp on your note.
+                      </p>
                     </div>
                   </div>
                 </div>
