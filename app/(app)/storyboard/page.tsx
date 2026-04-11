@@ -518,10 +518,12 @@ export default function StoryboardPage() {
       ]);
       toast.success(`${created.length} frames generated`);
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to generate frames");
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
+      console.error("generateFrames error:", msg);
+      toast.error(msg || "Failed to generate frames");
       setChatMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "I had trouble generating those frames. Try again with a more specific brief." },
+        { role: "assistant", content: `Error: ${msg}` },
       ]);
     } finally {
       setGenerating(false);
