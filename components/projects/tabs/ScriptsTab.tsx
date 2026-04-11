@@ -192,14 +192,14 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#d4a853]/30 border-t-[#d4a853]" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex flex-col">
       {/* ── Mode switcher ── */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2.5 sm:px-5">
         <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
@@ -258,8 +258,8 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
 
       {/* ── Write mode ── */}
       {mode === "write" && (
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-[65vh]">
+          <div className="flex flex-1 flex-col">
             {!content && canEdit && (
               <div className="shrink-0 border-b border-border bg-[#d4a853]/[0.04] px-5 py-3 flex items-center justify-between gap-3">
                 <p className="text-xs text-muted-foreground">Start typing or import an existing script file.</p>
@@ -276,7 +276,7 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
               onChange={(e) => handleChange(e.target.value)}
               readOnly={!canEdit}
               placeholder={"Write your script here...\n\nUse standard screenplay format:\n  INT. LOCATION - DAY\n  EXT. LOCATION - NIGHT\n\nScenes are auto-detected in the navigator."}
-              className="flex-1 resize-none bg-transparent px-6 py-5 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none custom-scrollbar"
+              className="min-h-[55vh] w-full resize-none bg-transparent px-6 py-5 font-mono text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/40 focus:outline-none custom-scrollbar"
               style={{ fontFamily: "'Courier New', Courier, monospace" }}
               spellCheck
             />
@@ -292,7 +292,7 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
               <div className="px-3 py-2.5 border-b border-border">
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Scenes</p>
               </div>
-              <div className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5 custom-scrollbar">
+              <div className="px-2 py-2 space-y-0.5">
                 {scenes.map((scene, i) => (
                   <button
                     key={i}
@@ -311,7 +311,7 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
 
       {/* ── Files mode ── */}
       {mode === "files" && (
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-5 py-4">
+        <div className="px-4 sm:px-5 py-4">
           <p className="mb-4 text-xs text-muted-foreground">Upload PDFs, Final Draft (.fdx), Fountain, or any script format. Stored as-is.</p>
           {uploadedFiles.length === 0 && !canEdit ? (
             <div className="flex flex-col items-center justify-center py-16">

@@ -1174,33 +1174,33 @@ export default function ProjectDetailTabs({
             </TabsContent>
 
             {/* ── Scripts (file-upload focused) ── */}
-            <TabsContent value="scripts" className="m-0 flex h-full flex-col overflow-hidden">
+            <TabsContent value="scripts" className="m-0">
               <ScriptsTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
             {/* ── Production Docs ── */}
-            <TabsContent value="docs" className="m-0 flex h-full flex-col overflow-hidden">
+            <TabsContent value="docs" className="m-0">
               <ProductionDocsTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
             {/* ── Crew ── */}
-            <TabsContent value="crew" className="m-0 flex h-full flex-col overflow-hidden">
+            <TabsContent value="crew" className="m-0">
               <CrewTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
             {/* ── Locations ── */}
-            <TabsContent value="locations" className="m-0 flex h-full flex-col overflow-hidden">
+            <TabsContent value="locations" className="m-0">
               <LocationsTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
             {/* ── Wrap Notes ── */}
-            <TabsContent value="wrap" className="m-0 flex h-full flex-col overflow-hidden">
+            <TabsContent value="wrap" className="m-0">
               <WrapNotesTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
             {/* ── Finance (admin only) ── */}
             {isAdmin && (
-              <TabsContent value="finance" className="m-0 flex h-full flex-col overflow-hidden">
+              <TabsContent value="finance" className="m-0">
                 <FinanceTab projectId={project.id} isAdmin={isAdmin} />
               </TabsContent>
             )}

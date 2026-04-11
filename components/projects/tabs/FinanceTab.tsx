@@ -154,7 +154,7 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
   const cats = Object.keys(grouped).sort();
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex flex-col">
       {/* ── Summary bar ── */}
       <div className="shrink-0 border-b border-border px-4 sm:px-5 py-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 mb-3">
@@ -213,7 +213,7 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
               <Plus className="h-3.5 w-3.5" />Add line
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-5 py-4 space-y-5">
+          <div className="px-4 sm:px-5 py-4 space-y-5">
             {loading ? (
               <div className="flex items-center justify-center py-16"><span className="h-5 w-5 animate-spin rounded-full border-2 border-[#d4a853]/30 border-t-[#d4a853]" /></div>
             ) : lines.length === 0 ? (
@@ -277,7 +277,7 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
               <Plus className="h-3.5 w-3.5" />New Invoice
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-5 py-4 space-y-2">
+          <div className="px-4 sm:px-5 py-4 space-y-2">
             {loading ? (
               <div className="flex items-center justify-center py-16"><span className="h-5 w-5 animate-spin rounded-full border-2 border-[#d4a853]/30 border-t-[#d4a853]" /></div>
             ) : invoices.length === 0 ? (
@@ -302,7 +302,7 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
               <h2 className="font-display font-semibold text-foreground">{editingInvId ? "Edit Invoice" : "New Invoice"}</h2>
               <button onClick={() => setShowInvForm(false)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted/40"><X className="h-4 w-4" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4 custom-scrollbar space-y-3">
+            <div className="px-5 py-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="fin-label">Invoice #</label><input className="fin-input" value={invForm.invoice_number} onChange={fi("invoice_number")} placeholder="INV-0001" /></div>
                 <div><label className="fin-label">Status</label>

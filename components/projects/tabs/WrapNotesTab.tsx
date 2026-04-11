@@ -80,7 +80,7 @@ export function WrapNotesTab({ projectId, canEdit }: WrapNotesTabProps) {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex flex-col">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 sm:px-5 py-3">
         <p className="text-sm font-semibold text-foreground">{notes.length} production day{notes.length !== 1 ? "s" : ""}</p>
         {canEdit && (
@@ -108,7 +108,7 @@ export function WrapNotesTab({ projectId, canEdit }: WrapNotesTabProps) {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-4 sm:px-5 py-4 space-y-2">
+      <div className="px-4 sm:px-5 py-4 space-y-2">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#d4a853]/30 border-t-[#d4a853]" />

@@ -47,7 +47,7 @@ export function ProductionDocsTab({ projectId, canEdit }: ProductionDocsTabProps
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto custom-scrollbar px-4 sm:px-5 py-3 space-y-1.5">
+    <div className="flex flex-col px-4 sm:px-5 py-3 space-y-1.5">
       {DOC_CATEGORIES.map(({ key, label }) => {
         const catFiles = files.filter((f) => (f.category || "other") === key);
         const isOpen = openCategories.has(key);
