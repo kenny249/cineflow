@@ -31,30 +31,40 @@ import { createClient } from "@/lib/supabase/client";
 import type { Project, Revision, RevisionStatus } from "@/types";
 
 
-const STATUS_CONFIG: Record<RevisionStatus, { label: string; color: string }> = {
-  pending: {
-    label: "Pending review",
+const STATUS_CONFIG: Record<RevisionStatus, { label: string; color: string; description: string }> = {
+  draft: {
+    label: "Draft",
     color: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+    description: "Internal only — not ready for client",
+  },
+  in_review: {
+    label: "In Review",
+    color: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+    description: "Sent to client, awaiting feedback",
+  },
+  revisions_requested: {
+    label: "Revisions Requested",
+    color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    description: "Client has left notes",
   },
   approved: {
     label: "Approved",
     color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    description: "Client signed off",
   },
-  changes_requested: {
-    label: "Changes requested",
-    color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  },
-  rejected: {
-    label: "Rejected",
-    color: "bg-red-500/10 text-red-400 border-red-500/20",
+  final: {
+    label: "Final",
+    color: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    description: "Delivered and archived",
   },
 };
 
 const ALL_STATUSES: RevisionStatus[] = [
-  "pending",
+  "draft",
+  "in_review",
+  "revisions_requested",
   "approved",
-  "changes_requested",
-  "rejected",
+  "final",
 ];
 
 function formatTime(seconds: number) {
@@ -198,7 +208,7 @@ export default function RevisionsPage() {
         project_id: selectedProjectId,
         title: fallbackTitle,
         description: uploadDescription.trim() || undefined,
-        status: "pending",
+        status: "draft",
         version_number: versionNumber,
         file_url: urlData.publicUrl,
         file_type: uploadFile.type || "video/mp4",
@@ -560,7 +570,7 @@ export default function RevisionsPage() {
                 const isActive = activeRevisionId === revision.id;
                 const comments = revision.comments ?? [];
                 const statusCfg =
-                  STATUS_CONFIG[revision.status] ?? STATUS_CONFIG.pending;
+                  STATUS_CONFIG[revision.status] ?? STATUS_CONFIG.draft;
 
                 return (
                   <div key={revision.id}>
@@ -818,6 +828,7 @@ export default function RevisionsPage() {
                                       revision.status === s ||
                                       updatingStatusId === revision.id
                                     }
+                                    title={STATUS_CONFIG[s].description}
                                     className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
                                       revision.status === s
                                         ? STATUS_CONFIG[s].color

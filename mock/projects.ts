@@ -298,7 +298,7 @@ export const MOCK_REVISIONS: Record<string, Revision[]> = {
       file_type: "video/mp4",
       file_size: 2800000000,
       thumbnail_url: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=600&q=80",
-      status: "changes_requested",
+      status: "revisions_requested",
       created_by: "user_001",
       created_at: "2026-03-28T14:00:00Z",
       comments: [
@@ -346,7 +346,7 @@ export const MOCK_REVISIONS: Record<string, Revision[]> = {
       file_type: "video/mp4",
       file_size: 1500000000,
       thumbnail_url: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=600&q=80",
-      status: "pending",
+      status: "in_review",
       created_by: "user_001",
       created_at: "2026-04-04T16:00:00Z",
       comments: [],

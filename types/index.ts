@@ -25,7 +25,7 @@ export type ProjectType =
   | "other";
 
 export type ShotStatus = "planned" | "filming" | "completed" | "review";
-export type RevisionStatus = "pending" | "approved" | "rejected" | "changes_requested";
+export type RevisionStatus = "draft" | "in_review" | "revisions_requested" | "approved" | "final";
 export type CalendarEventType = "shoot" | "meeting" | "deadline" | "milestone" | "delivery" | "other";
 export type TaskStatus = "todo" | "in_progress" | "done";
 export type TaskPriority = "low" | "medium" | "high";

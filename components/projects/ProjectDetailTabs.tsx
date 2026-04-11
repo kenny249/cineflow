@@ -19,7 +19,7 @@ import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
-import type { Project, ProjectMember, ProjectNote, Revision, ShotList, StoryboardFrame, ShotListItem, ProjectRole } from "@/types";
+import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole } from "@/types";
 import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
@@ -394,7 +394,7 @@ export default function ProjectDetailTabs({
           file_size: m.size,
           file_type: undefined,
           thumbnail_url: project.thumbnail_url ?? undefined,
-          status: "pending" as const,
+          status: "draft" as const,
           created_by: project.created_by,
           created_at: m.uploadedAt,
           updated_at: m.uploadedAt,
@@ -566,7 +566,7 @@ export default function ProjectDetailTabs({
       file_type: newRevisionFile.type,
       file_size: newRevisionFile.size,
       thumbnail_url: coverUrl,
-      status: "pending",
+      status: "draft" as RevisionStatus,
       created_by: project.created_by,
       created_at: new Date().toISOString(),
       comments: [],
@@ -1278,17 +1278,19 @@ export default function ProjectDetailTabs({
                     const comments = revision.comments ?? [];
                     const isActive = activeRevisionId === revision.id;
                     const hasVideo = !!revision.file_url;
-                    const statusStyles = {
-                      pending: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+                    const statusStyles: Record<string, string> = {
+                      draft: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+                      in_review: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+                      revisions_requested: "bg-amber-500/10 text-amber-400 border-amber-500/20",
                       approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-                      changes_requested: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-                      rejected: "bg-red-500/10 text-red-400 border-red-500/20",
+                      final: "bg-purple-500/10 text-purple-400 border-purple-500/20",
                     };
-                    const statusLabels = {
-                      pending: "Pending review",
+                    const statusLabels: Record<string, string> = {
+                      draft: "Draft",
+                      in_review: "In Review",
+                      revisions_requested: "Revisions Requested",
                       approved: "Approved",
-                      changes_requested: "Changes requested",
-                      rejected: "Rejected",
+                      final: "Final",
                     };
 
                     return (
