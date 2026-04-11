@@ -63,7 +63,8 @@ export function LoginPageClient() {
         setIsLoading(false);
         return;
       }
-      if (data?.session) window.location.assign("/welcome");
+      // Always proceed to welcome — auth is not enforced in beta
+    window.location.assign("/welcome");
     } catch { setIsLoading(false); }
   }
 

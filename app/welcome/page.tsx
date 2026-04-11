@@ -105,9 +105,11 @@ export default function WelcomePage() {
       setResolvedName(name);
       const t1 = setTimeout(() => setPhase("logo"),     120);
       const t2 = setTimeout(() => setPhase("headline"), 980);
-      const t3 = setTimeout(() => setPhase("exit"),     2400);
-      const t4 = setTimeout(() => { setPhase("gone"); window.location.assign("/dashboard"); }, 2950);
-      return () => [t1, t2, t3, t4].forEach(clearTimeout);
+    const t3 = setTimeout(() => {
+      setPhase("exit");
+      setTimeout(() => window.location.assign("/dashboard"), 350);
+    }, 2400);
+      return () => [t1, t2, t3].forEach(clearTimeout);
     } else {
       const t1 = setTimeout(() => setPhase("logo"),     120);
       const t2 = setTimeout(() => {
@@ -145,12 +147,13 @@ export default function WelcomePage() {
   // Exit after headline
   useEffect(() => {
     if (phase !== "headline") return;
-    const t1 = setTimeout(() => setPhase("exit"), 1900);
-    const t2 = setTimeout(() => {
+    const t1 = setTimeout(() => {
+      setPhase("exit");
       localStorage.setItem("cf_onboarded", "1");
-      window.location.assign("/dashboard");
-    }, 2500);
-    return () => [t1, t2].forEach(clearTimeout);
+      // Navigate as the black overlay starts — it IS the transition
+      setTimeout(() => window.location.assign("/dashboard"), 350);
+    }, 1900);
+    return () => clearTimeout(t1);
   }, [phase]);
 
   const isExit   = phase === "exit" || phase === "gone";
