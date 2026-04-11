@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2 } from "lucide-react";
 import { getProjects, createProject } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,9 @@ function groupByClient(projects: Project[]) {
 
 const EMPTY_FORM = { title: "", client_name: "", type: "commercial" as const, description: "" };
 
+interface ClientContact { email: string; phone: string; website: string; contact_name: string; notes: string; }
+const EMPTY_CONTACT: ClientContact = { email: "", phone: "", website: "", contact_name: "", notes: "" };
+
 export default function ClientsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +53,22 @@ export default function ClientsPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+
+  // Client contact info (localStorage)
+  const [clientContacts, setClientContacts] = useState<Record<string, ClientContact>>(() => {
+    if (typeof window === "undefined") return {};
+    try { const raw = localStorage.getItem("cf_client_contacts"); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
+  });
+  const [editingContact, setEditingContact] = useState<string | null>(null);
+  const [contactForm, setContactForm] = useState<ClientContact>(EMPTY_CONTACT);
+
+  function saveContact() {
+    const updated = { ...clientContacts, [editingContact!]: contactForm };
+    setClientContacts(updated);
+    try { localStorage.setItem("cf_client_contacts", JSON.stringify(updated)); } catch {}
+    setEditingContact(null);
+    toast.success("Contact info saved");
+  }
 
   useEffect(() => {
     getProjects()
@@ -278,6 +297,14 @@ export default function ClientsPage() {
                     {clientProjects.length} project{clientProjects.length !== 1 ? "s" : ""}
                     {activeCount > 0 && <span className="ml-2 text-emerald-400">· {activeCount} active</span>}
                   </p>
+                  {/* Contact info quick summary */}
+                  {clientContacts[clientName] && (clientContacts[clientName].email || clientContacts[clientName].phone) && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                      {clientContacts[clientName].contact_name && <span>{clientContacts[clientName].contact_name}</span>}
+                      {clientContacts[clientName].phone && <span className="flex items-center gap-0.5"><Phone className="h-2.5 w-2.5" />{clientContacts[clientName].phone}</span>}
+                      {clientContacts[clientName].email && <span className="flex items-center gap-0.5"><Mail className="h-2.5 w-2.5" />{clientContacts[clientName].email}</span>}
+                    </p>
+                  )}
                 </div>
                 {/* Progress pill */}
                 <div className="hidden sm:flex items-center gap-2 shrink-0">
@@ -286,6 +313,19 @@ export default function ClientsPage() {
                   </div>
                   <span className="text-xs text-muted-foreground tabular-nums w-8 text-right">{totalProgress}%</span>
                 </div>
+                {/* Edit contact */}
+                <button
+                  type="button"
+                  title="Edit contact info"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setContactForm(clientContacts[clientName] ?? EMPTY_CONTACT);
+                    setEditingContact(clientName);
+                  }}
+                  className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                </button>
                 {/* Add project to this client */}
                 <button
                   type="button"
@@ -351,6 +391,52 @@ export default function ClientsPage() {
           );
         })}
       </div>
+
+      {/* ── Client contact modal ── */}
+      {editingContact && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingContact(null)} />
+          <div className="relative z-10 w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h2 className="font-display font-semibold text-foreground">Contact: {editingContact}</h2>
+              <button onClick={() => setEditingContact(null)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted/40"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              {[
+                { label: "Primary Contact", key: "contact_name" as const, icon: UserCircle2, placeholder: "e.g. Jane Smith" },
+                { label: "Email", key: "email" as const, icon: Mail, placeholder: "client@company.com", type: "email" },
+                { label: "Phone", key: "phone" as const, icon: Phone, placeholder: "+1 (555) 000-0000", type: "tel" },
+                { label: "Website", key: "website" as const, icon: Globe, placeholder: "https://company.com", type: "url" },
+              ].map(({ label, key, icon: Icon, placeholder, type }) => (
+                <div key={key}>
+                  <label className="mb-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground"><Icon className="h-3 w-3" />{label}</label>
+                  <input
+                    type={type ?? "text"}
+                    className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                    placeholder={placeholder}
+                    value={contactForm[key]}
+                    onChange={(e) => setContactForm((p) => ({ ...p, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Notes</label>
+                <textarea
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                  placeholder="Billing address, preferred contact hours…"
+                  value={contactForm.notes}
+                  onChange={(e) => setContactForm((p) => ({ ...p, notes: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+              <button onClick={() => setEditingContact(null)} className="rounded-lg border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-muted/20">Cancel</button>
+              <button onClick={saveContact} className="rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843]">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,7 +20,7 @@ import { useCompletionBurst, BurstRenderer } from "@/components/shared/Completio
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole, ReviewToken, PortalDeliverable } from "@/types";
-import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
 import { WrapNotesTab } from "@/components/projects/tabs/WrapNotesTab";
@@ -404,6 +404,37 @@ export default function ProjectDetailTabs({
   const [newShotDescription, setNewShotDescription] = useState("");
   const [newShotNumber, setNewShotNumber] = useState(shotList?.items?.length ? shotList.items.length + 1 : 1);
   const [newShotScene, setNewShotScene] = useState("");
+  const [newShotLocation, setNewShotLocation] = useState("");
+  const [newShotType, setNewShotType] = useState<ShotListItem["shot_type"]>("medium");
+  const [newShotMovement, setNewShotMovement] = useState<ShotListItem["camera_movement"]>("static");
+  const [newShotLens, setNewShotLens] = useState("");
+  const [addingShotToDb, setAddingShotToDb] = useState(false);
+
+  // ── Shot inline edit ──
+  const [editingShotId, setEditingShotId] = useState<string | null>(null);
+  const [editShotForm, setEditShotForm] = useState<Partial<ShotListItem>>({});
+  const [savingEditShot, setSavingEditShot] = useState(false);
+
+  // ── Note resolved + comments (localStorage) ──
+  const [resolvedNotes, setResolvedNotes] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set<string>();
+    try {
+      const raw = localStorage.getItem(`cf_resolved_notes_${project.id}`);
+      return new Set<string>(raw ? JSON.parse(raw) : []);
+    } catch { return new Set<string>(); }
+  });
+  const [noteComments, setNoteComments] = useState<Record<string, { id: string; text: string; at: string }[]>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = localStorage.getItem(`cf_note_comments_${project.id}`);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  });
+  const [noteCommentDrafts, setNoteCommentDrafts] = useState<Record<string, string>>({});
+  const [expandedNoteComments, setExpandedNoteComments] = useState<Set<string>>(new Set());
+
+  // ── Storyboard image upload ──
+  const [uploadingFrameId, setUploadingFrameId] = useState<string | null>(null);
 
   const [showFrameDialog, setShowFrameDialog] = useState(false);
   const [newFrameTitle, setNewFrameTitle] = useState("");
@@ -565,42 +596,56 @@ export default function ProjectDetailTabs({
     toast.success("Member added to the project.");
   };
 
-  const handleAddShot = () => {
+  const handleAddShot = async () => {
     if (!newShotDescription.trim()) {
       toast.error("Please describe the shot.");
       return;
     }
-
-    const nextItem: ShotListItem = {
-      id: `sli_${Math.random().toString(36).slice(2)}`,
-      shot_list_id: shotList?.id ?? `sl_${Math.random().toString(36).slice(2)}`,
-      shot_number: newShotNumber,
-      scene: newShotScene || `Scene ${newShotNumber}`,
-      location: "TBD",
-      description: newShotDescription.trim(),
-      shot_type: "medium",
-      camera_movement: "handheld",
-      is_complete: false,
-    };
-
-    const nextShotList = shotList
-      ? { ...shotList, items: [...(shotList.items ?? []), nextItem] }
-      : {
-          id: `sl_${Math.random().toString(36).slice(2)}`,
+    setAddingShotToDb(true);
+    try {
+      // Ensure we have a real shot list in the DB
+      let activeList = shotList;
+      const isFakeId = !activeList?.id || activeList.id.startsWith("sl_");
+      if (!activeList || isFakeId) {
+        const created = await createShotList({
           project_id: project.id,
-          title: "New shot list",
-          description: "Auto-generated shot list.",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          items: [nextItem],
-        };
+          title: "Shot List",
+          description: "Project shot list",
+        });
+        activeList = { ...created, items: [] };
+        setShotList(activeList);
+      }
 
-    setShotList(nextShotList);
-    setShowShotDialog(false);
-    setNewShotDescription("");
-    setNewShotNumber((prev) => prev + 1);
-    setNewShotScene("");
-    toast.success("Shot added to the list.");
+      const item = await createShotListItem({
+        shot_list_id: activeList.id,
+        shot_number: newShotNumber,
+        scene: newShotScene || `Scene ${newShotNumber}`,
+        location: newShotLocation || "TBD",
+        description: newShotDescription.trim(),
+        shot_type: newShotType,
+        camera_movement: newShotMovement,
+        lens: newShotLens || undefined,
+        is_complete: false,
+      });
+
+      setShotList({
+        ...activeList,
+        items: [...(activeList.items ?? []), item],
+      });
+      setShowShotDialog(false);
+      setNewShotDescription("");
+      setNewShotNumber((prev) => prev + 1);
+      setNewShotScene("");
+      setNewShotLocation("");
+      setNewShotType("medium");
+      setNewShotMovement("static");
+      setNewShotLens("");
+      toast.success("Shot added.");
+    } catch {
+      toast.error("Failed to save shot.");
+    } finally {
+      setAddingShotToDb(false);
+    }
   };
 
   const handleAddFrame = () => {
@@ -628,6 +673,92 @@ export default function ProjectDetailTabs({
     setNewFrameDescription("");
     toast.success("Storyboard frame created.");
   };
+
+  // ── Storyboard image upload ──
+  const handleFrameImageUpload = async (frameId: string, file: File) => {
+    if (!file.type.startsWith("image/")) { toast.error("Please upload an image."); return; }
+    setUploadingFrameId(frameId);
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${project.id}/storyboard/${frameId}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("project-files")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
+      await updateStoryboardFrame(frameId, { image_url: publicUrl });
+      setStoryboardFrames((prev) => prev.map((f) => f.id === frameId ? { ...f, image_url: publicUrl } : f));
+      toast.success("Frame image updated.");
+    } catch {
+      const localUrl = URL.createObjectURL(file);
+      setStoryboardFrames((prev) => prev.map((f) => f.id === frameId ? { ...f, image_url: localUrl } : f));
+      toast.success("Image applied locally.");
+    } finally {
+      setUploadingFrameId(null);
+    }
+  };
+
+  // ── Shot inline edit ──
+  function startEditShot(shot: ShotListItem) {
+    setEditShotForm({
+      description: shot.description,
+      scene: shot.scene,
+      location: shot.location,
+      shot_type: shot.shot_type,
+      camera_movement: shot.camera_movement,
+      lens: shot.lens,
+    });
+    setEditingShotId(shot.id);
+  }
+
+  async function saveEditShot() {
+    if (!editingShotId || !editShotForm.description?.trim()) return;
+    setSavingEditShot(true);
+    const prev = shotList?.items?.find((i) => i.id === editingShotId);
+    setShotList((sl) => sl ? { ...sl, items: (sl.items ?? []).map((i) => i.id === editingShotId ? { ...i, ...editShotForm } : i) } : sl);
+    setEditingShotId(null);
+    try {
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editingShotId);
+      if (isUUID) await updateShotListItem(editingShotId, editShotForm);
+      toast.success("Shot updated.");
+    } catch {
+      if (prev) setShotList((sl) => sl ? { ...sl, items: (sl.items ?? []).map((i) => i.id === editingShotId ? prev : i) } : sl);
+      toast.error("Failed to save shot.");
+    } finally {
+      setSavingEditShot(false);
+    }
+  }
+
+  // ── Note resolved + comments ──
+  function toggleNoteResolved(noteId: string) {
+    setResolvedNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(noteId)) next.delete(noteId); else next.add(noteId);
+      try { localStorage.setItem(`cf_resolved_notes_${project.id}`, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }
+
+  function saveNoteComments(updated: typeof noteComments) {
+    setNoteComments(updated);
+    try { localStorage.setItem(`cf_note_comments_${project.id}`, JSON.stringify(updated)); } catch {}
+  }
+
+  function addNoteComment(noteId: string) {
+    const text = noteCommentDrafts[noteId]?.trim();
+    if (!text) return;
+    const comment = { id: `nc_${Date.now()}`, text, at: new Date().toISOString() };
+    const updated = { ...noteComments, [noteId]: [...(noteComments[noteId] ?? []), comment] };
+    saveNoteComments(updated);
+    setNoteCommentDrafts((d) => ({ ...d, [noteId]: "" }));
+  }
+
+  function deleteNoteComment(noteId: string, commentId: string) {
+    const updated = { ...noteComments, [noteId]: (noteComments[noteId] ?? []).filter((c) => c.id !== commentId) };
+    saveNoteComments(updated);
+  }
 
   const handleUploadRevision = async () => {
     if (!newRevisionTitle.trim() || !newRevisionFile) {
@@ -996,7 +1127,7 @@ export default function ProjectDetailTabs({
                 { value: "crew",         label: "Crew" },
                 { value: "locations",    label: "Locations" },
                 { value: "wrap",         label: "Wrap Notes" },
-                { value: "revisions",    label: `Revisions ${revisions.length ? `(${revisions.length})` : ""}` },
+                { value: "revisions",    label: `Cuts & Deliverables ${revisions.length ? `(${revisions.length})` : ""}` },
                 { value: "notes",        label: `Notes ${notes.length ? `(${notes.length})` : ""}` },
                 { value: "client-portal", label: "Client Portal" },
                 ...(isAdmin ? [{ value: "finance", label: "Finance 🔒" }] : []),
@@ -1250,6 +1381,31 @@ export default function ProjectDetailTabs({
                     </thead>
                     <tbody className="divide-y divide-border">
                       {shotList.items?.map((shot) => (
+                        editingShotId === shot.id ? (
+                          <tr key={shot.id} className="bg-accent/20">
+                            <td className="px-3 py-2 w-14">
+                              <span className="font-mono text-xs text-muted-foreground">{shot.shot_number}</span>
+                            </td>
+                            <td className="px-3 py-2" colSpan={5}>
+                              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                <input className="col-span-2 sm:col-span-3 h-8 rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none" placeholder="Description *" value={editShotForm.description ?? ""} onChange={(e) => setEditShotForm((f) => ({ ...f, description: e.target.value }))} />
+                                <input className="h-8 rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none" placeholder="Scene" value={editShotForm.scene ?? ""} onChange={(e) => setEditShotForm((f) => ({ ...f, scene: e.target.value }))} />
+                                <input className="h-8 rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none" placeholder="Location" value={editShotForm.location ?? ""} onChange={(e) => setEditShotForm((f) => ({ ...f, location: e.target.value }))} />
+                                <input className="h-8 rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none" placeholder="Lens" value={editShotForm.lens ?? ""} onChange={(e) => setEditShotForm((f) => ({ ...f, lens: e.target.value }))} />
+                                <select className="h-8 rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none" value={editShotForm.shot_type ?? "medium"} onChange={(e) => setEditShotForm((f) => ({ ...f, shot_type: e.target.value as ShotListItem["shot_type"] }))}>  
+                                  {["wide","medium","close_up","extreme_close_up","over_the_shoulder","aerial","pov","two_shot","insert"].map((t) => <option key={t} value={t}>{t.replace(/_/g," ")}</option>)}
+                                </select>
+                                <select className="h-8 rounded-md border border-border bg-input px-2 text-xs text-foreground focus:outline-none" value={editShotForm.camera_movement ?? "static"} onChange={(e) => setEditShotForm((f) => ({ ...f, camera_movement: e.target.value as ShotListItem["camera_movement"] }))}>  
+                                  {["static","pan","tilt","dolly","handheld","crane","steadicam","zoom"].map((m) => <option key={m}>{m}</option>)}
+                                </select>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-right whitespace-nowrap">
+                              <button type="button" className="text-xs text-muted-foreground hover:text-foreground mr-2" onClick={() => setEditingShotId(null)}>Cancel</button>
+                              <button type="button" className="text-xs font-semibold text-[#d4a853] hover:text-[#c49843]" onClick={saveEditShot} disabled={savingEditShot}>Save</button>
+                            </td>
+                          </tr>
+                        ) : (
                         <tr key={shot.id} className={`group bg-card transition-colors hover:bg-accent/30 ${shot.is_complete ? "opacity-60" : ""}`}>
                           <td className="px-3 py-3 w-14">
                             <div className="flex items-center gap-1.5">
@@ -1267,6 +1423,7 @@ export default function ProjectDetailTabs({
                           </td>
                           <td className="px-3 py-3 max-w-[160px] sm:max-w-xs">
                             <p className="text-sm text-foreground leading-snug">{shot.description}</p>
+                            {shot.scene && <p className="mt-0.5 text-[10px] text-muted-foreground">{shot.scene}</p>}
                             {shot.notes && <p className="mt-0.5 text-xs text-muted-foreground italic truncate">{shot.notes}</p>}
                           </td>
                           <td className="hidden sm:table-cell px-3 py-3"><span className="text-xs text-muted-foreground whitespace-nowrap">{shot.location || "—"}</span></td>
@@ -1274,21 +1431,25 @@ export default function ProjectDetailTabs({
                           <td className="hidden md:table-cell px-3 py-3"><span className="text-xs text-muted-foreground capitalize">{shot.camera_movement}</span></td>
                           <td className="hidden md:table-cell px-3 py-3"><span className="font-mono text-xs text-muted-foreground">{shot.lens || "—"}</span></td>
                           <td className="px-3 py-3 w-16 text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 px-2 text-xs transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                toggleShotComplete(shot.id, e.nativeEvent);
-                              }}
-                            >
-                              {shot.is_complete ? "Undo" : "Done"}
-                            </Button>
+                            <div className="flex items-center justify-end gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                className="rounded px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent"
+                                onClick={() => startEditShot(shot)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleShotComplete(shot.id, e.nativeEvent); }}
+                              >
+                                {shot.is_complete ? "Undo" : "Done"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
+                        )
                       ))}
                     </tbody>
                   </table>
@@ -1321,6 +1482,14 @@ export default function ProjectDetailTabs({
                         )}
                         <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-mono text-white/80 backdrop-blur-sm">{String(frame.frame_number).padStart(2, "0")}</div>
                         {frame.shot_duration && <div className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">{frame.shot_duration}</div>}
+                        {/* Upload overlay */}
+                        <label className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                          {uploadingFrameId === frame.id
+                            ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                            : <><Upload className="h-5 w-5 text-white mb-1" /><span className="text-[11px] text-white font-medium">Upload image</span></>
+                          }
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFrameImageUpload(frame.id, e.target.files[0])} />
+                        </label>
                       </div>
                       <div className="p-3">
                         {frame.title && <p className="text-xs font-semibold text-foreground mb-1">{frame.title}</p>}
@@ -1367,7 +1536,7 @@ export default function ProjectDetailTabs({
 
             <TabsContent value="revisions" className="m-0 p-6">
               <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-display text-sm font-semibold text-foreground">Revisions</h3>
+                <h3 className="font-display text-sm font-semibold text-foreground">Cuts & Deliverables</h3>
                 <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowRevisionDialog(true)}>
                   <Upload className="h-3.5 w-3.5" />
                   Upload revision
@@ -1637,14 +1806,25 @@ export default function ProjectDetailTabs({
                   </div>
                 ) : (
                   <div className="grid gap-3">
-                    {notes.map((note) => (
-                      <div key={note.id} className={`rounded-xl border bg-card p-4 ${note.pinned ? "border-[#d4a853]/30 bg-[#d4a853]/[0.03]" : "border-border"}` }>
+                    {notes.map((note) => {
+                      const isResolved = resolvedNotes.has(note.id);
+                      const comments = noteComments[note.id] ?? [];
+                      const showComments = expandedNoteComments.has(note.id);
+                      return (
+                      <div key={note.id} className={`rounded-xl border bg-card p-4 ${isResolved ? "opacity-70 border-emerald-500/20 bg-emerald-500/[0.02]" : note.pinned ? "border-[#d4a853]/30 bg-[#d4a853]/[0.03]" : "border-border"}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
-                            {note.title && <h3 className="text-sm font-semibold text-foreground">{note.title}</h3>}
+                            {note.title && <h3 className={`text-sm font-semibold ${isResolved ? "line-through text-muted-foreground" : "text-foreground"}`}>{note.title}</h3>}
                             <p className="text-[11px] text-muted-foreground mt-0.5">{formatRelative(note.created_at)}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-1">
+                            <button
+                              onClick={() => toggleNoteResolved(note.id)}
+                              title={isResolved ? "Mark unresolved" : "Mark resolved"}
+                              className={`rounded-lg p-1.5 transition-colors ${isResolved ? "text-emerald-400 hover:bg-emerald-500/10" : "text-muted-foreground hover:text-emerald-400 hover:bg-emerald-500/10"}`}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                            </button>
                             <button
                               onClick={() => handleTogglePin(note)}
                               title={note.pinned ? "Unpin" : "Pin to overview"}
@@ -1666,9 +1846,46 @@ export default function ProjectDetailTabs({
                           </div>
                         </div>
                         <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{note.content}</p>
-                        {note.pinned && <p className="mt-2 text-[10px] text-[#d4a853]/70 flex items-center gap-1"><Pin className="h-2.5 w-2.5" /> Pinned to overview</p>}
+                        {isResolved && <p className="mt-2 text-[10px] text-emerald-400/70 flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5" /> Resolved</p>}
+                        {!isResolved && note.pinned && <p className="mt-2 text-[10px] text-[#d4a853]/70 flex items-center gap-1"><Pin className="h-2.5 w-2.5" /> Pinned to overview</p>}
+
+                        {/* Comments */}
+                        <div className="mt-3 border-t border-border/50 pt-2.5">
+                          <button
+                            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                            onClick={() => setExpandedNoteComments((s) => { const n = new Set(s); n.has(note.id) ? n.delete(note.id) : n.add(note.id); return n; })}
+                          >
+                            <MessageSquare className="h-3 w-3" />
+                            {comments.length > 0 ? `${comments.length} comment${comments.length > 1 ? "s" : ""}` : "Add comment"}
+                          </button>
+                          {showComments && (
+                            <div className="mt-2 space-y-2">
+                              {comments.map((c) => (
+                                <div key={c.id} className="flex items-start gap-2 group/cmt">
+                                  <div className="mt-0.5 h-5 w-5 rounded-full bg-muted flex items-center justify-center text-[9px] text-muted-foreground shrink-0">Y</div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs text-foreground leading-snug">{c.text}</p>
+                                    <p className="text-[10px] text-muted-foreground">{formatRelative(c.at)}</p>
+                                  </div>
+                                  <button className="opacity-0 group-hover/cmt:opacity-100 text-muted-foreground hover:text-red-400 transition-opacity" onClick={() => deleteNoteComment(note.id, c.id)}><X className="h-3 w-3" /></button>
+                                </div>
+                              ))}
+                              <div className="flex gap-2">
+                                <input
+                                  className="flex-1 h-7 rounded-lg border border-border bg-muted/30 px-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                                  placeholder="Write a comment…"
+                                  value={noteCommentDrafts[note.id] ?? ""}
+                                  onChange={(e) => setNoteCommentDrafts((d) => ({ ...d, [note.id]: e.target.value }))}
+                                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addNoteComment(note.id); } }}
+                                />
+                                <button className="h-7 rounded-lg bg-muted px-3 text-xs text-foreground hover:bg-accent" onClick={() => addNoteComment(note.id)}>Post</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1946,10 +2163,35 @@ export default function ProjectDetailTabs({
               <Label htmlFor="shot-description">Description</Label>
               <Textarea id="shot-description" value={newShotDescription} onChange={(e) => setNewShotDescription(e.target.value)} rows={3} placeholder="Describe the shot." />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="shot-location">Location</Label>
+                <Input id="shot-location" value={newShotLocation} onChange={(e) => setNewShotLocation(e.target.value)} placeholder="e.g. Studio A" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="shot-lens">Lens</Label>
+                <Input id="shot-lens" value={newShotLens} onChange={(e) => setNewShotLens(e.target.value)} placeholder="e.g. 50mm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Shot type</Label>
+                <select className="h-9 w-full rounded-lg border border-border bg-input px-3 text-sm text-foreground focus:outline-none" value={newShotType} onChange={(e) => setNewShotType(e.target.value as ShotListItem["shot_type"])}>
+                  {["wide","medium","close_up","extreme_close_up","over_the_shoulder","aerial","pov","two_shot","insert"].map((t) => <option key={t} value={t}>{t.replace(/_/g," ")}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Camera movement</Label>
+                <select className="h-9 w-full rounded-lg border border-border bg-input px-3 text-sm text-foreground focus:outline-none" value={newShotMovement} onChange={(e) => setNewShotMovement(e.target.value as ShotListItem["camera_movement"])}>
+                  {["static","pan","tilt","dolly","handheld","crane","steadicam","zoom"].map((m) => <option key={m}>{m}</option>)}
+                </select>
+              </div>
+            </div>
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowShotDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddShot}>Add shot</Button>
+            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddShot} disabled={addingShotToDb}>
+              {addingShotToDb ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black mr-1.5" /> : null}
+              Add shot
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

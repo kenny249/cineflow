@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 const MOBILE_NAV_PRIMARY = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Projects",  href: "/projects",  icon: FolderKanban },
-  { label: "Revisions", href: "/revisions", icon: UploadCloud },
+  { label: "Cuts & Delivers", href: "/revisions", icon: UploadCloud },
   { label: "Settings",  href: "/settings",  icon: Settings },
 ];
 

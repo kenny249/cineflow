@@ -584,14 +584,49 @@ export async function getWrapNotes(projectId: string): Promise<WrapNote[]> {
 }
 
 export async function upsertWrapNote(note: Omit<WrapNote, 'id' | 'created_at' | 'updated_at'>): Promise<WrapNote> {
-  const { data, error } = await db().from('wrap_notes').upsert({ ...note, updated_at: new Date().toISOString() }, { onConflict: 'project_id,production_day' }).select().single();
-  if (error) throw error;
-  return data as WrapNote;
+  // Manually check for existing record to avoid needing a UNIQUE constraint
+  const { data: existing } = await db()
+    .from('wrap_notes')
+    .select('id')
+    .eq('project_id', note.project_id)
+    .eq('production_day', note.production_day)
+    .maybeSingle();
+
+  if (existing?.id) {
+    const { data, error } = await db()
+      .from('wrap_notes')
+      .update({ content: note.content, issues: note.issues, outstanding: note.outstanding, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as WrapNote;
+  } else {
+    const { data, error } = await db()
+      .from('wrap_notes')
+      .insert({ ...note, updated_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw error;
+    return data as WrapNote;
+  }
 }
 
 export async function deleteWrapNote(id: string): Promise<void> {
   const { error } = await db().from('wrap_notes').delete().eq('id', id);
   if (error) throw error;
+}
+
+// ─── Project Membership Helper ───────────────────────────────────────────────
+// Ensures the current user is in project_members (needed for budget RLS).
+export async function ensureProjectOwner(projectId: string): Promise<void> {
+  try {
+    const { data: { user } } = await db().auth.getUser();
+    if (!user) return;
+    await db()
+      .from('project_members')
+      .upsert({ project_id: projectId, user_id: user.id, role: 'owner' }, { onConflict: 'project_id,user_id', ignoreDuplicates: true });
+  } catch { /* silent — if it fails, budget ops will surface the real error */ }
 }
 
 // ─── Budget ───────────────────────────────────────────────────────────────────

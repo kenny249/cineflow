@@ -33,7 +33,7 @@ const NAV_MAIN = [
   { label: "Shot Lists",  href: "/shot-lists", icon: List },
   { label: "Storyboard",  href: "/storyboard", icon: Layers },
   { label: "Scripts",     href: "/scripts",    icon: ScrollText },
-  { label: "Revisions",   href: "/revisions",  icon: UploadCloud },
+  { label: "Cuts & Delivers",   href: "/revisions",  icon: UploadCloud },
   { label: "Finance",     href: "/finance",    icon: DollarSign },
   { label: "Team",        href: "/team",       icon: UsersRound },
 ];
