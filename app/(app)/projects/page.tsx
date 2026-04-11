@@ -126,7 +126,7 @@ function ProjectsPageInner() {
 
       <div className="flex h-full flex-col overflow-hidden">
         {/* ── Page header ── */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
           <div>
             <h1 className="font-display text-xl font-bold text-foreground">Projects</h1>
             <p className="text-xs text-muted-foreground">
@@ -135,55 +135,29 @@ function ProjectsPageInner() {
           </div>
           <button
             onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-4 py-2 text-sm font-semibold text-[#0a0a0a] transition-all hover:bg-[#e0b866] active:scale-[0.98]"
+            className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-2 text-sm font-semibold text-[#0a0a0a] transition-all hover:bg-[#e0b866] active:scale-[0.98]"
           >
             <Plus className="h-4 w-4" />
-            New Project
+            <span>New Project</span>
           </button>
         </div>
 
         {/* ── Toolbar ── */}
-        <div className="flex items-center gap-3 border-b border-border px-6 py-3">
-          {/* Status filters */}
-          <div className="flex items-center gap-1.5 flex-1 flex-wrap">
-            {STATUS_FILTERS.map((f) => {
-              const count =
-                f.value === "all"
-                  ? projects.length
-                  : projects.filter((p) => p.status === f.value).length;
-              return (
-                <button
-                  key={f.value}
-                  onClick={() => setStatusFilter(f.value)}
-                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                    statusFilter === f.value
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                  }`}
-                >
-                  {f.label}
-                  <span className={`rounded px-1 py-0.5 text-[10px] ${statusFilter === f.value ? "bg-black/10" : "bg-muted text-muted-foreground"}`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Search + density + view toggle */}
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="relative">
+        <div className="border-b border-border">
+          {/* Row 1: search + controls */}
+          <div className="flex items-center gap-2 px-4 py-2.5 sm:px-6">
+            <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
-                placeholder="Search..."
+                placeholder="Search projects..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8 w-40 rounded-md border border-border bg-muted/50 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                className="h-8 w-full rounded-md border border-border bg-muted/50 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
             </div>
-            {/* Density — only shown in list mode */}
+            {/* Density — only shown in list mode on desktop */}
             {viewMode === "list" && (
-              <div className="flex overflow-hidden rounded-md border border-border">
+              <div className="hidden sm:flex overflow-hidden rounded-md border border-border">
                 {(["compact", "default", "comfortable"] as Density[]).map((d) => (
                   <button
                     key={d}
@@ -227,10 +201,36 @@ function ProjectsPageInner() {
               ))}
             </div>
           </div>
+
+          {/* Row 2: status filter chips — horizontally scrollable */}
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar px-4 pb-2.5 sm:px-6">
+            {STATUS_FILTERS.map((f) => {
+              const count =
+                f.value === "all"
+                  ? projects.length
+                  : projects.filter((p) => p.status === f.value).length;
+              return (
+                <button
+                  key={f.value}
+                  onClick={() => setStatusFilter(f.value)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                    statusFilter === f.value
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border text-muted-foreground hover:border-border/60 hover:text-foreground"
+                  }`}
+                >
+                  {f.label}
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${statusFilter === f.value ? "bg-black/15" : "bg-muted"}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* ── Content ── */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-6 sm:py-5">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="mb-3 font-display text-3xl text-muted-foreground">◎</div>
