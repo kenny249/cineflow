@@ -44,6 +44,7 @@ import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { getProjects, getActivityLog, getCalendarEvents } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import type { Project, ActivityItem, CalendarEvent } from "@/types";
+import { isSoloPlan } from "@/types";
 
 export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -53,6 +54,7 @@ export default function DashboardPage() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState("Early Tester");
+  const [plan, setPlan] = useState<string>("studio_beta");
   const router = useRouter();
 
   useEffect(() => {
@@ -65,6 +67,12 @@ export default function DashboardPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+
+      // Load plan for solo/studio mode
+      if (user) {
+        supabase.from("profiles").select("plan").eq("id", user.id).single()
+          .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
+      }
 
       const projectsData = await getProjects();
       setProjects(projectsData);
@@ -100,6 +108,7 @@ export default function DashboardPage() {
     return "Good evening";
   })();
 
+  const solo = isSoloPlan(plan);
   const activeProjects = projects.filter((p) => p.status === "active" || p.status === "review");
   const now = new Date();
   const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7);
@@ -107,37 +116,25 @@ export default function DashboardPage() {
     const d = new Date(e.start_date);
     return d >= now && d <= weekEnd;
   }).length;
+  const todayEvents = calendarEvents.filter((e) => {
+    const d = new Date(e.start_date);
+    const today = new Date();
+    return d.toDateString() === today.toDateString();
+  });
 
-  const stats = [
-    {
-      label: "Active",
-      value: activeProjects.length,
-      icon: TrendingUp,
-      color: "text-[#d4a853]",
-      bg: "bg-[#d4a853]/10",
-    },
-    {
-      label: "This Week",
-      value: thisWeekEvents,
-      icon: Camera,
-      color: "text-blue-400",
-      bg: "bg-blue-400/10",
-    },
-    {
-      label: "Pending review",
-      value: projects.filter(p => p.status === "review").length,
-      icon: Clock,
-      color: "text-amber-400",
-      bg: "bg-amber-400/10",
-    },
-    {
-      label: "Delivered",
-      value: projects.filter((p) => p.status === "delivered").length,
-      icon: CheckCircle2,
-      color: "text-emerald-400",
-      bg: "bg-emerald-400/10",
-    },
-  ];
+  const stats = solo
+    ? [
+        { label: "Active Jobs",       value: activeProjects.length,                                    icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
+        { label: "Shoots This Week",  value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10"  },
+        { label: "Awaiting Feedback", value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10" },
+        { label: "Delivered",         value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10"},
+      ]
+    : [
+        { label: "Active",        value: activeProjects.length,                                    icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
+        { label: "This Week",     value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10"  },
+        { label: "Pending review",value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10" },
+        { label: "Delivered",     value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10"},
+      ];
 
   return (
     <>
@@ -179,7 +176,7 @@ export default function DashboardPage() {
                 className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/8 px-3 py-1.5 text-xs font-medium text-[#d4a853] transition-all hover:border-[#d4a853]/40 hover:bg-[#d4a853]/12 sm:px-4 sm:py-2 sm:text-sm"
               >
                 <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span>New Project</span>
+                <span>{solo ? "New Job" : "New Project"}</span>
               </button>
             </div>
           </div>
@@ -213,7 +210,7 @@ export default function DashboardPage() {
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
                     <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                    Active Projects
+                    {solo ? "Active Jobs" : "Active Projects"}
                     <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
                       {activeProjects.length}
                     </span>
@@ -233,16 +230,20 @@ export default function DashboardPage() {
                       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/20 bg-[#d4a853]/10">
                         <Film className="h-7 w-7 text-[#d4a853]" />
                       </div>
-                      <h3 className="font-display text-base font-semibold text-foreground">Your slate is empty</h3>
+                      <h3 className="font-display text-base font-semibold text-foreground">
+                        {solo ? "No active jobs yet" : "Your slate is empty"}
+                      </h3>
                       <p className="mt-2 max-w-xs text-xs leading-relaxed text-muted-foreground">
-                        Start by creating your first project. Track shoots, revisions, and shot lists, all in one place.
+                        {solo
+                          ? "Add your first client job. Track shoots, send cuts, and get feedback — all in one place."
+                          : "Start by creating your first project. Track shoots, revisions, and shot lists, all in one place."}
                       </p>
                       <button
                         onClick={() => setModalOpen(true)}
                         className="mt-6 flex items-center gap-2 rounded-xl bg-[#d4a853] px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-[#d4a853]/90"
                       >
                         <Plus className="h-4 w-4" />
-                        Create your first project
+                        {solo ? "Add your first job" : "Create your first project"}
                       </button>
                     </div>
                   ) : (
@@ -301,23 +302,58 @@ export default function DashboardPage() {
                   onNewProject={() => setModalOpen(true)}
                   onAddShotList={() => router.push("/shot-lists")}
                   onUploadRevision={() => router.push("/revisions")}
+                  isSolo={solo}
                 />
               </section>
 
-              {/* Activity feed */}
-              <section>
-                <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                  <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                  Recent Activity
-                </h2>
-                <div className="rounded-xl border border-border bg-card p-4">
-                  {activity.length === 0 ? (
-                    <p className="py-4 text-center text-xs text-muted-foreground">No activity yet — create a project or upload a revision to get started.</p>
-                  ) : (
-                    <ActivityFeed items={activity} />
-                  )}
-                </div>
-              </section>
+              {/* Activity feed — studio only */}
+              {!solo && (
+                <section>
+                  <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
+                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                    Recent Activity
+                  </h2>
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    {activity.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-muted-foreground">No activity yet — create a project or upload a revision to get started.</p>
+                    ) : (
+                      <ActivityFeed items={activity} />
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* Today's shoots — solo only */}
+              {solo && (
+                <section>
+                  <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
+                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                    Today
+                  </h2>
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    {todayEvents.length === 0 ? (
+                      <div className="py-4 text-center">
+                        <p className="text-xs text-muted-foreground">Nothing scheduled today.</p>
+                        <Link href="/calendar" className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#d4a853] hover:underline">
+                          Add a shoot <ArrowUpRight className="h-3 w-3" />
+                        </Link>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {todayEvents.map((e) => (
+                          <div key={e.id} className="flex items-center gap-3 rounded-lg border border-border bg-card/50 px-3 py-2.5">
+                            <div className="h-2 w-2 shrink-0 rounded-full bg-[#d4a853]" />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-medium text-foreground">{e.title}</p>
+                              {e.start_time && <p className="text-[10px] text-muted-foreground">{e.start_time}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
             </div>
           </div>
         </div>

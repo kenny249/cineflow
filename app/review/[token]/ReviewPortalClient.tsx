@@ -168,6 +168,19 @@ export default function ReviewPortalClient({ token }: { token: string }) {
     }
   }
 
+  function handleFullscreen() {
+    const video = videoRef.current;
+    if (!video) return;
+    // iOS Safari uses webkitEnterFullscreen on the video element
+    if ((video as any).webkitEnterFullscreen) {
+      (video as any).webkitEnterFullscreen();
+    } else if (video.requestFullscreen) {
+      video.requestFullscreen().catch(() => {});
+    } else if ((video as any).webkitRequestFullscreen) {
+      (video as any).webkitRequestFullscreen();
+    }
+  }
+
   function captureTimestamp() {
     setNoteTs(videoRef.current ? Math.floor(videoRef.current.currentTime) : null);
     if (videoRef.current && !videoRef.current.paused) videoRef.current.pause();
@@ -365,17 +378,19 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
                           onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
                         />
-                        {/* Big play overlay — shows when paused */}
+                        {/* Big play overlay — shows when paused. Outer div is pointer-events-none
+                            so clicks pass through to the video & controls. Only the circle button
+                            is interactive so the controls bar below still receives clicks. */}
                         {!isPlaying && (
-                          <button
-                            type="button"
-                            onClick={() => videoRef.current?.play()}
-                            className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                          >
-                            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm ring-1 ring-white/20">
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                            <button
+                              type="button"
+                              onClick={() => videoRef.current?.play()}
+                              className="pointer-events-auto flex h-16 w-16 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm ring-1 ring-white/20 transition-transform active:scale-95"
+                            >
                               <Play className="h-7 w-7 translate-x-0.5 text-white" />
-                            </div>
-                          </button>
+                            </button>
+                          </div>
                         )}
                         {/* Controls overlay */}
                         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-4 pb-3 pt-10">
@@ -457,7 +472,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                                 <MessageSquare className="h-3.5 w-3.5" />
                                 Note · {formatTime(currentTime)}
                               </button>
-                              <button onClick={() => videoRef.current?.requestFullscreen()} className="rounded-lg p-2 text-white hover:bg-white/15 transition-colors">
+                              <button onClick={handleFullscreen} className="rounded-lg p-2 text-white hover:bg-white/15 transition-colors">
                                 <Maximize className="h-4 w-4" />
                               </button>
                             </div>

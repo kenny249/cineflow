@@ -1,9 +1,10 @@
 "use client";
 
-import { FolderPlus, List, UploadCloud, ArrowRight } from "lucide-react";
+import { FolderPlus, List, UploadCloud, ArrowRight, Briefcase, Share2 } from "lucide-react";
 
-const ACTIONS = [
+const ACTIONS_STUDIO = [
   {
+    key: "project",
     icon: FolderPlus,
     label: "New Project",
     description: "Start a new production",
@@ -13,6 +14,7 @@ const ACTIONS = [
     hoverBorder: "hover:border-[#d4a853]/30",
   },
   {
+    key: "shotlist",
     icon: List,
     label: "Add Shot List",
     description: "Plan your next shoot",
@@ -22,9 +24,43 @@ const ACTIONS = [
     hoverBorder: "hover:border-blue-500/30",
   },
   {
+    key: "revision",
     icon: UploadCloud,
     label: "Upload Revision",
     description: "Share a new cut",
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/15",
+    hoverBorder: "hover:border-emerald-500/30",
+  },
+];
+
+const ACTIONS_SOLO = [
+  {
+    key: "project",
+    icon: Briefcase,
+    label: "New Job",
+    description: "Add a client project",
+    color: "text-[#d4a853]",
+    bg: "bg-[#d4a853]/10",
+    border: "border-[#d4a853]/15",
+    hoverBorder: "hover:border-[#d4a853]/30",
+  },
+  {
+    key: "shotlist",
+    icon: List,
+    label: "Plan a Shoot",
+    description: "Build your shot list",
+    color: "text-blue-400",
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/15",
+    hoverBorder: "hover:border-blue-500/30",
+  },
+  {
+    key: "revision",
+    icon: UploadCloud,
+    label: "Upload a Cut",
+    description: "Send to client for feedback",
     color: "text-emerald-400",
     bg: "bg-emerald-500/10",
     border: "border-emerald-500/15",
@@ -36,22 +72,25 @@ interface QuickActionsProps {
   onNewProject?: () => void;
   onAddShotList?: () => void;
   onUploadRevision?: () => void;
+  isSolo?: boolean;
 }
 
-export function QuickActions({ onNewProject, onAddShotList, onUploadRevision }: QuickActionsProps) {
-  const handleAction = (label: string) => {
-    if (label === "New Project") return onNewProject?.();
-    if (label === "Add Shot List") return onAddShotList?.();
-    if (label === "Upload Revision") return onUploadRevision?.();
+export function QuickActions({ onNewProject, onAddShotList, onUploadRevision, isSolo }: QuickActionsProps) {
+  const actions = isSolo ? ACTIONS_SOLO : ACTIONS_STUDIO;
+
+  const handleAction = (key: string) => {
+    if (key === "project") return onNewProject?.();
+    if (key === "shotlist") return onAddShotList?.();
+    if (key === "revision") return onUploadRevision?.();
   };
 
   return (
     <div className="flex flex-col gap-2">
-      {ACTIONS.map((action) => (
+      {actions.map((action) => (
         <button
-          key={action.label}
+          key={action.key}
           type="button"
-          onClick={() => handleAction(action.label)}
+          onClick={() => handleAction(action.key)}
           className={`group flex items-center gap-3 rounded-xl border ${action.border} ${action.hoverBorder} bg-card p-3.5 text-left transition-all duration-150 hover:bg-accent/30`}
         >
           <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${action.bg} transition-transform duration-200 group-hover:scale-110`}>
