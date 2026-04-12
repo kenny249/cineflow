@@ -12,6 +12,8 @@ import {
   ChevronRight,
   Sparkles,
   Flame,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 
@@ -31,6 +33,96 @@ const PRIORITY_CONFIG = {
 };
 
 const STORAGE_KEY = "cf_daily_tasks";
+const SOUND_KEY = "cf_tasks_sound_enabled";
+const QUOTE_SEED_KEY = "cf_tasks_quote_seed";
+
+const MOTIVATIONAL_QUOTES = [
+  "Keep going. You are building real momentum.",
+  "One task at a time. Big wins are stacked small wins.",
+  "Progress beats perfection every single day.",
+  "Locked in beats lucky.",
+  "Done is your new superpower.",
+  "Small steps today. Big results soon.",
+  "Stay in motion. Finish strong.",
+  "You are closer than you think.",
+  "Focus now. Flex later.",
+  "Execution is the edge.",
+  "Your future self will thank you for this session.",
+  "Momentum is earned. You are earning it.",
+  "Make this hour count.",
+  "Discipline is freedom in disguise.",
+  "Build the habit. The results will follow.",
+  "No overthinking. Next task.",
+  "You do not need more time, just one more push.",
+  "Turn pressure into progress.",
+  "Consistency is your competitive advantage.",
+  "You are not behind. You are in motion.",
+  "Today is for execution.",
+  "The work you finish today changes tomorrow.",
+  "Get in, get it done, get ahead.",
+  "Action creates clarity.",
+  "Keep the promise you made to yourself.",
+  "Momentum loves completed tasks.",
+  "Stay sharp. Stay moving.",
+  "The hard part is starting. You already did that.",
+  "Win this block. Win this day.",
+  "You are capable of more than you think.",
+  "No noise, just progress.",
+  "Energy follows action.",
+  "You are building proof, not just plans.",
+  "Crush the next thing in front of you.",
+  "The grind is where confidence is built.",
+  "Keep the streak alive.",
+  "Less talk. More shipped.",
+  "Your standards are showing. Keep going.",
+  "Task by task, you are becoming unstoppable.",
+  "Finish what matters first.",
+];
+
+function hashString(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed: number) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let x = Math.imul(t ^ (t >>> 15), 1 | t);
+    x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffledIndices(length: number, seed: number): number[] {
+  const rng = mulberry32(seed);
+  const arr = Array.from({ length }, (_, i) => i);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function getOrCreateQuoteSeed(): string {
+  const existing = localStorage.getItem(QUOTE_SEED_KEY);
+  if (existing) return existing;
+  const seed = `seed_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
+  localStorage.setItem(QUOTE_SEED_KEY, seed);
+  return seed;
+}
+
+function getDailyQuote(dateKey: string): string {
+  const seed = getOrCreateQuoteSeed();
+  const cycle = shuffledIndices(MOTIVATIONAL_QUOTES.length, hashString(seed));
+  const dayIndex = Math.floor(new Date(`${dateKey}T12:00:00`).getTime() / 86400000);
+  const idx = cycle[Math.abs(dayIndex) % cycle.length];
+  return MOTIVATIONAL_QUOTES[idx];
+}
 
 function loadTasks(): Task[] {
   if (typeof window === "undefined") return [];
@@ -248,14 +340,32 @@ export default function TasksPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [completingIds, setCompletingIds] = useState<string[]>([]);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [dailyQuote, setDailyQuote] = useState("");
+  const [sessionCompletedCount, setSessionCompletedCount] = useState(0);
+  const [showCompletionGlow, setShowCompletionGlow] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const glowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const { fire, particles } = useCompletionBurst();
 
   useEffect(() => {
     setTasks(loadTasks());
+    const rawSound = localStorage.getItem(SOUND_KEY);
+    setSoundEnabled(rawSound !== "false");
+    setDailyQuote(getDailyQuote(format(new Date(), "yyyy-MM-dd")));
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(SOUND_KEY, String(soundEnabled));
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    setSessionCompletedCount(0);
+    setDailyQuote(getDailyQuote(viewDate));
+  }, [viewDate]);
 
   const dayTasks     = tasks.filter((t) => t.date === viewDate);
   const doneTasks    = dayTasks.filter((t) => t.done);
@@ -263,11 +373,100 @@ export default function TasksPage() {
   const progress     = dayTasks.length > 0 ? doneTasks.length / dayTasks.length : 0;
   const isViewToday  = viewDate === format(new Date(), "yyyy-MM-dd");
   const streak       = computeStreak(tasks);
+  const allDoneToday = dayTasks.length > 0 && dayTasks.every((t) => t.done);
 
   const updateTasks = useCallback((updated: Task[]) => {
     setTasks(updated);
     saveTasks(updated);
   }, []);
+
+  const playCompletionSound = useCallback(() => {
+    if (!soundEnabled || typeof window === "undefined") return;
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new AC();
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
+
+      const t = ctx.currentTime;
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "triangle";
+      osc1.frequency.setValueAtTime(680, t);
+      osc1.frequency.exponentialRampToValueAtTime(920, t + 0.09);
+      gain1.gain.setValueAtTime(0.0001, t);
+      gain1.gain.exponentialRampToValueAtTime(0.08, t + 0.01);
+      gain1.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+      osc1.connect(gain1).connect(ctx.destination);
+      osc1.start(t);
+      osc1.stop(t + 0.14);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(1040, t + 0.02);
+      osc2.frequency.exponentialRampToValueAtTime(1240, t + 0.11);
+      gain2.gain.setValueAtTime(0.0001, t + 0.02);
+      gain2.gain.exponentialRampToValueAtTime(0.045, t + 0.04);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+      osc2.connect(gain2).connect(ctx.destination);
+      osc2.start(t + 0.02);
+      osc2.stop(t + 0.15);
+    } catch {
+      // No-op on unsupported browsers.
+    }
+  }, [soundEnabled]);
+
+  const playAllDoneSound = useCallback(() => {
+    if (!soundEnabled || typeof window === "undefined") return;
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new AC();
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
+
+      const t = ctx.currentTime;
+
+      const note1 = ctx.createOscillator();
+      const note1Gain = ctx.createGain();
+      note1.type = "triangle";
+      note1.frequency.setValueAtTime(740, t);
+      note1Gain.gain.setValueAtTime(0.0001, t);
+      note1Gain.gain.exponentialRampToValueAtTime(0.06, t + 0.015);
+      note1Gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.17);
+      note1.connect(note1Gain).connect(ctx.destination);
+      note1.start(t);
+      note1.stop(t + 0.18);
+
+      const note2 = ctx.createOscillator();
+      const note2Gain = ctx.createGain();
+      note2.type = "sine";
+      note2.frequency.setValueAtTime(988, t + 0.09);
+      note2Gain.gain.setValueAtTime(0.0001, t + 0.09);
+      note2Gain.gain.exponentialRampToValueAtTime(0.055, t + 0.11);
+      note2Gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      note2.connect(note2Gain).connect(ctx.destination);
+      note2.start(t + 0.09);
+      note2.stop(t + 0.3);
+
+      const note3 = ctx.createOscillator();
+      const note3Gain = ctx.createGain();
+      note3.type = "triangle";
+      note3.frequency.setValueAtTime(1318, t + 0.2);
+      note3Gain.gain.setValueAtTime(0.0001, t + 0.2);
+      note3Gain.gain.exponentialRampToValueAtTime(0.045, t + 0.22);
+      note3Gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+      note3.connect(note3Gain).connect(ctx.destination);
+      note3.start(t + 0.2);
+      note3.stop(t + 0.42);
+    } catch {
+      // No-op on unsupported browsers.
+    }
+  }, [soundEnabled]);
 
   const addTask = () => {
     const trimmed = newTitle.trim();
@@ -296,11 +495,18 @@ export default function TasksPage() {
       setCompletingIds((prev) => [...prev, id]);
       setTimeout(() => setCompletingIds((prev) => prev.filter((x) => x !== id)), 750);
       fire(e.clientX, e.clientY);
+      setSessionCompletedCount((c) => c + 1);
       const vdt = updated.filter((t) => t.date === viewDate);
       if (vdt.length > 0 && vdt.every((t) => t.done)) {
+        playAllDoneSound();
         if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
         setCelebrating(true);
         celebrateTimer.current = setTimeout(() => setCelebrating(false), 4500);
+        if (glowTimer.current) clearTimeout(glowTimer.current);
+        setShowCompletionGlow(true);
+        glowTimer.current = setTimeout(() => setShowCompletionGlow(false), 2000);
+      } else {
+        playCompletionSound();
       }
     }
   };
@@ -342,14 +548,40 @@ export default function TasksPage() {
                 </motion.div>
               )}
             </AnimatePresence>
+            <AnimatePresence>
+              {sessionCompletedCount >= 2 && (
+                <motion.div
+                  key="momentum"
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 22 }}
+                  className="hidden sm:flex items-center gap-1 rounded-full border border-[#d4a853]/30 bg-[#d4a853]/10 px-2 py-0.5 text-[11px] font-bold text-[#d4a853]"
+                  title="Tasks completed in this session"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Locked in: {sessionCompletedCount}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] active:scale-95 transition-all"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New Task
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSoundEnabled((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card/70 px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:border-[#d4a853]/30 transition-all"
+              title={soundEnabled ? "Turn completion sound off" : "Turn completion sound on"}
+            >
+              {soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Sound {soundEnabled ? "On" : "Off"}</span>
+            </button>
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] active:scale-95 transition-all"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Task
+            </button>
+          </div>
         </div>
 
         {/* Date nav + progress */}
@@ -376,6 +608,16 @@ export default function TasksPage() {
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
+
+          <motion.p
+            key={dailyQuote}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: "easeOut" }}
+            className="text-center text-xs text-muted-foreground italic"
+          >
+            {dailyQuote}
+          </motion.p>
 
           <AnimatePresence>
             {!isViewToday && (
@@ -406,19 +648,45 @@ export default function TasksPage() {
                   {Math.round(progress * 100)}%
                 </motion.span>
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+              <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-border">
                 <motion.div
-                  className="h-full rounded-full bg-[#d4a853]"
+                  className="h-full rounded-full"
                   initial={false}
                   animate={{
                     width: `${progress * 100}%`,
+                    background: progress === 1
+                      ? "linear-gradient(90deg, #34d399, #059669)"
+                      : "linear-gradient(90deg, #d4a853, #e8c06e)",
                     boxShadow: progress === 1
-                      ? "0 0 10px rgba(212,168,83,0.75), 0 0 3px rgba(212,168,83,1)"
+                      ? "0 0 8px rgba(52,211,153,0.6)"
                       : "none",
                   }}
                   transition={{ type: "spring", stiffness: 130, damping: 22 }}
                 />
+                {progress === 1 && showCompletionGlow && (
+                  <motion.div
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)" }}
+                    initial={{ x: "-100%" }}
+                    animate={{ x: "100%" }}
+                    transition={{ duration: 0.8, ease: "easeInOut", repeat: 2, repeatDelay: 0.1 }}
+                  />
+                )}
               </div>
+              <AnimatePresence>
+                {allDoneToday && (
+                  <motion.p
+                    key="all-done-inline"
+                    initial={{ opacity: 0, y: 3 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -2 }}
+                    transition={{ duration: 0.2 }}
+                    className="mt-2 text-center text-[11px] font-semibold text-[#d4a853]"
+                  >
+                    You cleared the board. Keep that energy.
+                  </motion.p>
+                )}
+              </AnimatePresence>
             </div>
           )}
         </div>

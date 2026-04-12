@@ -3,10 +3,16 @@
 import { Film } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+type PointerState = {
+  x: number;
+  y: number;
+  active: boolean;
+};
+
 const features = [
   {
-    title: "Storyboard",
-    description: "Plan scenes visually with drag-and-drop boards.",
+    title: "Pre-Production",
+    description: "Organize your shoot before the chaos starts.",
     icon: (
       <svg width="30" height="30" viewBox="0 0 32 32" fill="none" className="text-[#d4a853]" xmlns="http://www.w3.org/2000/svg">
         <rect x="4" y="7" width="24" height="18" rx="4" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="1.5" />
@@ -18,7 +24,7 @@ const features = [
   },
   {
     title: "Revisions",
-    description: "Mark up cuts, add notes, and track every change.",
+    description: "Track notes, changes, and versions without the mess.",
     icon: (
       <svg width="30" height="30" viewBox="0 0 32 32" fill="none" className="text-[#d4a853]" xmlns="http://www.w3.org/2000/svg">
         <rect x="4" y="7" width="24" height="18" rx="4" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="1.5" />
@@ -59,9 +65,8 @@ type Particle = {
   r: number; gold: boolean; o: number;
 };
 
-function ParticleField() {
+function ParticleField({ pointer }: { pointer: React.MutableRefObject<PointerState> }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mouse = useRef({ x: -9999, y: -9999 });
   const particles = useRef<Particle[]>([]);
   const raf = useRef<number>(0);
 
@@ -97,24 +102,26 @@ function ParticleField() {
 
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const { x: mx, y: my } = mouse.current;
       const pts = particles.current;
+      const mouse = pointer.current;
+      const mx = mouse.x * canvas.width;
+      const my = mouse.y * canvas.height;
 
       for (const p of pts) {
-        const dx = p.x - mx;
-        const dy = p.y - my;
-        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (mouse.active) {
+          const dx = p.x - mx;
+          const dy = p.y - my;
+          const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < REPEL_RADIUS && dist > 0) {
-          // Strong repulsion near cursor
-          const force = ((REPEL_RADIUS - dist) / REPEL_RADIUS) * 1.1;
-          p.vx += (dx / dist) * force;
-          p.vy += (dy / dist) * force;
-        } else if (dist < ATTRACT_RADIUS && dist > REPEL_RADIUS) {
-          // Gentle attraction in the mid-field — particles drift toward cursor
-          const force = ((ATTRACT_RADIUS - dist) / ATTRACT_RADIUS) * 0.12;
-          p.vx -= (dx / dist) * force;
-          p.vy -= (dy / dist) * force;
+          if (dist < REPEL_RADIUS && dist > 0) {
+            const force = ((REPEL_RADIUS - dist) / REPEL_RADIUS) * 1.1;
+            p.vx += (dx / dist) * force;
+            p.vy += (dy / dist) * force;
+          } else if (dist < ATTRACT_RADIUS && dist > REPEL_RADIUS) {
+            const force = ((ATTRACT_RADIUS - dist) / ATTRACT_RADIUS) * 0.12;
+            p.vx -= (dx / dist) * force;
+            p.vy -= (dy / dist) * force;
+          }
         }
 
         p.vx *= 0.96;
@@ -162,32 +169,46 @@ function ParticleField() {
     };
     raf.current = requestAnimationFrame(draw);
 
-    const onMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    };
-    const onLeave = () => { mouse.current = { x: -9999, y: -9999 }; };
-
-    parent.addEventListener("mousemove", onMove);
-    parent.addEventListener("mouseleave", onLeave);
-
     return () => {
       cancelAnimationFrame(raf.current);
       ro.disconnect();
-      parent.removeEventListener("mousemove", onMove);
-      parent.removeEventListener("mouseleave", onLeave);
     };
   }, []);
 
   return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none z-0" />;
 }
 
-function DNASpinner() {
+function DNASpinner({ pointer }: { pointer: React.MutableRefObject<PointerState> }) {
+  const spinnerRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const tick = () => {
+      const el = spinnerRef.current;
+      if (el) {
+        const { x, y, active } = pointer.current;
+        const nx = (x - 0.5) * 2;
+        const ny = (y - 0.5) * 2;
+        const shiftX = active ? nx * 12 : 0;
+        const shiftY = active ? ny * 10 : 0;
+        const rotate = active ? nx * 4 : 0;
+        const scale = active ? 1.025 : 1;
+        el.style.transform = `translate(calc(-50% + ${shiftX}px), calc(-50% + ${shiftY}px)) rotate(${rotate}deg) scale(${scale})`;
+      }
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [pointer]);
+
   return (
     <svg
+      ref={spinnerRef}
       className="absolute left-1/2 top-1/2 z-0 -translate-x-1/2 -translate-y-1/2 opacity-20 blur-[2px] animate-spin-slow"
       width="500" height="500" viewBox="0 0 420 420" fill="none"
-      style={{ pointerEvents: "none" }}
+      style={{ pointerEvents: "none", willChange: "transform" }}
     >
       <defs>
         <linearGradient id="dnaA" x1="0" y1="0" x2="420" y2="420" gradientUnits="userSpaceOnUse">
@@ -213,6 +234,7 @@ function DNASpinner() {
 
 export function HeroPreview() {
   const [phase, setPhase] = useState<"intro" | "transitioning" | "done">("intro");
+  const pointerRef = useRef<PointerState>({ x: 0.5, y: 0.5, active: false });
 
   useEffect(() => {
     const transition = setTimeout(() => setPhase("transitioning"), 1800);
@@ -220,10 +242,27 @@ export function HeroPreview() {
     return () => { clearTimeout(transition); clearTimeout(done); };
   }, []);
 
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    pointerRef.current = {
+      x: (event.clientX - rect.left) / rect.width,
+      y: (event.clientY - rect.top) / rect.height,
+      active: true,
+    };
+  };
+
+  const handleMouseLeave = () => {
+    pointerRef.current = { x: 0.5, y: 0.5, active: false };
+  };
+
   return (
-    <div className="group relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0d0d0d]/95 p-10 shadow-2xl shadow-black/40 ring-1 ring-white/5 w-full max-w-2xl transition duration-300 ease-out hover:shadow-[0_36px_90px_rgba(0,0,0,0.45)]">
-      <ParticleField />
-      <DNASpinner />
+    <div
+      className="relative w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/10 bg-[#0d0d0d]/95 p-10 shadow-2xl shadow-black/40 ring-1 ring-white/5"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      <ParticleField pointer={pointerRef} />
+      <DNASpinner pointer={pointerRef} />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(212,168,83,0.14),transparent_40%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(255,255,255,0.05),transparent_40%)]" />
 
@@ -319,9 +358,9 @@ export function HeroPreview() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="group/card flex flex-col items-center gap-2.5 rounded-2xl border border-[#d4a853]/20 bg-gradient-to-b from-[#171108]/90 to-[#0d0d0d]/95 p-5 shadow-[0_6px_24px_rgba(0,0,0,0.3)] backdrop-blur-md hover:scale-[1.04] hover:border-[#d4a853]/40 hover:shadow-[0_8px_32px_rgba(212,168,83,0.1)] transition-all duration-200"
+              className="group/card flex cursor-default select-none flex-col items-center gap-2.5 rounded-2xl border border-[#d4a853]/20 bg-gradient-to-b from-[#171108]/90 to-[#0d0d0d]/95 p-5 shadow-[0_6px_24px_rgba(0,0,0,0.3)] backdrop-blur-md transition-all duration-200 hover:scale-[1.02] hover:border-[#d4a853]/40 hover:shadow-[0_8px_32px_rgba(212,168,83,0.1)]"
             >
-              <div className="flex items-center justify-center h-10 w-10 rounded-xl bg-[#d4a853]/10 border border-[#d4a853]/20 group-hover/card:bg-[#d4a853]/20 group-hover/card:shadow-[0_0_18px_4px_rgba(212,168,83,0.35)] group-hover/card:border-[#d4a853]/50 transition-all duration-300">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/10 transition-all duration-300 group-hover/card:bg-[#d4a853]/20 group-hover/card:border-[#d4a853]/50 group-hover/card:shadow-[0_0_18px_4px_rgba(212,168,83,0.35)]">
                 {feature.icon}
               </div>
               <p className="font-semibold text-sm text-foreground tracking-tight">{feature.title}</p>

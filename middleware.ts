@@ -4,9 +4,25 @@ import type { NextRequest } from "next/server";
 
 const PUBLIC_FILE = /\.(.*)$/;
 
+// Routes that are always public (no auth required)
+const PUBLIC_PATHS = [
+  "/login",
+  "/signup",
+  "/welcome",
+  "/auth",          // /auth/callback
+  "/board",         // public storyboard share
+  "/review",        // public client review portal
+  "/opengraph-image",
+];
+
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, origin } = request.nextUrl;
 
+  // Always skip Next.js internals, static assets and API routes
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/static") ||
@@ -16,6 +32,8 @@ export async function middleware(request: NextRequest) {
   ) {
     return NextResponse.next();
   }
+
+  let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,6 +46,19 @@ export async function middleware(request: NextRequest) {
             value: cookie.value,
           }));
         },
+        setAll(
+          cookiesToSet: Array<{
+            name: string;
+            value: string;
+            options?: Record<string, unknown>;
+          }>
+        ) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
+          });
+        },
       },
     }
   );
@@ -36,32 +67,27 @@ export async function middleware(request: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession();
 
-  // Temporarily disable auth enforcement for development
-  // const isLoggedIn = Boolean(session);
-  // const isAuthRoute = pathname === "/login" || pathname === "/signup";
-  // const isProtectedRoute =
-  //   pathname === "/" ||
-  //   pathname.startsWith("/dashboard") ||
-  //   pathname.startsWith("/projects") ||
-  //   pathname.startsWith("/revisions") ||
-  //   pathname.startsWith("/settings") ||
-  //   pathname.startsWith("/storyboard") ||
-  //   pathname.startsWith("/shot-lists") ||
-  //   pathname.startsWith("/calendar");
+  const isLoggedIn = Boolean(session);
 
-  // if (!isLoggedIn && isProtectedRoute) {
-  //   const loginUrl = new URL("/login", origin);
-  //   loginUrl.searchParams.set("redirectedFrom", pathname);
-  //   return NextResponse.redirect(loginUrl);
-  // }
+  // If the path is public, let it through (but redirect logged-in users away from login/signup)
+  if (isPublicPath(pathname)) {
+    if (isLoggedIn && (pathname === "/login" || pathname === "/signup")) {
+      return NextResponse.redirect(new URL("/dashboard", origin));
+    }
+    return response;
+  }
 
-  // if (isLoggedIn && isAuthRoute) {
-  //   return NextResponse.redirect(new URL("/dashboard", origin));
-  // }
+  // Protected: redirect unauthenticated users to login
+  if (!isLoggedIn) {
+    const loginUrl = new URL("/login", origin);
+    loginUrl.searchParams.set("redirectedFrom", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
   matcher: ["/((?!_next|static|api|.*\\..*).*)"],
 };
+

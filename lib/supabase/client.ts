@@ -1,4 +1,4 @@
-import { createClient as createBrowserClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Lazy singleton — only instantiated on first call, never at module load time.

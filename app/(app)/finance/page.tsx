@@ -11,12 +11,11 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { toast } from "sonner";
-import { MOCK_PROJECTS } from "@/mock/projects";
 import {
   getInvoices, createInvoice, updateInvoice, deleteInvoice,
-  getBudgetLines,
+  getBudgetLines, getProjects,
 } from "@/lib/supabase/queries";
-import type { Invoice, InvoiceStatus, BudgetLine } from "@/types";
+import type { Invoice, InvoiceStatus, BudgetLine, Project } from "@/types";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -79,6 +78,7 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function FinancePage() {
+  const [projects, setProjects] = useState<Project[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [budgetsByProject, setBudgetsByProject] = useState<Record<string, BudgetLine[]>>({});
   const [loading, setLoading] = useState(true);
@@ -93,14 +93,17 @@ export default function FinancePage() {
     let alive = true;
     async function load() {
       try {
-        const [allInvoices, ...budgetArrays] = await Promise.all([
-          getInvoices(),
-          ...MOCK_PROJECTS.map((p) => getBudgetLines(p.id).catch(() => [])),
-        ]);
+        const [allProjects, allInvoices] = await Promise.all([getProjects(), getInvoices()]);
         if (!alive) return;
+        setProjects(allProjects);
         setInvoices(allInvoices);
+        // Load budget lines for each project
+        const budgetResults = await Promise.all(
+          allProjects.map((p) => getBudgetLines(p.id).catch(() => [] as BudgetLine[]))
+        );
+        if (!alive) return;
         const map: Record<string, BudgetLine[]> = {};
-        MOCK_PROJECTS.forEach((p, i) => { map[p.id] = budgetArrays[i] as BudgetLine[]; });
+        allProjects.forEach((p, i) => { map[p.id] = budgetResults[i]; });
         setBudgetsByProject(map);
       } catch { /* silent */ } finally {
         if (alive) setLoading(false);
@@ -129,7 +132,7 @@ export default function FinancePage() {
   }, [invoices, budgetsByProject]);
 
   const projectSummaries = useMemo(() =>
-    MOCK_PROJECTS.map((p) => {
+    projects.map((p) => {
       const pi = invoices.filter((i) => i.project_id === p.id);
       const invoiced = pi.reduce((s, i) => s + i.amount, 0);
       const collected = pi.filter((i) => i.status === "paid").reduce((s, i) => s + i.amount, 0);
@@ -138,8 +141,8 @@ export default function FinancePage() {
       const profit = collected - actual;
       const margin = collected > 0 ? Math.round((profit / collected) * 100) : null;
       return { ...p, invoiced, collected, budgeted: lines.reduce((s, l) => s + l.budgeted, 0), actual, profit, margin, invoiceCount: pi.length };
-    }).filter((p) => p.invoiced > 0 || p.budgeted > 0),
-  [invoices, budgetsByProject]);
+    }).filter((p) => p.invoiced > 0 || (budgetsByProject[p.id]?.length ?? 0) > 0),
+  [projects, invoices, budgetsByProject]);
 
   function openNewForm() {
     setForm({ ...EMPTY_FORM, invoice_number: nextInvoiceNumber(invoices) });
@@ -254,7 +257,7 @@ export default function FinancePage() {
                     <button onClick={() => setActiveTab("invoices")} className="text-xs text-muted-foreground hover:text-[#d4a853] transition-colors">View all →</button>
                   </div>
                   {invoices.length === 0 ? <EmptyInvoices onNew={openNewForm} /> : (
-                    <div className="space-y-2">{invoices.slice(0, 5).map((inv) => <InvoiceRow key={inv.id} inv={inv} onEdit={openEditForm} onDelete={handleDelete} onQuickStatus={quickStatus} deletingId={deletingId} />)}</div>
+                    <div className="space-y-2">{invoices.slice(0, 5).map((inv) => <InvoiceRow key={inv.id} inv={inv} onEdit={openEditForm} onDelete={handleDelete} onQuickStatus={quickStatus} deletingId={deletingId} projects={projects} />)}</div>
                   )}
                 </div>
               </div>
@@ -263,7 +266,7 @@ export default function FinancePage() {
             {activeTab === "invoices" && (
               <div className="space-y-2">
                 {invoices.length === 0 ? <EmptyInvoices onNew={openNewForm} /> : (
-                  <>{invoices.map((inv) => <InvoiceRow key={inv.id} inv={inv} onEdit={openEditForm} onDelete={handleDelete} onQuickStatus={quickStatus} deletingId={deletingId} />)}</>
+                  <>{invoices.map((inv) => <InvoiceRow key={inv.id} inv={inv} onEdit={openEditForm} onDelete={handleDelete} onQuickStatus={quickStatus} deletingId={deletingId} projects={projects} />)}</>
                 )}
               </div>
             )}
@@ -323,7 +326,7 @@ export default function FinancePage() {
               <div><label className="fin-label">Project</label>
                 <select className="fin-input" value={form.project_id} onChange={f("project_id")}>
                   <option value="">— Standalone (no project) —</option>
-                  {MOCK_PROJECTS.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
                 </select>
               </div>
               <div><label className="fin-label">Description</label><input className="fin-input" value={form.description} onChange={f("description")} placeholder="e.g. Brand film production — Phase 1" /></div>
@@ -361,15 +364,16 @@ export default function FinancePage() {
 
 // ─── Invoice Row ─────────────────────────────────────────────────────────────
 
-function InvoiceRow({ inv, onEdit, onDelete, onQuickStatus, deletingId }: {
+function InvoiceRow({ inv, onEdit, onDelete, onQuickStatus, deletingId, projects }: {
   inv: Invoice;
   onEdit: (inv: Invoice) => void;
   onDelete: (id: string) => void;
   onQuickStatus: (inv: Invoice, s: InvoiceStatus) => void;
   deletingId: string | null;
+  projects: Project[];
 }) {
   const [open, setOpen] = useState(false);
-  const project = MOCK_PROJECTS.find((p) => p.id === inv.project_id);
+  const project = projects.find((p) => p.id === inv.project_id);
   const outstanding = inv.amount - inv.amount_paid;
 
   return (

@@ -8,9 +8,14 @@ const db = () => createClient();
 // ─── Projects ────────────────────────────────────────────────────────────────
 
 export async function getProjects() {
-  const { data, error } = await db()
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [] as Project[];
+
+  const { data, error } = await client
     .from('projects')
     .select('*')
+    .eq('created_by', user.id)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -227,13 +232,19 @@ export async function deleteShotListItem(id: string) {
 // ─── Calendar Events ─────────────────────────────────────────────────────────
 
 export async function getCalendarEvents(projectId?: string) {
-  let query = db()
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+
+  let query = client
     .from('calendar_events')
     .select('*, projects(id, title, status)')
     .order('start_time', { ascending: true });
 
   if (projectId) {
     query = (query as any).eq('project_id', projectId);
+  } else if (user) {
+    // Without a project filter, restrict to events the user created
+    query = (query as any).eq('created_by', user.id);
   }
 
   const { data, error } = await query;
@@ -794,11 +805,21 @@ export async function revokeReviewToken(id: string): Promise<void> {
 // ─── Activity Log ─────────────────────────────────────────────────────────────
 
 export async function getActivityLog(limit = 20): Promise<ActivityItem[]> {
-  const { data, error } = await db()
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+
+  let q = client
     .from('activity_log')
     .select('*, projects(id, title), profiles(id, full_name, avatar_url)')
     .order('created_at', { ascending: false })
     .limit(limit);
+
+  // Scope to projects the current user owns
+  if (user) {
+    q = (q as any).eq('user_id', user.id);
+  }
+
+  const { data, error } = await q;
   if (error) { if (isMissingTableError(error)) return []; throw error; }
   return (data || []).map((row: any) => ({
     id: row.id,
@@ -846,4 +867,106 @@ export async function logActivity(item: {
       metadata: item.metadata ?? {},
     });
   } catch { /* fire-and-forget */ }
+}
+
+// ─── Client Contacts ──────────────────────────────────────────────────────────
+
+export interface ClientContact {
+  id: string;
+  user_id: string;
+  client_name: string;
+  contact_name: string | null;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getClientContacts(): Promise<ClientContact[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('client_contacts')
+    .select('*')
+    .eq('user_id', user.id);
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as ClientContact[];
+}
+
+export async function upsertClientContact(
+  clientName: string,
+  contact: { contact_name?: string; email?: string; phone?: string; website?: string; notes?: string }
+): Promise<ClientContact> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('client_contacts')
+    .upsert(
+      { user_id: user.id, client_name: clientName, ...contact, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,client_name' }
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ClientContact;
+}
+
+// ─── Project Deliverables ─────────────────────────────────────────────────────
+
+export interface ProjectDeliverable {
+  id: string;
+  project_id: string;
+  label: string;
+  done: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export async function getProjectDeliverables(projectId: string): Promise<ProjectDeliverable[]> {
+  const { data, error } = await db()
+    .from('project_deliverables')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('sort_order')
+    .order('created_at');
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as ProjectDeliverable[];
+}
+
+export async function createProjectDeliverable(projectId: string, label: string): Promise<ProjectDeliverable> {
+  const { data: existing } = await db()
+    .from('project_deliverables')
+    .select('sort_order')
+    .eq('project_id', projectId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const sort_order = (existing?.sort_order ?? -1) + 1;
+  const { data, error } = await db()
+    .from('project_deliverables')
+    .insert({ project_id: projectId, label, done: false, sort_order })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ProjectDeliverable;
+}
+
+export async function updateProjectDeliverable(id: string, updates: { label?: string; done?: boolean }): Promise<ProjectDeliverable> {
+  const { data, error } = await db()
+    .from('project_deliverables')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ProjectDeliverable;
+}
+
+export async function deleteProjectDeliverable(id: string): Promise<void> {
+  const { error } = await db().from('project_deliverables').delete().eq('id', id);
+  if (error) throw error;
 }

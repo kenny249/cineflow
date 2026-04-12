@@ -27,6 +27,7 @@ const MOCK_NOTIFICATIONS = [
     desc: "Protetta, client left feedback",
     time: "2m ago",
     unread: true,
+    href: "/revisions",
   },
   {
     id: "2",
@@ -37,6 +38,7 @@ const MOCK_NOTIFICATIONS = [
     desc: "Downtown commercial, 9:00 AM",
     time: "1h ago",
     unread: true,
+    href: "/calendar",
   },
   {
     id: "3",
@@ -47,6 +49,7 @@ const MOCK_NOTIFICATIONS = [
     desc: "Cut v3 is ready for review",
     time: "3h ago",
     unread: false,
+    href: "/revisions",
   },
   {
     id: "4",
@@ -57,6 +60,7 @@ const MOCK_NOTIFICATIONS = [
     desc: "All 24 shots confirmed",
     time: "Yesterday",
     unread: false,
+    href: "/shot-lists",
   },
 ];
 
@@ -75,6 +79,7 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
   const router = useRouter();
   const [displayName, setDisplayName] = useState("Studio User");
   const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
@@ -127,7 +132,7 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
         </Button>
 
         {/* Notifications */}
-        <DropdownMenu>
+        <DropdownMenu open={notificationsOpen} onOpenChange={setNotificationsOpen}>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative h-8 w-8 text-muted-foreground hover:text-[#d4a853] transition-colors duration-200">
               <Bell className="h-4 w-4" />
@@ -165,9 +170,13 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
                     "flex items-start gap-3 px-4 py-3 border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 cursor-pointer",
                     n.unread && "bg-[#d4a853]/[0.03]"
                   )}
-                  onClick={() => setNotifications((prev) =>
-                    prev.map((item) => item.id === n.id ? { ...item, unread: false } : item)
-                  )}
+                  onClick={() => {
+                    setNotifications((prev) =>
+                      prev.map((item) => item.id === n.id ? { ...item, unread: false } : item)
+                    );
+                    setNotificationsOpen(false);
+                    router.push(n.href);
+                  }}
                 >
                   <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg mt-0.5", n.bg)}>
                     <n.icon className={cn("h-3.5 w-3.5", n.color)} />

@@ -120,11 +120,11 @@ export default function ReviewPortalClient({ token }: { token: string }) {
         setData(d);
         setRevisions(d.revisions);
         if (d.revisions.length > 0) setActiveRevisionId(d.revisions[0].id);
-        // Load deliverables from localStorage (set by team in portal tab)
-        try {
-          const raw = localStorage.getItem(`cf_deliverables_${d.project.id}`);
-          if (raw) setDeliverables(JSON.parse(raw));
-        } catch {}
+        // Load deliverables from DB via the review API
+        fetch(`/api/review/${token}/deliverables`)
+          .then((r) => r.ok ? r.json() : Promise.resolve([]))
+          .then((rows: Deliverable[]) => setDeliverables(rows))
+          .catch(() => {});
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));

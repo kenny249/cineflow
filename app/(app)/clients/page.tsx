@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2 } from "lucide-react";
-import { getProjects, createProject } from "@/lib/supabase/queries";
+import { getProjects, createProject, getClientContacts, upsertClientContact } from "@/lib/supabase/queries";
+import type { ClientContact as DBClientContact } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,27 +55,48 @@ export default function ClientsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
-  // Client contact info (localStorage)
-  const [clientContacts, setClientContacts] = useState<Record<string, ClientContact>>(() => {
-    if (typeof window === "undefined") return {};
-    try { const raw = localStorage.getItem("cf_client_contacts"); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
-  });
+  // Client contact info (DB-backed)
+  const [clientContacts, setClientContacts] = useState<Record<string, ClientContact>>({});
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const [contactForm, setContactForm] = useState<ClientContact>(EMPTY_CONTACT);
+  const [savingContact, setSavingContact] = useState(false);
 
-  function saveContact() {
-    const updated = { ...clientContacts, [editingContact!]: contactForm };
-    setClientContacts(updated);
-    try { localStorage.setItem("cf_client_contacts", JSON.stringify(updated)); } catch {}
-    setEditingContact(null);
-    toast.success("Contact info saved");
+  async function saveContact() {
+    if (!editingContact) return;
+    setSavingContact(true);
+    try {
+      await upsertClientContact(editingContact, contactForm);
+      setClientContacts((prev) => ({ ...prev, [editingContact]: contactForm }));
+      setEditingContact(null);
+      toast.success("Contact info saved");
+    } catch {
+      toast.error("Failed to save contact");
+    } finally {
+      setSavingContact(false);
+    }
   }
 
   useEffect(() => {
-    getProjects()
-      .then(setProjects)
-      .catch(() => toast.error("Failed to load projects"))
-      .finally(() => setLoading(false));
+    let alive = true;
+    Promise.all([getProjects(), getClientContacts()])
+      .then(([projs, contacts]) => {
+        if (!alive) return;
+        setProjects(projs);
+        const map: Record<string, ClientContact> = {};
+        for (const c of contacts as DBClientContact[]) {
+          map[c.client_name] = {
+            contact_name: c.contact_name ?? "",
+            email: c.email ?? "",
+            phone: c.phone ?? "",
+            website: c.website ?? "",
+            notes: c.notes ?? "",
+          };
+        }
+        setClientContacts(map);
+      })
+      .catch(() => toast.error("Failed to load clients"))
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, []);
 
   const filtered = useMemo(() => {
@@ -432,7 +454,10 @@ export default function ClientsPage() {
             </div>
             <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
               <button onClick={() => setEditingContact(null)} className="rounded-lg border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-muted/20">Cancel</button>
-              <button onClick={saveContact} className="rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843]">Save</button>
+              <button onClick={saveContact} disabled={savingContact} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-60">
+                {savingContact && <span className="h-3 w-3 animate-spin rounded-full border-2 border-black/30 border-t-black" />}
+                Save
+              </button>
             </div>
           </div>
         </div>

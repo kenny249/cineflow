@@ -20,7 +20,8 @@ import { useCompletionBurst, BurstRenderer } from "@/components/shared/Completio
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole, ReviewToken, PortalDeliverable } from "@/types";
-import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame, createStoryboardFrame } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame, createStoryboardFrame, getProjectDeliverables, createProjectDeliverable, updateProjectDeliverable, deleteProjectDeliverable } from "@/lib/supabase/queries";
+import type { ProjectDeliverable } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
 import { WrapNotesTab } from "@/components/projects/tabs/WrapNotesTab";
@@ -250,13 +251,8 @@ export default function ProjectDetailTabs({
   const [portalClientEmail, setPortalClientEmail] = useState("");
   const [portalShowForm, setPortalShowForm] = useState(false);
   const [portalCopied, setPortalCopied] = useState(false);
-  const [deliverables, setDeliverables] = useState<PortalDeliverable[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = localStorage.getItem(`cf_deliverables_${project.id}`);
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
+  const [deliverables, setDeliverables] = useState<PortalDeliverable[]>([]);
+  const deliverablesLoadedRef = useRef(false);
   const [newDeliverable, setNewDeliverable] = useState("");
 
   // Load existing token when portal tab is first mounted
@@ -265,8 +261,18 @@ export default function ProjectDetailTabs({
     if (portalLoadedRef.current) return;
     portalLoadedRef.current = true;
     setPortalLoading(true);
-    getProjectReviewToken(project.id)
-      .then(setPortalToken)
+    Promise.all([
+      getProjectReviewToken(project.id),
+      // Load deliverables alongside token
+      deliverablesLoadedRef.current ? Promise.resolve(null) : getProjectDeliverables(project.id),
+    ])
+      .then(([token, delivs]) => {
+        setPortalToken(token);
+        if (delivs !== null) {
+          deliverablesLoadedRef.current = true;
+          setDeliverables(delivs.map((d: ProjectDeliverable) => ({ id: d.id, label: d.label, done: d.done })));
+        }
+      })
       .catch(() => {})
       .finally(() => setPortalLoading(false));
   }
@@ -328,24 +334,33 @@ export default function ProjectDetailTabs({
     setTimeout(() => setPortalCopied(false), 2000);
   }
 
-  function saveDeliverables(updated: PortalDeliverable[]) {
-    setDeliverables(updated);
-    try { localStorage.setItem(`cf_deliverables_${project.id}`, JSON.stringify(updated)); } catch {}
-  }
-
-  function addDeliverable() {
+  async function addDeliverable() {
     if (!newDeliverable.trim()) return;
-    const updated = [...deliverables, { id: `dlv_${Date.now()}`, label: newDeliverable.trim(), done: false }];
-    saveDeliverables(updated);
-    setNewDeliverable("");
+    try {
+      const created = await createProjectDeliverable(project.id, newDeliverable.trim());
+      setDeliverables((prev) => [...prev, { id: created.id, label: created.label, done: created.done }]);
+      setNewDeliverable("");
+    } catch { toast.error("Failed to add deliverable"); }
   }
 
-  function toggleDeliverable(id: string) {
-    saveDeliverables(deliverables.map((d) => d.id === id ? { ...d, done: !d.done } : d));
+  async function toggleDeliverable(id: string) {
+    const current = deliverables.find((d) => d.id === id);
+    if (!current) return;
+    setDeliverables((prev) => prev.map((d) => d.id === id ? { ...d, done: !d.done } : d));
+    try {
+      await updateProjectDeliverable(id, { done: !current.done });
+    } catch {
+      // Revert on failure
+      setDeliverables((prev) => prev.map((d) => d.id === id ? { ...d, done: current.done } : d));
+      toast.error("Failed to update deliverable");
+    }
   }
 
-  function removeDeliverable(id: string) {
-    saveDeliverables(deliverables.filter((d) => d.id !== id));
+  async function removeDeliverable(id: string) {
+    setDeliverables((prev) => prev.filter((d) => d.id !== id));
+    try {
+      await deleteProjectDeliverable(id);
+    } catch { toast.error("Failed to remove deliverable"); }
   }
 
   async function handleAddNote() {
