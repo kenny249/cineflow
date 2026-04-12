@@ -15,6 +15,7 @@ import { OnboardingIntro } from "./OnboardingIntro";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { isSoloPlan } from "@/types";
 
 const MOBILE_NAV_PRIMARY = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -48,8 +49,19 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [theme, setTheme] = useLocalStorage<"dark" | "light">("cineflow-theme", "dark");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [plan, setPlan] = useState<string>("studio_beta");
   const router = useRouter();
   const pathname = usePathname();
+
+  // Load plan once on mount for nav filtering
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("profiles").select("plan").eq("id", user.id).single()
+        .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
+    });
+  }, []);
 
   // Apply theme to document
   useEffect(() => {
@@ -193,7 +205,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
                 </button>
               </div>
               <div className="grid grid-cols-4 gap-px border-t border-border bg-border px-0">
-                {MOBILE_NAV_MORE.map((item) => (
+                {MOBILE_NAV_MORE.filter(item => !(isSoloPlan(plan) && item.href === "/team")).map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}

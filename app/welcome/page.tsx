@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Film, Layers, Eye, Users } from "lucide-react";
+import { Film, Layers, Eye, Users, List, UploadCloud } from "lucide-react";
 import { getOrCreateDisplayName, setDisplayName, generateDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
+import { isSoloPlan } from "@/types";
 
 type WPt = { x: number; y: number; vx: number; vy: number; r: number; gold: boolean; o: number };
 
@@ -116,7 +117,7 @@ function InteractiveParticles() {
   return <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-0" aria-hidden="true" />;
 }
 
-const FEATURES = [
+const FEATURES_STUDIO = [
   {
     icon: Layers,
     eyebrow: "Projects & Shot Lists",
@@ -137,18 +138,43 @@ const FEATURES = [
   },
 ] as const;
 
+const FEATURES_SOLO = [
+  {
+    icon: List,
+    eyebrow: "Shot Lists & Planning",
+    headline: "Plan every frame,\nbefore you shoot.",
+    sub: "Build shot lists, set daily tasks, and schedule your shoots — all built for solo crews.",
+  },
+  {
+    icon: UploadCloud,
+    eyebrow: "Cuts & Feedback",
+    headline: "Send cuts.\nGet approval fast.",
+    sub: "Upload your edit, share a link, and get frame-accurate feedback without the email chains.",
+  },
+  {
+    icon: Users,
+    eyebrow: "Client Portal",
+    headline: "Your clients\nstay in the loop.",
+    sub: "A professional review page they can access without an account. Just a link.",
+  },
+] as const;
+
 const FEATURE_BTNS = ["Action", "Scene", "Wrap"] as const;
+
+type FeatureItem = { icon: React.ElementType; eyebrow: string; headline: string; sub: string };
 
 function FeatureSlide({
   idx,
   total,
+  features,
   onNext,
 }: {
   idx: number;
   total: number;
+  features: readonly FeatureItem[];
   onNext: () => void;
 }) {
-  const feature  = FEATURES[idx];
+  const feature  = features[idx];
   const Icon     = feature.icon;
   const cardRef  = useRef<HTMLDivElement>(null);
   const btnRef   = useRef<HTMLButtonElement>(null);
@@ -317,9 +343,22 @@ export default function WelcomePage() {
   const [nameInput, setNameInput] = useState("");
   const [resolvedName, setResolvedName] = useState("");
   const [featureIdx, setFeatureIdx] = useState(0);
+  const [plan, setPlan]           = useState<string>("studio_beta");
   const inputRef      = useRef<HTMLInputElement>(null);
   const isReturning   = useRef(false);
   const autoTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load plan from Supabase profile (fire-and-forget, falls back to studio)
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("profiles").select("plan").eq("id", user.id).single()
+        .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
+    });
+  }, []);
+
+  const FEATURES = isSoloPlan(plan) ? FEATURES_SOLO : FEATURES_STUDIO;
 
   // Boot sequence
   useEffect(() => {
@@ -606,6 +645,7 @@ export default function WelcomePage() {
         <FeatureSlide
           key={featureIdx}
           idx={featureIdx}
+          features={FEATURES}
           total={FEATURES.length}
           onNext={handleFeatureNext}
         />

@@ -50,10 +50,11 @@ function CallbackInner() {
         return;
       }
 
-      // Upsert profile (non-fatal if it fails)
+      // Upsert profile — persist plan from user_metadata (non-fatal if it fails)
       try {
+        const plan = (user.user_metadata?.plan as string) ?? "studio_beta";
         await supabase.from("profiles").upsert(
-          { id: user.id, email: user.email, updated_at: new Date().toISOString() },
+          { id: user.id, email: user.email, plan, updated_at: new Date().toISOString() },
           { onConflict: "id" }
         );
       } catch { /* non-fatal */ }

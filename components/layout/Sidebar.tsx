@@ -26,6 +26,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getOrCreateDisplayName, getInitials } from "@/lib/random-name";
+import { createClient } from "@/lib/supabase/client";
+import { isSoloPlan } from "@/types";
 
 const NAV_MAIN = [
   { label: "Dashboard",   href: "/dashboard",  icon: LayoutDashboard },
@@ -151,10 +153,22 @@ function BetaNavItem({
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState("Studio User");
+  const [plan, setPlan] = useState<string>("studio_beta");
 
   useEffect(() => {
     setDisplayName(getOrCreateDisplayName());
+    // Load plan to conditionally show/hide nav items
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("profiles").select("plan").eq("id", user.id).single()
+        .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
+    });
   }, []);
+
+  const navItems = isSoloPlan(plan)
+    ? NAV_MAIN.filter((item) => item.href !== "/team")
+    : NAV_MAIN;
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
@@ -217,7 +231,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* ── Main nav ── */}
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2 pt-3 custom-scrollbar">
-          {NAV_MAIN.map((item) => (
+          {navItems.map((item) => (
             <NavItem
               key={item.href}
               item={item}
@@ -258,7 +272,9 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-foreground">{displayName}</p>
-                <p className="truncate text-[10px] text-muted-foreground">Beta User</p>
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {isSoloPlan(plan) ? "Solo Creator · Beta" : "Film Studio · Beta"}
+                </p>
               </div>
             )}
           </div>

@@ -1,5 +1,11 @@
 // ─── Shared Types ───────────────────────────────────────────────────────────
 
+export type PlanType = "solo_beta" | "studio_beta" | "solo_pro" | "studio_pro";
+
+export function isSoloPlan(plan?: PlanType | string | null): boolean {
+  return plan === "solo_beta" || plan === "solo_pro";
+}
+
 export interface Profile {
   id: string;
   email?: string;
@@ -9,6 +15,7 @@ export interface Profile {
   company?: string;
   avatar_url?: string;
   role?: string;
+  plan?: PlanType;
   created_at: string;
   updated_at?: string;
 }

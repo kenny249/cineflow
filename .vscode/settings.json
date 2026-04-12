@@ -13,6 +13,20 @@
         "true": true,
         "command": true,
         "npx --yes vercel": true,
-        "vercel": true
+        "vercel": true,
+        "/^node -e \"const fs=require\\('fs'\\); const path='app/favicon\\.ico'; const png=Buffer\\.from\\('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO\\+/aRsAAAAASUVORK5CYII=','base64'\\); const header=Buffer\\.alloc\\(6\\); header\\.writeUInt16LE\\(0,0\\); header\\.writeUInt16LE\\(1,2\\); header\\.writeUInt16LE\\(1,4\\); const entry=Buffer\\.alloc\\(16\\); entry\\.writeUInt8\\(1,0\\); entry\\.writeUInt8\\(1,1\\); entry\\.writeUInt8\\(0,2\\); entry\\.writeUInt8\\(0,3\\); entry\\.writeUInt16LE\\(1,4\\); entry\\.writeUInt16LE\\(32,6\\); entry\\.writeUInt32LE\\(png\\.length,8\\); entry\\.writeUInt32LE\\(22,12\\); fs\\.writeFileSync\\(path, Buffer\\.concat\\(\\[header,entry,png\\]\\)\\); console\\.log\\('wrote', path, 'bytes', fs\\.statSync\\(path\\)\\.size\\);\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const fs=require\\('fs'\\); const path='app/favicon\\.ico'; const png=Buffer\\.from\\('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4////fwAJ\\+wP9KobjigAAAABJRU5ErkJggg==','base64'\\); const header=Buffer\\.alloc\\(6\\); header\\.writeUInt16LE\\(0,0\\); header\\.writeUInt16LE\\(1,2\\); header\\.writeUInt16LE\\(1,4\\); const entry=Buffer\\.alloc\\(16\\); entry\\.writeUInt8\\(1,0\\); entry\\.writeUInt8\\(1,1\\); entry\\.writeUInt8\\(0,2\\); entry\\.writeUInt8\\(0,3\\); entry\\.writeUInt16LE\\(1,4\\); entry\\.writeUInt16LE\\(32,6\\); entry\\.writeUInt32LE\\(png\\.length,8\\); entry\\.writeUInt32LE\\(22,12\\); fs\\.writeFileSync\\(path, Buffer\\.concat\\(\\[header,entry,png\\]\\)\\); console\\.log\\('wrote', path, 'bytes', fs\\.statSync\\(path\\)\\.size\\);\" && npm run build$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^node -e \"const fs=require\\('fs'\\); const w=16,h=16; const header=Buffer\\.alloc\\(6\\); header\\.writeUInt16LE\\(0,0\\); header\\.writeUInt16LE\\(1,2\\); header\\.writeUInt16LE\\(1,4\\); const dib=Buffer\\.alloc\\(40\\); dib\\.writeUInt32LE\\(40,0\\); dib\\.writeInt32LE\\(w,4\\); dib\\.writeInt32LE\\(h\\*2,8\\); dib\\.writeUInt16LE\\(1,12\\); dib\\.writeUInt16LE\\(32,14\\); dib\\.writeUInt32LE\\(0,16\\); const xorSize=w\\*h\\*4; const andRowBytes=4; const andSize=andRowBytes\\*h; dib\\.writeUInt32LE\\(xorSize\\+andSize,20\\); dib\\.writeInt32LE\\(0,24\\); dib\\.writeInt32LE\\(0,28\\); dib\\.writeUInt32LE\\(0,32\\); dib\\.writeUInt32LE\\(0,36\\); const xor=Buffer\\.alloc\\(xorSize\\); for\\(let y=0;y<h;y\\+\\+\\)\\{ for\\(let x=0;x<w;x\\+\\+\\)\\{ const i=\\(y\\*w\\+x\\)\\*4; xor\\[i\\+0\\]=83; xor\\[i\\+1\\]=168; xor\\[i\\+2\\]=212; xor\\[i\\+3\\]=255; \\}\\} const andMask=Buffer\\.alloc\\(andSize,0\\); const image=Buffer\\.concat\\(\\[dib,xor,andMask\\]\\); const entry=Buffer\\.alloc\\(16\\); entry\\.writeUInt8\\(w,0\\); entry\\.writeUInt8\\(h,1\\); entry\\.writeUInt8\\(0,2\\); entry\\.writeUInt8\\(0,3\\); entry\\.writeUInt16LE\\(1,4\\); entry\\.writeUInt16LE\\(32,6\\); entry\\.writeUInt32LE\\(image\\.length,8\\); entry\\.writeUInt32LE\\(6\\+16,12\\); const out=Buffer\\.concat\\(\\[header,entry,image\\]\\); fs\\.writeFileSync\\('app/favicon\\.ico',out\\); console\\.log\\('favicon bytes',out\\.length\\);\" && npm run build$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "printenv": true,
+        "npx vercel": true
     }
 }
