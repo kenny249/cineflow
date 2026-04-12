@@ -94,7 +94,7 @@ export function LoginPageClient() {
         email: trimmedEmail,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: `${siteUrl}/auth/callback?next=/welcome`,
+          emailRedirectTo: `${siteUrl}/auth/confirm`,
           data: { full_name: getOrCreateDisplayName() },
         },
       });

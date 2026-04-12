@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Film, Layers, Eye, Users } from "lucide-react";
 import { getOrCreateDisplayName, setDisplayName, generateDisplayName } from "@/lib/random-name";
+import { createClient } from "@/lib/supabase/client";
 
 type WPt = { x: number; y: number; vx: number; vy: number; r: number; gold: boolean; o: number };
 
@@ -351,6 +352,20 @@ export default function WelcomePage() {
     setDisplayName(final);
     setResolvedName(final);
     setPhase("name_ack");
+
+    // Persist name to Supabase profile (fire-and-forget)
+    const supabase = createClient();
+    void (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from("profiles")
+            .upsert({ id: user.id, full_name: final, updated_at: new Date().toISOString() }, { onConflict: "id" });
+        }
+      } catch { /* fire-and-forget */ }
+    })();
+
     setTimeout(() => { setPhase("features"); setFeatureIdx(0); }, 1800);
   }
 
