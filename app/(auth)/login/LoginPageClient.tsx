@@ -97,6 +97,12 @@ export function LoginPageClient() {
         setIsLoading(false);
         return;
       }
+      // Update plan on the demo profile so the experience matches the selected card
+      const uid = confirmed.session.user.id;
+      await supabase.from("profiles").upsert(
+        { id: uid, plan: planValue, updated_at: new Date().toISOString() },
+        { onConflict: "id" }
+      );
       window.location.assign("/welcome");
     } catch {
       toast.error("Demo sign-in failed. Please try again.");
@@ -259,7 +265,7 @@ export function LoginPageClient() {
               ) : (
                 <span className="flex items-center justify-center gap-2">
                   <Sparkles className="h-4 w-4" />
-                  Try Demo — No signup
+                  Try {isSolo ? "Solo" : "Studio"} Demo — No signup
                   <span className="transition-transform group-hover:translate-x-0.5">→</span>
                 </span>
               )}
