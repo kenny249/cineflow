@@ -57,6 +57,7 @@ function CallbackInner() {
           { id: user.id, email: user.email, plan, updated_at: new Date().toISOString() },
           { onConflict: "id" }
         );
+        sessionStorage.setItem("cf_plan", plan);
       } catch { /* non-fatal */ }
 
       window.location.replace(next);

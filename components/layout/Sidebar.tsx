@@ -153,21 +153,29 @@ function BetaNavItem({
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState("Studio User");
-  const [plan, setPlan] = useState<string>("studio_beta");
+  const [plan, setPlan] = useState<string>(() =>
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
+  );
 
   useEffect(() => {
     setDisplayName(getOrCreateDisplayName());
-    // Load plan to conditionally show/hide nav items
+    // Confirm plan from Supabase and keep sessionStorage in sync
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       supabase.from("profiles").select("plan").eq("id", user.id).single()
-        .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
+        .then(({ data }) => {
+          if (data?.plan) {
+            setPlan(data.plan);
+            sessionStorage.setItem("cf_plan", data.plan);
+          }
+        });
     });
   }, []);
 
+  const SOLO_HIDDEN = ["/team", "/storyboard", "/scripts"];
   const navItems = isSoloPlan(plan)
-    ? NAV_MAIN.filter((item) => item.href !== "/team")
+    ? NAV_MAIN.filter((item) => !SOLO_HIDDEN.includes(item.href))
     : NAV_MAIN;
 
   const isActive = (href: string) =>
