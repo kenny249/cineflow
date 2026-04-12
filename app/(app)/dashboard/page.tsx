@@ -54,7 +54,9 @@ export default function DashboardPage() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayName, setDisplayName] = useState("Early Tester");
-  const [plan, setPlan] = useState<string>("studio_beta");
+  const [plan, setPlan] = useState<string>(() =>
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
+  );
   const router = useRouter();
 
   useEffect(() => {
@@ -68,10 +70,13 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
 
-      // Load plan for solo/studio mode
+      // Load plan — awaited so the correct mode renders before loading clears
       if (user) {
-        supabase.from("profiles").select("plan").eq("id", user.id).single()
-          .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
+        const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+        if (profile?.plan) {
+          setPlan(profile.plan);
+          sessionStorage.setItem("cf_plan", profile.plan);
+        }
       }
 
       const projectsData = await getProjects();

@@ -343,18 +343,25 @@ export default function WelcomePage() {
   const [nameInput, setNameInput] = useState("");
   const [resolvedName, setResolvedName] = useState("");
   const [featureIdx, setFeatureIdx] = useState(0);
-  const [plan, setPlan]           = useState<string>("studio_beta");
+  const [plan, setPlan]           = useState<string>(() =>
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
+  );
   const inputRef      = useRef<HTMLInputElement>(null);
   const isReturning   = useRef(false);
   const autoTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load plan from Supabase profile (fire-and-forget, falls back to studio)
+  // Confirm plan from Supabase profile and keep sessionStorage in sync
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       supabase.from("profiles").select("plan").eq("id", user.id).single()
-        .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
+        .then(({ data }) => {
+          if (data?.plan) {
+            setPlan(data.plan);
+            sessionStorage.setItem("cf_plan", data.plan);
+          }
+        });
     });
   }, []);
 

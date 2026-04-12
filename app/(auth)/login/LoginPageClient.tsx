@@ -103,6 +103,8 @@ export function LoginPageClient() {
         { id: uid, plan: planValue, updated_at: new Date().toISOString() },
         { onConflict: "id" }
       );
+      // Store plan so dashboard/welcome render the correct mode instantly
+      sessionStorage.setItem("cf_plan", planValue);
       window.location.assign("/welcome");
     } catch {
       toast.error("Demo sign-in failed. Please try again.");
