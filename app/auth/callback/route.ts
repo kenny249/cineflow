@@ -26,11 +26,52 @@ function buildProfilePayload(user: {
   };
 }
 
+function errorPage(title: string, detail: string, origin: string) {
+  const loginUrl = `${origin}/login`;
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign-in error — CineFlow</title>
+  <style>
+    body { background: #060606; color: #fff; font-family: system-ui, sans-serif;
+           display: flex; align-items: center; justify-content: center;
+           min-height: 100vh; margin: 0; padding: 1.5rem; box-sizing: border-box; }
+    .card { max-width: 420px; width: 100%; border: 1px solid rgba(255,255,255,.1);
+            border-radius: 1.5rem; padding: 2.5rem 2rem; background: #111; text-align: center; }
+    h1 { font-size: 1.25rem; margin: 0 0 .75rem; color: #f87171; }
+    p  { font-size: .875rem; color: #71717a; margin: 0 0 .5rem; }
+    pre{ font-size: .75rem; color: #a1a1aa; background: #1a1a1a;
+         border-radius: .75rem; padding: 1rem; text-align: left;
+         overflow-x: auto; white-space: pre-wrap; word-break: break-all; margin: 1rem 0; }
+    a  { display: inline-block; margin-top: 1.5rem; padding: .75rem 2rem;
+         border: 1px solid rgba(255,255,255,.1); border-radius: .75rem;
+         color: #d4a853; text-decoration: none; font-size: .875rem; }
+    a:hover { border-color: rgba(212,168,83,.4); }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>${title}</h1>
+    <p>Your magic link may have expired or already been used.</p>
+    <pre>${detail}</pre>
+    <p style="color:#52525b;font-size:.75rem">Request a fresh link from the login page.</p>
+    <a href="${loginUrl}">← Back to login</a>
+  </div>
+</body>
+</html>`;
+  return new NextResponse(html, {
+    status: 400,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
 
   const token_hash = searchParams.get("token_hash");
-  const type       = searchParams.get("type") ?? "magiclink";
+  const typeParam  = searchParams.get("type") ?? "email";
   const code       = searchParams.get("code");
   const next       = searchParams.get("next") ?? "/welcome";
 
@@ -52,9 +93,6 @@ export async function GET(request: NextRequest) {
             options?: Record<string, unknown>;
           }>
         ) {
-          // Write session cookies directly onto the redirect response so the
-          // browser receives them in the same round-trip and the session is
-          // available immediately after the redirect lands.
           cookiesToSet.forEach(({ name, value, options }) => {
             redirectResponse.cookies.set(
               name,
@@ -67,24 +105,42 @@ export async function GET(request: NextRequest) {
     }
   );
 
-  // ── Path 1: token_hash (new email template — most reliable) ─────────────────
-  // The email link goes directly to this route with ?token_hash=xxx&type=magiclink.
-  // No PKCE verifier, no redirect URL matching, works from any device/email app.
+  // ── Path 1: token_hash (email template with ?token_hash=xxx&type=email) ───────
   if (token_hash) {
-    const { data, error } = await supabase.auth.verifyOtp({
-      token_hash,
-      type: type as Parameters<typeof supabase.auth.verifyOtp>[0]["type"],
-    });
+    // Supabase stores magic link OTPs as type "email". Try that first,
+    // then fall back to "magiclink" for backwards compat with older templates.
+    const typesToTry = typeParam === "email"
+      ? (["email", "magiclink"] as const)
+      : (["magiclink", "email"] as const);
 
-    if (error || !data.user) {
-      console.error("verifyOtp error:", error);
-      return NextResponse.redirect(new URL("/login?error=invalid_token", origin));
+    let user = null;
+    let lastError: { message?: string } | null = null;
+
+    for (const t of typesToTry) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash,
+        type: t as Parameters<typeof supabase.auth.verifyOtp>[0]["type"],
+      });
+      if (!error && data.user) {
+        user = data.user;
+        break;
+      }
+      lastError = error ?? { message: "No user returned" };
+    }
+
+    if (!user) {
+      console.error("verifyOtp failed for all types:", lastError);
+      return errorPage(
+        "Magic link failed",
+        `token_hash present, type attempts: ${typesToTry.join(", ")}\nError: ${lastError?.message ?? "unknown"}`,
+        origin
+      );
     }
 
     try {
       await supabase
         .from("profiles")
-        .upsert(buildProfilePayload(data.user), { onConflict: "id" });
+        .upsert(buildProfilePayload(user), { onConflict: "id" });
     } catch (e) {
       console.error("Profile upsert error:", e);
     }
@@ -98,7 +154,11 @@ export async function GET(request: NextRequest) {
 
     if (error || !data.user) {
       console.error("exchangeCodeForSession error:", error);
-      return NextResponse.redirect(new URL("/login?error=auth_failed", origin));
+      return errorPage(
+        "Sign-in failed",
+        `exchangeCodeForSession error: ${error?.message ?? "No user returned"}`,
+        origin
+      );
     }
 
     try {
@@ -112,6 +172,11 @@ export async function GET(request: NextRequest) {
     return redirectResponse;
   }
 
-  // Nothing to work with
-  return NextResponse.redirect(new URL("/login?error=missing_token", origin));
+  // Nothing to work with — show what params actually arrived
+  const allParams = Object.fromEntries(searchParams.entries());
+  return errorPage(
+    "Missing authentication token",
+    `No token_hash or code found.\nQuery params received: ${JSON.stringify(allParams, null, 2)}`,
+    origin
+  );
 }
