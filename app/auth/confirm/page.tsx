@@ -14,56 +14,58 @@ function AuthConfirmInner() {
     if (ran.current) return;
     ran.current = true;
 
-    async function confirm() {
-      const supabase = createClient();
-      const code       = searchParams.get("code");
-      const tokenHash  = searchParams.get("token_hash");
-      const type       = searchParams.get("type") ?? "magiclink";
-      const next       = searchParams.get("next") ?? "/welcome";
+    const supabase = createClient();
+    const next = searchParams.get("next") ?? "/welcome";
+    let done = false;
 
+    async function finish(userId: string, userEmail: string | undefined) {
+      if (done) return;
+      done = true;
       try {
-        if (code) {
-          // PKCE flow — link opened in same browser that submitted the form
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
-        } else if (tokenHash) {
-          // Token-hash flow — Supabase direct OTP verification (no PKCE verifier needed)
-          const { error } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: type as Parameters<typeof supabase.auth.verifyOtp>[0]["type"],
-          });
-          if (error) throw error;
-        } else {
-          // Implicit flow — Supabase SDK auto-processes #access_token hash on init
-          // Give the SDK a moment to detect and set the session from the URL hash
-          await new Promise((r) => setTimeout(r, 100));
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
-            throw new Error(
-              "The magic link may have expired or already been used. Please request a new one."
-            );
-          }
-        }
-
-        // Upsert a profile row so the user always exists in the profiles table
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase
-            .from("profiles")
-            .upsert(
-              { id: user.id, email: user.email, updated_at: new Date().toISOString() },
-              { onConflict: "id" }
-            );
-        }
-
-        window.location.replace(next);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Authentication failed. Please try again.";
-        setError(msg);
-      }
+        await supabase
+          .from("profiles")
+          .upsert(
+            { id: userId, email: userEmail, updated_at: new Date().toISOString() },
+            { onConflict: "id" }
+          );
+      } catch { /* non-fatal */ }
+      window.location.replace(next);
     }
 
-    confirm();
+    // Primary: listen for the SIGNED_IN event.
+    // With implicit flow, the Supabase SDK detects the #access_token hash on
+    // page load and fires this event automatically — no verifier needed.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === "SIGNED_IN" && session?.user) {
+          subscription.unsubscribe();
+          clearTimeout(timeout);
+          finish(session.user.id, session.user.email);
+        }
+      }
+    );
+
+    // Secondary: in case the session was already set before the listener
+    // registered (e.g. fast hydration), check immediately.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        subscription.unsubscribe();
+        clearTimeout(timeout);
+        finish(session.user.id, session.user.email);
+      }
+    });
+
+    // Fallback: if nothing fires after 6 seconds the link is expired/used.
+    const timeout = setTimeout(() => {
+      if (done) return;
+      subscription.unsubscribe();
+      setError("This link has expired or was already used. Request a new one.");
+    }, 6000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -74,7 +76,7 @@ function AuthConfirmInner() {
           <Film className="h-7 w-7 text-red-400" />
         </div>
         <div>
-          <p className="mb-1 text-sm font-semibold text-red-400">Sign-in failed</p>
+          <p className="mb-1 text-sm font-semibold text-red-400">Link expired</p>
           <p className="max-w-xs text-sm text-zinc-500">{error}</p>
         </div>
         <a
