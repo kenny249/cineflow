@@ -16,6 +16,10 @@ import {
   ChevronRight,
   Search,
   Loader2,
+  Share2,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -118,6 +122,10 @@ export default function RevisionsPage() {
   const [deletingRevisionId, setDeletingRevisionId] = useState<string | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
+  // ── Client portal sharing ───────────────────────────────────────────────────
+  const [portalToken, setPortalToken] = useState<string | null>(null);
+  const [copiedPortal, setCopiedPortal] = useState(false);
+
   // ── Video player ────────────────────────────────────────────────────────────
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -158,6 +166,12 @@ export default function RevisionsPage() {
     setIsPlaying(false);
     setPlayerDuration(0);
   }, [activeRevisionId]);
+
+  // ── Fetch portal token when project changes ─────────────────────────────────
+  useEffect(() => {
+    if (!selectedProjectId) { setPortalToken(null); return; }
+    getProjectReviewToken(selectedProjectId).then((t) => setPortalToken(t?.token ?? null));
+  }, [selectedProjectId]);
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const activeRevision = revisions.find((r) => r.id === activeRevisionId);
@@ -307,6 +321,38 @@ export default function RevisionsPage() {
     } finally {
       setUpdatingStatusId(null);
     }
+  }
+
+  // ── Portal sharing ───────────────────────────────────────────────────────────
+  const portalUrl = portalToken
+    ? `${typeof window !== "undefined" ? window.location.origin : "https://www.usecineflow.com"}/review/${portalToken}`
+    : null;
+
+  async function handleCopyPortal() {
+    if (!portalUrl) return;
+    try {
+      await navigator.clipboard.writeText(portalUrl);
+      setCopiedPortal(true);
+      toast.success("Client link copied to clipboard!");
+      setTimeout(() => setCopiedPortal(false), 2500);
+    } catch {
+      toast.error("Couldn't copy — try long-pressing the link");
+    }
+  }
+
+  async function handleSharePortal() {
+    if (!portalUrl || !selectedProject) return;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Review: ${selectedProject.title}`,
+          text: `Here's your review link for ${selectedProject.title}`,
+          url: portalUrl,
+        });
+        return;
+      } catch { /* user cancelled — fall through to copy */ }
+    }
+    handleCopyPortal();
   }
 
   // ── Add comment ──────────────────────────────────────────────────────────────
@@ -910,6 +956,64 @@ export default function RevisionsPage() {
                                     {STATUS_CONFIG[s].label}
                                   </button>
                                 ))}
+                              </div>
+
+                              {/* ── Send to Client ── */}
+                              <div className="rounded-2xl border border-[#d4a853]/20 bg-[#d4a853]/[0.04] p-4">
+                                <div className="mb-3 flex items-center justify-between">
+                                  <div>
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#d4a853]">
+                                      Client Portal
+                                    </p>
+                                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                      {selectedProject?.client_name
+                                        ? `Share with ${selectedProject.client_name}`
+                                        : "Share this cut with your client"}
+                                    </p>
+                                  </div>
+                                  {portalUrl && (
+                                    <a
+                                      href={portalUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/10 text-[#d4a853] transition-colors hover:bg-[#d4a853]/20"
+                                      title="Open portal"
+                                    >
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                  )}
+                                </div>
+                                {portalUrl ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="min-w-0 flex-1 truncate rounded-xl border border-border/60 bg-black/30 px-3 py-2 font-mono text-[10px] text-muted-foreground">
+                                      {portalUrl}
+                                    </div>
+                                    <button
+                                      onClick={handleCopyPortal}
+                                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#d4a853]/30 bg-[#d4a853]/10 text-[#d4a853] transition-all hover:bg-[#d4a853]/20 active:scale-95"
+                                      title="Copy link"
+                                    >
+                                      {copiedPortal
+                                        ? <Check className="h-4 w-4 text-emerald-400" />
+                                        : <Copy className="h-4 w-4" />}
+                                    </button>
+                                    <button
+                                      onClick={handleSharePortal}
+                                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#d4a853] text-black transition-all hover:bg-[#e0b55e] active:scale-95"
+                                      title="Share"
+                                    >
+                                      <Share2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-muted-foreground">
+                                    No client portal set up for this project yet.{" "}
+                                    <a href={`/clients`} className="text-[#d4a853] underline-offset-2 hover:underline">
+                                      Add a client
+                                    </a>{" "}
+                                    to generate a review link.
+                                  </p>
+                                )}
                               </div>
 
                               {/* Timestamp comments */}
