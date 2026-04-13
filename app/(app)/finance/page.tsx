@@ -138,12 +138,20 @@ function DateSelect({
     ? new Date(parseInt(year), parseInt(month), 0).getDate()
     : 31;
 
+  const selectStyle: React.CSSProperties = {
+    backgroundColor: "hsl(var(--background))",
+    color: "hsl(var(--foreground))",
+    WebkitAppearance: "none",
+    appearance: "none",
+  };
+
   return (
     <div>
       <label className="fin-label">{label}</label>
       <div className="fin-date-group">
         <select
           className="fin-input"
+          style={selectStyle}
           value={month}
           onChange={(e) => update(year, e.target.value, day)}
         >
@@ -154,6 +162,7 @@ function DateSelect({
         </select>
         <select
           className="fin-input"
+          style={selectStyle}
           value={day}
           onChange={(e) => update(year, month, e.target.value)}
         >
@@ -164,6 +173,7 @@ function DateSelect({
         </select>
         <select
           className="fin-input"
+          style={selectStyle}
           value={year}
           onChange={(e) => update(e.target.value, month, day)}
         >
@@ -220,6 +230,7 @@ export default function FinancePage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<InvoiceFormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "invoices" | "projects">("overview");
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
@@ -322,7 +333,7 @@ export default function FinancePage() {
     setShowForm(true);
   }
 
-  async function handleSave() {
+  async function handleSave(andSend = false) {
     if (!form.invoice_number.trim()) { toast.error("Invoice number required."); return; }
     const { subtotal, total } = computeTotals(form);
     if (total <= 0 && subtotal <= 0) { toast.error("Add at least one line item with a rate."); return; }
@@ -358,18 +369,41 @@ export default function FinancePage() {
         payment_terms: form.payment_terms,
       };
 
+      let savedId: string;
       if (editingId) {
         const updated = await updateInvoice(editingId, payload);
         setInvoices((prev) => prev.map((i) => i.id === editingId ? updated : i));
+        savedId = editingId;
         toast.success("Invoice updated.");
       } else {
         const created = await createInvoice(payload as Parameters<typeof createInvoice>[0]);
         setInvoices((prev) => [created, ...prev]);
+        savedId = created.id;
         toast.success("Invoice created.");
       }
       setShowForm(false);
       setEditingId(null);
       setForm(EMPTY_FORM);
+
+      if (andSend) {
+        setSending(true);
+        try {
+          const res = await fetch("/api/invoices/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ invoiceId: savedId }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            toast.error(data.error || "Failed to send invoice.");
+          } else {
+            setInvoices((prev) => prev.map((i) => i.id === savedId ? { ...i, status: "sent" as InvoiceStatus } : i));
+            toast.success("Invoice sent to client!");
+          }
+        } finally {
+          setSending(false);
+        }
+      }
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to save invoice.");
     } finally {
@@ -828,15 +862,26 @@ export default function FinancePage() {
                   Cancel
                 </button>
                 <button
-                  onClick={handleSave}
-                  disabled={saving}
+                  onClick={() => handleSave(false)}
+                  disabled={saving || sending}
                   className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843] transition-colors disabled:opacity-60"
                 >
-                  {saving
+                  {saving && !sending
                     ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
                     : <Check className="h-3.5 w-3.5" />
                   }
                   {editingId ? "Save" : "Create Invoice"}
+                </button>
+                <button
+                  onClick={() => handleSave(true)}
+                  disabled={saving || sending}
+                  className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors disabled:opacity-60"
+                >
+                  {sending
+                    ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    : <Send className="h-3.5 w-3.5" />
+                  }
+                  Save & Send
                 </button>
               </div>
             </div>

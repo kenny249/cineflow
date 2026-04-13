@@ -20,7 +20,7 @@ function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname, origin } = request.nextUrl;
 
   // Always skip Next.js internals, static assets and API routes
@@ -88,7 +88,6 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-export const config = {
+export const proxyConfig = {
   matcher: ["/((?!_next|static|api|.*\\..*).*)"],
 };
-
