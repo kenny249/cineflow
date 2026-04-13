@@ -414,6 +414,7 @@ export interface Invoice {
   payment_method?: PaymentMethod;
   payment_link?: string;
   payment_terms?: PaymentTerms;
+  invoice_date?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;

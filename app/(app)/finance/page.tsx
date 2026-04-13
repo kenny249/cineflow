@@ -30,10 +30,6 @@ const fmtFull = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
 
 const STATUS_META: Record<InvoiceStatus, { label: string; color: string; icon: React.ElementType }> = {
   draft:   { label: "Draft",   color: "bg-zinc-500/15 text-zinc-400 border-zinc-500/20",         icon: FileText },
@@ -75,6 +71,7 @@ interface InvoiceFormState {
   client_email: string;
   description: string;
   status: InvoiceStatus;
+  invoice_date: string;
   due_date: string;
   paid_date: string;
   notes: string;
@@ -83,6 +80,7 @@ interface InvoiceFormState {
   tax_rate: string;
   payment_method: PaymentMethod | "";
   payment_terms: PaymentTerms;
+  payment_link: string;
 }
 
 const EMPTY_LINE: () => LineItemForm = () => ({
@@ -94,9 +92,9 @@ const EMPTY_LINE: () => LineItemForm = () => ({
 
 const EMPTY_FORM: InvoiceFormState = {
   invoice_number: "", client_name: "", client_email: "", description: "", status: "draft",
-  due_date: "", paid_date: "", notes: "", project_id: "",
+  invoice_date: "", due_date: "", paid_date: "", notes: "", project_id: "",
   line_items: [EMPTY_LINE()], tax_rate: "0",
-  payment_method: "", payment_terms: "net30",
+  payment_method: "", payment_terms: "net30", payment_link: "",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -118,69 +116,20 @@ function computeTotals(form: InvoiceFormState) {
   return { subtotal, taxAmount, total: subtotal + taxAmount };
 }
 
-// ─── Date Select ──────────────────────────────────────────────────────────────
+// ─── Date Input ───────────────────────────────────────────────────────────────
 
-function DateSelect({
+function DateInput({
   label, value, onChange,
 }: { label: string; value: string; onChange: (v: string) => void }) {
-  const parts = value ? value.split("-") : ["", "", ""];
-  const year = parts[0] ?? "";
-  const month = parts[1] ?? "";
-  const day = parts[2] ?? "";
-
-  const update = (y: string, m: string, d: string) => {
-    onChange(y && m && d ? `${y}-${m}-${d}` : "");
-  };
-
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 6 }, (_, i) => currentYear + i - 1);
-  const daysInMonth = month && year
-    ? new Date(parseInt(year), parseInt(month), 0).getDate()
-    : 31;
-
-  const selectStyle: React.CSSProperties = {
-    backgroundColor: "hsl(var(--background))",
-    color: "hsl(var(--foreground))",
-    WebkitAppearance: "none",
-    appearance: "none",
-  };
-
   return (
     <div>
       <label className="fin-label">{label}</label>
-      <div className="fin-date-group">
-        <select
-          className="fin-input"
-          style={selectStyle}
-          value={month}
-          onChange={(e) => update(year, e.target.value, day)}
-        >
-          <option value="">Month</option>
-          {MONTH_NAMES.map((m, i) => (
-            <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>
-          ))}
-        </select>
-        <select
-          className="fin-input"
-          style={selectStyle}
-          value={day}
-          onChange={(e) => update(year, month, e.target.value)}
-        >
-          <option value="">DD</option>
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={String(d).padStart(2, "0")}>{String(d).padStart(2, "0")}</option>
-          ))}
-        </select>
-        <select
-          className="fin-input"
-          style={selectStyle}
-          value={year}
-          onChange={(e) => update(e.target.value, month, day)}
-        >
-          <option value="">YYYY</option>
-          {years.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
-      </div>
+      <input
+        className="fin-input fin-date"
+        type="date"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
     </div>
   );
 }
@@ -301,7 +250,8 @@ export default function FinancePage() {
   // ── Form helpers ──────────────────────────────────────────────────────────
 
   function openNewForm() {
-    setForm({ ...EMPTY_FORM, invoice_number: nextInvoiceNumber(invoices), line_items: [EMPTY_LINE()] });
+    const today = new Date().toISOString().split("T")[0];
+    setForm({ ...EMPTY_FORM, invoice_number: nextInvoiceNumber(invoices), line_items: [EMPTY_LINE()], invoice_date: today });
     setEditingId(null);
     setShowForm(true);
   }
@@ -320,6 +270,7 @@ export default function FinancePage() {
       client_email: inv.client_email ?? "",
       description: inv.description ?? "",
       status: inv.status,
+      invoice_date: inv.invoice_date ?? "",
       due_date: inv.due_date ?? "",
       paid_date: inv.paid_date ?? "",
       notes: inv.notes ?? "",
@@ -328,6 +279,7 @@ export default function FinancePage() {
       tax_rate: String(inv.tax_rate ?? 0),
       payment_method: inv.payment_method ?? "",
       payment_terms: inv.payment_terms ?? "net30",
+      payment_link: inv.payment_link ?? "",
     });
     setEditingId(inv.id);
     setShowForm(true);
@@ -359,6 +311,7 @@ export default function FinancePage() {
           ? (invoices.find((i) => i.id === editingId)?.amount_paid ?? 0)
           : 0,
         status: form.status,
+        invoice_date: form.invoice_date || undefined,
         due_date: form.due_date || undefined,
         paid_date: form.paid_date || undefined,
         notes: form.notes.trim() || undefined,
@@ -366,6 +319,7 @@ export default function FinancePage() {
         line_items: lineItems.length > 0 ? lineItems : undefined,
         tax_rate: parseFloat(form.tax_rate) || 0,
         payment_method: form.payment_method || undefined,
+        payment_link: form.payment_link.trim() || undefined,
         payment_terms: form.payment_terms,
       };
 
@@ -681,14 +635,19 @@ export default function FinancePage() {
                     <label className="fin-label">Description / Subject</label>
                     <input className="fin-input" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. Brand film production — Phase 1" />
                   </div>
-                  <div className={`grid gap-3 ${["paid", "partial"].includes(form.status) ? "grid-cols-2" : "grid-cols-1"}`}>
-                    <DateSelect
+                  <div className={`grid gap-3 ${["paid", "partial"].includes(form.status) ? "grid-cols-3" : "grid-cols-2"}`}>
+                    <DateInput
+                      label="Invoice Date"
+                      value={form.invoice_date}
+                      onChange={(v) => setForm((f) => ({ ...f, invoice_date: v }))}
+                    />
+                    <DateInput
                       label="Due Date"
                       value={form.due_date}
                       onChange={(v) => setForm((f) => ({ ...f, due_date: v }))}
                     />
                     {["paid", "partial"].includes(form.status) && (
-                      <DateSelect
+                      <DateInput
                         label="Date Paid"
                         value={form.paid_date}
                         onChange={(v) => setForm((f) => ({ ...f, paid_date: v }))}
@@ -821,15 +780,26 @@ export default function FinancePage() {
                     </div>
                   </div>
                   {["stripe", "paypal"].includes(form.payment_method) && (
-                    <p className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
-                      <span className="text-[#d4a853]">✓</span>
-                      Payment link will be generated when you view and send this invoice.
-                    </p>
+                    <div>
+                      <label className="fin-label">
+                        {form.payment_method === "stripe" ? "Stripe Payment Link" : "PayPal Checkout Link"}
+                      </label>
+                      <input
+                        className="fin-input"
+                        type="url"
+                        value={form.payment_link}
+                        onChange={(e) => setForm((f) => ({ ...f, payment_link: e.target.value }))}
+                        placeholder={form.payment_method === "stripe" ? "https://buy.stripe.com/..." : "https://paypal.me/..."}
+                      />
+                      <p className="mt-1 text-[11px] text-muted-foreground/60">
+                        This link goes on the invoice so clients can pay directly. Leave blank to add later.
+                      </p>
+                    </div>
                   )}
                   {["zelle", "ach", "wire", "check"].includes(form.payment_method) && (
                     <p className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
                       <span className="text-[#d4a853]">✓</span>
-                      Your payment instructions will appear on the invoice automatically.
+                      Your payment instructions from Settings will appear on the invoice and in the email automatically.
                     </p>
                   )}
                 </div>
@@ -947,10 +917,9 @@ export default function FinancePage() {
           background-color: hsl(var(--background));
         }
         select.fin-input option { background: hsl(var(--card)); color: hsl(var(--foreground)); }
-        .fin-date-group {
-          display: grid;
-          grid-template-columns: 1fr 3.5rem 4.5rem;
-          gap: 0.375rem;
+        input[type="date"].fin-date {
+          color-scheme: dark;
+          cursor: pointer;
         }
       `}</style>
     </div>
@@ -969,7 +938,14 @@ function InvoiceRow({ inv, onEdit, onDelete, onQuickStatus, onView, deletingId, 
   projects: Project[];
 }) {
   const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const project = projects.find((p) => p.id === inv.project_id);
+
+  useEffect(() => {
+    if (!confirmDelete) return;
+    const t = setTimeout(() => setConfirmDelete(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirmDelete]);
   const outstanding = inv.amount - inv.amount_paid;
 
   return (
@@ -1056,16 +1032,25 @@ function InvoiceRow({ inv, onEdit, onDelete, onQuickStatus, onView, deletingId, 
               >
                 <Edit3 className="h-3.5 w-3.5" />
               </button>
-              <button
-                onClick={() => onDelete(inv.id)}
-                disabled={deletingId === inv.id}
-                className="rounded p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
-              >
-                {deletingId === inv.id
-                  ? <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted/30 border-t-muted-foreground" />
-                  : <Trash2 className="h-3.5 w-3.5" />
-                }
-              </button>
+              {confirmDelete ? (
+                <button
+                  onClick={() => { onDelete(inv.id); setConfirmDelete(false); }}
+                  disabled={deletingId === inv.id}
+                  className="flex items-center gap-1 rounded-lg bg-red-500/15 border border-red-500/30 px-2 py-1 text-[10px] font-bold text-red-400 hover:bg-red-500/25 transition-colors"
+                >
+                  {deletingId === inv.id
+                    ? <span className="block h-3 w-3 animate-spin rounded-full border-2 border-red-400/30 border-t-red-400" />
+                    : "Delete?"
+                  }
+                </button>
+              ) : (
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="rounded p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
