@@ -274,7 +274,9 @@ export async function createCalendarEvent(event: {
   location?: string;
   meeting_link?: string;
 }) {
-  const { data, error } = await db()
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  const { data, error } = await client
     .from('calendar_events')
     .insert({
       project_id: event.project_id || null,
@@ -285,6 +287,7 @@ export async function createCalendarEvent(event: {
       end_time: event.end_date || event.start_date,
       location: event.location || null,
       meeting_link: event.meeting_link || null,
+      created_by: user?.id ?? null,
     })
     .select()
     .single();
