@@ -702,8 +702,14 @@ export async function getInvoicesByProject(projectId: string): Promise<Invoice[]
 }
 
 export async function createInvoice(invoice: Omit<Invoice, 'id' | 'created_at' | 'updated_at'>): Promise<Invoice> {
-  const { data, error } = await db().from('invoices').insert(invoice).select().single();
-  if (error) throw error;
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  const { data, error } = await client
+    .from('invoices')
+    .insert({ ...invoice, created_by: user?.id })
+    .select()
+    .single();
+  if (error) throw new Error(error.message || 'Failed to create invoice');
   return data as Invoice;
 }
 

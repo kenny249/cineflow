@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const response = await client.messages.create({
-      model: "claude-opus-4-5",
+      model: "claude-sonnet-4-6",
       max_tokens: 2048,
       system: system ?? `You are a creative director and cinematographer assistant inside CineFlow, a professional video production management platform. You help filmmakers and production teams build compelling storyboards.
 

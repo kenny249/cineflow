@@ -6,6 +6,18 @@ export function isSoloPlan(plan?: PlanType | string | null): boolean {
   return plan === "solo_beta" || plan === "solo_pro";
 }
 
+export interface PaymentSettings {
+  stripe_secret_key?: string;
+  paypal_me_username?: string;
+  zelle_contact?: string;
+  ach_bank_name?: string;
+  ach_routing?: string;
+  ach_account?: string;
+  wire_instructions?: string;
+  check_payable_to?: string;
+  check_mail_to?: string;
+}
+
 export interface Profile {
   id: string;
   email?: string;
@@ -16,6 +28,11 @@ export interface Profile {
   avatar_url?: string;
   role?: string;
   plan?: PlanType;
+  business_name?: string;
+  business_address?: string;
+  business_phone?: string;
+  business_website?: string;
+  payment_settings?: PaymentSettings;
   created_at: string;
   updated_at?: string;
 }
@@ -366,6 +383,15 @@ export interface BudgetLine {
 }
 
 export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue";
+export type PaymentMethod = "stripe" | "paypal" | "zelle" | "ach" | "wire" | "check";
+export type PaymentTerms = "due_on_receipt" | "net15" | "net30" | "net60";
+
+export interface LineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  rate: number;
+}
 
 export interface Invoice {
   id: string;
@@ -379,6 +405,11 @@ export interface Invoice {
   due_date?: string;
   paid_date?: string;
   notes?: string;
+  line_items?: LineItem[];
+  tax_rate?: number;
+  payment_method?: PaymentMethod;
+  payment_link?: string;
+  payment_terms?: PaymentTerms;
   created_by?: string;
   created_at: string;
   updated_at: string;
