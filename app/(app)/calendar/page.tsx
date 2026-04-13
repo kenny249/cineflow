@@ -45,9 +45,16 @@ const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 function getEventsForDay(events: CalendarEvent[], year: number, month: number, day: number) {
+  const target = new Date(year, month, day);
+  const targetEnd = new Date(year, month, day, 23, 59, 59, 999);
   return events.filter((e) => {
-    const d = new Date(e.start_date);
-    return d.getFullYear() === year && d.getMonth() === month && d.getDate() === day;
+    const start = new Date(e.start_date);
+    // Normalize start to midnight for multi-day comparison
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endDay = e.end_date
+      ? (() => { const ed = new Date(e.end_date); return new Date(ed.getFullYear(), ed.getMonth(), ed.getDate()); })()
+      : startDay;
+    return startDay <= targetEnd && endDay >= target;
   });
 }
 

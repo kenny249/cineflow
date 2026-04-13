@@ -289,7 +289,7 @@ export async function createCalendarEvent(event: {
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) throw new Error(error.message || "Failed to create event");
 
   return {
     ...data,

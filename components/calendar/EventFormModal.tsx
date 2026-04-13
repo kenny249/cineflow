@@ -26,16 +26,10 @@ function toTimeState(iso: string): TimeState {
   const ampm: "AM" | "PM" = h >= 12 ? "PM" : "AM";
   h = h % 12 || 12;
   const rawMin = d.getMinutes();
-  // Round to nearest 15-min increment
   const snapped = MINUTES.reduce((prev, cur) =>
     Math.abs(parseInt(cur) - rawMin) < Math.abs(parseInt(prev) - rawMin) ? cur : prev
   );
   return { hour: String(h), minute: snapped, ampm };
-}
-
-function toDate(dateStr: string): string {
-  // dateStr is YYYY-MM-DD
-  return dateStr;
 }
 
 function buildISO(dateStr: string, time: TimeState): string {
@@ -109,36 +103,33 @@ interface EventFormModalProps {
 
 // ── TimePicker ───────────────────────────────────────────────────────────────
 
-function TimePicker({ value, onChange, label }: { value: TimeState; onChange: (t: TimeState) => void; label: string }) {
+function TimePicker({ value, onChange }: { value: TimeState; onChange: (t: TimeState) => void }) {
   const selectCls = "rounded-md border border-border bg-input px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50";
   return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <div className="flex items-center gap-1.5">
-        <select
-          value={value.hour}
-          onChange={(e) => onChange({ ...value, hour: e.target.value })}
-          className={`${selectCls} w-14`}
-        >
-          {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
-        </select>
-        <span className="text-muted-foreground text-sm font-medium">:</span>
-        <select
-          value={value.minute}
-          onChange={(e) => onChange({ ...value, minute: e.target.value })}
-          className={`${selectCls} w-16`}
-        >
-          {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <select
-          value={value.ampm}
-          onChange={(e) => onChange({ ...value, ampm: e.target.value as "AM" | "PM" })}
-          className={`${selectCls} w-16`}
-        >
-          <option value="AM">AM</option>
-          <option value="PM">PM</option>
-        </select>
-      </div>
+    <div className="flex items-center gap-1.5">
+      <select
+        value={value.hour}
+        onChange={(e) => onChange({ ...value, hour: e.target.value })}
+        className={`${selectCls} w-14`}
+      >
+        {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span className="text-muted-foreground text-sm font-medium">:</span>
+      <select
+        value={value.minute}
+        onChange={(e) => onChange({ ...value, minute: e.target.value })}
+        className={`${selectCls} w-16`}
+      >
+        {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+      <select
+        value={value.ampm}
+        onChange={(e) => onChange({ ...value, ampm: e.target.value as "AM" | "PM" })}
+        className={`${selectCls} w-16`}
+      >
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
     </div>
   );
 }
@@ -153,7 +144,8 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
   const [title, setTitle] = useState("");
   const [type, setType] = useState<CalendarEventType>("shoot");
   const [projectId, setProjectId] = useState("");
-  const [date, setDate] = useState(initDate);
+  const [startDate, setStartDate] = useState(initDate);
+  const [endDate, setEndDate] = useState(initDate);
   const [startTime, setStartTime] = useState<TimeState>(initStart);
   const [endTime, setEndTime] = useState<TimeState>(initEnd);
   const [location, setLocation] = useState("");
@@ -165,7 +157,8 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
     if (!open) return;
     const d = defaultDate ?? todayStr();
     const s = nowRounded();
-    setDate(d);
+    setStartDate(d);
+    setEndDate(d);
     setStartTime(s);
     setEndTime(addHour(d, s));
     setTitle("");
@@ -179,22 +172,24 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
   // When start time changes, shift end time by 1 hour
   const handleStartTimeChange = (t: TimeState) => {
     setStartTime(t);
-    setEndTime(addHour(date, t));
+    setEndTime(addHour(startDate, t));
   };
 
-  // When date changes, keep same times but update the date
-  const handleDateChange = (newDate: string) => {
-    setDate(newDate);
+  // When start date changes, keep end date in sync if they were the same day
+  const handleStartDateChange = (newDate: string) => {
+    const wasSync = startDate === endDate;
+    setStartDate(newDate);
+    if (wasSync) setEndDate(newDate);
   };
 
   const handleSave = async () => {
-    if (!title.trim() || !date) return;
+    if (!title.trim() || !startDate) return;
     await onSave({
       title: title.trim(),
       type,
       project_id: projectId,
-      start_iso: buildISO(date, startTime),
-      end_iso: buildISO(date, endTime),
+      start_iso: buildISO(startDate, startTime),
+      end_iso: buildISO(endDate, endTime),
       location: location.trim(),
       meeting_link: meetingLink.trim(),
       description: description.trim(),
@@ -220,7 +215,7 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Client review session"
-              onKeyDown={(e) => { if (e.key === "Enter" && title.trim() && date) handleSave(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && title.trim() && startDate) handleSave(); }}
             />
           </div>
 
@@ -241,21 +236,33 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
             </div>
           </div>
 
-          {/* Date */}
+          {/* Start row: date + time */}
           <div className="space-y-1.5">
-            <Label>Date</Label>
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => handleDateChange(e.target.value)}
-              className="w-full"
-            />
+            <Label>Start</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => handleStartDateChange(e.target.value)}
+                className="flex-1 min-w-0"
+              />
+              <TimePicker value={startTime} onChange={handleStartTimeChange} />
+            </div>
           </div>
 
-          {/* Start + End time pickers */}
-          <div className="grid grid-cols-2 gap-3">
-            <TimePicker label="Start time" value={startTime} onChange={handleStartTimeChange} />
-            <TimePicker label="End time" value={endTime} onChange={setEndTime} />
+          {/* End row: date + time */}
+          <div className="space-y-1.5">
+            <Label>End</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={endDate}
+                min={startDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="flex-1 min-w-0"
+              />
+              <TimePicker value={endTime} onChange={setEndTime} />
+            </div>
           </div>
 
           {/* Location */}
@@ -300,7 +307,7 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
             variant="gold"
             size="sm"
             onClick={handleSave}
-            disabled={saving || !title.trim() || !date}
+            disabled={saving || !title.trim() || !startDate}
           >
             {saving ? "Saving…" : "Save event"}
           </Button>
