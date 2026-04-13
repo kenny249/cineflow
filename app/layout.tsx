@@ -19,15 +19,15 @@ const syne = Syne({
 export const metadata: Metadata = {
   metadataBase: new URL("https://usecineflow.com"),
   title: {
-    default: "Cineflow · Project Workspace for Film Teams",
+    default: "Cineflow · Film Production Software",
     template: "%s | Cineflow",
   },
   description:
-    "Plan shoots, manage edits, and collaborate with your crew in one workspace.",
-  keywords: ["filmmaking", "video production", "project management", "storyboard", "shot list"],
+    "Plan shoots, manage edits, and deliver projects. Built for solo creators and film teams.",
+  keywords: ["filmmaking", "video production", "project management", "storyboard", "shot list", "solo creator"],
   openGraph: {
     title: "Cineflow",
-    description: "Project workspace for film teams.",
+    description: "Film production software for solo creators and studios.",
     type: "website",
     url: "https://usecineflow.com",
     siteName: "Cineflow",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Cineflow",
-    description: "Project workspace for film teams.",
+    description: "Film production software for solo creators and studios.",
   },
 };
 

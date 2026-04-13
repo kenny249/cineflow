@@ -172,18 +172,21 @@ export function LoginPageClient() {
           <div className="mb-8 flex justify-center">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1 text-[10px] font-bold tracking-[0.25em] text-zinc-400 uppercase bg-white/[0.04]">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Private Beta · Now Open
+              Private Beta, Now Open
             </span>
           </div>
 
           {/* Wordmark + headline */}
           <div className="mb-8 text-center">
-            <p className="text-[0.6rem] font-bold tracking-[0.35em] text-[#d4a853] uppercase mb-3">CineFlow</p>
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <p className="text-[0.6rem] font-bold tracking-[0.35em] text-[#d4a853] uppercase">CineFlow</p>
+              <span className="text-[0.6rem] font-light tracking-wide text-zinc-400" style={{fontFamily: 'Inter, sans-serif', letterSpacing: '0.08em'}}>by Maltav</span>
+            </div>
             <h2 className="text-[1.55rem] font-bold leading-tight tracking-tight text-foreground">
               Built for every filmmaker.
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Pick your experience — both are free during beta.
+              Pick your experience, both are free during beta.
             </p>
           </div>
 
@@ -248,7 +251,7 @@ export function LoginPageClient() {
               </button>
               <p className="mt-2 text-center text-[11px] text-zinc-600">
                 {linkSentTo
-                  ? `Check ${linkSentTo} — your ${isSolo ? "solo" : "studio"} workspace is ready.`
+                  ? `Check ${linkSentTo}, your ${isSolo ? "solo" : "studio"} workspace is ready.`
                   : "No password needed. One click and you're in."}
               </p>
             </div>
@@ -267,7 +270,7 @@ export function LoginPageClient() {
               ) : (
                 <span className="flex items-center justify-center gap-2">
                   <Sparkles className="h-4 w-4" />
-                  Try {isSolo ? "Solo" : "Studio"} Demo — No signup
+                  Try {isSolo ? "Solo" : "Studio"} Demo, No signup
                   <span className="transition-transform group-hover:translate-x-0.5">→</span>
                 </span>
               )}

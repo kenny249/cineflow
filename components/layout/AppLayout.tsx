@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, UploadCloud, Settings, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, List, Layers, Users, FlaskConical } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import { SidebarDivider } from "./SidebarDivider";
 import { TopBar } from "./TopBar";
 import { MobileSplash } from "./MobileSplash";
 import { CommandPalette } from "./CommandPalette";
@@ -153,9 +154,11 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
       {/* ── Very subtle corner ambient glow ── */}
       <div className="pointer-events-none fixed left-0 top-0 z-0 h-64 w-64 rounded-full bg-[#d4a853]/[0.04] blur-[100px]" />
 
+
       {/* Sidebar — hidden on mobile, visible md+ */}
       <div className="hidden md:flex">
         <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+        <SidebarDivider />
       </div>
 
       <div className="flex flex-1 flex-col overflow-hidden">
