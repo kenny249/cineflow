@@ -15,12 +15,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon } from "lucide-react";
+import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag } from "lucide-react";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole, ReviewToken, PortalDeliverable } from "@/types";
-import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame, createStoryboardFrame, getProjectDeliverables, createProjectDeliverable, updateProjectDeliverable, deleteProjectDeliverable } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame, createStoryboardFrame, getProjectDeliverables, createProjectDeliverable, updateProjectDeliverable, deleteProjectDeliverable, createProjectTemplate, softDeleteProject } from "@/lib/supabase/queries";
 import type { ProjectDeliverable } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
@@ -30,6 +30,7 @@ import { ProductionDocsTab } from "@/components/projects/tabs/ProductionDocsTab"
 import { ScriptsTab } from "@/components/projects/tabs/ScriptsTab";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
+import { downloadCSV } from "@/lib/export";
 
 interface ProjectDetailTabsProps {
   project: Project;
@@ -251,7 +252,11 @@ export default function ProjectDetailTabs({
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description);
   const [editStatus, setEditStatus] = useState<Project["status"]>(status);
+  const [editTags, setEditTags] = useState<string[]>(project.tags ?? []);
+  const [editTagInput, setEditTagInput] = useState("");
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [replyingTo, setReplyingTo] = useState<{ revisionId: string; commentId: string; authorName: string } | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
 
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
@@ -925,6 +930,7 @@ export default function ProjectDetailTabs({
       title: editTitle.trim() || title,
       description: editDescription,
       status: editStatus,
+      tags: editTags,
     };
     setTitle(updates.title);
     setDescription(updates.description);
@@ -942,7 +948,25 @@ export default function ProjectDetailTabs({
     setEditTitle(title);
     setEditDescription(description);
     setEditStatus(status);
+    setEditTags(project.tags ?? []);
+    setEditTagInput("");
     setShowEditDialog(true);
+  };
+
+  const addEditTag = (raw: string) => {
+    const trimmed = raw.trim().toLowerCase().replace(/[,;]+$/, "");
+    if (!trimmed || editTags.includes(trimmed) || editTags.length >= 8) return;
+    setEditTags((prev) => [...prev, trimmed]);
+  };
+
+  const handleEditTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addEditTag(editTagInput);
+      setEditTagInput("");
+    } else if (e.key === "Backspace" && !editTagInput && editTags.length > 0) {
+      setEditTags((prev) => prev.slice(0, -1));
+    }
   };
 
   const togglePhaseItem = (itemId: string, event: MouseEvent) => {
@@ -982,39 +1006,40 @@ export default function ProjectDetailTabs({
     }
   };
 
-  const handleAddRevisionComment = (revisionId: string) => {
-    const draft = commentDrafts[revisionId]?.trim();
+  const handleAddRevisionComment = async (revisionId: string, parentId?: string) => {
+    const { createRevisionComment } = await import("@/lib/supabase/queries");
+    const draft = parentId ? replyDraft.trim() : commentDrafts[revisionId]?.trim();
     if (!draft) {
       toast.error("Add a comment before submitting.");
       return;
     }
-
-    const nextComment = {
-      id: `cmt_${Math.random().toString(36).slice(2)}`,
-      revision_id: revisionId,
-      author_id: "user_001",
-      author: {
-        id: "user_001",
-        full_name: "You",
-        email: "you@example.com",
-        avatar_url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80",
-        role: "editor",
-        created_at: new Date().toISOString(),
-      },
-      content: draft,
-      timestamp_seconds: 0,
-      created_at: new Date().toISOString(),
-    };
-
-    setRevisions((prev) =>
-      prev.map((revision) =>
-        revision.id === revisionId
-          ? { ...revision, comments: [...(revision.comments ?? []), nextComment] }
-          : revision
-      )
-    );
-    setCommentDrafts((prev) => ({ ...prev, [revisionId]: "" }));
-    toast.success("Comment added.");
+    try {
+      const saved = await createRevisionComment({ revision_id: revisionId, content: draft, parent_id: parentId });
+      const newComment = {
+        ...saved,
+        replies: [],
+      };
+      setRevisions((prev) =>
+        prev.map((revision) => {
+          if (revision.id !== revisionId) return revision;
+          if (parentId) {
+            // Add as reply under the parent
+            return {
+              ...revision,
+              comments: (revision.comments ?? []).map((c) =>
+                c.id === parentId ? { ...c, replies: [...(c.replies ?? []), newComment] } : c
+              ),
+            };
+          }
+          return { ...revision, comments: [...(revision.comments ?? []), newComment] };
+        })
+      );
+      if (parentId) { setReplyDraft(""); setReplyingTo(null); }
+      else setCommentDrafts((prev) => ({ ...prev, [revisionId]: "" }));
+      toast.success("Comment added.");
+    } catch {
+      toast.error("Failed to post comment.");
+    }
   };
 
   const handleCoverUpload = async (file: File) => {
@@ -1458,9 +1483,27 @@ export default function ProjectDetailTabs({
                   <h3 className="font-display text-sm font-semibold text-foreground">{shotList?.title || "Shot List"}</h3>
                   {shotList && <p className="text-xs text-muted-foreground mt-0.5">{shotList.description || "Plan your coverage and camera choreography."}</p>}
                 </div>
-                <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowShotDialog(true)}>
-                  + Add Shot
-                </Button>
+                <div className="flex items-center gap-2">
+                  {shotList?.items && shotList.items.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 text-xs"
+                      onClick={() => {
+                        downloadCSV(
+                          `shot-list-${shotList.title.toLowerCase().replace(/\s+/g, "-")}.csv`,
+                          ["#", "Scene", "Description", "Shot Type", "Movement", "Lens", "Location", "Duration (s)", "Done"],
+                          (shotList.items ?? []).map((s) => [s.shot_number, s.scene ?? "", s.description, s.shot_type, s.camera_movement, s.lens ?? "", s.location ?? "", s.duration_seconds ?? "", s.is_complete ? "Yes" : "No"])
+                        );
+                      }}
+                    >
+                      <Download className="h-3.5 w-3.5" />CSV
+                    </Button>
+                  )}
+                  <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowShotDialog(true)}>
+                    + Add Shot
+                  </Button>
+                </div>
               </div>
 
               {!shotList ? (
@@ -1843,23 +1886,63 @@ export default function ProjectDetailTabs({
                         <div className="border-t border-border">
                           {comments.length > 0 ? (
                             comments.map((comment) => (
-                              <div key={comment.id} className="flex gap-3 border-b border-border/50 px-4 py-3 last:border-0">
-                                <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                                  <AvatarImage src={comment.author?.avatar_url ?? ""} alt={comment.author?.full_name ?? comment.author_id ?? "User"} />
-                                  <AvatarFallback className="text-[9px]">{getInitials(comment.author?.full_name ?? comment.author_id ?? "")}</AvatarFallback>
-                                </Avatar>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2 mb-0.5">
-                                    <span className="text-xs font-medium text-foreground">{comment.author?.full_name ?? comment.author_id ?? "Unknown"}</span>
-                                    {comment.timestamp_seconds != null && (
-                                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                                        {Math.floor(comment.timestamp_seconds / 60)}:{String(comment.timestamp_seconds % 60).padStart(2, "0")}
-                                      </span>
-                                    )}
-                                    <span className="text-[10px] text-muted-foreground">{formatRelative(comment.created_at)}</span>
+                              <div key={comment.id} className="border-b border-border/50 last:border-0">
+                                {/* Top-level comment */}
+                                <div className="flex gap-3 px-4 py-3">
+                                  <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                                    <AvatarImage src={comment.author?.avatar_url ?? ""} alt={comment.author?.full_name ?? "User"} />
+                                    <AvatarFallback className="text-[9px]">{getInitials(comment.author?.full_name ?? comment.author_id ?? "")}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                      <span className="text-xs font-medium text-foreground">{comment.author?.full_name ?? comment.author_id ?? "Unknown"}</span>
+                                      {comment.timestamp_seconds != null && (
+                                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                                          {Math.floor(comment.timestamp_seconds / 60)}:{String(comment.timestamp_seconds % 60).padStart(2, "0")}
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] text-muted-foreground">{formatRelative(comment.created_at)}</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground leading-relaxed">{comment.content}</p>
+                                    <button
+                                      onClick={() => { setReplyingTo({ revisionId: revision.id, commentId: comment.id, authorName: comment.author?.full_name ?? "them" }); setReplyDraft(""); }}
+                                      className="mt-1 text-[10px] text-muted-foreground hover:text-[#d4a853] transition-colors"
+                                    >
+                                      Reply
+                                    </button>
                                   </div>
-                                  <p className="text-xs text-muted-foreground leading-relaxed">{comment.content}</p>
                                 </div>
+                                {/* Inline reply form */}
+                                {replyingTo?.commentId === comment.id && (
+                                  <div className="ml-9 mr-4 mb-3 flex gap-2">
+                                    <input
+                                      autoFocus
+                                      type="text"
+                                      value={replyDraft}
+                                      onChange={(e) => setReplyDraft(e.target.value)}
+                                      placeholder={`Reply to ${replyingTo.authorName}…`}
+                                      className="flex-1 rounded-md border border-[#d4a853]/30 bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none"
+                                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddRevisionComment(revision.id, comment.id); } if (e.key === "Escape") setReplyingTo(null); }}
+                                    />
+                                    <Button type="button" variant="gold" size="sm" onClick={() => handleAddRevisionComment(revision.id, comment.id)}>Post</Button>
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => setReplyingTo(null)}>Cancel</Button>
+                                  </div>
+                                )}
+                                {/* Replies */}
+                                {(comment.replies ?? []).map((reply) => (
+                                  <div key={reply.id} className="ml-9 flex gap-3 border-t border-border/30 px-4 py-2.5 bg-muted/20">
+                                    <Avatar className="h-5 w-5 shrink-0 mt-0.5">
+                                      <AvatarFallback className="text-[8px]">{getInitials(reply.author?.full_name ?? reply.author_id ?? "")}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 mb-0.5">
+                                        <span className="text-[11px] font-medium text-foreground">{reply.author?.full_name ?? reply.author_id ?? "Unknown"}</span>
+                                        <span className="text-[10px] text-muted-foreground">{formatRelative(reply.created_at)}</span>
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground leading-relaxed">{reply.content}</p>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             ))
                           ) : (
@@ -2198,14 +2281,52 @@ export default function ProjectDetailTabs({
                 <option value="delivered">Delivered</option>
               </select>
             </div>
+            <div className="space-y-1.5">
+              <Label>Tags</Label>
+              <div
+                className="flex flex-wrap gap-1.5 min-h-[36px] w-full rounded-md border border-border bg-input px-3 py-1.5 cursor-text"
+              >
+                {editTags.map((tag) => (
+                  <span key={tag} className="flex items-center gap-1 rounded-full bg-[#d4a853]/15 border border-[#d4a853]/30 px-2 py-0.5 text-[11px] font-medium text-[#d4a853]">
+                    {tag}
+                    <button type="button" onClick={() => setEditTags((prev) => prev.filter((t) => t !== tag))} className="hover:text-red-400 transition-colors">
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  value={editTagInput}
+                  onChange={(e) => setEditTagInput(e.target.value)}
+                  onKeyDown={handleEditTagKeyDown}
+                  onBlur={() => { if (editTagInput.trim()) { addEditTag(editTagInput); setEditTagInput(""); } }}
+                  placeholder={editTags.length === 0 ? "Add tags (Enter or comma)" : ""}
+                  className="flex-1 min-w-[120px] bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 outline-none py-0.5"
+                />
+              </div>
+            </div>
             <div className="rounded-md border border-border bg-muted/30 px-3 py-2.5 flex items-center justify-between">
               <span className="text-xs text-muted-foreground">Progress is automatic, driven by phases &amp; shot list</span>
               <span className="font-mono text-sm font-semibold text-[#d4a853]">{computedProgress}%</span>
             </div>
           </div>
-          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowEditDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleSaveProject}>Save</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full sm:w-auto text-muted-foreground hover:text-foreground"
+              onClick={async () => {
+                try {
+                  await createProjectTemplate({ name: editTitle.trim() || title, description: editDescription, type: project.type, phase_items: [...checkedPhaseItems], tags: editTags });
+                  toast.success("Template saved");
+                } catch { toast.error("Failed to save template"); }
+              }}
+            >
+              Save as template
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+              <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleSaveProject}>Save</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

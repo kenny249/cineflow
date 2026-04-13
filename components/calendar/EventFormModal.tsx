@@ -89,6 +89,8 @@ export interface EventFormValues {
   location: string;
   meeting_link: string;
   description: string;
+  recurrence_rule?: "daily" | "weekly" | "monthly";
+  recurrence_end_date?: string;
 }
 
 interface EventFormModalProps {
@@ -151,6 +153,8 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
   const [location, setLocation] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
   const [description, setDescription] = useState("");
+  const [recurrenceRule, setRecurrenceRule] = useState<"" | "daily" | "weekly" | "monthly">("");
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState("");
 
   // Re-initialize when modal opens or defaultDate changes
   useEffect(() => {
@@ -167,6 +171,8 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
     setLocation("");
     setMeetingLink("");
     setDescription("");
+    setRecurrenceRule("");
+    setRecurrenceEndDate("");
   }, [open, defaultDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When start time changes, shift end time by 1 hour
@@ -193,6 +199,8 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
       location: location.trim(),
       meeting_link: meetingLink.trim(),
       description: description.trim(),
+      recurrence_rule: recurrenceRule || undefined,
+      recurrence_end_date: recurrenceRule && recurrenceEndDate ? recurrenceEndDate : undefined,
     });
   };
 
@@ -263,6 +271,35 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
               />
               <TimePicker value={endTime} onChange={setEndTime} />
             </div>
+          </div>
+
+          {/* Recurrence */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Repeat</Label>
+              <select
+                value={recurrenceRule}
+                onChange={(e) => setRecurrenceRule(e.target.value as "" | "daily" | "weekly" | "monthly")}
+                className={selectCls}
+              >
+                <option value="">Does not repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            {recurrenceRule && (
+              <div className="space-y-1.5">
+                <Label>Repeat until</Label>
+                <Input
+                  type="date"
+                  value={recurrenceEndDate}
+                  min={startDate}
+                  onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+            )}
           </div>
 
           {/* Location */}

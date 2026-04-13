@@ -16,6 +16,7 @@ export async function getProjects() {
     .from('projects')
     .select('*')
     .eq('created_by', user.id)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -62,6 +63,11 @@ export async function updateProject(id: string, updates: Partial<Project>) {
     .single();
 
   if (error) throw error;
+  if (updates.status) {
+    logActivity({ project_id: id, type: 'status_changed', description: `Status changed to "${updates.status}"`, metadata: { status: updates.status } }).catch(() => {});
+  } else {
+    logActivity({ project_id: id, type: 'project_updated', description: 'Project updated' }).catch(() => {});
+  }
   return data as Project;
 }
 
@@ -98,6 +104,7 @@ export async function createProjectNote(note: Omit<ProjectNote, 'id' | 'created_
     .single();
 
   if (error) throw error;
+  logActivity({ project_id: (data as ProjectNote).project_id, type: 'note_added', description: `Added note "${(data as ProjectNote).title || 'Untitled'}"` }).catch(() => {});
   return data as ProjectNote;
 }
 
@@ -260,6 +267,8 @@ export async function getCalendarEvents(projectId?: string) {
     start_date: row.start_time,
     end_date: row.end_time,
     meeting_link: row.meeting_link ?? undefined,
+    recurrence_rule: row.recurrence_rule ?? undefined,
+    recurrence_end_date: row.recurrence_end_date ?? undefined,
     project: row.projects ?? undefined,
   })) as CalendarEvent[];
 }
@@ -273,6 +282,8 @@ export async function createCalendarEvent(event: {
   end_date?: string;
   location?: string;
   meeting_link?: string;
+  recurrence_rule?: string;
+  recurrence_end_date?: string;
 }) {
   const client = db();
   const { data: { user } } = await client.auth.getUser();
@@ -287,6 +298,8 @@ export async function createCalendarEvent(event: {
       end_time: event.end_date || event.start_date,
       location: event.location || null,
       meeting_link: event.meeting_link || null,
+      recurrence_rule: event.recurrence_rule || null,
+      recurrence_end_date: event.recurrence_end_date || null,
       created_by: user?.id ?? null,
     })
     .select()
@@ -725,14 +738,31 @@ export async function getProjectRevisions(projectId: string): Promise<Revision[]
 export async function createRevision(
   revision: Omit<Revision, 'id' | 'created_at' | 'updated_at' | 'comments'>
 ): Promise<Revision> {
-  const { data, error } = await db()
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  const { data, error } = await client
     .from('revisions')
     .insert(revision)
     .select()
     .single();
   if (error) throw error;
-  logActivity({ project_id: (data as Revision).project_id, type: 'revision_uploaded', description: `Uploaded revision "${(data as Revision).title}"` }).catch(() => {});
-  return { ...(data as Revision), comments: [] };
+  const rev = data as Revision;
+  logActivity({ project_id: rev.project_id, type: 'revision_uploaded', description: `Uploaded revision "${rev.title}"` }).catch(() => {});
+  if (user) {
+    createNotification({ user_id: user.id, type: 'revision_uploaded', title: `Revision "${rev.title}" uploaded`, description: `Ready for review`, href: `/projects/${rev.project_id}` }).catch(() => {});
+  }
+  return { ...rev, comments: [] };
+}
+
+export async function updateRevisionStatus(id: string, status: Revision['status']): Promise<void> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  const { data, error } = await client.from('revisions').update({ status, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+  if (error) throw error;
+  if (user && status === 'approved') {
+    createNotification({ user_id: user.id, type: 'revision_approved', title: `Revision approved`, description: `"${(data as Revision).title}" was approved`, href: `/projects/${(data as Revision).project_id}` }).catch(() => {});
+    logActivity({ project_id: (data as Revision).project_id, type: 'revision_approved', description: `Revision "${(data as Revision).title}" approved` }).catch(() => {});
+  }
 }
 
 export async function updateRevision(
@@ -759,6 +789,7 @@ export async function createRevisionComment(comment: {
   content: string;
   timestamp_seconds?: number;
   author_name?: string;
+  parent_id?: string;
 }): Promise<RevisionComment> {
   const { data, error } = await db()
     .from('revision_comments')
@@ -766,7 +797,31 @@ export async function createRevisionComment(comment: {
     .select()
     .single();
   if (error) throw error;
+  // Log comment activity — look up project_id from the revision
+  try {
+    const { data: rev } = await db().from('revisions').select('project_id').eq('id', comment.revision_id).single();
+    if (rev?.project_id) {
+      logActivity({ project_id: rev.project_id, type: 'comment_added', description: 'Comment added on revision' }).catch(() => {});
+    }
+  } catch { /* ignore */ }
   return data as RevisionComment;
+}
+
+export async function getRevisionComments(revisionId: string): Promise<RevisionComment[]> {
+  const { data, error } = await db()
+    .from('revision_comments')
+    .select('*')
+    .eq('revision_id', revisionId)
+    .order('created_at');
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  // Build threaded structure: top-level + replies
+  const all = (data ?? []) as RevisionComment[];
+  const top = all.filter((c) => !c.parent_id);
+  const replies = all.filter((c) => c.parent_id);
+  return top.map((c) => ({
+    ...c,
+    replies: replies.filter((r) => r.parent_id === c.id),
+  }));
 }
 
 export async function deleteRevisionComment(id: string): Promise<void> {
@@ -978,4 +1033,249 @@ export async function updateProjectDeliverable(id: string, updates: { label?: st
 export async function deleteProjectDeliverable(id: string): Promise<void> {
   const { error } = await db().from('project_deliverables').delete().eq('id', id);
   if (error) throw error;
+}
+
+// ─── Tasks (DB-backed daily tasks) ───────────────────────────────────────────
+
+export interface DbTask {
+  id: string;
+  user_id: string;
+  title: string;
+  done: boolean;
+  priority: 'high' | 'medium' | 'low';
+  date: string; // YYYY-MM-DD
+  created_at: string;
+}
+
+export async function getTasks(date?: string): Promise<DbTask[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  let q = client.from('tasks').select('*').eq('user_id', user.id).order('created_at');
+  if (date) q = (q as any).eq('date', date);
+  const { data, error } = await q;
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as DbTask[];
+}
+
+export async function createTask(task: { title: string; priority: 'high' | 'medium' | 'low'; date: string }): Promise<DbTask> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('tasks')
+    .insert({ user_id: user.id, title: task.title, priority: task.priority, date: task.date, done: false })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as DbTask;
+}
+
+export async function updateTask(id: string, updates: { done?: boolean; title?: string; priority?: string }): Promise<DbTask> {
+  const { data, error } = await db().from('tasks').update(updates).eq('id', id).select().single();
+  if (error) throw new Error(error.message);
+  return data as DbTask;
+}
+
+export async function deleteTask(id: string): Promise<void> {
+  const { error } = await db().from('tasks').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  type: string;
+  title: string;
+  description?: string;
+  href?: string;
+  read: boolean;
+  created_at: string;
+}
+
+export async function getNotifications(): Promise<AppNotification[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('notifications')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as AppNotification[];
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  const { error } = await db().from('notifications').update({ read: true }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return;
+  const { error } = await client.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false);
+  if (error) throw error;
+}
+
+export async function createNotification(notification: {
+  user_id: string;
+  type: string;
+  title: string;
+  description?: string;
+  href?: string;
+}): Promise<void> {
+  try {
+    const { error } = await db().from('notifications').insert(notification);
+    if (error) throw error;
+  } catch { /* fire-and-forget */ }
+}
+
+// ─── Soft Delete (Projects) ───────────────────────────────────────────────────
+
+export async function softDeleteProject(id: string): Promise<void> {
+  const { error } = await db()
+    .from('projects')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function restoreProject(id: string): Promise<void> {
+  const { error } = await db()
+    .from('projects')
+    .update({ deleted_at: null })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function getTrashedProjects(): Promise<Project[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('projects')
+    .select('*')
+    .eq('created_by', user.id)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Project[];
+}
+
+export async function permanentlyDeleteProject(id: string): Promise<void> {
+  const { error } = await db().from('projects').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Project Templates ────────────────────────────────────────────────────────
+
+export interface ProjectTemplate {
+  id: string;
+  user_id: string;
+  name: string;
+  description?: string;
+  type: string;
+  phase_items: string[];
+  tags: string[];
+  created_at: string;
+}
+
+export async function getProjectTemplates(): Promise<ProjectTemplate[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('project_templates')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as ProjectTemplate[];
+}
+
+export async function createProjectTemplate(template: {
+  name: string;
+  description?: string;
+  type: string;
+  phase_items: string[];
+  tags: string[];
+}): Promise<ProjectTemplate> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('project_templates')
+    .insert({ ...template, user_id: user.id })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as ProjectTemplate;
+}
+
+export async function deleteProjectTemplate(id: string): Promise<void> {
+  const { error } = await db().from('project_templates').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Update getProjects to exclude soft-deleted ──────────────────────────────
+// (filter applied in the existing getProjects — see override below)
+
+export async function getProjectsActive(): Promise<Project[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [] as Project[];
+  const { data, error } = await client
+    .from('projects')
+    .select('*')
+    .eq('created_by', user.id)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data as Project[];
+}
+
+// ─── Recurring Calendar Events helper ────────────────────────────────────────
+// Expands a base event with recurrence_rule into virtual occurrences for a given month window.
+
+export function expandRecurringEvents(events: CalendarEvent[], viewYear: number, viewMonth: number): CalendarEvent[] {
+  const result: CalendarEvent[] = [];
+  const windowStart = new Date(viewYear, viewMonth, 1);
+  const windowEnd   = new Date(viewYear, viewMonth + 1, 0, 23, 59, 59);
+
+  for (const ev of events) {
+    result.push(ev);
+    if (!ev.recurrence_rule) continue;
+
+    const base = new Date(ev.start_date);
+    const endBase = ev.end_date ? new Date(ev.end_date) : new Date(ev.start_date);
+    const duration = endBase.getTime() - base.getTime();
+    const recEnd = ev.recurrence_end_date ? new Date(ev.recurrence_end_date) : windowEnd;
+
+    let cursor = new Date(base);
+    let safety = 0;
+    while (safety++ < 500) {
+      // Advance cursor by recurrence interval
+      if (ev.recurrence_rule === 'daily')        cursor.setDate(cursor.getDate() + 1);
+      else if (ev.recurrence_rule === 'weekly')  cursor.setDate(cursor.getDate() + 7);
+      else if (ev.recurrence_rule === 'monthly') cursor.setMonth(cursor.getMonth() + 1);
+      else break;
+
+      if (cursor > recEnd || cursor > windowEnd) break;
+      if (cursor < windowStart) continue;
+
+      const occEnd = new Date(cursor.getTime() + duration);
+      result.push({
+        ...ev,
+        id: `${ev.id}_occ_${cursor.getTime()}`,
+        start_date: cursor.toISOString(),
+        end_date: occEnd.toISOString(),
+      });
+    }
+  }
+  return result;
 }

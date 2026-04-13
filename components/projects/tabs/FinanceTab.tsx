@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Plus, Trash2, DollarSign, TrendingUp, TrendingDown, Minus, Edit3, Check, X, Receipt, AlertCircle, Clock, CheckCircle2, FileText, Send, ChevronDown, ChevronUp, ShoppingCart } from "lucide-react";
+import { Plus, Trash2, DollarSign, TrendingUp, TrendingDown, Minus, Edit3, Check, X, Receipt, AlertCircle, Clock, CheckCircle2, FileText, Send, ChevronDown, ChevronUp, ShoppingCart, Download } from "lucide-react";
 import { getBudgetLines, createBudgetLine, updateBudgetLine, deleteBudgetLine, getInvoicesByProject, createInvoice, updateInvoice, deleteInvoice, ensureProjectOwner } from "@/lib/supabase/queries";
 import type { BudgetLine, Invoice, InvoiceStatus } from "@/types";
 import { toast } from "sonner";
+import { downloadCSV, printTable } from "@/lib/export";
 
 interface FinanceTabProps {
   projectId: string;
@@ -266,9 +267,22 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
               <span>Budget: {fmt(totalBudgeted)}</span>
               <span className={delta > 0 ? "text-red-400" : "text-emerald-400"}>{delta > 0 ? `+${fmt(delta)} over` : delta < 0 ? `${fmt(Math.abs(delta))} under` : "on track"}</span>
             </div>
-            <button onClick={() => { setShowAddLine(true); setEditingLineId(null); setLineForm(EMPTY_LINE); }} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors">
-              <Plus className="h-3.5 w-3.5" />Add line
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => downloadCSV(
+                  "budget.csv",
+                  ["Category", "Description", "Vendor", "Budgeted", "Actual", "Variance", "Notes"],
+                  lines.map((l) => [l.category, l.description, l.vendor ?? "", l.budgeted, l.actual ?? "", (l.actual ?? 0) - l.budgeted, l.notes ?? ""])
+                )}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                title="Export budget as CSV"
+              >
+                <Download className="h-3.5 w-3.5" />CSV
+              </button>
+              <button onClick={() => { setShowAddLine(true); setEditingLineId(null); setLineForm(EMPTY_LINE); }} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors">
+                <Plus className="h-3.5 w-3.5" />Add line
+              </button>
+            </div>
           </div>
           <div className="px-4 sm:px-5 py-4 space-y-5">
             {loading ? (
@@ -330,9 +344,22 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
         <>
           <div className="flex shrink-0 items-center justify-between border-b border-border px-4 sm:px-5 py-2.5">
             <p className="text-xs text-muted-foreground">{invoices.length} invoice{invoices.length !== 1 ? "s" : ""} · {fmt(totalInvoiced)} invoiced · {fmt(totalCollected)} collected</p>
-            <button onClick={() => { setInvForm({ ...EMPTY_INV, invoice_number: nextInvNumber() }); setEditingInvId(null); setShowInvForm(true); }} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors">
-              <Plus className="h-3.5 w-3.5" />New Invoice
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => printTable({
+                  title: "Invoices",
+                  headers: ["#", "Client", "Description", "Amount", "Paid", "Status", "Due Date"],
+                  rows: invoices.map((inv) => [inv.invoice_number, inv.client_name ?? "", inv.description ?? "", fmt(inv.amount), fmt(inv.amount_paid), inv.status.toUpperCase(), inv.due_date ?? ""])
+                })}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                title="Print / Export as PDF"
+              >
+                <Download className="h-3.5 w-3.5" />PDF
+              </button>
+              <button onClick={() => { setInvForm({ ...EMPTY_INV, invoice_number: nextInvNumber() }); setEditingInvId(null); setShowInvForm(true); }} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors">
+                <Plus className="h-3.5 w-3.5" />New Invoice
+              </button>
+            </div>
           </div>
           <div className="px-4 sm:px-5 py-4 space-y-2">
             {loading ? (

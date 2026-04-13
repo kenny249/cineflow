@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { X, Film } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Film, Tag, BookTemplate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createProject } from "@/lib/supabase/queries";
+import { createProject, getProjectTemplates, type ProjectTemplate } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import { Project } from "@/types/index";
 import { toast } from "sonner";
@@ -51,7 +51,37 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
     due_date: "",
     progress: 0,
   });
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) getProjectTemplates().then(setTemplates).catch(() => {});
+  }, [open]);
+
+  const addTag = (raw: string) => {
+    const trimmed = raw.trim().toLowerCase().replace(/[,;]+$/, "");
+    if (!trimmed || tags.includes(trimmed) || tags.length >= 8) return;
+    setTags((prev) => [...prev, trimmed]);
+  };
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addTag(tagInput);
+      setTagInput("");
+    } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+      setTags((prev) => prev.slice(0, -1));
+    }
+  };
+
+  const applyTemplate = (tpl: ProjectTemplate) => {
+    setForm((f) => ({ ...f, description: tpl.description || f.description }));
+    setTags(tpl.tags ?? []);
+    toast.success(`Template "${tpl.name}" applied`);
+  };
 
   if (!open) return null;
 
@@ -92,7 +122,7 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
         due_date: form.due_date ? form.due_date : undefined,
         progress: form.progress,
         created_by: user.id,
-        tags: [],
+        tags: tags,
         shoot_date: undefined,
         thumbnail_url: getCoverUrl(form.title),
       };
@@ -214,6 +244,58 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
                 value={form.due_date}
                 onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
                 className="[color-scheme:dark]"
+              />
+            </div>
+          </div>
+
+          {/* Templates (shown only if user has saved templates) */}
+          {templates.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <BookTemplate className="h-3.5 w-3.5 text-muted-foreground" />
+                Apply template
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {templates.map((tpl) => (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => applyTemplate(tpl)}
+                    className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground transition-colors"
+                  >
+                    {tpl.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tags */}
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1.5">
+              <Tag className="h-3.5 w-3.5 text-muted-foreground" />
+              Tags
+            </Label>
+            <div
+              className="flex flex-wrap gap-1.5 min-h-[36px] w-full rounded-md border border-border bg-input px-3 py-1.5 cursor-text"
+              onClick={() => tagInputRef.current?.focus()}
+            >
+              {tags.map((tag) => (
+                <span key={tag} className="flex items-center gap-1 rounded-full bg-[#d4a853]/15 border border-[#d4a853]/30 px-2 py-0.5 text-[11px] font-medium text-[#d4a853]">
+                  {tag}
+                  <button type="button" onClick={() => setTags((prev) => prev.filter((t) => t !== tag))} className="hover:text-red-400 transition-colors">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+              <input
+                ref={tagInputRef}
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                onBlur={() => { if (tagInput.trim()) { addTag(tagInput); setTagInput(""); } }}
+                placeholder={tags.length === 0 ? "Add tags (press Enter or comma)" : ""}
+                className="flex-1 min-w-[120px] bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 outline-none py-0.5"
               />
             </div>
           </div>

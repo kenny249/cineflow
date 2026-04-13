@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, ChevronDown, LogOut, User, Settings, Clapperboard, CalendarDays, Upload, CheckCheck, Sun, Moon } from "lucide-react";
+import { Bell, Search, ChevronDown, LogOut, User, Settings, Clapperboard, CalendarDays, Upload, CheckCheck, Film, Sun, Moon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,53 +16,23 @@ import {
 import Link from "next/link";
 import { getOrCreateDisplayName, getInitials } from "@/lib/random-name";
 import { cn } from "@/lib/utils";
+import { getNotifications, markNotificationRead, markAllNotificationsRead, type AppNotification } from "@/lib/supabase/queries";
+import { formatDistanceToNow } from "date-fns";
 
-const MOCK_NOTIFICATIONS = [
-  {
-    id: "1",
-    icon: Clapperboard,
-    color: "text-[#d4a853]",
-    bg: "bg-[#d4a853]/10",
-    title: "Project review requested",
-    desc: "Protetta, client left feedback",
-    time: "2m ago",
-    unread: true,
-    href: "/revisions",
-  },
-  {
-    id: "2",
-    icon: CalendarDays,
-    color: "text-blue-400",
-    bg: "bg-blue-400/10",
-    title: "Shoot scheduled tomorrow",
-    desc: "Downtown commercial, 9:00 AM",
-    time: "1h ago",
-    unread: true,
-    href: "/calendar",
-  },
-  {
-    id: "3",
-    icon: Upload,
-    color: "text-emerald-400",
-    bg: "bg-emerald-400/10",
-    title: "Revision uploaded",
-    desc: "Cut v3 is ready for review",
-    time: "3h ago",
-    unread: false,
-    href: "/revisions",
-  },
-  {
-    id: "4",
-    icon: CheckCheck,
-    color: "text-purple-400",
-    bg: "bg-purple-400/10",
-    title: "Shot list approved",
-    desc: "All 24 shots confirmed",
-    time: "Yesterday",
-    unread: false,
-    href: "/shot-lists",
-  },
-];
+// Map notification type → icon + colors
+const NOTIF_ICON_MAP: Record<string, { Icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
+  revision_uploaded:  { Icon: Upload,      color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  revision_approved:  { Icon: CheckCheck,  color: "text-purple-400",  bg: "bg-purple-400/10" },
+  comment_added:      { Icon: Film,        color: "text-blue-400",    bg: "bg-blue-400/10" },
+  status_changed:     { Icon: Clapperboard,color: "text-[#d4a853]",   bg: "bg-[#d4a853]/10" },
+  shoot_tomorrow:     { Icon: CalendarDays,color: "text-blue-400",    bg: "bg-blue-400/10" },
+  project_created:    { Icon: Clapperboard,color: "text-[#d4a853]",   bg: "bg-[#d4a853]/10" },
+  default:            { Icon: Bell,        color: "text-muted-foreground", bg: "bg-muted" },
+};
+
+function getNotifIcon(type: string) {
+  return NOTIF_ICON_MAP[type] ?? NOTIF_ICON_MAP.default;
+}
 
 interface TopBarProps {
   action?: {
@@ -73,22 +43,54 @@ interface TopBarProps {
   onOpenPalette?: () => void;
   theme?: "dark" | "light";
   onToggleTheme?: () => void;
+  userAvatarUrl?: string;
+  userFullName?: string;
 }
 
-export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme }: TopBarProps) {
+export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userAvatarUrl, userFullName }: TopBarProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("Studio User");
-  const [notifications, setNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAllRead = () =>
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await getNotifications();
+      setNotifications(data);
+    } catch { /* silent */ }
+  }, []);
 
   useEffect(() => {
-    setDisplayName(getOrCreateDisplayName());
-  }, []);
+    setDisplayName(userFullName || getOrCreateDisplayName());
+  }, [userFullName]);
+
+  // Load on mount + poll every 60s for new notifications
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 60_000);
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
+
+  // Reload when dropdown opens
+  useEffect(() => {
+    if (notificationsOpen) loadNotifications();
+  }, [notificationsOpen, loadNotifications]);
+
+  const handleMarkAllRead = async () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    await markAllNotificationsRead().catch(() => {});
+  };
+
+  const handleClickNotification = async (n: AppNotification) => {
+    if (!n.read) {
+      setNotifications((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item));
+      await markNotificationRead(n.id).catch(() => {});
+    }
+    setNotificationsOpen(false);
+    if (n.href) router.push(n.href);
+  };
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-5 backdrop-blur-sm">
@@ -155,7 +157,7 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
               </DropdownMenuLabel>
               {unreadCount > 0 && (
                 <button
-                  onClick={markAllRead}
+                  onClick={handleMarkAllRead}
                   className="text-[10px] text-muted-foreground hover:text-[#d4a853] transition-colors"
                 >
                   Mark all read
@@ -163,39 +165,49 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
               )}
             </div>
             <div className="max-h-72 overflow-y-auto">
-              {notifications.map((n) => (
-                <div
-                  key={n.id}
-                  className={cn(
-                    "flex items-start gap-3 px-4 py-3 border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 cursor-pointer",
-                    n.unread && "bg-[#d4a853]/[0.03]"
-                  )}
-                  onClick={() => {
-                    setNotifications((prev) =>
-                      prev.map((item) => item.id === n.id ? { ...item, unread: false } : item)
-                    );
-                    setNotificationsOpen(false);
-                    router.push(n.href);
-                  }}
-                >
-                  <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg mt-0.5", n.bg)}>
-                    <n.icon className={cn("h-3.5 w-3.5", n.color)} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn("text-xs font-medium text-foreground", n.unread && "text-white")}>
-                      {n.title}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground truncate">{n.desc}</p>
-                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">{n.time}</p>
-                  </div>
-                  {n.unread && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#d4a853] mt-2 shrink-0" />
-                  )}
+              {notifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Bell className="h-6 w-6 text-muted-foreground/20 mb-2" />
+                  <p className="text-xs text-muted-foreground">No notifications yet</p>
                 </div>
-              ))}
+              ) : (
+                notifications.map((n) => {
+                  const { Icon, color, bg } = getNotifIcon(n.type);
+                  return (
+                    <div
+                      key={n.id}
+                      className={cn(
+                        "flex items-start gap-3 px-4 py-3 border-b border-border/50 last:border-0 transition-colors hover:bg-accent/50 cursor-pointer",
+                        !n.read && "bg-[#d4a853]/[0.03]"
+                      )}
+                      onClick={() => handleClickNotification(n)}
+                    >
+                      <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg mt-0.5", bg)}>
+                        <Icon className={cn("h-3.5 w-3.5", color)} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={cn("text-xs font-medium", !n.read ? "text-foreground" : "text-muted-foreground")}>
+                          {n.title}
+                        </p>
+                        {n.description && (
+                          <p className="text-[11px] text-muted-foreground truncate">{n.description}</p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                          {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                      {!n.read && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#d4a853] mt-2 shrink-0" />
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
             <div className="border-t border-border px-4 py-2.5">
-              <p className="text-center text-[11px] text-muted-foreground">You&apos;re all caught up</p>
+              <p className="text-center text-[11px] text-muted-foreground">
+                {notifications.length === 0 ? "You're all caught up" : `${notifications.length} notification${notifications.length !== 1 ? "s" : ""}`}
+              </p>
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -205,6 +217,7 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
           <DropdownMenuTrigger asChild>
             <button className="flex h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-accent focus:outline-none">
               <Avatar className="h-6 w-6 ring-1 ring-border">
+                {userAvatarUrl && <AvatarImage src={userAvatarUrl} />}
                 <AvatarFallback className="text-[10px] bg-[#d4a853]/20 text-[#d4a853]">
                   {getInitials(displayName)}
                 </AvatarFallback>

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2, Video } from "lucide-react";
-import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getProjects } from "@/lib/supabase/queries";
+import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getProjects, expandRecurringEvents } from "@/lib/supabase/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -248,6 +248,8 @@ export default function CalendarPage() {
         end_date: values.end_iso || undefined,
         location: values.location || undefined,
         meeting_link: values.meeting_link || undefined,
+        recurrence_rule: values.recurrence_rule,
+        recurrence_end_date: values.recurrence_end_date,
       });
       setEvents((prev) => [...prev, newEvent].sort((a, b) =>
         new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
@@ -269,16 +271,22 @@ export default function CalendarPage() {
     setCreateOpen(true);
   };
 
+  // Expand recurring events for the current view window
+  const expandedEvents = useMemo(
+    () => expandRecurringEvents(events, viewYear, viewMonth),
+    [events, viewYear, viewMonth]
+  );
+
   const selectedDayEvents = selectedDay
-    ? getEventsForDay(events, viewYear, viewMonth, selectedDay)
+    ? getEventsForDay(expandedEvents, viewYear, viewMonth, selectedDay)
     : [];
 
   const listEvents = useMemo(() => {
-    return events.filter((e) => {
+    return expandedEvents.filter((e) => {
       const d = new Date(e.start_date);
       return d.getFullYear() === viewYear && d.getMonth() === viewMonth;
     });
-  }, [events, viewYear, viewMonth]);
+  }, [expandedEvents, viewYear, viewMonth]);
 
   const isToday = (day: number) =>
     day === now.getDate() && viewMonth === now.getMonth() && viewYear === now.getFullYear();
@@ -352,7 +360,7 @@ export default function CalendarPage() {
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               <div className="grid grid-cols-7 h-full" style={{ gridAutoRows: "minmax(90px, 1fr)" }}>
                 {gridCells.map((day, idx) => {
-                  const dayEvents = day ? getEventsForDay(events, viewYear, viewMonth, day) : [];
+                  const dayEvents = day ? getEventsForDay(expandedEvents, viewYear, viewMonth, day) : [];
                   const isSelected = day !== null && day === selectedDay;
                   return (
                     <div

@@ -66,6 +66,7 @@ export interface Project {
   created_by?: string;
   owner_id?: string;
   tags?: string[];
+  deleted_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -152,10 +153,12 @@ export interface StoryboardFrame {
 export interface RevisionComment {
   id: string;
   revision_id: string;
+  parent_id?: string;
   author_id?: string;
   author?: Profile;
   content: string;
   timestamp_seconds?: number;
+  replies?: RevisionComment[];
   created_at: string;
   updated_at?: string;
 }
@@ -197,6 +200,8 @@ export interface CalendarEvent {
   all_day?: boolean;
   location?: string;
   meeting_link?: string;
+  recurrence_rule?: "daily" | "weekly" | "monthly";
+  recurrence_end_date?: string;
   attendees?: string[] | Profile[];
   created_by?: string;
   created_at: string;

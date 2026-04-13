@@ -16,15 +16,9 @@ import {
   VolumeX,
 } from "lucide-react";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
+import { getTasks, createTask as dbCreateTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask, type DbTask } from "@/lib/supabase/queries";
 
-interface Task {
-  id: string;
-  title: string;
-  done: boolean;
-  priority: "high" | "medium" | "low";
-  date: string; // YYYY-MM-DD
-  createdAt: string;
-}
+type Task = DbTask;
 
 const PRIORITY_CONFIG = {
   high:   { label: "High",   dot: "bg-red-400",   active: "bg-red-400/15 border-red-400/40 text-red-400" },
@@ -32,7 +26,6 @@ const PRIORITY_CONFIG = {
   low:    { label: "Low",    dot: "bg-blue-400",   active: "bg-blue-400/15 border-blue-400/40 text-blue-400" },
 };
 
-const STORAGE_KEY = "cf_daily_tasks";
 const SOUND_KEY = "cf_tasks_sound_enabled";
 const QUOTE_SEED_KEY = "cf_tasks_quote_seed";
 
@@ -122,24 +115,6 @@ function getDailyQuote(dateKey: string): string {
   const dayIndex = Math.floor(new Date(`${dateKey}T12:00:00`).getTime() / 86400000);
   const idx = cycle[Math.abs(dayIndex) % cycle.length];
   return MOTIVATIONAL_QUOTES[idx];
-}
-
-function loadTasks(): Task[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Task[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveTasks(tasks: Task[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-  } catch {
-    /* noop */
-  }
 }
 
 function computeStreak(tasks: Task[]): number {
@@ -351,8 +326,9 @@ export default function TasksPage() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const { fire, particles } = useCompletionBurst();
 
+  // Load all tasks from DB on mount (no date filter — needed for streak computation)
   useEffect(() => {
-    setTasks(loadTasks());
+    getTasks().then(setTasks).catch(() => {});
     const rawSound = localStorage.getItem(SOUND_KEY);
     setSoundEnabled(rawSound !== "false");
     setDailyQuote(getDailyQuote(format(new Date(), "yyyy-MM-dd")));
@@ -375,9 +351,9 @@ export default function TasksPage() {
   const streak       = computeStreak(tasks);
   const allDoneToday = dayTasks.length > 0 && dayTasks.every((t) => t.done);
 
-  const updateTasks = useCallback((updated: Task[]) => {
-    setTasks(updated);
-    saveTasks(updated);
+  // No-op kept for streak recomputation after viewDate change — data comes from DB
+  const refreshTasks = useCallback(() => {
+    getTasks().then(setTasks).catch(() => {});
   }, []);
 
   const playCompletionSound = useCallback(() => {
@@ -468,19 +444,14 @@ export default function TasksPage() {
     }
   }, [soundEnabled]);
 
-  const addTask = () => {
+  const addTask = async () => {
     const trimmed = newTitle.trim();
     if (!trimmed) return;
-    const task: Task = {
-      id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      title: trimmed,
-      done: false,
-      priority: newPriority,
-      date: viewDate,
-      createdAt: new Date().toISOString(),
-    };
-    updateTasks([...tasks, task]);
     setNewTitle("");
+    try {
+      const created = await dbCreateTask({ title: trimmed, priority: newPriority, date: viewDate });
+      setTasks((prev) => [...prev, created]);
+    } catch { /* silent — DB save failed */ }
     inputRef.current?.focus();
   };
 
@@ -489,7 +460,8 @@ export default function TasksPage() {
     if (!task) return;
     const completing = !task.done;
     const updated = tasks.map((t) => (t.id === id ? { ...t, done: completing } : t));
-    updateTasks(updated);
+    setTasks(updated);
+    dbUpdateTask(id, { done: completing }).catch(() => {});
 
     if (completing) {
       setCompletingIds((prev) => [...prev, id]);
@@ -511,7 +483,12 @@ export default function TasksPage() {
     }
   };
 
-  const deleteTask = (id: string) => updateTasks(tasks.filter((t) => t.id !== id));
+  const deleteTask = (id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    dbDeleteTask(id).catch(() => {});
+  };
+  // Keep refreshTasks available for future use
+  void refreshTasks;
   const prevDay  = () => setViewDate((d) => format(subDays(new Date(d + "T12:00:00"), 1), "yyyy-MM-dd"));
   const nextDay  = () => setViewDate((d) => format(addDays(new Date(d + "T12:00:00"), 1), "yyyy-MM-dd"));
   const goToday  = () => setViewDate(format(new Date(), "yyyy-MM-dd"));
