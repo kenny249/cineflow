@@ -140,7 +140,7 @@ function DateSelect({
   return (
     <div>
       <label className="fin-label">{label}</label>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="fin-date-group">
         <select
           className="fin-input"
           value={month}
@@ -156,9 +156,9 @@ function DateSelect({
           value={day}
           onChange={(e) => update(year, month, e.target.value)}
         >
-          <option value="">Day</option>
+          <option value="">DD</option>
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={String(d).padStart(2, "0")}>{d}</option>
+            <option key={d} value={String(d).padStart(2, "0")}>{String(d).padStart(2, "0")}</option>
           ))}
         </select>
         <select
@@ -166,7 +166,7 @@ function DateSelect({
           value={year}
           onChange={(e) => update(e.target.value, month, day)}
         >
-          <option value="">Year</option>
+          <option value="">YYYY</option>
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
       </div>
@@ -638,17 +638,19 @@ export default function FinancePage() {
                     <label className="fin-label">Description / Subject</label>
                     <input className="fin-input" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. Brand film production — Phase 1" />
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className={`grid gap-3 ${["paid", "partial"].includes(form.status) ? "grid-cols-2" : "grid-cols-1"}`}>
                     <DateSelect
                       label="Due Date"
                       value={form.due_date}
                       onChange={(v) => setForm((f) => ({ ...f, due_date: v }))}
                     />
-                    <DateSelect
-                      label="Paid Date"
-                      value={form.paid_date}
-                      onChange={(v) => setForm((f) => ({ ...f, paid_date: v }))}
-                    />
+                    {["paid", "partial"].includes(form.status) && (
+                      <DateSelect
+                        label="Date Paid"
+                        value={form.paid_date}
+                        onChange={(v) => setForm((f) => ({ ...f, paid_date: v }))}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -658,8 +660,7 @@ export default function FinancePage() {
                 <p className="fin-section-label">Line Items</p>
                 <div className="rounded-xl border border-border overflow-hidden">
                   {/* Column headers */}
-                  <div className="grid grid-cols-[1.5rem_1fr_4rem_6rem_5rem_1.5rem] gap-2 bg-muted/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    <span />
+                  <div className="grid grid-cols-[1fr_3.5rem_5.5rem_5rem_1.5rem] gap-2 bg-muted/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     <span>Description</span>
                     <span className="text-center">Qty</span>
                     <span className="text-right">Rate</span>
@@ -671,8 +672,7 @@ export default function FinancePage() {
                     {form.line_items.map((li) => {
                       const amount = (parseFloat(li.quantity) || 0) * (parseFloat(li.rate) || 0);
                       return (
-                        <div key={li.id} className="grid grid-cols-[1.5rem_1fr_4rem_6rem_5rem_1.5rem] items-center gap-2 px-3 py-2">
-                          <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30 cursor-grab" />
+                        <div key={li.id} className="grid grid-cols-[1fr_3.5rem_5.5rem_5rem_1.5rem] items-center gap-2 px-3 py-2">
                           <input
                             className="fin-input text-xs"
                             placeholder="Service or item description"
@@ -688,7 +688,7 @@ export default function FinancePage() {
                           <input
                             className="fin-input text-right text-xs"
                             type="number" min="0" step="0.01"
-                            placeholder="0.00"
+                            placeholder="$0.00"
                             value={li.rate}
                             onChange={(e) => setLi(li.id, "rate", e.target.value)}
                           />
@@ -879,7 +879,21 @@ export default function FinancePage() {
           box-shadow: 0 0 0 1px rgba(212,168,83,0.3);
         }
         .fin-input::placeholder { color: hsl(var(--muted-foreground)); }
-        select.fin-input option { background: hsl(var(--background)); color: hsl(var(--foreground)); }
+        select.fin-input {
+          -webkit-appearance: none;
+          appearance: none;
+          cursor: pointer;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 0.6rem center;
+          padding-right: 1.75rem;
+        }
+        select.fin-input option { background: hsl(var(--card)); color: hsl(var(--foreground)); }
+        .fin-date-group {
+          display: grid;
+          grid-template-columns: 1fr 3.5rem 4.5rem;
+          gap: 0.375rem;
+        }
       `}</style>
     </div>
   );
