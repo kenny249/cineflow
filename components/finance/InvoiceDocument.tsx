@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  X, Printer, Copy, ExternalLink, Loader2, CheckCircle2,
+  X, Printer, Copy, ExternalLink, Loader2, CheckCircle2, Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Invoice, Profile, PaymentMethod } from "@/types";
@@ -57,6 +57,12 @@ export function InvoiceDocument({
   onInvoiceUpdated,
 }: InvoiceDocumentProps) {
   const [generatingLink, setGeneratingLink] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  const appUrl = typeof window !== "undefined"
+    ? window.location.origin
+    : "https://usecineflow.com";
+  const payUrl = `${appUrl}/pay/${invoice.id}`;
 
   const lineItems = invoice.line_items ?? [];
   const subtotal = lineItems.length > 0
@@ -118,6 +124,38 @@ export function InvoiceDocument({
     toast.success("PayPal link generated");
   };
 
+  const handleSendInvoice = async () => {
+    if (!invoice.client_email) {
+      toast.error("Add a client email to this invoice before sending.");
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch("/api/invoices/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceId: invoice.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to send");
+      onInvoiceUpdated({ ...invoice, status: invoice.status === "draft" ? "sent" : invoice.status });
+      toast.success(`Invoice sent to ${invoice.client_email}`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to send invoice");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCopyPayUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(payUrl);
+      toast.success("Pay link copied");
+    } catch {
+      toast.error("Could not copy link");
+    }
+  };
+
   return (
     <>
       {/* ── Print styles ──────────────────────────────────────── */}
@@ -138,6 +176,27 @@ export function InvoiceDocument({
             Invoice Preview
           </span>
           <div className="flex items-center gap-2">
+            {/* Copy pay link */}
+            <button
+              type="button"
+              onClick={handleCopyPayUrl}
+              className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors"
+              title="Copy client pay link"
+            >
+              <Copy className="h-3.5 w-3.5" /> Copy Link
+            </button>
+            {/* Send email */}
+            {invoice.status !== "paid" && (
+              <button
+                type="button"
+                onClick={handleSendInvoice}
+                disabled={sending}
+                className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/40 bg-[#d4a853]/20 px-3 py-1.5 text-xs font-semibold text-[#d4a853] hover:bg-[#d4a853]/30 transition-colors disabled:opacity-60"
+              >
+                {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                {sending ? "Sending…" : "Send to Client"}
+              </button>
+            )}
             <button
               type="button"
               onClick={handlePrint}

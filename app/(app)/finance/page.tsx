@@ -72,6 +72,7 @@ interface LineItemForm {
 interface InvoiceFormState {
   invoice_number: string;
   client_name: string;
+  client_email: string;
   description: string;
   status: InvoiceStatus;
   due_date: string;
@@ -92,7 +93,7 @@ const EMPTY_LINE: () => LineItemForm = () => ({
 });
 
 const EMPTY_FORM: InvoiceFormState = {
-  invoice_number: "", client_name: "", description: "", status: "draft",
+  invoice_number: "", client_name: "", client_email: "", description: "", status: "draft",
   due_date: "", paid_date: "", notes: "", project_id: "",
   line_items: [EMPTY_LINE()], tax_rate: "0",
   payment_method: "", payment_terms: "net30",
@@ -305,6 +306,7 @@ export default function FinancePage() {
     setForm({
       invoice_number: inv.invoice_number,
       client_name: inv.client_name ?? "",
+      client_email: inv.client_email ?? "",
       description: inv.description ?? "",
       status: inv.status,
       due_date: inv.due_date ?? "",
@@ -339,6 +341,7 @@ export default function FinancePage() {
       const payload = {
         invoice_number: form.invoice_number.trim(),
         client_name: form.client_name.trim() || undefined,
+        client_email: form.client_email.trim() || undefined,
         description: form.description.trim() || undefined,
         amount: total,
         amount_paid: editingId
@@ -623,9 +626,15 @@ export default function FinancePage() {
                       </select>
                     </div>
                   </div>
-                  <div>
-                    <label className="fin-label">Client Name</label>
-                    <input className="fin-input" value={form.client_name} onChange={(e) => setForm((f) => ({ ...f, client_name: e.target.value }))} placeholder="Client or company name" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="fin-label">Client Name</label>
+                      <input className="fin-input" value={form.client_name} onChange={(e) => setForm((f) => ({ ...f, client_name: e.target.value }))} placeholder="Client or company name" />
+                    </div>
+                    <div>
+                      <label className="fin-label">Client Email</label>
+                      <input className="fin-input" type="email" value={form.client_email} onChange={(e) => setForm((f) => ({ ...f, client_email: e.target.value }))} placeholder="client@email.com" />
+                    </div>
                   </div>
                   <div>
                     <label className="fin-label">Project</label>
@@ -883,10 +892,14 @@ export default function FinancePage() {
           -webkit-appearance: none;
           appearance: none;
           cursor: pointer;
+          background-color: hsl(var(--background));
           background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
           background-repeat: no-repeat;
           background-position: right 0.6rem center;
           padding-right: 1.75rem;
+        }
+        select.fin-input:focus {
+          background-color: hsl(var(--background));
         }
         select.fin-input option { background: hsl(var(--card)); color: hsl(var(--foreground)); }
         .fin-date-group {

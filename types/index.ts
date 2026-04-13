@@ -16,6 +16,9 @@ export interface PaymentSettings {
   wire_instructions?: string;
   check_payable_to?: string;
   check_mail_to?: string;
+  resend_api_key?: string;
+  invoice_from_email?: string;
+  invoice_from_name?: string;
 }
 
 export interface Profile {
@@ -398,6 +401,7 @@ export interface Invoice {
   project_id?: string;
   invoice_number: string;
   client_name?: string;
+  client_email?: string;
   description?: string;
   amount: number;
   status: InvoiceStatus;

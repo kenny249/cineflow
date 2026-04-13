@@ -515,6 +515,53 @@ export default function SettingsClient() {
             </div>
           </section>
 
+          {/* ── Email / Invoicing ───────────────────────────────── */}
+          <section>
+            <h2 className="mb-1 font-display text-sm font-semibold text-foreground">Invoice Email</h2>
+            <p className="mb-4 text-xs text-muted-foreground">
+              Send invoices directly to clients via email. Powered by Resend — get your free API key at resend.com.
+            </p>
+            <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label>Resend API Key</Label>
+                <SecretInput
+                  value={paySettings.resend_api_key ?? ""}
+                  onChange={(v) => setPay("resend_api_key", v)}
+                  placeholder="re_…"
+                />
+                <p className="text-[11px] text-muted-foreground/60">
+                  Resend dashboard → API Keys → Create key with "Sending access". Stored securely in your account.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>From Name</Label>
+                  <Input
+                    value={paySettings.invoice_from_name ?? ""}
+                    onChange={(e) => setPay("invoice_from_name", e.target.value)}
+                    placeholder="Your Studio Name"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>From Email</Label>
+                  <Input
+                    value={paySettings.invoice_from_email ?? ""}
+                    onChange={(e) => setPay("invoice_from_email", e.target.value)}
+                    placeholder="invoices@yourdomain.com"
+                  />
+                  <p className="text-[11px] text-muted-foreground/60">
+                    Must be a verified domain in Resend. Use onboarding@resend.dev for testing.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button variant="gold" size="sm" onClick={handleSavePayment} disabled={isSavingPayment}>
+                  {isSavingPayment ? "Saving…" : "Save email settings"}
+                </Button>
+              </div>
+            </div>
+          </section>
+
           {/* ── Password ─────────────────────────────────────────── */}
           <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Password</h2>
