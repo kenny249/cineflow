@@ -170,8 +170,17 @@ export default function ProjectDetailTabs({
   const [revisions, setRevisions] = useState<Revision[]>(initialRevisions);
   const [notes, setNotes] = useState<ProjectNote[]>(initialNotes);
 
-  // ── Phase milestones (stored in localStorage) ─────────────────────
+  // ── Phase milestones — DB is source of truth, localStorage is cache ──
   const [checkedPhaseItems, setCheckedPhaseItems] = useState<Set<string>>(() => {
+    // Prefer DB-stored phase_items (synced across devices/browsers)
+    if (project.phase_items && project.phase_items.length > 0) {
+      // Also update localStorage cache to match DB
+      if (typeof window !== "undefined") {
+        try { localStorage.setItem(`cf_phases_${project.id}`, JSON.stringify(project.phase_items)); } catch { /* ignore */ }
+      }
+      return new Set<string>(project.phase_items);
+    }
+    // Fall back to localStorage for backwards compatibility
     if (typeof window === "undefined") return new Set<string>();
     try {
       const raw = localStorage.getItem(`cf_phases_${project.id}`);
@@ -200,14 +209,21 @@ export default function ProjectDetailTabs({
     return Math.round(pct);
   }, [checkedPhaseItems, completedShots, totalShots]);
 
-  // Auto-save computed progress to Supabase (debounced 2s)
+  // Auto-save computed progress + phase_items to Supabase (debounced 2s)
   const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevProgressRef = useRef(computedProgress);
   const [showCompletionGlow, setShowCompletionGlow] = useState(computedProgress === 100);
   useEffect(() => {
+    // Guard: don't overwrite a real DB value with 0 from an empty fresh load
+    if (computedProgress === 0 && (project.progress ?? 0) > 0 && checkedPhaseItems.size === 0) return;
     if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current);
     progressSaveTimer.current = setTimeout(async () => {
-      try { await updateProject(project.id, { progress: computedProgress }); } catch { /* silent */ }
+      try {
+        await updateProject(project.id, {
+          progress: computedProgress,
+          phase_items: [...checkedPhaseItems],
+        });
+      } catch { /* silent */ }
     }, 2000);
     // Fire celebration when hitting 100% for the first time
     if (computedProgress === 100 && prevProgressRef.current < 100) {
@@ -935,6 +951,7 @@ export default function ProjectDetailTabs({
     setCheckedPhaseItems((prev) => {
       const next = new Set(prev);
       if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
+      // Keep localStorage in sync as a cache
       try { localStorage.setItem(`cf_phases_${project.id}`, JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });

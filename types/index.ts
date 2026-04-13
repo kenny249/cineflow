@@ -59,6 +59,7 @@ export interface Project {
   status: ProjectStatus;
   type: ProjectType;
   progress: number;
+  phase_items?: string[];
   due_date?: string;
   shoot_date?: string;
   thumbnail_url?: string;
