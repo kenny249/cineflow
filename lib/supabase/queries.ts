@@ -259,6 +259,7 @@ export async function getCalendarEvents(projectId?: string) {
     type: row.event_type as CalendarEventType,
     start_date: row.start_time,
     end_date: row.end_time,
+    meeting_link: row.meeting_link ?? undefined,
     project: row.projects ?? undefined,
   })) as CalendarEvent[];
 }
@@ -271,6 +272,7 @@ export async function createCalendarEvent(event: {
   start_date: string;
   end_date?: string;
   location?: string;
+  meeting_link?: string;
 }) {
   const { data, error } = await db()
     .from('calendar_events')
@@ -282,6 +284,7 @@ export async function createCalendarEvent(event: {
       start_time: event.start_date,
       end_time: event.end_date || event.start_date,
       location: event.location || null,
+      meeting_link: event.meeting_link || null,
     })
     .select()
     .single();
@@ -293,6 +296,7 @@ export async function createCalendarEvent(event: {
     type: (data as any).event_type as CalendarEventType,
     start_date: (data as any).start_time,
     end_date: (data as any).end_time,
+    meeting_link: (data as any).meeting_link ?? undefined,
   } as CalendarEvent;
 }
 
@@ -310,6 +314,7 @@ export async function updateCalendarEvent(id: string, updates: {
   type?: CalendarEventType;
   description?: string;
   location?: string;
+  meeting_link?: string;
   start_date?: string;
   end_date?: string;
 }) {
@@ -318,6 +323,7 @@ export async function updateCalendarEvent(id: string, updates: {
   if (updates.type !== undefined) dbUpdates.event_type = updates.type;
   if (updates.description !== undefined) dbUpdates.description = updates.description;
   if (updates.location !== undefined) dbUpdates.location = updates.location;
+  if (updates.meeting_link !== undefined) dbUpdates.meeting_link = updates.meeting_link || null;
   if (updates.start_date !== undefined) dbUpdates.start_time = updates.start_date;
   if (updates.end_date !== undefined) dbUpdates.end_time = updates.end_date;
 

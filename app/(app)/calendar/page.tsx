@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2, Video } from "lucide-react";
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getProjects } from "@/lib/supabase/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { CalendarEvent, CalendarEventType, Project } from "@/types";
+import { EventFormModal } from "@/components/calendar/EventFormModal";
+import type { EventFormValues } from "@/components/calendar/EventFormModal";
 
 const EVENT_COLORS: Record<string, string> = {
   shoot: "bg-[#d4a853] text-black",
@@ -64,13 +66,7 @@ export default function CalendarPage() {
 
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newType, setNewType] = useState<CalendarEventType>("shoot");
-  const [newProjectId, setNewProjectId] = useState("");
-  const [newStartDate, setNewStartDate] = useState("");
-  const [newEndDate, setNewEndDate] = useState("");
-  const [newLocation, setNewLocation] = useState("");
+  const [createDefaultDate, setCreateDefaultDate] = useState<string | undefined>(undefined);
   const [isCreating, setIsCreating] = useState(false);
 
   // Inline editing — per field
@@ -173,7 +169,6 @@ export default function CalendarPage() {
       try {
         const [evts, projs] = await Promise.all([getCalendarEvents(), getProjects()]);
         setProjects(projs || []);
-        if (projs?.length) setNewProjectId(projs[0].id);
 
         if ((evts || []).length === 0) {
           // Seed demo events so beta testers see a populated calendar
@@ -234,29 +229,23 @@ export default function CalendarPage() {
     else setViewMonth((m) => m + 1);
   }, [viewMonth]);
 
-  const handleCreate = useCallback(async () => {
-    if (!newTitle.trim() || !newStartDate) return;
+  const handleCreate = useCallback(async (values: EventFormValues) => {
     setIsCreating(true);
     try {
       const newEvent = await createCalendarEvent({
-        project_id: newProjectId || undefined,
-        title: newTitle.trim(),
-        description: newDesc.trim() || undefined,
-        type: newType,
-        start_date: newStartDate,
-        end_date: newEndDate || undefined,
-        location: newLocation.trim() || undefined,
+        project_id: values.project_id || undefined,
+        title: values.title,
+        description: values.description || undefined,
+        type: values.type,
+        start_date: values.start_iso,
+        end_date: values.end_iso || undefined,
+        location: values.location || undefined,
+        meeting_link: values.meeting_link || undefined,
       });
       setEvents((prev) => [...prev, newEvent].sort((a, b) =>
         new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
       ));
       setCreateOpen(false);
-      setNewTitle("");
-      setNewDesc("");
-      setNewStartDate("");
-      setNewEndDate("");
-      setNewLocation("");
-      setNewType("shoot");
       toast.success("Event created");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -265,12 +254,11 @@ export default function CalendarPage() {
     } finally {
       setIsCreating(false);
     }
-  }, [newTitle, newDesc, newType, newProjectId, newStartDate, newEndDate, newLocation]);
+  }, []);
 
   const openCreateForDay = (day: number) => {
     const pad = (n: number) => String(n).padStart(2, "0");
-    const dateStr = `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}T09:00`;
-    setNewStartDate(dateStr);
+    setCreateDefaultDate(`${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`);
     setCreateOpen(true);
   };
 
@@ -323,7 +311,7 @@ export default function CalendarPage() {
               title="List view"
             ><List className="h-3.5 w-3.5" /></button>
           </div>
-          <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setCreateOpen(true)}>
+          <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setCreateDefaultDate(undefined); setCreateOpen(true); }}>
             <Plus className="h-3.5 w-3.5" />
             New Event
           </Button>
@@ -421,7 +409,7 @@ export default function CalendarPage() {
                   <CalIcon className="mb-3 h-10 w-10 text-muted-foreground/30" />
                   <p className="font-medium text-foreground">No events this month</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    <button onClick={() => setCreateOpen(true)} className="text-[#d4a853] hover:underline">Create one</button> to get started.
+                    <button onClick={() => { setCreateDefaultDate(undefined); setCreateOpen(true); }} className="text-[#d4a853] hover:underline">Create one</button> to get started.
                   </p>
                 </div>
               ) : (
@@ -493,6 +481,12 @@ export default function CalendarPage() {
                             <MapPin className="h-3 w-3" />
                             {event.location}
                           </span>
+                        )}
+                        {event.meeting_link && (
+                          <a href={event.meeting_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-400 hover:underline" onClick={(e) => e.stopPropagation()}>
+                            <Video className="h-3 w-3" />
+                            Join call
+                          </a>
                         )}
                         {event.project && <span className="text-[#d4a853]/70">{(event.project as any).title}</span>}
                       </div>
@@ -698,6 +692,19 @@ export default function CalendarPage() {
                           </p>
                         )}
 
+                        {/* Meeting link */}
+                        {ev.meeting_link && (
+                          <a
+                            href={ev.meeting_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1.5 flex items-center gap-1 text-xs text-blue-400 hover:underline"
+                          >
+                            <Video className="h-3 w-3 shrink-0" />
+                            Join call
+                          </a>
+                        )}
+
                         {/* Time — custom hour/min/ampm selects */}
                         {editingFieldId === ev.id && editingFieldName === "time" ? (
                           <div className="mt-1.5 flex items-center gap-1">
@@ -824,67 +831,14 @@ export default function CalendarPage() {
       </AnimatePresence>
 
       {/* Create Event Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New Calendar Event</DialogTitle>
-            <DialogDescription>Schedule a shoot, meeting, deadline, or milestone.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Client review session" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Type</Label>
-                <select
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value as CalendarEventType)}
-                  className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground"
-                >
-                  {EVENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Project</Label>
-                <select
-                  value={newProjectId}
-                  onChange={(e) => setNewProjectId(e.target.value)}
-                  className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground"
-                >
-                  <option value="">No project</option>
-                  {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Start</Label>
-                <Input type="datetime-local" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>End</Label>
-                <Input type="datetime-local" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Location</Label>
-              <Input value={newLocation} onChange={(e) => setNewLocation(e.target.value)} placeholder="Studio, Zoom, on location…" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea value={newDesc} onChange={(e) => setNewDesc(e.target.value)} rows={2} placeholder="Any context for this event…" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" onClick={handleCreate} disabled={isCreating || !newTitle.trim() || !newStartDate}>
-              {isCreating ? "Saving…" : "Save event"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EventFormModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onSave={handleCreate}
+        projects={projects}
+        defaultDate={createDefaultDate}
+        saving={isCreating}
+      />
     </div>
   );
 }

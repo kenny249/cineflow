@@ -196,6 +196,7 @@ export interface CalendarEvent {
   end_date?: string;
   all_day?: boolean;
   location?: string;
+  meeting_link?: string;
   attendees?: string[] | Profile[];
   created_by?: string;
   created_at: string;
