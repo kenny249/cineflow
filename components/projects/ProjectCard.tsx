@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { formatDate, PROJECT_TYPE_LABELS, getProgressColor } from "@/lib/utils";
+import { formatDate, PROJECT_TYPE_LABELS, getProgressStyle } from "@/lib/utils";
 import { getCinematicGradient, CINEMATIC_COUNT } from "@/lib/cinematic-images";
 import { PhotoCropModal } from "./PhotoCropModal";
 import type { Project } from "@/types";
@@ -257,7 +257,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
               <Progress
                 value={project.progress}
                 className="h-1"
-                indicatorClassName={getProgressColor(project.progress)}
+                indicatorStyle={getProgressStyle(project.progress)}
               />
             </div>
 

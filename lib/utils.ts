@@ -1,3 +1,4 @@
+import type React from "react";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, formatDistanceToNow, isToday, isTomorrow, isYesterday } from "date-fns";
@@ -97,4 +98,23 @@ export function getProgressColor(progress: number): string {
   if (progress >= 50) return "bg-amber-500";
   if (progress >= 25) return "bg-blue-500";
   return "bg-[#d4a853]";
+}
+
+export function getProgressStyle(progress: number): React.CSSProperties {
+  if (progress === 100) {
+    return {
+      background: "linear-gradient(90deg, #34d399, #059669)",
+      boxShadow: "0 0 8px rgba(52,211,153,0.5)",
+    };
+  }
+  if (progress >= 60) {
+    return {
+      background: "linear-gradient(90deg, #d4a853, #e8c06e)",
+      boxShadow: "0 0 6px rgba(212,168,83,0.35)",
+    };
+  }
+  return {
+    background: "linear-gradient(90deg, #b8904a, #d4a853)",
+    boxShadow: progress > 0 ? "0 0 6px rgba(212,168,83,0.25)" : "none",
+  };
 }

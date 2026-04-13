@@ -29,7 +29,7 @@ import type { Project } from "@/types";
 import {
   formatDate,
   formatRelative,
-  getProgressColor,
+  getProgressStyle,
   PROJECT_STATUS_LABELS,
   PROJECT_TYPE_LABELS,
 } from "@/lib/utils";
@@ -488,7 +488,7 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
             <Progress
               value={project.progress}
               className="h-1 w-20"
-              indicatorClassName={getProgressColor(project.progress)}
+              indicatorStyle={getProgressStyle(project.progress)}
             />
             <span className="w-8 text-right text-[10px] text-muted-foreground">
               {project.progress}%
