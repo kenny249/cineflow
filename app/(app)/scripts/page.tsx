@@ -74,8 +74,20 @@ function PreviewModal({ file, onClose }: { file: ScriptFile; onClose: () => void
     }
   }, [isText, url]);
 
-  function handleDownload() {
-    if (url) window.open(url, "_blank");
+  async function handleDownload() {
+    if (!url) return;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = file.name;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(url, "_blank");
+    }
   }
 
   return (
@@ -306,7 +318,21 @@ export default function ScriptsPage() {
                     </button>
                   )}
                   <button
-                    onClick={() => window.open(file.public_url, "_blank")}
+                    onClick={async () => {
+                      if (!file.public_url) return;
+                      try {
+                        const res = await fetch(file.public_url);
+                        const blob = await res.blob();
+                        const objectUrl = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = objectUrl;
+                        a.download = file.name;
+                        a.click();
+                        URL.revokeObjectURL(objectUrl);
+                      } catch {
+                        window.open(file.public_url, "_blank");
+                      }
+                    }}
                     className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   >
                     <Download className="h-3.5 w-3.5" />

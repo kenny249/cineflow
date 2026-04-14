@@ -202,16 +202,23 @@ export function FileUploadZone({
 
   async function handleDownload(file: ProjectFile) {
     try {
-      if (file.public_url) {
-        window.open(file.public_url, "_blank");
-        return;
+      let url = file.public_url;
+      if (!url) {
+        const client = createClient();
+        const { data, error } = await client.storage.from("project-files").createSignedUrl(file.storage_path, 3600);
+        if (error) throw error;
+        url = data.signedUrl;
       }
-      const client = createClient();
-      const { data, error } = await client.storage.from("project-files").createSignedUrl(file.storage_path, 3600);
-      if (error) throw error;
-      window.open(data.signedUrl, "_blank");
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = file.name;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
     } catch {
-      toast.error("Could not get download link");
+      toast.error("Could not download file");
     }
   }
 
