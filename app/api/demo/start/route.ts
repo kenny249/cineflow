@@ -200,8 +200,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (createError || !createData.user) {
-      console.error("[demo/start] createUser failed:", createError);
-      return NextResponse.json({ error: "Could not create demo session" }, { status: 500 });
+      console.error("[demo/start] createUser failed:", createError?.message);
+      return NextResponse.json({ error: "Could not create demo session", detail: createError?.message }, { status: 500 });
     }
 
     const userId = createData.user.id;
@@ -217,15 +217,16 @@ export async function POST(req: NextRequest) {
     });
 
     if (linkError || !linkData?.properties?.action_link) {
-      console.error("[demo/start] generateLink failed:", linkError);
+      console.error("[demo/start] generateLink failed:", linkError?.message);
       // Clean up orphaned user so it doesn't accumulate
       await supabase.auth.admin.deleteUser(userId);
-      return NextResponse.json({ error: "Could not generate demo link" }, { status: 500 });
+      return NextResponse.json({ error: "Could not generate demo link", detail: linkError?.message }, { status: 500 });
     }
 
     return NextResponse.json({ action_link: linkData.properties.action_link });
   } catch (err) {
-    console.error("[demo/start] unexpected error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[demo/start] unexpected error:", msg);
+    return NextResponse.json({ error: "Internal server error", detail: msg }, { status: 500 });
   }
 }

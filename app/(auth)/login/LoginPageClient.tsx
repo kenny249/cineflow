@@ -64,6 +64,7 @@ export function LoginPageClient() {
       });
       const json = await res.json();
       if (!res.ok || !json.action_link) {
+        console.error("[demo] start failed:", json?.error, json?.detail);
         toast.error("Could not start demo. Please try again.");
         setIsLoading(false);
         return;
