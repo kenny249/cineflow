@@ -160,8 +160,15 @@ export default function SigningPage() {
         </div>
         <h1 className="text-2xl font-bold text-[#18181b]">Contract Signed</h1>
         <p className="max-w-sm text-sm text-[#71717a]">
-          Your signature has been recorded. A copy will be saved to the project.
+          Your signature has been recorded and the contract is now fully executed.
         </p>
+        <a
+          href={`/sign/${token}/certificate`}
+          className="mt-2 flex items-center gap-2 rounded-xl bg-[#18181b] px-6 py-3 text-sm font-semibold text-white hover:bg-[#27272a] transition-colors"
+        >
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          View Signed Certificate
+        </a>
         <div className="mt-2 flex items-center gap-2 text-xs text-[#a1a1aa]">
           <Film className="h-3.5 w-3.5" />
           Powered by Cineflow

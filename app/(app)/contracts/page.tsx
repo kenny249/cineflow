@@ -354,10 +354,23 @@ export default function ContractsPage() {
                     </button>
                   )}
                   {selected.status === "signed" && (
-                    <div className="flex items-center gap-1.5 rounded-lg bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Signed
-                      {selected.signed_at && <span className="text-emerald-400/70">· {new Date(selected.signed_at).toLocaleDateString()}</span>}
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-1.5 rounded-lg bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Signed
+                        {selected.signed_at && <span className="text-emerald-400/70">· {new Date(selected.signed_at).toLocaleDateString()}</span>}
+                      </div>
+                      {selected.signing_token && (
+                        <a
+                          href={`/sign/${selected.signing_token}/certificate`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/[0.1] transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          View Certificate
+                        </a>
+                      )}
                     </div>
                   )}
                 </div>

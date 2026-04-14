@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2 } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2, FileSignature, ExternalLink } from "lucide-react";
 import { getProjects, createProject, getClientContacts, upsertClientContact } from "@/lib/supabase/queries";
 import type { ClientContact as DBClientContact } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate, PROJECT_TYPE_LABELS } from "@/lib/utils";
 import { toast } from "sonner";
-import type { Project } from "@/types";
+import type { Project, Contract } from "@/types";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
@@ -55,6 +55,9 @@ export default function ClientsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
 
+  // Contracts (correlated by recipient_email)
+  const [contracts, setContracts] = useState<Contract[]>([]);
+
   // Client contact info (DB-backed)
   const [clientContacts, setClientContacts] = useState<Record<string, ClientContact>>({});
   const [editingContact, setEditingContact] = useState<string | null>(null);
@@ -78,10 +81,16 @@ export default function ClientsPage() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([getProjects(), getClientContacts()])
-      .then(([projs, contacts]) => {
+    const supabase = createClient();
+    Promise.all([
+      getProjects(),
+      getClientContacts(),
+      supabase.from("contracts").select("id, title, status, recipient_name, recipient_email, signing_token, signed_at, sent_at, created_at").order("created_at", { ascending: false }),
+    ])
+      .then(([projs, contacts, { data: contractRows }]) => {
         if (!alive) return;
         setProjects(projs);
+        setContracts((contractRows as Contract[]) ?? []);
         const map: Record<string, ClientContact> = {};
         for (const c of contacts as DBClientContact[]) {
           map[c.client_name] = {
@@ -365,9 +374,53 @@ export default function ClientsPage() {
                 {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
               </button>
 
-              {/* Project rows */}
-              {isOpen && (
+              {/* Project rows + Contracts */}
+              {isOpen && (() => {
+                const contact = clientContacts[clientName];
+                const clientContracts = contact?.email
+                  ? contracts.filter((c) => c.recipient_email?.toLowerCase() === contact.email.toLowerCase())
+                  : [];
+                return (
                 <div className="border-t border-border divide-y divide-border">
+                  {clientContracts.length > 0 && (
+                    <div className="px-4 py-3 space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Contracts</p>
+                      {clientContracts.map((contract) => (
+                        <div key={contract.id} className="flex items-center gap-3 rounded-lg border border-border bg-card/50 px-3 py-2.5">
+                          <FileSignature className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium text-foreground">{contract.title}</p>
+                            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                              {contract.status === "signed" && contract.signed_at
+                                ? `Signed ${new Date(contract.signed_at).toLocaleDateString()}`
+                                : contract.status === "sent" && contract.sent_at
+                                ? `Sent ${new Date(contract.sent_at).toLocaleDateString()}`
+                                : "Draft"}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                            contract.status === "signed"   ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-400" :
+                            contract.status === "sent"     ? "border-amber-500/20 bg-amber-500/10 text-amber-400" :
+                            contract.status === "declined" ? "border-red-500/20 bg-red-500/10 text-red-400" :
+                            "border-border bg-muted/40 text-muted-foreground"
+                          }`}>
+                            {contract.status === "signed" ? "Signed" : contract.status === "sent" ? "Sent" : contract.status === "declined" ? "Declined" : "Draft"}
+                          </span>
+                          {contract.status === "signed" && contract.signing_token && (
+                            <a
+                              href={`/sign/${contract.signing_token}/certificate`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                              title="View signed certificate"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {clientProjects.map((project) => (
                     <Link
                       key={project.id}
@@ -408,7 +461,8 @@ export default function ClientsPage() {
                     </Link>
                   ))}
                 </div>
-              )}
+                );
+              })()}
             </div>
           );
         })}
