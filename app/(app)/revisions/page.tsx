@@ -527,6 +527,7 @@ export default function ReviewPage() {
   const [playerDuration, setPlayerDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
+  const rafRef = useRef<number | null>(null);
 
   // Load projects + CRM contacts
   useEffect(() => {
@@ -1133,7 +1134,14 @@ export default function ReviewPage() {
                       onClick={() => { if (!videoRef.current) return; isPlaying ? videoRef.current.pause() : videoRef.current.play(); }}
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
-                      onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                      onTimeUpdate={(e) => {
+                        const t = e.currentTarget.currentTime;
+                        if (rafRef.current) return;
+                        rafRef.current = requestAnimationFrame(() => {
+                          setCurrentTime(t);
+                          rafRef.current = null;
+                        });
+                      }}
                       onLoadedMetadata={(e) => setPlayerDuration(e.currentTarget.duration)}
                     />
                     {!isPlaying && (
