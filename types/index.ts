@@ -138,6 +138,7 @@ export interface ShotListItem {
   camera_angle?: string;
   props?: string[];
   actors?: string[];
+  shoot_day_id?: string;
   created_by?: string;
   created_at?: string;
   updated_at?: string;

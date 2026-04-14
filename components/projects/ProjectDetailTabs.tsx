@@ -29,6 +29,7 @@ import { FinanceTab } from "@/components/projects/tabs/FinanceTab";
 import { ProductionDocsTab } from "@/components/projects/tabs/ProductionDocsTab";
 import { ScriptsTab } from "@/components/projects/tabs/ScriptsTab";
 import { ProjectTasksTab } from "@/components/projects/tabs/ProjectTasksTab";
+import { ShootDaysPanel } from "@/components/projects/tabs/ShootDaysPanel";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
 import { downloadCSV } from "@/lib/export";
@@ -578,6 +579,9 @@ export default function ProjectDetailTabs({
     }
     return acc;
   }, []);
+
+  // ── Shot list sub-mode (shots / storyboard) ──
+  const [shotListSubMode, setShotListSubMode] = useState<"shots" | "storyboard">("shots");
 
   // ── Inline video player state ──
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
@@ -1248,18 +1252,12 @@ export default function ProjectDetailTabs({
             <div className="overflow-x-auto no-scrollbar">
               <TabsList className="flex h-10 w-max min-w-full bg-transparent gap-0 rounded-none border-b-0 p-0 px-4 sm:px-6">
               {[
-                { value: "overview",     label: "Overview" },
-                { value: "tasks",        label: "Tasks" },
-                { value: "shot-list",    label: `Shot List ${totalShots ? `(${completedShots}/${totalShots})` : ""}` },
-                { value: "storyboard",   label: "Storyboard" },
-                { value: "scripts",      label: "Scripts" },
-                { value: "docs",         label: "Prod. Docs" },
-                { value: "crew",         label: "Crew" },
-                { value: "locations",    label: "Locations" },
-                { value: "wrap",         label: "Wrap Notes" },
-                { value: "revisions",    label: `Cuts & Deliverables ${revisions.length ? `(${revisions.length})` : ""}` },
-                { value: "notes",        label: `Notes ${notes.length ? `(${notes.length})` : ""}` },
-                { value: "client-portal", label: "Client Portal" },
+                { value: "overview",  label: "Overview" },
+                { value: "shot-list", label: `Shot List${totalShots ? ` (${completedShots}/${totalShots})` : ""}` },
+                { value: "scripts",   label: "Scripts" },
+                { value: "docs",      label: "Files" },
+                { value: "crew",      label: "Crew" },
+                { value: "revisions", label: `Deliverables${revisions.length ? ` (${revisions.length})` : ""}` },
                 ...(isAdmin ? [{ value: "finance", label: "Finance 🔒" }] : []),
               ].map((tab) => (
                 <TabsTrigger
@@ -1477,9 +1475,142 @@ export default function ProjectDetailTabs({
                   </section>
                 </div>
               </div>
+
+              {/* ── Notes (merged into Overview) ── */}
+              <div className="mt-6 border-t border-border pt-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-sm font-semibold text-foreground">Notes</h3>
+                  {canEdit && (
+                    <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowNoteForm((v) => !v)}>
+                      {showNoteForm ? "Cancel" : "+ Add Note"}
+                    </Button>
+                  )}
+                </div>
+                {showNoteForm && (
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+                    <input type="text" value={noteTitle} onChange={(e) => setNoteTitle(e.target.value)} placeholder="Title (optional)" className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none" />
+                    <textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} placeholder="Write your note…" rows={3} className="w-full resize-none rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none" />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setShowNoteForm(false); setNoteTitle(""); setNoteContent(""); }} className="rounded-lg px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+                      <button onClick={handleAddNote} disabled={savingNote} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-60">
+                        {savingNote ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : null}Save
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {notes.length === 0 && !showNoteForm ? (
+                  <p className="text-sm text-muted-foreground">No notes yet. Capture creative direction, tech calls, and client feedback here.</p>
+                ) : (
+                  <div className="grid gap-3">
+                    {notes.map((note) => (
+                      <div key={note.id} className={`rounded-xl border bg-card p-4 ${note.pinned ? "border-[#d4a853]/30 bg-[#d4a853]/[0.03]" : "border-border"}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            {note.title && <h4 className="text-sm font-semibold text-foreground">{note.title}</h4>}
+                            <p className="text-[11px] text-muted-foreground mt-0.5">{formatRelative(note.created_at)}</p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            <button onClick={() => handleTogglePin(note)} className={`rounded-lg p-1.5 transition-colors ${note.pinned ? "text-[#d4a853]" : "text-muted-foreground hover:text-[#d4a853]"}`}><Pin className="h-3.5 w-3.5" /></button>
+                            {canEdit && <button onClick={() => handleDeleteNote(note.id)} className="rounded-lg p-1.5 text-muted-foreground hover:text-red-400 transition-colors"><X className="h-3.5 w-3.5" /></button>}
+                          </div>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{note.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Wrap Notes (merged into Overview) ── */}
+              <div className="mt-6 border-t border-border pt-5">
+                <h3 className="mb-4 font-display text-sm font-semibold text-foreground">Wrap Notes</h3>
+                <WrapNotesTab projectId={project.id} canEdit={canEdit} />
+              </div>
             </TabsContent>
 
             <TabsContent value="shot-list" className="m-0 p-4 sm:p-6">
+              {/* Sub-mode toggle: Shots / Storyboard */}
+              <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
+                <button
+                  onClick={() => setShotListSubMode?.("shots")}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${(!shotListSubMode || shotListSubMode === "shots") ? "bg-[#d4a853]/10 text-[#d4a853]" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Shot List
+                </button>
+                <button
+                  onClick={() => setShotListSubMode?.("storyboard")}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${shotListSubMode === "storyboard" ? "bg-[#d4a853]/10 text-[#d4a853]" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  Storyboard
+                </button>
+              </div>
+
+              {/* Shoot Days Panel — only visible in shots mode */}
+              {shotListSubMode !== "storyboard" && (
+                <div className="mb-6">
+                  <ShootDaysPanel
+                    projectId={project.id}
+                    projectTitle={project.title}
+                    shots={shotList?.items ?? []}
+                    onShotsUpdated={(_updated) => {
+                      // Reload to reflect shoot_day_id changes
+                      window.location.reload();
+                    }}
+                    canEdit={canEdit}
+                  />
+                </div>
+              )}
+
+              {shotListSubMode === "storyboard" ? (
+                <div>
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="font-display text-sm font-semibold text-foreground">Storyboard</h3>
+                    <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowFrameDialog(true)}>+ Add Frame</Button>
+                  </div>
+                  {storyboardFrames.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16">
+                      <p className="font-display font-semibold">No storyboard frames yet</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Build your scene ideas with visual beats and production notes.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      {storyboardFrames.map((frame) => (
+                        <div key={frame.id} className="group overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-[#d4a853]/40 hover:shadow-md">
+                          <div className="relative aspect-video overflow-hidden bg-muted">
+                            {frame.image_url ? (
+                              <Image src={frame.image_url} alt={frame.title || `Frame ${frame.frame_number}`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 25vw" unoptimized />
+                            ) : (
+                              <div className="flex h-full items-center justify-center"><div className="flex flex-col items-center gap-1 text-muted-foreground/40"><ImageIcon className="h-8 w-8" /><span className="text-[10px]">No image</span></div></div>
+                            )}
+                            <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-mono text-white/80 backdrop-blur-sm">{String(frame.frame_number).padStart(2, "0")}</div>
+                            {frame.shot_duration && <div className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">{frame.shot_duration}</div>}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+                              <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors">
+                                {uploadingFrameId === frame.id ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Upload className="h-3.5 w-3.5" />}
+                                {uploadingFrameId === frame.id ? "Uploading…" : "Upload image"}
+                                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFrameImageUpload(frame.id, e.target.files[0])} />
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => { setEditingFrame(frame); setEditFrameForm({ title: frame.title, description: frame.description, camera_angle: frame.camera_angle, shot_duration: frame.shot_duration, mood: frame.mood, notes: frame.notes }); }} className="flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-[#d4a853]/80 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors"><Pencil className="h-3.5 w-3.5" /> Edit</button>
+                                <button onClick={() => { if (confirm("Delete this frame?")) handleDeleteFrame(frame.id); }} disabled={deletingFrameId === frame.id} className="flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors disabled:opacity-50">{deletingFrameId === frame.id ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Trash2 className="h-3.5 w-3.5" />}Delete</button>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="p-3">
+                            {frame.title && <p className="text-xs font-semibold text-foreground mb-1">{frame.title}</p>}
+                            {frame.description && <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{frame.description}</p>}
+                            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                              {frame.camera_angle && <p className="text-[10px] text-muted-foreground">{frame.camera_angle}</p>}
+                              {frame.mood && <p className="text-[10px] text-[#d4a853]/70 italic">{frame.mood}</p>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+              <div>
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-display text-sm font-semibold text-foreground">{shotList?.title || "Shot List"}</h3>
@@ -1603,8 +1734,11 @@ export default function ProjectDetailTabs({
                   </table>
                 </div>
               )}
+              </div>
+              )}
             </TabsContent>
 
+            {/* ── Storyboard (hidden standalone — content merged into Shot List sub-mode) ── */}
             <TabsContent value="storyboard" className="m-0 p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-sm font-semibold text-foreground">Storyboard</h3>
@@ -1699,12 +1833,17 @@ export default function ProjectDetailTabs({
               <ProductionDocsTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
-            {/* ── Crew ── */}
+            {/* ── Crew + Locations ── */}
             <TabsContent value="crew" className="m-0">
               <CrewTab projectId={project.id} canEdit={canEdit} />
+              <div className="border-t border-border mx-4 sm:mx-5 my-1" />
+              <div className="px-4 sm:px-5 pt-2 pb-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Locations</p>
+              </div>
+              <LocationsTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
-            {/* ── Locations ── */}
+            {/* ── Locations (hidden, kept for deep-link compat) ── */}
             <TabsContent value="locations" className="m-0">
               <LocationsTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
@@ -1988,8 +2127,51 @@ export default function ProjectDetailTabs({
                   })}
                 </div>
               )}
+
+              {/* ── Client Portal (merged into Deliverables) ── */}
+              <div className="mt-6 border-t border-border pt-5" onClick={loadPortalToken}>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-display text-sm font-semibold text-foreground">Client Portal</h3>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Share a private link so your client can review cuts and track progress.</p>
+                  </div>
+                  {portalToken && (
+                    <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-red-400" onClick={handleRevokePortal}>
+                      <Trash2 className="h-3 w-3" /> Revoke
+                    </Button>
+                  )}
+                </div>
+                {portalLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />Loading…
+                  </div>
+                ) : portalToken ? (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-xs font-semibold text-emerald-400">Portal Active — {portalToken.client_name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                      <span className="flex-1 truncate font-mono text-[11px] text-muted-foreground">{portalUrl(portalToken.token)}</span>
+                      <button type="button" onClick={handleCopyPortalUrl} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#d4a853]/10 px-2.5 py-1 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/20">
+                        {portalCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
+                      </button>
+                      <a href={portalUrl(portalToken.token)} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:text-foreground"><ExternalLink className="h-3.5 w-3.5" /></a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border bg-card/30 p-6 text-center">
+                    <p className="text-sm font-medium text-foreground">No portal yet</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Create a private portal link for your client.</p>
+                    <Button variant="gold" size="sm" className="mt-3 h-8 gap-1.5 text-xs" onClick={() => setPortalShowForm(true)}>
+                      <Link2 className="h-3.5 w-3.5" /> Create client portal
+                    </Button>
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
+            {/* ── Notes (hidden standalone — merged into Overview) ── */}
             <TabsContent value="notes" className="m-0 p-6">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">

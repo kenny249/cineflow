@@ -9,9 +9,6 @@ import {
   Calendar,
   CheckSquare,
   ClipboardList,
-  List,
-  Layers,
-  UploadCloud,
   Settings,
   Film,
   PanelLeftClose,
@@ -32,19 +29,16 @@ import { createClient } from "@/lib/supabase/client";
 import { isSoloPlan } from "@/types";
 
 const NAV_MAIN = [
-  { label: "Dashboard",      href: "/dashboard",      icon: LayoutDashboard },
-  { label: "Projects",       href: "/projects",       icon: FolderKanban },
-  { label: "Clients",        href: "/clients",        icon: Users },
-  { label: "Calendar",       href: "/calendar",       icon: Calendar },
-  { label: "To Do",          href: "/tasks",          icon: CheckSquare },
-  { label: "Tasks",          href: "/project-tasks",  icon: ClipboardList },
-  { label: "Contracts",      href: "/contracts",      icon: FileSignature },
-  { label: "Shot Lists",     href: "/shot-lists",     icon: List },
-  { label: "Storyboard",     href: "/storyboard",     icon: Layers },
-  { label: "Scripts",        href: "/scripts",        icon: ScrollText },
-  { label: "Cuts & Delivers", href: "/revisions",     icon: UploadCloud },
-  { label: "Finance",        href: "/finance",        icon: DollarSign },
-  { label: "Team",           href: "/team",           icon: UsersRound },
+  { label: "Dashboard",  href: "/dashboard",      icon: LayoutDashboard },
+  { label: "Projects",   href: "/projects",       icon: FolderKanban },
+  { label: "Clients",    href: "/clients",        icon: Users },
+  { label: "Calendar",   href: "/calendar",       icon: Calendar },
+  { label: "To Do",      href: "/tasks",          icon: CheckSquare },
+  { label: "Tasks",      href: "/project-tasks",  icon: ClipboardList },
+  { label: "Contracts",  href: "/contracts",      icon: FileSignature },
+  { label: "Scripts",    href: "/scripts",        icon: ScrollText },
+  { label: "Finance",    href: "/finance",        icon: DollarSign },
+  { label: "Team",       href: "/team",           icon: UsersRound },
 ];
 
 const NAV_BOTTOM = [
