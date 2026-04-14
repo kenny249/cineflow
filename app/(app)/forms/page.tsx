@@ -19,8 +19,6 @@ import {
 import { getProfile, updateProfile } from "@/lib/supabase/queries";
 import type { CineForm, FormResponse, FormQuestion } from "@/types";
 
-const APP_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://usecineflow.com";
-
 // ── Response detail ───────────────────────────────────────────────────────────
 
 function ResponseCard({
@@ -100,8 +98,9 @@ function FormRow({
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const formUrl = `${APP_URL}/forms/${form.token}`;
   const responseCount = form._responseCount ?? 0;
+  const getFormUrl = () =>
+    `${typeof window !== "undefined" ? window.location.origin : "https://usecineflow.com"}/forms/${form.token}`;
 
   const loadResponses = async () => {
     if (responses !== null) { setResponsesOpen(true); return; }
@@ -119,8 +118,7 @@ function FormRow({
   };
 
   const copyLink = () => {
-    const base = typeof window !== "undefined" ? window.location.origin : "https://usecineflow.com";
-    navigator.clipboard.writeText(`${base}/forms/${form.token}`);
+    navigator.clipboard.writeText(getFormUrl());
     toast.success("Link copied!");
   };
 
@@ -188,7 +186,7 @@ function FormRow({
                       type="button"
                       onClick={() => {
                         setMenuOpen(false);
-                        navigator.clipboard.writeText(formUrl);
+                        navigator.clipboard.writeText(getFormUrl());
                         toast.success("Link copied!");
                       }}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
@@ -197,7 +195,7 @@ function FormRow({
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setMenuOpen(false); window.open(formUrl, "_blank"); }}
+                      onClick={() => { setMenuOpen(false); window.open(getFormUrl(), "_blank"); }}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
                     >
                       <Eye className="h-3.5 w-3.5 text-muted-foreground" /> Preview form

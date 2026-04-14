@@ -32,6 +32,7 @@ const MOBILE_SOLO_PRIMARY: MobileNavItem[] = [
 const MOBILE_SOLO_MORE: MobileNavItem[] = [
   { label: "Clients",       href: "/clients",       icon: Users },
   { label: "Contracts",     href: "/contracts",     icon: FileSignature },
+  { label: "Forms",         href: "/forms",         icon: ClipboardList },
   { label: "Scripts",       href: "/scripts",       icon: ScrollText },
   { label: "Review",        href: "/revisions",     icon: Film },
   { label: "Finance",       href: "/finance",       icon: DollarSign },
@@ -50,6 +51,7 @@ const MOBILE_STUDIO_MORE: MobileNavItem[] = [
   { label: "To Do",         href: "/tasks",         icon: CheckSquare },
   { label: "Clients",       href: "/clients",       icon: Users },
   { label: "Contracts",     href: "/contracts",     icon: FileSignature },
+  { label: "Forms",         href: "/forms",         icon: ClipboardList },
   { label: "Scripts",       href: "/scripts",       icon: ScrollText },
   { label: "Review",        href: "/revisions",     icon: Film },
   { label: "Finance",       href: "/finance",       icon: DollarSign },
