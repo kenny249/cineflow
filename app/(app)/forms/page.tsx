@@ -119,7 +119,8 @@ function FormRow({
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(formUrl);
+    const base = typeof window !== "undefined" ? window.location.origin : "https://usecineflow.com";
+    navigator.clipboard.writeText(`${base}/forms/${form.token}`);
     toast.success("Link copied!");
   };
 
