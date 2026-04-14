@@ -69,6 +69,7 @@ export default function SettingsClient() {
 
   // Business info
   const [businessName, setBusinessName] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
   const [addrLine1, setAddrLine1] = useState("");
   const [addrLine2, setAddrLine2] = useState("");
   const [addrCity, setAddrCity] = useState("");
@@ -77,6 +78,7 @@ export default function SettingsClient() {
   const [businessPhone, setBusinessPhone] = useState("");
   const [businessWebsite, setBusinessWebsite] = useState("");
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   // Payment settings
   const [paymentTab, setPaymentTab] = useState<PaymentTab>("stripe");
@@ -103,6 +105,7 @@ export default function SettingsClient() {
           setCompany(profile.company ?? "");
           setAvatarUrl(profile.avatar_url ?? "");
           setBusinessName(profile.business_name ?? "");
+          setLogoUrl(profile.logo_url ?? "");
           setAddrLine1(profile.address_line1 ?? "");
           setAddrLine2(profile.address_line2 ?? "");
           setAddrCity(profile.city ?? "");
@@ -148,11 +151,22 @@ export default function SettingsClient() {
     }
   };
 
+  const handleLogoChange = (file?: File) => {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast.error("Logo must be under 2MB"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") setLogoUrl(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveBusiness = async () => {
     setIsSavingBusiness(true);
     try {
       await updateProfile({
         business_name: businessName.trim() || undefined,
+        logo_url: logoUrl || undefined,
         address_line1: addrLine1.trim() || undefined,
         address_line2: addrLine2.trim() || undefined,
         city: addrCity.trim() || undefined,
@@ -290,6 +304,39 @@ export default function SettingsClient() {
             <h2 className="mb-1 font-display text-sm font-semibold text-foreground">Business Info</h2>
             <p className="mb-4 text-xs text-muted-foreground">Appears on invoices sent to clients.</p>
             <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+              {/* Agency logo */}
+              <div className="space-y-1.5">
+                <Label>Agency logo</Label>
+                <p className="text-xs text-muted-foreground">Shown on client-facing forms and intake pages.</p>
+                <div className="flex items-center gap-4">
+                  {logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoUrl} alt="Agency logo" className="h-12 max-w-[160px] object-contain rounded border border-border bg-muted p-1" />
+                  ) : (
+                    <div className="flex h-12 w-28 items-center justify-center rounded border border-dashed border-border bg-muted text-xs text-muted-foreground">
+                      No logo
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <Button variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}>
+                      {logoUrl ? "Change logo" : "Upload logo"}
+                    </Button>
+                    {logoUrl && (
+                      <Button variant="ghost" size="sm" className="text-muted-foreground text-xs h-7" onClick={() => setLogoUrl("")}>
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={(e) => handleLogoChange(e.target.files?.[0])}
+                  />
+                </div>
+              </div>
+              <Separator />
               <div className="space-y-1.5">
                 <Label>Business name</Label>
                 <Input

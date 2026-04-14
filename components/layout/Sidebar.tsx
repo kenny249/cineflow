@@ -36,6 +36,7 @@ const NAV_MAIN = [
   { label: "To Do",      href: "/tasks",          icon: CheckSquare },
   { label: "Tasks",      href: "/project-tasks",  icon: ClipboardList },
   { label: "Contracts",  href: "/contracts",      icon: FileSignature },
+  { label: "Forms",      href: "/forms",           icon: ClipboardList },
   { label: "Scripts",    href: "/scripts",        icon: ScrollText },
   { label: "Review",     href: "/revisions",      icon: Film },
   { label: "Finance",    href: "/finance",        icon: DollarSign },

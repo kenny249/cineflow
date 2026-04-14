@@ -32,6 +32,7 @@ export interface Profile {
   role?: string;
   plan?: PlanType;
   business_name?: string;
+  logo_url?: string;
   business_address?: string; // legacy single-string fallback
   address_line1?: string;
   address_line2?: string;
@@ -540,4 +541,40 @@ export interface PortalDeliverable {
   id: string;
   label: string;
   done: boolean;
+}
+
+// ─── Forms / Questionnaires ───────────────────────────────────────────────────
+
+export type FormQuestionType = "short_text" | "long_text" | "single_choice" | "multi_select";
+
+export interface FormQuestion {
+  id: string;
+  section: string;
+  type: FormQuestionType;
+  question: string;
+  required?: boolean;
+  options?: string[];
+  placeholder?: string;
+}
+
+export interface CineForm {
+  id: string;
+  created_by: string;
+  title: string;
+  description?: string;
+  questions: FormQuestion[];
+  status: "active" | "closed";
+  token: string;
+  response_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FormResponse {
+  id: string;
+  form_id: string;
+  respondent_name?: string;
+  respondent_email?: string;
+  answers: Record<string, string | string[]>;
+  submitted_at: string;
 }
