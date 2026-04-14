@@ -39,6 +39,11 @@ export const metadata: Metadata = {
     description: "Film production software for solo creators and studios.",
     images: ["/api/og"],
   },
+  appleWebApp: {
+    capable: true,
+    title: "Cineflow",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export default function RootLayout({
