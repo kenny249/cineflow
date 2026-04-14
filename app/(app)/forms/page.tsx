@@ -99,8 +99,7 @@ function FormRow({
   const [menuOpen, setMenuOpen] = useState(false);
 
   const responseCount = form._responseCount ?? 0;
-  const getFormUrl = () =>
-    `${typeof window !== "undefined" ? window.location.origin : "https://usecineflow.com"}/forms/${form.token}`;
+  const getFormUrl = () => `https://usecineflow.com/forms/${form.token}`;
 
   const loadResponses = async () => {
     if (responses !== null) { setResponsesOpen(true); return; }
