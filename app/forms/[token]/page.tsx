@@ -30,12 +30,10 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     openGraph: {
       title: `${agencyName} sent you a form`,
       description: formTitle,
-      // Empty images array suppresses the default Cineflow OG image
-      images: [],
       type: "website",
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: `${agencyName} sent you a form`,
       description: formTitle,
     },
