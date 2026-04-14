@@ -76,6 +76,8 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
   );
+  const [profileName, setProfileName] = useState<string>("");
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
   const router = useRouter();
   const pathname = usePathname();
 
@@ -84,11 +86,18 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("profiles").select("plan").eq("id", user.id).single()
+      supabase.from("profiles").select("plan, first_name, last_name, avatar_url").eq("id", user.id).single()
         .then(({ data }) => {
           if (data?.plan) {
             setPlan(data.plan);
             sessionStorage.setItem("cf_plan", data.plan);
+          }
+          if (data?.first_name || data?.last_name) {
+            const fullName = [data.first_name, data.last_name].filter(Boolean).join(" ");
+            setProfileName(fullName);
+          }
+          if (data?.avatar_url) {
+            setProfileAvatarUrl(data.avatar_url);
           }
         });
     });
@@ -167,7 +176,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
-          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} />
+          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} />
         </Suspense>
         <DemoBanner />
         {/* pb-20 on mobile for bottom nav clearance (nav is ~68px + safe area) */}

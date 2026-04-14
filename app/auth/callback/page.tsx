@@ -58,6 +58,17 @@ function CallbackInner() {
           { onConflict: "id" }
         );
         sessionStorage.setItem("cf_plan", plan);
+
+        // Seed localStorage display name from real profile so nav shows correct name
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name")
+          .eq("id", user.id)
+          .single();
+        if (profile?.first_name || profile?.last_name) {
+          const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
+          localStorage.setItem("cf_display_name", fullName);
+        }
       } catch { /* non-fatal */ }
 
       window.location.replace(next);

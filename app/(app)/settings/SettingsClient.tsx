@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { getProfile, updateProfile } from "@/lib/supabase/queries";
+import { setDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import type { PaymentSettings } from "@/types";
 
@@ -143,6 +144,9 @@ export default function SettingsClient() {
         company: company.trim(),
         avatar_url: avatarUrl || undefined,
       });
+      // Keep localStorage in sync so nav dropdown reflects the update immediately
+      const fullName = [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+      if (fullName) setDisplayName(fullName);
       toast.success("Profile saved.");
     } catch {
       toast.error("Failed to save profile.");

@@ -405,9 +405,12 @@ export default function WelcomePage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          const parts = final.split(" ");
+          const first_name = parts[0];
+          const last_name = parts.slice(1).join(" ") || null;
           await supabase
             .from("profiles")
-            .upsert({ id: user.id, full_name: final, updated_at: new Date().toISOString() }, { onConflict: "id" });
+            .upsert({ id: user.id, first_name, last_name, updated_at: new Date().toISOString() }, { onConflict: "id" });
         }
       } catch { /* fire-and-forget */ }
     })();
