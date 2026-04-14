@@ -67,8 +67,8 @@ function NavItem({
         "group relative flex h-9 items-center gap-3 rounded-md px-2.5 text-sm transition-all duration-150",
         collapsed ? "justify-center w-9 px-0" : "",
         isActive
-          ? "bg-[#d4a853]/[0.07] text-foreground font-medium ring-[0.5px] ring-inset ring-[#d4a853]/10"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          ? "bg-[#d4a853]/[0.07] text-white font-medium ring-[0.5px] ring-inset ring-[#d4a853]/10"
+          : "text-white/50 hover:bg-white/[0.06] hover:text-white"
       )}
     >
       {/* Active indicator */}
@@ -80,7 +80,7 @@ function NavItem({
           "h-4 w-4 shrink-0 transition-all duration-200",
           isActive
             ? "text-[#d4a853]"
-            : "text-muted-foreground group-hover:text-foreground group-hover:scale-110"
+            : "text-white/40 group-hover:text-white group-hover:scale-110"
         )}
       />
       {!collapsed && (
@@ -218,7 +218,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <button
             onClick={onToggle}
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-90",
+              "flex h-7 w-7 items-center justify-center rounded-md text-white/40 transition-all duration-200 hover:bg-white/[0.06] hover:text-white active:scale-90",
               collapsed && "hidden"
             )}
           >
@@ -230,7 +230,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {collapsed && (
           <button
             onClick={onToggle}
-            className="mx-auto mt-2 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-all duration-200 hover:bg-accent hover:text-foreground active:scale-90"
+            className="mx-auto mt-2 flex h-7 w-7 items-center justify-center rounded-md text-white/40 transition-all duration-200 hover:bg-white/[0.06] hover:text-white active:scale-90"
           >
             <PanelLeftOpen className="h-3.5 w-3.5" />
           </button>
@@ -278,8 +278,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Avatar>
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-foreground">{displayName}</p>
-                <p className="truncate text-[10px] text-muted-foreground">
+                <p className="truncate text-xs font-medium text-white">{displayName}</p>
+                <p className="truncate text-[10px] text-white/40">
                   {isSoloPlan(plan) ? "Solo Creator · Beta" : "Film Studio · Beta"}
                 </p>
               </div>

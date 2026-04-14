@@ -358,7 +358,7 @@ export default function CalendarPage() {
 
             {/* Grid */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
-              <div className="grid grid-cols-7 h-full" style={{ gridAutoRows: "minmax(90px, 1fr)" }}>
+              <div className="grid grid-cols-7" style={{ gridAutoRows: "minmax(76px, auto)" }}>
                 {gridCells.map((day, idx) => {
                   const dayEvents = day ? getEventsForDay(expandedEvents, viewYear, viewMonth, day) : [];
                   const isSelected = day !== null && day === selectedDay;
@@ -369,7 +369,7 @@ export default function CalendarPage() {
                         if (!day) return;
                         setSelectedDay(day === selectedDay ? null : day);
                       }}
-                      className={`relative border-b border-r border-border/50 p-1.5 transition-colors ${
+                      className={`group relative border-b border-r border-border/50 p-1.5 transition-colors ${
                         !day ? "bg-muted/20" : "cursor-pointer hover:bg-accent/30"
                       } ${isSelected ? "bg-[#d4a853]/[0.06] ring-1 ring-inset ring-[#d4a853]/30" : ""}`}
                     >
@@ -388,7 +388,7 @@ export default function CalendarPage() {
                             {dayEvents.length === 0 && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); openCreateForDay(day); }}
-                                className="hidden h-4 w-4 items-center justify-center rounded text-muted-foreground/40 hover:text-[#d4a853] group-hover:flex"
+                                className="invisible flex h-4 w-4 items-center justify-center rounded text-muted-foreground/40 hover:text-[#d4a853] group-hover:visible"
                               >
                                 <Plus className="h-3 w-3" />
                               </button>
