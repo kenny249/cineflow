@@ -1,22 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Video, ChevronDown } from "lucide-react";
+import { ChevronDown, MapPin, Link2, RotateCcw, StickyNote, Clock, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { CalendarEventType, Project } from "@/types";
 
-// ── Time helpers ────────────────────────────────────────────────────────────
+// ── Time helpers ─────────────────────────────────────────────────────────────
 
 const HOURS = Array.from({ length: 12 }, (_, i) => String(i + 1));
 const MINUTES = ["00", "15", "30", "45"];
 
 interface TimeState {
-  hour: string;   // "1"–"12"
-  minute: string; // "00"|"15"|"30"|"45"
+  hour: string;
+  minute: string;
   ampm: "AM" | "PM";
 }
 
@@ -51,10 +51,7 @@ function addHour(dateStr: string, time: TimeState): TimeState {
 
 function todayStr(): string {
   const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function nowRounded(): TimeState {
@@ -72,12 +69,12 @@ function nowRounded(): TimeState {
 // ── Types ────────────────────────────────────────────────────────────────────
 
 const EVENT_TYPES = [
-  { value: "shoot",     label: "Shoot" },
-  { value: "meeting",   label: "Meeting" },
-  { value: "deadline",  label: "Deadline" },
-  { value: "milestone", label: "Milestone" },
-  { value: "delivery",  label: "Delivery" },
-  { value: "other",     label: "Other" },
+  { value: "shoot",     label: "Shoot",     dot: "bg-[#d4a853]" },
+  { value: "meeting",   label: "Meeting",   dot: "bg-blue-400" },
+  { value: "deadline",  label: "Deadline",  dot: "bg-red-400" },
+  { value: "milestone", label: "Milestone", dot: "bg-purple-400" },
+  { value: "delivery",  label: "Delivery",  dot: "bg-emerald-400" },
+  { value: "other",     label: "Other",     dot: "bg-zinc-400" },
 ] as const;
 
 export interface EventFormValues {
@@ -98,37 +95,24 @@ interface EventFormModalProps {
   onClose: () => void;
   onSave: (values: EventFormValues) => Promise<void>;
   projects: Project[];
-  /** Pre-fill a specific date (YYYY-MM-DD) when clicking a calendar day */
   defaultDate?: string;
   saving?: boolean;
 }
 
-// ── TimePicker ───────────────────────────────────────────────────────────────
+// ── TimePicker ────────────────────────────────────────────────────────────────
 
 function TimePicker({ value, onChange }: { value: TimeState; onChange: (t: TimeState) => void }) {
-  const selectCls = "rounded-md border border-border bg-input px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50";
+  const sel = "rounded-lg border border-border bg-input px-2.5 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50 cursor-pointer";
   return (
-    <div className="flex items-center gap-1.5">
-      <select
-        value={value.hour}
-        onChange={(e) => onChange({ ...value, hour: e.target.value })}
-        className={`${selectCls} w-14`}
-      >
+    <div className="flex items-center gap-2">
+      <select value={value.hour} onChange={(e) => onChange({ ...value, hour: e.target.value })} className={`${sel} w-16`}>
         {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
       </select>
-      <span className="text-muted-foreground text-sm font-medium">:</span>
-      <select
-        value={value.minute}
-        onChange={(e) => onChange({ ...value, minute: e.target.value })}
-        className={`${selectCls} w-16`}
-      >
+      <span className="text-muted-foreground font-semibold">:</span>
+      <select value={value.minute} onChange={(e) => onChange({ ...value, minute: e.target.value })} className={`${sel} w-16`}>
         {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
       </select>
-      <select
-        value={value.ampm}
-        onChange={(e) => onChange({ ...value, ampm: e.target.value as "AM" | "PM" })}
-        className={`${selectCls} w-16`}
-      >
+      <select value={value.ampm} onChange={(e) => onChange({ ...value, ampm: e.target.value as "AM" | "PM" })} className={`${sel} w-20`}>
         <option value="AM">AM</option>
         <option value="PM">PM</option>
       </select>
@@ -139,17 +123,13 @@ function TimePicker({ value, onChange }: { value: TimeState; onChange: (t: TimeS
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function EventFormModal({ open, onClose, onSave, projects, defaultDate, saving }: EventFormModalProps) {
-  const initDate = defaultDate ?? todayStr();
-  const initStart = nowRounded();
-  const initEnd = addHour(initDate, initStart);
-
   const [title, setTitle] = useState("");
   const [type, setType] = useState<CalendarEventType>("shoot");
   const [projectId, setProjectId] = useState("");
-  const [startDate, setStartDate] = useState(initDate);
-  const [endDate, setEndDate] = useState(initDate);
-  const [startTime, setStartTime] = useState<TimeState>(initStart);
-  const [endTime, setEndTime] = useState<TimeState>(initEnd);
+  const [startDate, setStartDate] = useState(todayStr());
+  const [endDate, setEndDate] = useState(todayStr());
+  const [startTime, setStartTime] = useState<TimeState>(nowRounded());
+  const [endTime, setEndTime] = useState<TimeState>(() => addHour(todayStr(), nowRounded()));
   const [location, setLocation] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
   const [description, setDescription] = useState("");
@@ -157,7 +137,6 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
   const [recurrenceEndDate, setRecurrenceEndDate] = useState("");
   const [showDetails, setShowDetails] = useState(false);
 
-  // Re-initialize when modal opens or defaultDate changes
   useEffect(() => {
     if (!open) return;
     const d = defaultDate ?? todayStr();
@@ -177,13 +156,11 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
     setShowDetails(false);
   }, [open, defaultDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When start time changes, shift end time by 1 hour
   const handleStartTimeChange = (t: TimeState) => {
     setStartTime(t);
     setEndTime(addHour(startDate, t));
   };
 
-  // When start date changes, keep end date in sync if they were the same day
   const handleStartDateChange = (newDate: string) => {
     const wasSync = startDate === endDate;
     setStartDate(newDate);
@@ -206,45 +183,40 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
     });
   };
 
-  const selectCls = "w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50";
-
-  const EVENT_DOT: Record<string, string> = {
-    shoot: "bg-[#d4a853]", meeting: "bg-blue-400", deadline: "bg-red-400",
-    milestone: "bg-purple-400", delivery: "bg-emerald-400", other: "bg-zinc-400",
-  };
+  const selectCls = "w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50";
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>New Event</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 py-1">
+        <div className="space-y-4 py-1">
           {/* Title */}
           <Input
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Event title…"
-            className="text-base font-medium"
+            className="text-base font-medium h-11"
             onKeyDown={(e) => { if (e.key === "Enter" && title.trim() && startDate) handleSave(); }}
           />
 
-          {/* Type pills */}
+          {/* Event type pills */}
           <div className="flex flex-wrap gap-1.5">
             {EVENT_TYPES.map((t) => (
               <button
                 key={t.value}
                 type="button"
                 onClick={() => setType(t.value as CalendarEventType)}
-                className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                   type === t.value
                     ? "bg-foreground text-background shadow-sm"
                     : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                <span className={`h-1.5 w-1.5 rounded-full ${EVENT_DOT[t.value]}`} />
+                <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${t.dot}`} />
                 {t.label}
               </button>
             ))}
@@ -258,59 +230,118 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
             </select>
           )}
 
-          {/* Start date + time on one row */}
-          <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => handleStartDateChange(e.target.value)}
-              className="flex-1 min-w-0"
-            />
-            <TimePicker value={startTime} onChange={handleStartTimeChange} />
+          {/* When — date and time stacked cleanly */}
+          <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+            {/* Date row */}
+            <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border">
+              <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <Label className="text-sm text-muted-foreground w-12 flex-shrink-0">Date</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => handleStartDateChange(e.target.value)}
+                className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0 flex-1"
+              />
+            </div>
+            {/* Time row */}
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <Label className="text-sm text-muted-foreground w-12 flex-shrink-0">Time</Label>
+              <TimePicker value={startTime} onChange={handleStartTimeChange} />
+            </div>
           </div>
 
           {/* More details toggle */}
           <button
             type="button"
             onClick={() => setShowDetails((v) => !v)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showDetails ? "rotate-180" : ""}`} />
             {showDetails ? "Less details" : "More details"}
           </button>
 
           {showDetails && (
-            <div className="space-y-3 border-t border-border pt-3">
-              {/* End */}
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">End</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} className="flex-1 min-w-0" />
+            <div className="space-y-3 rounded-lg border border-border bg-muted/20 overflow-hidden">
+              {/* End date/time */}
+              <div className="border-b border-border">
+                <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border/50">
+                  <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Label className="text-sm text-muted-foreground w-12 flex-shrink-0">End</Label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    min={startDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0 flex-1"
+                  />
+                </div>
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Label className="text-sm text-muted-foreground w-12 flex-shrink-0"></Label>
                   <TimePicker value={endTime} onChange={setEndTime} />
                 </div>
               </div>
 
               {/* Location */}
-              <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location…" />
+              <div className="flex items-center gap-3 px-3 py-2 border-b border-border">
+                <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <Input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="Add location…"
+                  className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0"
+                />
+              </div>
 
-              {/* Video link */}
-              <Input value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="Zoom / Meet link…" type="url" />
+              {/* Meeting link */}
+              <div className="flex items-center gap-3 px-3 py-2 border-b border-border">
+                <Link2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <Input
+                  value={meetingLink}
+                  onChange={(e) => setMeetingLink(e.target.value)}
+                  placeholder="Zoom / Meet link…"
+                  type="url"
+                  className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0"
+                />
+              </div>
 
               {/* Repeat */}
-              <div className="grid grid-cols-2 gap-2">
-                <select value={recurrenceRule} onChange={(e) => setRecurrenceRule(e.target.value as "" | "daily" | "weekly" | "monthly")} className={selectCls}>
+              <div className="flex items-center gap-3 px-3 py-2 border-b border-border">
+                <RotateCcw className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <select
+                  value={recurrenceRule}
+                  onChange={(e) => setRecurrenceRule(e.target.value as "" | "daily" | "weekly" | "monthly")}
+                  className="flex-1 bg-transparent text-sm text-foreground focus:outline-none"
+                >
                   <option value="">No repeat</option>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
                 </select>
                 {recurrenceRule && (
-                  <Input type="date" value={recurrenceEndDate} min={startDate} onChange={(e) => setRecurrenceEndDate(e.target.value)} />
+                  <Input
+                    type="date"
+                    value={recurrenceEndDate}
+                    min={startDate}
+                    onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                    className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0 w-36"
+                    placeholder="Until…"
+                  />
                 )}
               </div>
 
               {/* Notes */}
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Notes…" />
+              <div className="flex gap-3 px-3 py-2">
+                <StickyNote className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  placeholder="Add notes…"
+                  className="border-0 bg-transparent p-0 text-sm focus-visible:ring-0 resize-none"
+                />
+              </div>
             </div>
           )}
         </div>
