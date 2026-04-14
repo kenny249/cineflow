@@ -852,8 +852,11 @@ export default function ContractsPage() {
                   {selected.status !== "signed" && (
                     <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5 bg-card/80">
                       <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mr-1">
-                        Signature Fields
+                        {localFields.length === 0 ? "Place Signature Fields" : "Signature Fields"}
                       </span>
+                      {localFields.length === 0 && (
+                        <span className="text-[10px] text-muted-foreground/60">— click a button below, then click the PDF where you want the field</span>
+                      )}
 
                       {/* Sender field button */}
                       <button
@@ -957,7 +960,7 @@ export default function ContractsPage() {
                       if (selected.status === "signed") return;
                       openSignModal(field);
                     }}
-                    className="h-[560px]"
+                    className="h-[720px]"
                   />
                 </div>
               ) : (

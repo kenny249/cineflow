@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Wand2 } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Wand2, Maximize2 } from "lucide-react";
 import type { SignatureField } from "@/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -13,7 +13,7 @@ interface PDFViewerProps {
   onFieldPlace?: (field: Omit<SignatureField, "id">) => void;
   onFieldClick?: (field: SignatureField) => void;
   onAutoDetect?: (fields: Omit<SignatureField, "id">[]) => void;
-  highlightRole?: "sender" | "recipient"; // pulse-highlight fields of this role
+  highlightRole?: "sender" | "recipient";
   className?: string;
 }
 
@@ -27,6 +27,22 @@ interface PageDimensions {
 async function detectSignatureFields(pdf: any): Promise<Omit<SignatureField, "id">[]> {
   const results: Omit<SignatureField, "id">[] = [];
 
+  // Patterns
+  const KEYWORD_RE = /accepted\s*by|sign\s*here|signature|authorized\s*sign|client\s*sign|sign\s*below|signed?\s*by/i;
+  const COLON_LABEL_RE = /^\s*(by|date|name|title|signed?)\s*:/i;
+  const PLACEHOLDER_RE = /\[.{2,40}\]/; // [Your Name], [Client's Name], [Date], etc.
+  const STANDALONE_LINE_RE = /^[_\-]{6,}$/;
+  const EMBEDDED_LINE_RE = /[_\-]{8,}/; // underscores inside "By: _____________"
+
+  function addField(pn: number, x: number, y: number) {
+    const duplicate = results.some(
+      (r) => r.page === pn && Math.abs(r.x - x) < 80 && Math.abs(r.y - y) < 40
+    );
+    if (!duplicate) {
+      results.push({ page: pn, x, y, width: 190, height: 50, role: "recipient" });
+    }
+  }
+
   for (let pn = 1; pn <= pdf.numPages; pn++) {
     const page = await pdf.getPage(pn);
     const content = await page.getTextContent();
@@ -37,33 +53,52 @@ async function detectSignatureFields(pdf: any): Promise<Omit<SignatureField, "id
     // Sort top-to-bottom (highest y = top in PDF space)
     rawItems.sort((a, b) => b.y - a.y);
 
-    const LABEL_RE = /accepted\s*by|sign\s*here|signature|authorized\s*sign|client\s*sign|sign\s*below/i;
-    const LINE_RE = /^[_\-]{6,}$/;
-
     for (let i = 0; i < rawItems.length; i++) {
       const { str, x, y } = rawItems[i];
-      if (!LABEL_RE.test(str) || str.length > 60) continue;
 
-      // Look for a dash/underscore line below this label (within 80pts)
-      const lineBelow = rawItems.slice(i + 1).find(
-        (t) => LINE_RE.test(t.str) && Math.abs(t.x - x) < 200 && y - t.y > 0 && y - t.y < 80
-      );
+      // 1. Keyword match ("Signature", "Sign Here", "Accepted By", etc.)
+      if (KEYWORD_RE.test(str) && str.length <= 60) {
+        const lineBelow = rawItems.slice(i + 1).find(
+          (t) => STANDALONE_LINE_RE.test(t.str) && Math.abs(t.x - x) < 200 && y - t.y > 0 && y - t.y < 80
+        );
+        addField(pn, lineBelow ? lineBelow.x - 5 : x, lineBelow ? lineBelow.y - 5 : y - 60);
+        continue;
+      }
 
-      const fieldY = lineBelow ? lineBelow.y - 5 : y - 60;
-      const fieldX = lineBelow ? lineBelow.x - 5 : x;
+      // 2. "By: ___________" — colon label WITH embedded underscores in same text chunk
+      if (COLON_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) {
+        addField(pn, x, y - 5);
+        continue;
+      }
 
-      // Deduplicate — skip if we already placed a field very close
-      const duplicate = results.some(
-        (r) => r.page === pn && Math.abs(r.x - fieldX) < 80 && Math.abs(r.y - fieldY) < 40
-      );
-      if (!duplicate) {
-        results.push({ page: pn, x: fieldX, y: fieldY, width: 190, height: 50, role: "recipient" });
+      // 3. "By:" / "Name:" / "Date:" without embedded underscores — look for line below
+      if (COLON_LABEL_RE.test(str) && str.length <= 30) {
+        const lineBelow = rawItems.slice(i + 1).find(
+          (t) =>
+            (STANDALONE_LINE_RE.test(t.str) || EMBEDDED_LINE_RE.test(t.str)) &&
+            Math.abs(t.x - x) < 220 &&
+            y - t.y > 0 &&
+            y - t.y < 80
+        );
+        if (lineBelow) {
+          addField(pn, lineBelow.x - 5, lineBelow.y - 5);
+        } else {
+          // No line found, place field below the label
+          addField(pn, x, y - 55);
+        }
+        continue;
+      }
+
+      // 4. Template placeholders: [Your Name], [Client's Name], [Date], [Your Title]
+      if (PLACEHOLDER_RE.test(str)) {
+        addField(pn, x - 5, y - 5);
+        continue;
       }
     }
 
-    // Also catch standalone signature lines not preceded by a matched label
+    // 5. Catch standalone signature lines not covered above
     for (const { str, x, y } of rawItems) {
-      if (!LINE_RE.test(str) || str.length < 8) continue;
+      if (!STANDALONE_LINE_RE.test(str) || str.length < 8) continue;
       const alreadyCovered = results.some(
         (r) => r.page === pn && Math.abs(r.x - x) < 100 && Math.abs(r.y - y) < 40
       );
@@ -91,7 +126,7 @@ export function PDFViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [scale, setScale] = useState(1.5);
+  const [scale, setScale] = useState(1.0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -99,6 +134,15 @@ export function PDFViewer({
   const pdfRef = useRef<any>(null);
   const renderTaskRef = useRef<any>(null);
   const [detecting, setDetecting] = useState(false);
+  const nativeWidthRef = useRef<number>(0);
+
+  // Compute fit-to-width scale from native PDF width + current container width
+  const computeFitScale = useCallback(() => {
+    if (!containerRef.current || !nativeWidthRef.current) return 1.0;
+    const containerW = containerRef.current.clientWidth - 32; // subtract p-4 padding (16px each side)
+    if (containerW <= 0) return 1.0;
+    return Math.max(0.5, Math.min(containerW / nativeWidthRef.current, 2.5));
+  }, []);
 
   // Load pdfjs lazily (client-only)
   useEffect(() => {
@@ -115,9 +159,21 @@ export function PDFViewer({
         if (cancelled) return;
         pdfRef.current = pdf;
         setNumPages(pdf.numPages);
+
+        // Calculate fit-to-width BEFORE first render
+        const firstPage = await pdf.getPage(1);
+        const nativeW = firstPage.view[2];
+        nativeWidthRef.current = nativeW;
+
+        // Wait one tick for the container to be laid out
+        await new Promise((r) => requestAnimationFrame(r));
+        if (!cancelled) {
+          setScale(computeFitScale());
+        }
+
         setLoading(false);
 
-        // Auto-detect signature fields after PDF loads
+        // Auto-detect signature fields
         if (onAutoDetect) {
           setDetecting(true);
           try {
@@ -237,12 +293,29 @@ export function PDFViewer({
             </span>
           )}
           <div className="flex items-center gap-1">
-            <button onClick={() => setScale((s) => Math.max(0.75, s - 0.25))} className="rounded p-1.5 text-muted-foreground hover:bg-muted">
+            <button
+              onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+              title="Zoom out"
+            >
               <ZoomOut className="h-4 w-4" />
             </button>
-            <span className="min-w-[42px] text-center text-xs text-muted-foreground">{Math.round(scale * 100)}%</span>
-            <button onClick={() => setScale((s) => Math.min(3, s + 0.25))} className="rounded p-1.5 text-muted-foreground hover:bg-muted">
+            <span className="min-w-[42px] text-center text-xs text-muted-foreground">
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              onClick={() => setScale((s) => Math.min(3, s + 0.25))}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+              title="Zoom in"
+            >
               <ZoomIn className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setScale(computeFitScale())}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted"
+              title="Fit to width"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -298,6 +371,11 @@ export function PDFViewer({
                         {isSender ? "Your Signature" : "Sign Here"}
                       </span>
                       {isHighlighted && <span className="text-[9px] text-sky-400/70 mt-0.5">Click to sign</span>}
+                      {onFieldClick && !isHighlighted && (
+                        <span className={`text-[9px] mt-0.5 ${isSender ? "text-[#d4a853]/60" : "text-sky-400/60"}`}>
+                          Click to sign
+                        </span>
+                      )}
                     </>
                   )}
                 </div>
