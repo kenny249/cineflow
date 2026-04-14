@@ -115,6 +115,18 @@ export default function ContractsPage() {
   // Stamp state
   const [stamping, setStamping] = useState(false);
 
+  // Inline sign modal (click a field → sign it right here)
+  const [signModalOpen, setSignModalOpen] = useState(false);
+  const [signModalField, setSignModalField] = useState<SignatureField | null>(null);
+  const inlineCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [inlineDrawing, setInlineDrawing] = useState(false);
+  const [hasInlineSig, setHasInlineSig] = useState(false);
+  const inlineLastPos = useRef<{ x: number; y: number } | null>(null);
+  const [inlineSigMode, setInlineSigMode] = useState<"draw" | "type">("draw");
+  const [inlineTypedName, setInlineTypedName] = useState("");
+  const [inlineSignerName, setInlineSignerName] = useState("");
+  const [savingInlineSig, setSavingInlineSig] = useState(false);
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -438,6 +450,132 @@ export default function ContractsPage() {
       setSavingSenderSig(false);
     }
   }, [selected, hasSenderSig, senderName]);
+
+  // ── Inline sign modal helpers ─────────────────────────────────────────────
+
+  function openSignModal(field: SignatureField) {
+    setSignModalField(field);
+    setInlineSigMode("draw");
+    setInlineTypedName("");
+    setHasInlineSig(false);
+    setInlineSignerName(
+      field.role === "sender"
+        ? (selected?.sender_name ?? "")
+        : (selected?.recipient_name ?? "")
+    );
+    setSignModalOpen(true);
+    // Clear canvas on next tick after modal renders
+    setTimeout(() => {
+      const c = inlineCanvasRef.current;
+      if (c) c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+    }, 50);
+  }
+
+  function getInlinePos(e: React.MouseEvent | React.TouchEvent) {
+    const canvas = inlineCanvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  function startInlineDraw(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault();
+    setInlineDrawing(true);
+    inlineLastPos.current = getInlinePos(e);
+  }
+
+  function drawInline(e: React.MouseEvent | React.TouchEvent) {
+    if (!inlineDrawing) return;
+    e.preventDefault();
+    const canvas = inlineCanvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    const pos = getInlinePos(e);
+    ctx.beginPath();
+    ctx.moveTo(inlineLastPos.current!.x, inlineLastPos.current!.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    inlineLastPos.current = pos;
+    setHasInlineSig(true);
+  }
+
+  function stopInlineDraw() { setInlineDrawing(false); inlineLastPos.current = null; }
+
+  function clearInlineCanvas() {
+    const c = inlineCanvasRef.current!;
+    c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+    setHasInlineSig(false);
+    setInlineTypedName("");
+  }
+
+  function renderInlineTyped(name: string) {
+    const canvas = inlineCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!name.trim()) { setHasInlineSig(false); return; }
+    ctx.font = "italic 48px Palatino Linotype, Palatino, Book Antiqua, Georgia, serif";
+    ctx.fillStyle = "#18181b";
+    ctx.textBaseline = "middle";
+    const tw = ctx.measureText(name).width;
+    const x = Math.max(16, (canvas.width - tw) / 2);
+    const y = canvas.height / 2;
+    ctx.fillText(name, x, y);
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y + 26);
+    ctx.lineTo(x + tw + 8, y + 26);
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    setHasInlineSig(true);
+  }
+
+  const handleSaveInlineSig = useCallback(async () => {
+    if (!selected || !hasInlineSig || !inlineSignerName.trim() || !signModalField) return;
+    setSavingInlineSig(true);
+    try {
+      const signatureData = inlineCanvasRef.current!.toDataURL("image/png");
+      const isSender = signModalField.role === "sender";
+
+      const res = await fetch("/api/contracts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isSender
+            ? { id: selected.id, sender_name: inlineSignerName.trim(), sender_signature_data: signatureData, sender_signed_at: new Date().toISOString() }
+            : { id: selected.id, recipient_name: inlineSignerName.trim(), status: "signed", signed_at: new Date().toISOString() }
+        ),
+      });
+
+      // If recipient in-person signing: also save to contract_signatures
+      if (!isSender) {
+        await fetch(`/api/contracts/sign?token=${selected.signing_token}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signer_name: inlineSignerName.trim(), signature_data: signatureData }),
+        });
+      }
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const updated = { ...selected, ...data.contract };
+      setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
+      setSelected(updated);
+      setSignModalOpen(false);
+      toast.success(isSender ? "Your signature saved" : "Contract signed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingInlineSig(false);
+    }
+  }, [selected, hasInlineSig, inlineSignerName, signModalField]);
 
   // ── Stamp (generate signed PDF) ────────────────────────────────────────────
   const handleStamp = useCallback(async () => {
@@ -775,6 +913,15 @@ export default function ContractsPage() {
                       )}
 
                       <div className="ml-auto flex items-center gap-2">
+                        {/* Sign now button — shown when fields exist and contract not signed */}
+                        {localFields.length > 0 && selected.status !== "signed" && (
+                          <button
+                            onClick={() => openSignModal(localFields[0])}
+                            className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black hover:bg-[#c49843] transition-colors"
+                          >
+                            <PenLine className="h-3 w-3" /> Sign Now
+                          </button>
+                        )}
                         {/* Save fields button — only if fields changed */}
                         {JSON.stringify(localFields) !== JSON.stringify(selected.signature_fields ?? []) && (
                           <button
@@ -806,6 +953,10 @@ export default function ContractsPage() {
                     dropMode={dropMode}
                     onFieldPlace={handleFieldPlace}
                     onAutoDetect={handleAutoDetect}
+                    onFieldClick={(field) => {
+                      if (selected.status === "signed") return;
+                      openSignModal(field);
+                    }}
                     className="h-[560px]"
                   />
                 </div>
@@ -1048,6 +1199,117 @@ export default function ContractsPage() {
           )}
         </main>
       </div>
+
+      {/* ── Inline Sign Modal ─────────────────────────────────────────────── */}
+      <Dialog open={signModalOpen} onOpenChange={(v) => { if (!v) { setSignModalOpen(false); clearInlineCanvas(); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PenLine className="h-4 w-4 text-[#d4a853]" />
+              {signModalField?.role === "sender" ? "Sign as Agency" : "Sign as Recipient"}
+            </DialogTitle>
+            <DialogDescription>
+              {signModalField?.role === "sender"
+                ? "Add your signature to this field — you'll send the contract to the client afterward."
+                : "Signing on behalf of the recipient in-person."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Full Name *</Label>
+              <Input
+                value={inlineSignerName}
+                onChange={(e) => {
+                  setInlineSignerName(e.target.value);
+                  if (inlineSigMode === "type") renderInlineTyped(e.target.value);
+                }}
+                placeholder="Legal name"
+                className="h-8 text-sm"
+                autoFocus
+              />
+            </div>
+
+            {/* Draw / Type toggle */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => { setInlineSigMode("draw"); clearInlineCanvas(); }}
+                    className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${inlineSigMode === "draw" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    <PenLine className="h-3 w-3" /> Draw
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setInlineSigMode("type"); setInlineTypedName(inlineSignerName); renderInlineTyped(inlineSignerName); }}
+                    className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${inlineSigMode === "type" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    <span className="font-serif italic text-sm leading-none">T</span> Type
+                  </button>
+                </div>
+                {hasInlineSig && (
+                  <button onClick={clearInlineCanvas} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                    <RotateCcw className="h-3 w-3" /> Clear
+                  </button>
+                )}
+              </div>
+
+              {inlineSigMode === "type" ? (
+                <div className="space-y-2">
+                  <Input
+                    value={inlineTypedName}
+                    onChange={(e) => { setInlineTypedName(e.target.value); renderInlineTyped(e.target.value); }}
+                    placeholder="Type your name…"
+                    className="h-8 text-sm"
+                  />
+                  <div className={`relative overflow-hidden rounded-xl border-2 ${hasInlineSig ? "border-[#d4a853]" : "border-border"} bg-white`}>
+                    <canvas ref={inlineCanvasRef} width={480} height={130} className="w-full" />
+                    {!hasInlineSig && (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <p className="font-serif italic text-base text-zinc-300">Signature preview</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className={`relative overflow-hidden rounded-xl border-2 transition-colors ${inlineDrawing ? "border-[#d4a853]" : "border-border"} bg-white`}>
+                  <canvas
+                    ref={inlineCanvasRef}
+                    width={480}
+                    height={130}
+                    className="w-full touch-none cursor-crosshair"
+                    onMouseDown={startInlineDraw}
+                    onMouseMove={drawInline}
+                    onMouseUp={stopInlineDraw}
+                    onMouseLeave={stopInlineDraw}
+                    onTouchStart={startInlineDraw}
+                    onTouchMove={drawInline}
+                    onTouchEnd={stopInlineDraw}
+                  />
+                  {!hasInlineSig && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <p className="text-sm text-zinc-300">Draw your signature here</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => { setSignModalOpen(false); clearInlineCanvas(); }}>Cancel</Button>
+            <Button
+              variant="gold"
+              size="sm"
+              onClick={handleSaveInlineSig}
+              disabled={savingInlineSig || !hasInlineSig || !inlineSignerName.trim()}
+            >
+              {savingInlineSig ? <><Loader2 className="mr-1.5 h-3 w-3 animate-spin" />Saving…</> : <><CheckCircle2 className="mr-1.5 h-3 w-3" />Confirm Signature</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Contract Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
