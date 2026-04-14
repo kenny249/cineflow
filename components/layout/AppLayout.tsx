@@ -93,8 +93,11 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
             sessionStorage.setItem("cf_plan", data.plan);
           }
           if (data?.first_name || data?.last_name) {
-            const fullName = [data.first_name, data.last_name].filter(Boolean).join(" ");
-            setProfileName(fullName);
+            setProfileName([data.first_name, data.last_name].filter(Boolean).join(" "));
+          } else {
+            // No name set yet — use email username so TopBar never shows a random name
+            const emailName = user.email?.split("@")[0] ?? "";
+            if (emailName) setProfileName(emailName);
           }
           if (data?.avatar_url) {
             setProfileAvatarUrl(data.avatar_url);

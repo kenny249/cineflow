@@ -60,7 +60,6 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
-    setDisplayName(getOrCreateDisplayName());
     loadData();
   }, []);
 
@@ -79,6 +78,10 @@ export default function DashboardPage() {
         }
         if (profile?.first_name || profile?.last_name) {
           setDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
+        } else {
+          // No name set yet — use email username, never a random name
+          const emailName = user.email?.split("@")[0] ?? "";
+          if (emailName) setDisplayName(emailName);
         }
       }
 

@@ -64,7 +64,10 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
   }, []);
 
   useEffect(() => {
-    setDisplayName(userFullName || getOrCreateDisplayName());
+    if (userFullName) {
+      setDisplayName(userFullName);
+    }
+    // Only fall back to random name for unauthenticated demo users (no userFullName passed)
   }, [userFullName]);
 
   // Load on mount + set up real-time subscription for new notifications
