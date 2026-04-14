@@ -22,14 +22,14 @@ function isoFromNow(days: number, hours = 0): string {
 }
 
 // ─── Seed ─────────────────────────────────────────────────────────────────────
-async function seedDemoAccount(supabase: AnyClient, userId: string, tempEmail: string, plan: string) {
-  // 1. Profile
+async function seedDemoAccount(supabase: AnyClient, userId: string, plan: string) {
+  // 1. Profile — only use real columns (first_name, last_name, role, plan)
   await supabase.from("profiles").upsert(
     {
       id: userId,
-      email: tempEmail,
-      full_name: "Demo User",
-      business_name: "Demo Studio",
+      first_name: "Demo",
+      last_name: "User",
+      role: "filmmaker",
       plan,
       updated_at: new Date().toISOString(),
     },
@@ -50,7 +50,6 @@ async function seedDemoAccount(supabase: AnyClient, userId: string, tempEmail: s
       due_date: daysFromNow(21),
       shoot_date: daysFromNow(7),
       created_by: userId,
-      owner_id: userId,
       tags: ["thriller", "short_film"],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -58,19 +57,21 @@ async function seedDemoAccount(supabase: AnyClient, userId: string, tempEmail: s
     .select()
     .single();
 
-  if (projErr || !project) return; // non-fatal — rest of seed still runs below
+  if (projErr || !project) {
+    console.error("[demo/seed] project insert failed:", projErr?.message);
+    return;
+  }
 
   const pid = project.id;
 
-  // 3. Client contact
+  // 3. Client contact — no city/state columns in schema
   await supabase.from("client_contacts").insert({
     user_id: userId,
     client_name: "Meridian Films",
     contact_name: "Sarah Chen",
     email: "sarah@meridianfilms.com",
     phone: "(310) 555-0192",
-    city: "Los Angeles",
-    state: "CA",
+    notes: "Key contact for Protetta. Prefers email for project updates.",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   });
@@ -137,44 +138,72 @@ async function seedDemoAccount(supabase: AnyClient, userId: string, tempEmail: s
     }),
   ]);
 
-  // 5. Calendar events
+  // 5. Calendar events — DB uses start_time/end_time (TIMESTAMPTZ NOT NULL), not start_date/all_day
   await supabase.from("calendar_events").insert([
     {
       created_by: userId,
       project_id: pid,
       title: "Protetta — Location Scout",
-      type: "shoot",
       event_type: "shoot",
-      start_date: daysFromNow(-7),
-      all_day: true,
+      start_time: isoFromNow(-7, 8),
+      end_time: isoFromNow(-7, 18),
       location: "Sierra Nevada, CA",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     },
     {
       created_by: userId,
       project_id: pid,
       title: "Protetta — Client Review Call",
-      type: "meeting",
       event_type: "meeting",
-      start_date: daysFromNow(3),
       start_time: isoFromNow(3, 10),
       end_time: isoFromNow(3, 11),
-      all_day: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
     },
     {
       created_by: userId,
       project_id: pid,
       title: "Protetta — Principal Photography Day 1",
-      type: "shoot",
       event_type: "shoot",
-      start_date: daysFromNow(7),
-      all_day: true,
+      start_time: isoFromNow(7, 8),
+      end_time: isoFromNow(7, 19),
       location: "Big Bear Lake, CA",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+    },
+  ]);
+
+  // 6. Tasks — fun onboarding tasks that double as a product tour
+  const today = new Date().toISOString().split("T")[0];
+  await supabase.from("tasks").insert([
+    { user_id: userId, title: "Open Tasks Page", priority: "low",    date: today, done: true  },
+    { user_id: userId, title: "Think",           priority: "medium", date: today, done: true  },
+    { user_id: userId, title: "wait CineFlow is kinda sick!", priority: "high", date: today, done: false },
+    { user_id: userId, title: "Give Beta Feedback",           priority: "high", date: today, done: false },
+  ]);
+
+  // 7. Team members — Protetta crew
+  await supabase.from("team_members").insert([
+    {
+      invited_by: userId,
+      email: "maya@meridianfilms.com",
+      name: "Maya Rodriguez",
+      role: "admin",
+      status: "active",
+      invited_at: new Date().toISOString(),
+      joined_at: new Date().toISOString(),
+    },
+    {
+      invited_by: userId,
+      email: "james.obrien@crew.com",
+      name: "James O'Brien",
+      role: "member",
+      status: "active",
+      invited_at: new Date().toISOString(),
+      joined_at: new Date().toISOString(),
+    },
+    {
+      invited_by: userId,
+      email: "sarah@meridianfilms.com",
+      name: "Sarah Chen",
+      role: "member",
+      status: "pending",
+      invited_at: new Date().toISOString(),
     },
   ]);
 }
@@ -205,7 +234,7 @@ export async function POST(req: NextRequest) {
     const userId = createData.user.id;
 
     // 2. Seed fake data
-    await seedDemoAccount(supabase as AnyClient, userId, tempEmail, plan);
+    await seedDemoAccount(supabase as AnyClient, userId, plan);
 
     // 3. Return credentials — client signs in directly via signInWithPassword.
     //    No magic link redirect needed; avoids the #access_token hash fragment issue.
