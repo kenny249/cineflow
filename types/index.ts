@@ -474,6 +474,16 @@ export interface ProjectTask {
 // ─── Contracts ───────────────────────────────────────────────────────────────
 export type ContractStatus = "draft" | "sent" | "signed" | "declined" | "voided";
 
+export interface SignatureField {
+  id: string;
+  page: number;        // 1-based page number
+  x: number;          // PDF points from bottom-left
+  y: number;
+  width: number;
+  height: number;
+  role: "sender" | "recipient";
+}
+
 export interface Contract {
   id: string;
   created_by?: string;
@@ -490,6 +500,12 @@ export interface Contract {
   signed_at?: string;
   created_at: string;
   updated_at?: string;
+  // Signature placement
+  signature_fields?: SignatureField[];
+  sender_name?: string;
+  sender_signature_data?: string;
+  sender_signed_at?: string;
+  signed_pdf_url?: string;
 }
 
 export interface ContractSignature {

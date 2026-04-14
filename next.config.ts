@@ -16,7 +16,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  async headers() {
+  webpack: (config) => {
+    // pdfjs-dist optionally requires canvas (Node.js) — ignore it in the browser bundle
+    config.resolve.alias = { ...config.resolve.alias, canvas: false };
+    return config;
+  },
+  headers() {
     return [
       {
         source: "/(.*)",

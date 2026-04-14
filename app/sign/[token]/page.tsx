@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+import { PDFViewer } from "@/components/contracts/PDFViewer";
+import type { SignatureField } from "@/types";
+
 interface ContractData {
   id: string;
   title: string;
@@ -16,6 +19,9 @@ interface ContractData {
   recipient_name?: string;
   recipient_email?: string;
   signed_at?: string;
+  signature_fields?: SignatureField[];
+  sender_signed_at?: string;
+  signed_pdf_url?: string;
 }
 
 export default function SigningPage() {
@@ -162,13 +168,27 @@ export default function SigningPage() {
         <p className="max-w-sm text-sm text-[#71717a]">
           Your signature has been recorded and the contract is now fully executed.
         </p>
-        <a
-          href={`/sign/${token}/certificate`}
-          className="mt-2 flex items-center gap-2 rounded-xl bg-[#18181b] px-6 py-3 text-sm font-semibold text-white hover:bg-[#27272a] transition-colors"
-        >
-          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-          View Signed Certificate
-        </a>
+        <div className="mt-2 flex flex-col items-center gap-2">
+          {contract?.signed_pdf_url && (
+            <a
+              href={contract.signed_pdf_url}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Download Signed Contract
+            </a>
+          )}
+          <a
+            href={`/sign/${token}/certificate`}
+            className="flex items-center gap-2 rounded-xl bg-[#18181b] px-6 py-3 text-sm font-semibold text-white hover:bg-[#27272a] transition-colors"
+          >
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            View Signed Certificate
+          </a>
+        </div>
         <div className="mt-2 flex items-center gap-2 text-xs text-[#a1a1aa]">
           <Film className="h-3.5 w-3.5" />
           Powered by Cineflow
@@ -206,31 +226,33 @@ export default function SigningPage() {
             </div>
           </div>
 
-          {/* PDF viewer */}
+          {/* PDF viewer with signature fields */}
           {contract?.file_url && (
             <div className="mt-5">
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-[#a1a1aa]">Document</p>
-              <div className="overflow-hidden rounded-xl border border-[#e4e4e7] bg-[#fafafa]">
-                <iframe
-                  src={contract.file_url}
-                  className="h-[480px] w-full"
-                  title="Contract document"
+              <div className="overflow-hidden rounded-xl border border-[#e4e4e7]">
+                <PDFViewer
+                  url={contract.file_url}
+                  fields={contract.signature_fields ?? []}
+                  highlightRole="recipient"
+                  onFieldClick={() => {
+                    // Scroll down to signature canvas
+                    document.getElementById("sign-canvas-section")?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                  className="h-[520px]"
                 />
               </div>
-              <a
-                href={contract.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-block text-xs text-[#71717a] underline underline-offset-2 hover:text-[#18181b]"
-              >
-                Open in new tab ↗
-              </a>
+              {(contract.signature_fields ?? []).some((f) => f.role === "recipient") && (
+                <p className="mt-2 text-xs text-[#71717a]">
+                  ↑ Your signature field is highlighted — click it or scroll down to sign
+                </p>
+              )}
             </div>
           )}
         </div>
 
         {/* Signature form */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm border border-[#e4e4e7]">
+        <div id="sign-canvas-section" className="rounded-2xl bg-white p-6 shadow-sm border border-[#e4e4e7]">
           <div className="mb-5 flex items-center gap-2">
             <Pen className="h-4 w-4 text-[#d4a853]" />
             <h2 className="font-semibold text-[#18181b]">Sign Below</h2>

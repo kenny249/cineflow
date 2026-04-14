@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const supabase = getAdmin();
   const { data: contract, error } = await supabase
     .from("contracts")
-    .select("id, title, description, file_url, status, recipient_name, recipient_email, signed_at")
+    .select("id, title, description, file_url, status, recipient_name, recipient_email, signed_at, signature_fields, sender_signed_at, signed_pdf_url")
     .eq("signing_token", token)
     .single();
 
@@ -82,11 +82,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to save signature" }, { status: 500 });
   }
 
+  const now = new Date().toISOString();
+
   // Mark contract as signed
   await supabase
     .from("contracts")
-    .update({ status: "signed", signed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .update({ status: "signed", signed_at: now, updated_at: now })
     .eq("id", contract.id);
+
+  // Fire stamp in background — don't block the signing response
+  const origin = req.headers.get("origin") ?? req.nextUrl.origin;
+  fetch(`${origin}/api/contracts/stamp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contractId: contract.id }),
+  }).catch(() => {}); // best-effort
 
   return NextResponse.json({ success: true });
 }

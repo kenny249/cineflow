@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  Plus, FileSignature, Send, Trash2, CheckCircle2, Clock,
-  FileText, Upload, Link2, Copy, ExternalLink, X, ChevronDown, Pencil, PenLine,
+  Plus, FileSignature, Send, Trash2, CheckCircle2,
+  FileText, Upload, Copy, ExternalLink, X, ChevronDown, Pencil,
+  Download, PenLine, RotateCcw, Loader2, MousePointer, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -13,7 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { getProjects } from "@/lib/supabase/queries";
-import type { Contract, ContractStatus, Project } from "@/types";
+import { PDFViewer } from "@/components/contracts/PDFViewer";
+import type { Contract, ContractStatus, Project, SignatureField } from "@/types";
 
 const STATUS_CONFIG: Record<ContractStatus, { label: string; color: string; bg: string }> = {
   draft:    { label: "Draft",    color: "text-muted-foreground",  bg: "bg-muted/60" },
@@ -62,6 +64,23 @@ export default function ContractsPage() {
   // Send state
   const [sending, setSending] = useState(false);
 
+  // Field placement
+  const [dropMode, setDropMode] = useState<"sender" | "recipient" | null>(null);
+  const [localFields, setLocalFields] = useState<SignatureField[]>([]);
+  const [savingFields, setSavingFields] = useState(false);
+
+  // Sender (agency) signing
+  const [showSenderSign, setShowSenderSign] = useState(false);
+  const [senderName, setSenderName] = useState("");
+  const [savingSenderSig, setSavingSenderSig] = useState(false);
+  const senderCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [senderDrawing, setSenderDrawing] = useState(false);
+  const [hasSenderSig, setHasSenderSig] = useState(false);
+  const senderLastPos = useRef<{ x: number; y: number } | null>(null);
+
+  // Stamp state
+  const [stamping, setStamping] = useState(false);
+
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -84,6 +103,19 @@ export default function ContractsPage() {
     }
     load();
   }, []);
+
+  // Sync local field state when selected contract changes
+  useEffect(() => {
+    setLocalFields(selected?.signature_fields ?? []);
+    setSenderName(selected?.sender_name ?? "");
+    setDropMode(null);
+    setShowSenderSign(false);
+    setHasSenderSig(false);
+    if (senderCanvasRef.current) {
+      const ctx = senderCanvasRef.current.getContext("2d");
+      ctx?.clearRect(0, 0, senderCanvasRef.current.width, senderCanvasRef.current.height);
+    }
+  }, [selected?.id]);
 
   function openNew() {
     setFTitle(""); setFDescription(""); setFProject("");
@@ -213,6 +245,138 @@ export default function ContractsPage() {
       setSaving(false);
     }
   }, [selected, eTitle, eDescription, eProject, eRecipientName, eRecipientEmail]);
+
+  // ── Field placement ──────────────────────────────────────────────────────────
+  function handleFieldPlace(field: Omit<SignatureField, "id">) {
+    const id = crypto.randomUUID();
+    setLocalFields((prev) => [...prev, { ...field, id }]);
+    setDropMode(null); // auto-deactivate after placing one field
+  }
+
+  function removeField(id: string) {
+    setLocalFields((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  const handleSaveFields = useCallback(async () => {
+    if (!selected) return;
+    setSavingFields(true);
+    try {
+      const res = await fetch("/api/contracts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selected.id, signature_fields: localFields }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const updated = { ...selected, signature_fields: localFields };
+      setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
+      setSelected(updated);
+      toast.success("Fields saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save fields");
+    } finally {
+      setSavingFields(false);
+    }
+  }, [selected, localFields]);
+
+  // ── Sender canvas helpers ─────────────────────────────────────────────────
+  function getSenderPos(e: React.MouseEvent | React.TouchEvent) {
+    const canvas = senderCanvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ("touches" in e) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  function startSenderDraw(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault();
+    setSenderDrawing(true);
+    senderLastPos.current = getSenderPos(e);
+  }
+
+  function drawSender(e: React.MouseEvent | React.TouchEvent) {
+    if (!senderDrawing) return;
+    e.preventDefault();
+    const canvas = senderCanvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    const pos = getSenderPos(e);
+    ctx.beginPath();
+    ctx.moveTo(senderLastPos.current!.x, senderLastPos.current!.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    senderLastPos.current = pos;
+    setHasSenderSig(true);
+  }
+
+  function stopSenderDraw() {
+    setSenderDrawing(false);
+    senderLastPos.current = null;
+  }
+
+  function clearSenderCanvas() {
+    const canvas = senderCanvasRef.current!;
+    canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSenderSig(false);
+  }
+
+  const handleSaveSenderSig = useCallback(async () => {
+    if (!selected || !hasSenderSig || !senderName.trim()) return;
+    setSavingSenderSig(true);
+    try {
+      const signatureData = senderCanvasRef.current!.toDataURL("image/png");
+      const res = await fetch("/api/contracts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selected.id,
+          sender_name: senderName.trim(),
+          sender_signature_data: signatureData,
+          sender_signed_at: new Date().toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const updated = { ...selected, ...data.contract };
+      setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
+      setSelected(updated);
+      setShowSenderSign(false);
+      toast.success("Your signature saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save signature");
+    } finally {
+      setSavingSenderSig(false);
+    }
+  }, [selected, hasSenderSig, senderName]);
+
+  // ── Stamp (generate signed PDF) ────────────────────────────────────────────
+  const handleStamp = useCallback(async () => {
+    if (!selected) return;
+    setStamping(true);
+    try {
+      const res = await fetch("/api/contracts/stamp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractId: selected.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const updated = { ...selected, signed_pdf_url: data.signed_pdf_url };
+      setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
+      setSelected(updated);
+      toast.success("Signed PDF generated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate PDF");
+    } finally {
+      setStamping(false);
+    }
+  }, [selected]);
 
   const signingUrl = selected?.signing_token
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/sign/${selected.signing_token}`
@@ -423,36 +587,262 @@ export default function ContractsPage() {
                 </div>
               )}
 
-              {/* PDF preview */}
-              {selected.file_url && (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Document</p>
-                    <a
-                      href={selected.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      Open
-                    </a>
-                  </div>
-                  <div className="overflow-hidden rounded-lg border border-border">
-                    <iframe
-                      src={selected.file_url}
-                      className="h-[500px] w-full bg-white"
-                      title="Contract document"
-                    />
-                  </div>
-                </div>
-              )}
+              {/* PDF viewer + field placement */}
+              {selected.file_url ? (
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                  {/* Field placement toolbar */}
+                  {selected.status !== "signed" && (
+                    <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5 bg-card/80">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mr-1">
+                        Signature Fields
+                      </span>
 
-              {!selected.file_url && (
+                      {/* Sender field button */}
+                      <button
+                        onClick={() => setDropMode(dropMode === "sender" ? null : "sender")}
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          dropMode === "sender"
+                            ? "border-[#d4a853] bg-[#d4a853]/15 text-[#d4a853]"
+                            : "border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
+                        }`}
+                      >
+                        <MousePointer className="h-3 w-3" />
+                        {dropMode === "sender" ? "Click PDF to place…" : "Add Your Field"}
+                        {localFields.filter((f) => f.role === "sender").length > 0 && (
+                          <span className="rounded-full bg-[#d4a853]/20 px-1.5 text-[10px] text-[#d4a853]">
+                            {localFields.filter((f) => f.role === "sender").length}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Recipient field button */}
+                      <button
+                        onClick={() => setDropMode(dropMode === "recipient" ? null : "recipient")}
+                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                          dropMode === "recipient"
+                            ? "border-sky-400 bg-sky-400/15 text-sky-400"
+                            : "border-border text-muted-foreground hover:border-sky-400/40 hover:text-foreground"
+                        }`}
+                      >
+                        <Users className="h-3 w-3" />
+                        {dropMode === "recipient" ? "Click PDF to place…" : "Add Recipient Field"}
+                        {localFields.filter((f) => f.role === "recipient").length > 0 && (
+                          <span className="rounded-full bg-sky-400/20 px-1.5 text-[10px] text-sky-400">
+                            {localFields.filter((f) => f.role === "recipient").length}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* Field list — remove individual fields */}
+                      {localFields.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1 ml-1">
+                          {localFields.map((f) => (
+                            <span
+                              key={f.id}
+                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${
+                                f.role === "sender"
+                                  ? "bg-[#d4a853]/10 text-[#d4a853]"
+                                  : "bg-sky-400/10 text-sky-400"
+                              }`}
+                            >
+                              p.{f.page} {f.role === "sender" ? "You" : "Client"}
+                              <button onClick={() => removeField(f.id)} className="hover:opacity-70">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="ml-auto flex items-center gap-2">
+                        {/* Save fields button — only if fields changed */}
+                        {JSON.stringify(localFields) !== JSON.stringify(selected.signature_fields ?? []) && (
+                          <button
+                            onClick={handleSaveFields}
+                            disabled={savingFields}
+                            className="flex items-center gap-1.5 rounded-lg bg-foreground/5 border border-border px-2.5 py-1 text-xs font-medium hover:bg-foreground/10 transition-colors"
+                          >
+                            {savingFields ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                            Save fields
+                          </button>
+                        )}
+                        <a
+                          href={selected.file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Open
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PDF viewer */}
+                  <PDFViewer
+                    url={selected.file_url}
+                    fields={localFields}
+                    dropMode={dropMode}
+                    onFieldPlace={handleFieldPlace}
+                    className="h-[560px]"
+                  />
+                </div>
+              ) : (
                 <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
                   <FileText className="h-8 w-8 text-muted-foreground/30" />
                   <p className="text-sm text-muted-foreground">No document uploaded</p>
                   <p className="text-xs text-muted-foreground/60">Upload a PDF when creating the contract.</p>
+                </div>
+              )}
+
+              {/* Sender (agency) signing panel */}
+              {selected.file_url && selected.status !== "signed" && localFields.some((f) => f.role === "sender") && (
+                <div className="rounded-xl border border-border bg-card p-4">
+                  {selected.sender_signed_at ? (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d4a853]/10">
+                        <CheckCircle2 className="h-4 w-4 text-[#d4a853]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Your signature collected</p>
+                        <p className="text-xs text-muted-foreground">
+                          {selected.sender_name} · {new Date(selected.sender_signed_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowSenderSign(true)}
+                        className="ml-auto text-xs text-muted-foreground hover:text-foreground underline"
+                      >
+                        Re-sign
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <PenLine className="h-4 w-4 text-[#d4a853]" />
+                        <p className="text-sm font-semibold text-foreground">Sign your field</p>
+                        <span className="text-xs text-muted-foreground">— sign before sending to client</span>
+                      </div>
+                      {!showSenderSign ? (
+                        <button
+                          onClick={() => setShowSenderSign(true)}
+                          className="flex items-center gap-2 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/5 px-4 py-2 text-sm font-medium text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
+                        >
+                          <PenLine className="h-3.5 w-3.5" /> Draw Your Signature
+                        </button>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Your Name</Label>
+                            <Input
+                              value={senderName}
+                              onChange={(e) => setSenderName(e.target.value)}
+                              placeholder="Your full name"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs">Signature</Label>
+                              {hasSenderSig && (
+                                <button onClick={clearSenderCanvas} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                                  <RotateCcw className="h-3 w-3" /> Clear
+                                </button>
+                              )}
+                            </div>
+                            <div className={`relative overflow-hidden rounded-xl border-2 transition-colors ${senderDrawing ? "border-[#d4a853]" : "border-border"} bg-white`}>
+                              <canvas
+                                ref={senderCanvasRef}
+                                width={560}
+                                height={140}
+                                className="w-full touch-none cursor-crosshair"
+                                onMouseDown={startSenderDraw}
+                                onMouseMove={drawSender}
+                                onMouseUp={stopSenderDraw}
+                                onMouseLeave={stopSenderDraw}
+                                onTouchStart={startSenderDraw}
+                                onTouchMove={drawSender}
+                                onTouchEnd={stopSenderDraw}
+                              />
+                              {!hasSenderSig && (
+                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                  <p className="text-sm text-zinc-300">Draw your signature here</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setShowSenderSign(false); clearSenderCanvas(); }}
+                              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleSaveSenderSig}
+                              disabled={savingSenderSig || !hasSenderSig || !senderName.trim()}
+                              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
+                            >
+                              {savingSenderSig ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                              Confirm Signature
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Signed PDF download */}
+              {(selected.signed_pdf_url || selected.status === "signed") && (
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/10">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Fully Executed Contract</p>
+                        <p className="text-xs text-muted-foreground">Both parties have signed</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {selected.signed_pdf_url ? (
+                        <a
+                          href={selected.signed_pdf_url}
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Download Signed PDF
+                        </a>
+                      ) : (
+                        <button
+                          onClick={handleStamp}
+                          disabled={stamping}
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                        >
+                          {stamping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                          Generate Signed PDF
+                        </button>
+                      )}
+                      {selected.signing_token && (
+                        <a
+                          href={`/sign/${selected.signing_token}/certificate`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Certificate
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -464,16 +854,22 @@ export default function ContractsPage() {
                     <FileText className="h-3.5 w-3.5 shrink-0" />
                     Created {new Date(selected.created_at).toLocaleDateString()}
                   </div>
+                  {selected.sender_signed_at && (
+                    <div className="flex items-center gap-2 text-xs text-[#d4a853]">
+                      <PenLine className="h-3.5 w-3.5 shrink-0" />
+                      You signed · {selected.sender_name} · {new Date(selected.sender_signed_at).toLocaleDateString()}
+                    </div>
+                  )}
                   {selected.sent_at && (
                     <div className="flex items-center gap-2 text-xs text-amber-400">
                       <Send className="h-3.5 w-3.5 shrink-0" />
-                      Sent {new Date(selected.sent_at).toLocaleDateString()}
+                      Sent to {selected.recipient_name ?? selected.recipient_email} · {new Date(selected.sent_at).toLocaleDateString()}
                     </div>
                   )}
                   {selected.signed_at && (
                     <div className="flex items-center gap-2 text-xs text-emerald-400">
                       <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                      Signed {new Date(selected.signed_at).toLocaleDateString()}
+                      {selected.recipient_name ?? "Client"} signed · {new Date(selected.signed_at).toLocaleDateString()}
                     </div>
                   )}
                 </div>
