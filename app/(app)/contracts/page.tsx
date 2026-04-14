@@ -302,6 +302,10 @@ export default function ContractsPage() {
     setLocalFields((prev) => prev.filter((f) => f.id !== id));
   }
 
+  function moveField(id: string, x: number, y: number) {
+    setLocalFields((prev) => prev.map((f) => f.id === id ? { ...f, x, y } : f));
+  }
+
   function updateFieldValue(id: string, value: string) {
     setLocalFields((prev) => prev.map((f) => f.id === id ? { ...f, value } : f));
   }
@@ -661,6 +665,7 @@ export default function ContractsPage() {
                     dropMode={dropMode}
                     onFieldPlace={handleFieldPlace}
                     onFieldDelete={selected.status !== "signed" ? removeField : undefined}
+                    onFieldMove={selected.status !== "signed" ? moveField : undefined}
                     onAutoDetect={selected.status !== "signed" ? handleAutoDetect : undefined}
                     onFieldClick={(field) => {
                       if (selected.status === "signed") return;

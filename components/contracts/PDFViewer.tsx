@@ -15,6 +15,7 @@ interface PDFViewerProps {
   onFieldPlace?: (field: Omit<SignatureField, "id">) => void;
   onFieldClick?: (field: SignatureField) => void;
   onFieldDelete?: (id: string) => void;
+  onFieldMove?: (id: string, x: number, y: number) => void;
   onAutoDetect?: (fields: Omit<SignatureField, "id">[]) => void;
   highlightRole?: "sender" | "recipient";
   className?: string;
@@ -23,6 +24,16 @@ interface PDFViewerProps {
 interface PageDimensions {
   width: number;
   height: number;
+}
+
+interface DragState {
+  fieldId: string;
+  startClientX: number;
+  startClientY: number;
+  originalX: number;
+  originalY: number;
+  offsetPdfX: number;
+  offsetPdfY: number;
 }
 
 // ── Signature field detection ─────────────────────────────────────────────────
@@ -68,7 +79,6 @@ async function detectSignatureFields(pdf: any): Promise<Omit<SignatureField, "id
     for (let i = 0; i < rawItems.length; i++) {
       const { str, x, y } = rawItems[i];
 
-      // 1. Signature keyword ("Signature", "Sign Here", "Accepted By", etc.)
       if (SIG_KEYWORD_RE.test(str) && str.length <= 60) {
         const lineBelow = rawItems.slice(i + 1).find(
           (t) => STANDALONE_LINE_RE.test(t.str) && Math.abs(t.x - x) < 200 && y - t.y > 0 && y - t.y < 80
@@ -76,44 +86,12 @@ async function detectSignatureFields(pdf: any): Promise<Omit<SignatureField, "id
         addField(pn, lineBelow ? lineBelow.x - 5 : x, lineBelow ? lineBelow.y - 5 : y - 60, "signature");
         continue;
       }
-
-      // 2. Date placeholder: [Date], [Today], [MM/DD/YYYY]
-      if (DATE_PLACEHOLDER_RE.test(str)) {
-        addField(pn, x - 5, y - 5, "date");
-        continue;
-      }
-
-      // 3. Text placeholder: [Your Name], [Client's Name], [Your Title]
-      if (TEXT_PLACEHOLDER_RE.test(str)) {
-        addField(pn, x - 5, y - 5, "text");
-        continue;
-      }
-
-      // 4. Generic placeholder (anything in brackets not already caught)
-      if (PLACEHOLDER_RE.test(str) && !SIG_KEYWORD_RE.test(str)) {
-        addField(pn, x - 5, y - 5, "text");
-        continue;
-      }
-
-      // 5. "Date: ___" — colon label for date with embedded line
-      if (DATE_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) {
-        addField(pn, x, y - 5, "date");
-        continue;
-      }
-
-      // 6. "Name: ___" / "Title: ___" — colon label for text with embedded line
-      if (TEXT_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) {
-        addField(pn, x, y - 5, "text");
-        continue;
-      }
-
-      // 7. "By: ___" — colon label for signature with embedded line
-      if (COLON_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) {
-        addField(pn, x, y - 5, "signature");
-        continue;
-      }
-
-      // 8. Colon label without embedded line — look for line below
+      if (DATE_PLACEHOLDER_RE.test(str)) { addField(pn, x - 5, y - 5, "date"); continue; }
+      if (TEXT_PLACEHOLDER_RE.test(str)) { addField(pn, x - 5, y - 5, "text"); continue; }
+      if (PLACEHOLDER_RE.test(str) && !SIG_KEYWORD_RE.test(str)) { addField(pn, x - 5, y - 5, "text"); continue; }
+      if (DATE_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) { addField(pn, x, y - 5, "date"); continue; }
+      if (TEXT_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) { addField(pn, x, y - 5, "text"); continue; }
+      if (COLON_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) { addField(pn, x, y - 5, "signature"); continue; }
       if (COLON_LABEL_RE.test(str) && str.length <= 30) {
         const lineBelow = rawItems.slice(i + 1).find(
           (t) => (STANDALONE_LINE_RE.test(t.str) || EMBEDDED_LINE_RE.test(t.str)) &&
@@ -127,7 +105,6 @@ async function detectSignatureFields(pdf: any): Promise<Omit<SignatureField, "id
       }
     }
 
-    // 9. Standalone signature lines not covered above
     for (const { str, x, y } of rawItems) {
       if (!STANDALONE_LINE_RE.test(str) || str.length < 8) continue;
       const alreadyCovered = results.some(
@@ -151,6 +128,7 @@ export function PDFViewer({
   onFieldPlace,
   onFieldClick,
   onFieldDelete,
+  onFieldMove,
   onAutoDetect,
   highlightRole,
   className = "",
@@ -168,6 +146,10 @@ export function PDFViewer({
   const [detecting, setDetecting] = useState(false);
   const nativeWidthRef = useRef<number>(0);
   const [hoveredFieldId, setHoveredFieldId] = useState<string | null>(null);
+
+  // ── Drag state ───────────────────────────────────────────────────────────────
+  const [dragging, setDragging] = useState<DragState | null>(null);
+  const dragMoved = useRef(false); // true once mouse moved > threshold during drag
 
   const computeFitScale = useCallback(() => {
     if (!containerRef.current || !nativeWidthRef.current) return 1.0;
@@ -258,7 +240,51 @@ export function PDFViewer({
     return { left: x * scale, top: (pageDims.height - y) * scale };
   }
 
+  // ── Drag handlers ─────────────────────────────────────────────────────────────
+
+  function handleFieldMouseDown(e: React.MouseEvent, field: SignatureField) {
+    if (dropMode || !onFieldMove) return; // don't start drag in place-mode or if no move handler
+    e.preventDefault();
+    e.stopPropagation();
+    dragMoved.current = false;
+    setDragging({
+      fieldId: field.id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      originalX: field.x,
+      originalY: field.y,
+      offsetPdfX: 0,
+      offsetPdfY: 0,
+    });
+  }
+
+  function handleContainerMouseMove(e: React.MouseEvent) {
+    if (!dragging) return;
+    const dx = e.clientX - dragging.startClientX;
+    const dy = e.clientY - dragging.startClientY;
+    if (!dragMoved.current && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      dragMoved.current = true;
+    }
+    setDragging((prev) =>
+      prev ? { ...prev, offsetPdfX: dx / scale, offsetPdfY: -dy / scale } : null
+    );
+  }
+
+  function handleContainerMouseUp() {
+    if (dragging && dragMoved.current && onFieldMove) {
+      onFieldMove(
+        dragging.fieldId,
+        dragging.originalX + dragging.offsetPdfX,
+        dragging.originalY + dragging.offsetPdfY
+      );
+    }
+    setDragging(null);
+  }
+
+  // ── Click handler (suppressed if drag just finished) ──────────────────────────
+
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (dragMoved.current) { dragMoved.current = false; return; } // swallow click after drag
     if (!dropMode || !onFieldPlace || !pageDims) return;
     const pos = screenToPDF(e);
     if (!pos) return;
@@ -280,6 +306,7 @@ export function PDFViewer({
   }
 
   const pageFields = fields.filter((f) => f.page === currentPage);
+  const canDrag = !!onFieldMove && !dropMode;
 
   return (
     <div className={`flex flex-col overflow-hidden ${className}`}>
@@ -316,8 +343,11 @@ export function PDFViewer({
               dropMode === "recipient" ? "bg-sky-500/20 text-sky-400" :
               "bg-violet-500/20 text-violet-400"
             }`}>
-              Click PDF to place {dropMode === "sender" ? "your sig" : dropMode === "recipient" ? "client sig" : dropMode} field
+              Click to place {dropMode === "sender" ? "your sig" : dropMode === "recipient" ? "client sig" : dropMode} field
             </span>
+          )}
+          {canDrag && !dropMode && (
+            <span className="text-[10px] text-muted-foreground/50">Drag fields to reposition</span>
           )}
           <div className="flex items-center gap-1">
             <button onClick={() => setScale((s) => Math.max(0.5, s - 0.25))} className="rounded p-1.5 text-muted-foreground hover:bg-muted" title="Zoom out">
@@ -337,8 +367,13 @@ export function PDFViewer({
       {/* Canvas area */}
       <div
         ref={containerRef}
-        className={`relative flex-1 overflow-auto bg-zinc-100 dark:bg-zinc-900 ${dropMode ? "cursor-crosshair" : ""}`}
+        className={`relative flex-1 overflow-auto bg-zinc-100 dark:bg-zinc-900 ${
+          dropMode ? "cursor-crosshair" : dragging ? "cursor-grabbing select-none" : ""
+        }`}
         onClick={handleCanvasClick}
+        onMouseMove={handleContainerMouseMove}
+        onMouseUp={handleContainerMouseUp}
+        onMouseLeave={() => { if (dragging) { setDragging(null); dragMoved.current = false; } }}
       >
         {loading && (
           <div className="flex h-full min-h-[400px] items-center justify-center">
@@ -356,33 +391,45 @@ export function PDFViewer({
 
             {pageDims && pageFields.map((field) => {
               const fieldType = field.type ?? "signature";
-              const { left, top } = pdfToScreen(field.x, field.y + field.height);
+              const isDraggingThis = dragging?.fieldId === field.id;
+              // Use live drag offset for the field being dragged
+              const renderX = field.x + (isDraggingThis ? dragging!.offsetPdfX : 0);
+              const renderY = field.y + (isDraggingThis ? dragging!.offsetPdfY : 0);
+              const { left, top } = pdfToScreen(renderX, renderY + field.height);
               const w = field.width * scale;
               const h = field.height * scale;
               const isHovered = hoveredFieldId === field.id;
+              const dragCursor = canDrag ? (isDraggingThis ? "cursor-grabbing" : "cursor-grab") : "";
 
               // ── Text / Date field overlay ────────────────────────────
               if (fieldType === "text" || fieldType === "date") {
                 return (
                   <div
                     key={field.id}
-                    className={`absolute flex items-center rounded border-2 border-dashed select-none
-                      border-violet-400/60 bg-violet-50/80 dark:bg-violet-900/20
-                      ${onFieldClick ? "cursor-pointer hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30" : "cursor-default"}
+                    className={`absolute flex items-center rounded border-2 select-none overflow-hidden
+                      ${isDraggingThis
+                        ? "border-violet-500 bg-white dark:bg-zinc-800 shadow-lg opacity-90"
+                        : "border-violet-400 bg-white dark:bg-zinc-800 border-dashed"}
+                      ${dragCursor}
+                      ${onFieldClick && !canDrag ? "cursor-pointer" : ""}
                     `}
-                    style={{ left: left + 16, top: top + 16, width: w, height: h }}
+                    style={{ left: left + 16, top: top + 16, width: w, height: h, zIndex: isDraggingThis ? 50 : 10 }}
                     onMouseEnter={() => setHoveredFieldId(field.id)}
                     onMouseLeave={() => setHoveredFieldId(null)}
-                    onClick={(e) => { e.stopPropagation(); if (onFieldClick) onFieldClick(field); }}
+                    onMouseDown={(e) => handleFieldMouseDown(e, field)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!dragMoved.current && onFieldClick) onFieldClick(field);
+                    }}
                   >
-                    <span className="px-2 text-[11px] text-violet-600 dark:text-violet-400 truncate flex-1">
+                    <span className="px-2 text-[11px] text-violet-700 dark:text-violet-300 truncate w-full">
                       {field.value
                         ? field.value
-                        : <span className="opacity-50">{fieldType === "date" ? "Click to set date" : "Click to enter text"}</span>}
+                        : <span className="text-violet-400/70 dark:text-violet-500">{fieldType === "date" ? "Click to set date" : "Click to enter text"}</span>}
                     </span>
-                    {onFieldDelete && isHovered && (
+                    {onFieldDelete && isHovered && !isDraggingThis && (
                       <button
-                        className="absolute -top-2 -right-2 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] leading-none hover:bg-red-600 shadow"
+                        className="absolute -top-2 -right-2 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] leading-none hover:bg-red-600 shadow"
                         onClick={(e) => { e.stopPropagation(); onFieldDelete(field.id); }}
                         title="Remove field"
                       >×</button>
@@ -397,15 +444,21 @@ export function PDFViewer({
               return (
                 <div
                   key={field.id}
-                  className={`relative flex flex-col items-center justify-center border-2 rounded transition-all select-none
+                  className={`absolute flex flex-col items-center justify-center border-2 rounded transition-colors select-none
                     ${isSender ? "border-[#d4a853] bg-[#d4a853]/10" : "border-sky-400 bg-sky-400/10"}
                     ${isHighlighted ? "animate-pulse ring-2 ring-offset-1 ring-sky-400/50" : ""}
-                    ${onFieldClick ? "cursor-pointer hover:opacity-90" : "cursor-default"}
+                    ${isDraggingThis ? "shadow-lg opacity-90 scale-[1.02]" : ""}
+                    ${dragCursor}
+                    ${onFieldClick && !canDrag ? "cursor-pointer hover:opacity-90" : ""}
                   `}
-                  style={{ position: "absolute", left: left + 16, top: top + 16, width: w, height: h }}
+                  style={{ left: left + 16, top: top + 16, width: w, height: h, zIndex: isDraggingThis ? 50 : 10 }}
                   onMouseEnter={() => setHoveredFieldId(field.id)}
                   onMouseLeave={() => setHoveredFieldId(null)}
-                  onClick={(e) => { e.stopPropagation(); if (onFieldClick) onFieldClick(field); }}
+                  onMouseDown={(e) => handleFieldMouseDown(e, field)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!dragMoved.current && onFieldClick) onFieldClick(field);
+                  }}
                 >
                   {(field as any).signatureData ? (
                     <img src={(field as any).signatureData} alt="Signature" className="max-h-full max-w-full object-contain p-1" />
@@ -414,10 +467,8 @@ export function PDFViewer({
                       <span className={`text-[10px] font-semibold ${isSender ? "text-[#d4a853]" : "text-sky-400"}`}>
                         {isSender ? "Your Signature" : "Client Signs Here"}
                       </span>
-                      {onFieldClick && isSender && (
-                        <span className={`text-[9px] mt-0.5 text-[#d4a853]/60`}>
-                          Click to sign
-                        </span>
+                      {onFieldClick && isSender && !canDrag && (
+                        <span className="text-[9px] mt-0.5 text-[#d4a853]/60">Click to sign</span>
                       )}
                       {!isSender && (
                         <span className="text-[9px] mt-0.5 text-sky-400/60">Via signing link</span>
@@ -427,9 +478,9 @@ export function PDFViewer({
                       )}
                     </>
                   )}
-                  {onFieldDelete && isHovered && (
+                  {onFieldDelete && isHovered && !isDraggingThis && (
                     <button
-                      className="absolute -top-2 -right-2 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] leading-none hover:bg-red-600 shadow"
+                      className="absolute -top-2 -right-2 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] leading-none hover:bg-red-600 shadow"
                       onClick={(e) => { e.stopPropagation(); onFieldDelete(field.id); }}
                       title="Remove field"
                     >×</button>
