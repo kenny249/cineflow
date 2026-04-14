@@ -57,7 +57,7 @@ export function FeedbackButton() {
       {/* Floating trigger — above mobile nav, bottom-right on desktop */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-[4.5rem] right-4 z-40 flex items-center gap-2 rounded-full border border-[#d4a853]/20 bg-card/95 px-3.5 py-2 text-xs font-medium text-[#d4a853] shadow-lg backdrop-blur-md transition-all hover:border-[#d4a853]/40 hover:shadow-[0_0_18px_rgba(212,168,83,0.15)] md:bottom-6 md:right-6"
+        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-2 rounded-full border border-[#d4a853]/20 bg-card/95 px-3.5 py-2 text-xs font-medium text-[#d4a853] shadow-lg backdrop-blur-md transition-all hover:border-[#d4a853]/40 hover:shadow-[0_0_18px_rgba(212,168,83,0.15)] md:bottom-6 md:right-6"
         aria-label="Send feedback"
       >
         <MessageSquarePlus className="h-3.5 w-3.5" />
