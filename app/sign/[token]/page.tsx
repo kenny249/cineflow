@@ -46,6 +46,8 @@ export default function SigningPage() {
   const [drawing, setDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
+  const [sigMode, setSigMode] = useState<"draw" | "type">("draw");
+  const [typedName, setTypedName] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -54,7 +56,7 @@ export default function SigningPage() {
       .then((d) => {
         if (d.error) { setError(d.error); return; }
         setContract(d.contract);
-        if (d.contract.recipient_name) setSignerName(d.contract.recipient_name);
+        if (d.contract.recipient_name) { setSignerName(d.contract.recipient_name); setTypedName(d.contract.recipient_name); }
         if (d.contract.recipient_email) setSignerEmail(d.contract.recipient_email);
         if (d.contract.status === "signed") setSigned(true);
       })
@@ -114,6 +116,29 @@ export default function SigningPage() {
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasSignature(false);
+    setTypedName("");
+  }
+
+  function renderTypedSig(name: string) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!name.trim()) { setHasSignature(false); return; }
+    ctx.font = "italic 52px Palatino Linotype, Palatino, Book Antiqua, Georgia, serif";
+    ctx.fillStyle = "#18181b";
+    ctx.textBaseline = "middle";
+    const tw = ctx.measureText(name).width;
+    const x = Math.max(16, (canvas.width - tw) / 2);
+    const y = canvas.height / 2;
+    ctx.fillText(name, x, y);
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y + 28);
+    ctx.lineTo(x + tw + 8, y + 28);
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    setHasSignature(true);
   }
 
   async function handleSubmit() {
@@ -290,36 +315,79 @@ export default function SigningPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-[#18181b]">Signature <span className="text-red-500">*</span></Label>
-                {hasSignature && (
-                  <button
-                    onClick={clearCanvas}
-                    className="flex items-center gap-1 text-xs text-[#71717a] hover:text-[#18181b]"
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    Clear
-                  </button>
-                )}
-              </div>
-              <div className={`relative overflow-hidden rounded-xl border-2 transition-colors ${drawing ? "border-[#d4a853]" : "border-[#e4e4e7]"} bg-white`}>
-                <canvas
-                  ref={canvasRef}
-                  width={600}
-                  height={180}
-                  className="w-full touch-none cursor-crosshair"
-                  onMouseDown={startDraw}
-                  onMouseMove={draw}
-                  onMouseUp={stopDraw}
-                  onMouseLeave={stopDraw}
-                  onTouchStart={startDraw}
-                  onTouchMove={draw}
-                  onTouchEnd={stopDraw}
-                />
-                {!hasSignature && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <p className="text-sm text-[#d4d4d8]">Draw your signature here</p>
+                <div className="flex items-center gap-2">
+                  {/* Draw / Type toggle */}
+                  <div className="flex items-center gap-0.5 rounded-lg border border-[#e4e4e7] bg-[#f4f4f5] p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => { setSigMode("draw"); clearCanvas(); }}
+                      className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${sigMode === "draw" ? "bg-white text-[#18181b] shadow-sm" : "text-[#71717a] hover:text-[#18181b]"}`}
+                    >
+                      <Pen className="h-3 w-3" /> Draw
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSigMode("type");
+                        setTypedName(signerName);
+                        renderTypedSig(signerName);
+                      }}
+                      className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${sigMode === "type" ? "bg-white text-[#18181b] shadow-sm" : "text-[#71717a] hover:text-[#18181b]"}`}
+                    >
+                      <span className="font-serif italic text-sm leading-none">T</span> Type
+                    </button>
                   </div>
-                )}
+                  {hasSignature && (
+                    <button onClick={clearCanvas} className="flex items-center gap-1 text-xs text-[#71717a] hover:text-[#18181b]">
+                      <RotateCcw className="h-3 w-3" /> Clear
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {sigMode === "type" ? (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={typedName}
+                    onChange={(e) => {
+                      setTypedName(e.target.value);
+                      renderTypedSig(e.target.value);
+                    }}
+                    placeholder="Type your name to sign…"
+                    className="w-full rounded-xl border border-[#e4e4e7] bg-white px-3 py-2 text-sm text-[#18181b] placeholder:text-[#a1a1aa] focus:border-[#d4a853] focus:outline-none"
+                  />
+                  <div className={`relative overflow-hidden rounded-xl border-2 ${hasSignature ? "border-[#d4a853]" : "border-[#e4e4e7]"} bg-white`}>
+                    <canvas ref={canvasRef} width={600} height={180} className="w-full" />
+                    {!hasSignature && (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <p className="font-serif italic text-lg text-[#d4d4d8]">Your signature preview</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className={`relative overflow-hidden rounded-xl border-2 transition-colors ${drawing ? "border-[#d4a853]" : "border-[#e4e4e7]"} bg-white`}>
+                  <canvas
+                    ref={canvasRef}
+                    width={600}
+                    height={180}
+                    className="w-full touch-none cursor-crosshair"
+                    onMouseDown={startDraw}
+                    onMouseMove={draw}
+                    onMouseUp={stopDraw}
+                    onMouseLeave={stopDraw}
+                    onTouchStart={startDraw}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDraw}
+                  />
+                  {!hasSignature && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <p className="text-sm text-[#d4d4d8]">Draw your signature here</p>
+                    </div>
+                  )}
+                </div>
+              )}
               <p className="text-[11px] text-[#a1a1aa]">
                 By signing, you agree that this electronic signature is legally binding.
               </p>

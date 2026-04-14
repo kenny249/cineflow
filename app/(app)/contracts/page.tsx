@@ -82,6 +82,9 @@ export default function ContractsPage() {
   const [senderDrawing, setSenderDrawing] = useState(false);
   const [hasSenderSig, setHasSenderSig] = useState(false);
   const senderLastPos = useRef<{ x: number; y: number } | null>(null);
+  const [senderSigMode, setSenderSigMode] = useState<"draw" | "type">("draw");
+  const [senderTypedName, setSenderTypedName] = useState("");
+
 
   // Stamp state
   const [stamping, setStamping] = useState(false);
@@ -329,6 +332,52 @@ export default function ContractsPage() {
     const canvas = senderCanvasRef.current!;
     canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
     setHasSenderSig(false);
+  }
+
+  // Render typed name as a cursive-style signature onto the canvas
+  function renderTypedSenderSig(name: string) {
+    const canvas = senderCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!name.trim()) { setHasSenderSig(false); return; }
+    ctx.font = "italic 48px Palatino Linotype, Palatino, Book Antiqua, Georgia, serif";
+    ctx.fillStyle = "#18181b";
+    ctx.textBaseline = "middle";
+    const tw = ctx.measureText(name).width;
+    const x = Math.max(16, (canvas.width - tw) / 2);
+    const y = canvas.height / 2;
+    ctx.fillText(name, x, y);
+    // Subtle underline
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y + 26);
+    ctx.lineTo(x + tw + 8, y + 26);
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    setHasSenderSig(true);
+  }
+
+  // Auto-detect callback from PDFViewer
+  function handleAutoDetect(detected: Omit<SignatureField, "id">[]) {
+    if (localFields.length === 0) {
+      // No fields yet — apply automatically
+      const withIds = detected.map((f) => ({ ...f, id: crypto.randomUUID() }));
+      setLocalFields(withIds);
+      toast.success(`Auto-detected ${withIds.length} signature field${withIds.length !== 1 ? "s" : ""} — review and save`);
+    } else {
+      // Fields already exist — offer to replace via toast action
+      toast(`Found ${detected.length} signature field${detected.length !== 1 ? "s" : ""} in document`, {
+        description: "Replace existing fields with auto-detected ones?",
+        action: {
+          label: "Replace",
+          onClick: () => {
+            const withIds = detected.map((f) => ({ ...f, id: crypto.randomUUID() }));
+            setLocalFields(withIds);
+          },
+        },
+      });
+    }
   }
 
   const handleSaveSenderSig = useCallback(async () => {
@@ -690,6 +739,7 @@ export default function ContractsPage() {
                     fields={localFields}
                     dropMode={dropMode}
                     onFieldPlace={handleFieldPlace}
+                    onAutoDetect={handleAutoDetect}
                     className="h-[560px]"
                   />
                 </div>
@@ -734,7 +784,7 @@ export default function ContractsPage() {
                           onClick={() => setShowSenderSign(true)}
                           className="flex items-center gap-2 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/5 px-4 py-2 text-sm font-medium text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
                         >
-                          <PenLine className="h-3.5 w-3.5" /> Draw Your Signature
+                          <PenLine className="h-3.5 w-3.5" /> Sign Document
                         </button>
                       ) : (
                         <div className="space-y-3">
@@ -742,44 +792,93 @@ export default function ContractsPage() {
                             <Label className="text-xs">Your Name</Label>
                             <Input
                               value={senderName}
-                              onChange={(e) => setSenderName(e.target.value)}
+                              onChange={(e) => {
+                                setSenderName(e.target.value);
+                                if (senderSigMode === "type") {
+                                  setSenderTypedName(e.target.value);
+                                  renderTypedSenderSig(e.target.value);
+                                }
+                              }}
                               placeholder="Your full name"
                               className="h-8 text-sm"
                             />
                           </div>
+                          {/* Draw / Type tabs */}
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <Label className="text-xs">Signature</Label>
+                              <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => { setSenderSigMode("draw"); clearSenderCanvas(); }}
+                                  className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${senderSigMode === "draw" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                                >
+                                  <PenLine className="h-3 w-3" /> Draw
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSenderSigMode("type");
+                                    setSenderTypedName(senderName);
+                                    renderTypedSenderSig(senderName);
+                                  }}
+                                  className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${senderSigMode === "type" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                                >
+                                  <span className="font-serif italic text-sm leading-none">T</span> Type
+                                </button>
+                              </div>
                               {hasSenderSig && (
                                 <button onClick={clearSenderCanvas} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
                                   <RotateCcw className="h-3 w-3" /> Clear
                                 </button>
                               )}
                             </div>
-                            <div className={`relative overflow-hidden rounded-xl border-2 transition-colors ${senderDrawing ? "border-[#d4a853]" : "border-border"} bg-white`}>
-                              <canvas
-                                ref={senderCanvasRef}
-                                width={560}
-                                height={140}
-                                className="w-full touch-none cursor-crosshair"
-                                onMouseDown={startSenderDraw}
-                                onMouseMove={drawSender}
-                                onMouseUp={stopSenderDraw}
-                                onMouseLeave={stopSenderDraw}
-                                onTouchStart={startSenderDraw}
-                                onTouchMove={drawSender}
-                                onTouchEnd={stopSenderDraw}
-                              />
-                              {!hasSenderSig && (
-                                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                  <p className="text-sm text-zinc-300">Draw your signature here</p>
+                            {senderSigMode === "type" ? (
+                              <div className="space-y-2">
+                                <Input
+                                  value={senderTypedName}
+                                  onChange={(e) => {
+                                    setSenderTypedName(e.target.value);
+                                    renderTypedSenderSig(e.target.value);
+                                  }}
+                                  placeholder="Type your name to sign…"
+                                  className="h-8 text-sm font-medium"
+                                />
+                                {/* Canvas preview (hidden but rendered for export) */}
+                                <div className={`relative overflow-hidden rounded-xl border-2 ${hasSenderSig ? "border-[#d4a853]" : "border-border"} bg-white`}>
+                                  <canvas ref={senderCanvasRef} width={560} height={140} className="w-full" />
+                                  {!hasSenderSig && (
+                                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                      <p className="font-serif italic text-lg text-zinc-300">Your name will appear here</p>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
+                              </div>
+                            ) : (
+                              <div className={`relative overflow-hidden rounded-xl border-2 transition-colors ${senderDrawing ? "border-[#d4a853]" : "border-border"} bg-white`}>
+                                <canvas
+                                  ref={senderCanvasRef}
+                                  width={560}
+                                  height={140}
+                                  className="w-full touch-none cursor-crosshair"
+                                  onMouseDown={startSenderDraw}
+                                  onMouseMove={drawSender}
+                                  onMouseUp={stopSenderDraw}
+                                  onMouseLeave={stopSenderDraw}
+                                  onTouchStart={startSenderDraw}
+                                  onTouchMove={drawSender}
+                                  onTouchEnd={stopSenderDraw}
+                                />
+                                {!hasSenderSig && (
+                                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                                    <p className="text-sm text-zinc-300">Draw your signature here</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <div className="flex gap-2">
                             <button
-                              onClick={() => { setShowSenderSign(false); clearSenderCanvas(); }}
+                              onClick={() => { setShowSenderSign(false); clearSenderCanvas(); setSenderSigMode("draw"); setSenderTypedName(""); }}
                               className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
                             >
                               Cancel
