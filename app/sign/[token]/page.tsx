@@ -7,8 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { PDFViewer } from "@/components/contracts/PDFViewer";
+import dynamic from "next/dynamic";
 import type { SignatureField } from "@/types";
+// Load PDFViewer client-only — pdfjs-dist uses Node canvas which breaks SSR
+const PDFViewer = dynamic(
+  () => import("@/components/contracts/PDFViewer").then((m) => m.PDFViewer),
+  { ssr: false, loading: () => <div className="flex h-[520px] items-center justify-center rounded-xl border border-[#e4e4e7] bg-[#fafafa]"><Loader2 className="h-5 w-5 animate-spin text-[#a1a1aa]" /></div> }
+);
 
 interface ContractData {
   id: string;

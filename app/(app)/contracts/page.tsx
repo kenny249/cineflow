@@ -14,8 +14,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { getProjects } from "@/lib/supabase/queries";
-import { PDFViewer } from "@/components/contracts/PDFViewer";
+import dynamic from "next/dynamic";
 import type { Contract, ContractStatus, Project, SignatureField } from "@/types";
+// Load PDFViewer client-only — pdfjs-dist uses Node canvas which breaks SSR
+const PDFViewer = dynamic(
+  () => import("@/components/contracts/PDFViewer").then((m) => m.PDFViewer),
+  { ssr: false, loading: () => <div className="flex h-[560px] items-center justify-center bg-zinc-100 dark:bg-zinc-900"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> }
+);
 
 const STATUS_CONFIG: Record<ContractStatus, { label: string; color: string; bg: string }> = {
   draft:    { label: "Draft",    color: "text-muted-foreground",  bg: "bg-muted/60" },

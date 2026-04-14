@@ -16,19 +16,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  webpack: (config) => {
-    // pdfjs-dist optionally requires canvas (Node.js) — ignore it in the browser bundle
-    config.resolve.alias = { ...config.resolve.alias, canvas: false };
-    return config;
-  },
-  headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: securityHeaders,
-      },
-    ];
-  },
+  // PDFViewer uses pdfjs-dist with ssr:false dynamic import, so canvas is never needed server-side
+  turbopack: {},
+  headers: () => Promise.resolve([
+    { source: "/(.*)", headers: securityHeaders },
+  ]),
   images: {
     remotePatterns: [
       {
