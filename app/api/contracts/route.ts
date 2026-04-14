@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
       recipient_role: body.recipient_role || "client",
       file_url: body.file_url || null,
       status: "draft",
+      signing_token: crypto.randomUUID(),
     })
     .select("*, project:projects(id, title)")
     .single();

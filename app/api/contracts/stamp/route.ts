@@ -64,14 +64,14 @@ export async function POST(req: NextRequest) {
     type?: "signature" | "text" | "date"; value?: string;
   }> = contract.signature_fields ?? [];
 
-  // Fetch recipient signature
+  // Fetch recipient signature (maybeSingle so stamp works even before recipient signs)
   const { data: recipientSig } = await supabase
     .from("contract_signatures")
     .select("signer_name, signer_email, signature_data, signed_at")
     .eq("contract_id", contractId)
     .order("signed_at", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   for (const field of fields) {
     const pageIndex = field.page - 1;

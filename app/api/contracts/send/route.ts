@@ -41,7 +41,14 @@ export async function POST(req: NextRequest) {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://usecineflow.com";
-  const signingUrl = `${appUrl}/sign/${contract.signing_token}`;
+
+  // Ensure signing token exists (backfill for contracts created before token generation was added)
+  let signingToken = contract.signing_token;
+  if (!signingToken) {
+    signingToken = crypto.randomUUID();
+    await supabase.from("contracts").update({ signing_token: signingToken }).eq("id", contract.id);
+  }
+  const signingUrl = `${appUrl}/sign/${signingToken}`;
   const bizName = profile?.business_name || profile?.company || profile?.full_name || "Studio";
   const fromName = ps.invoice_from_name || bizName;
   const fromEmail = ps.invoice_from_email || process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";

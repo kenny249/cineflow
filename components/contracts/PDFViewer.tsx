@@ -63,7 +63,7 @@ export function PDFViewer({
 
   // ── Drag state ───────────────────────────────────────────────────────────────
   const [dragging, setDragging] = useState<DragState | null>(null);
-  const dragMoved = useRef(false); // true once mouse moved > threshold during drag
+  const dragMoved = useRef(false);
 
   const computeFitScale = useCallback(() => {
     if (!containerRef.current || !nativeWidthRef.current) return 1.0;
@@ -81,18 +81,14 @@ export function PDFViewer({
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc =
           `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-
         const pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
         if (cancelled) return;
         pdfRef.current = pdf;
         setNumPages(pdf.numPages);
-
         const firstPage = await pdf.getPage(1);
         nativeWidthRef.current = firstPage.view[2];
-
         await new Promise((r) => requestAnimationFrame(r));
         if (!cancelled) setScale(computeFitScale());
-
         setLoading(false);
       } catch {
         if (!cancelled) setError("Failed to load PDF");
@@ -106,10 +102,7 @@ export function PDFViewer({
   const renderPage = useCallback(async () => {
     if (!pdfRef.current || !canvasRef.current) return;
     try {
-      if (renderTaskRef.current) {
-        renderTaskRef.current.cancel();
-        renderTaskRef.current = null;
-      }
+      if (renderTaskRef.current) { renderTaskRef.current.cancel(); renderTaskRef.current = null; }
       const page = await pdfRef.current.getPage(currentPage);
       const viewport = page.getViewport({ scale });
       const canvas = canvasRef.current;
@@ -131,74 +124,80 @@ export function PDFViewer({
     if (!loading && pdfRef.current) renderPage();
   }, [loading, renderPage]);
 
-  function screenToPDF(e: React.MouseEvent<HTMLDivElement>) {
-    if (!canvasRef.current || !pageDims) return null;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const pdfX = (e.clientX - rect.left) / scale;
-    const pdfY = pageDims.height - (e.clientY - rect.top) / scale;
-    return { pdfX, pdfY };
-  }
-
   function pdfToScreen(x: number, y: number): { left: number; top: number } {
     if (!pageDims) return { left: 0, top: 0 };
     return { left: x * scale, top: (pageDims.height - y) * scale };
   }
 
-  // ── Drag handlers ─────────────────────────────────────────────────────────────
+  // ── Drag helpers ─────────────────────────────────────────────────────────────
 
-  function handleFieldMouseDown(e: React.MouseEvent, field: SignatureField) {
-    if (dropMode || !onFieldMove) return; // don't start drag in place-mode or if no move handler
-    e.preventDefault();
-    e.stopPropagation();
+  function startDragFromEvent(
+    field: SignatureField,
+    clientX: number,
+    clientY: number
+  ) {
+    if (dropMode || !onFieldMove) return false;
     dragMoved.current = false;
     setDragging({
       fieldId: field.id,
-      startClientX: e.clientX,
-      startClientY: e.clientY,
+      startClientX: clientX,
+      startClientY: clientY,
       originalX: field.x,
       originalY: field.y,
       offsetPdfX: 0,
       offsetPdfY: 0,
     });
+    return true;
   }
 
-  function handleContainerMouseMove(e: React.MouseEvent) {
+  function handleFieldMouseDown(e: React.MouseEvent, field: SignatureField) {
+    if (!startDragFromEvent(field, e.clientX, e.clientY)) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function handleFieldTouchStart(e: React.TouchEvent, field: SignatureField) {
+    if (!startDragFromEvent(field, e.touches[0].clientX, e.touches[0].clientY)) return;
+    e.stopPropagation();
+    // Note: don't preventDefault here — breaks scroll when not dragging
+  }
+
+  function updateDragOffset(clientX: number, clientY: number) {
     if (!dragging) return;
-    const dx = e.clientX - dragging.startClientX;
-    const dy = e.clientY - dragging.startClientY;
-    if (!dragMoved.current && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-      dragMoved.current = true;
-    }
-    setDragging((prev) =>
-      prev ? { ...prev, offsetPdfX: dx / scale, offsetPdfY: -dy / scale } : null
-    );
+    const dx = clientX - dragging.startClientX;
+    const dy = clientY - dragging.startClientY;
+    if (!dragMoved.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) dragMoved.current = true;
+    setDragging((p) => p ? { ...p, offsetPdfX: dx / scale, offsetPdfY: -dy / scale } : null);
   }
 
-  function handleContainerMouseUp() {
+  function commitDrag() {
     if (dragging && dragMoved.current && onFieldMove) {
-      onFieldMove(
-        dragging.fieldId,
-        dragging.originalX + dragging.offsetPdfX,
-        dragging.originalY + dragging.offsetPdfY
-      );
+      onFieldMove(dragging.fieldId, dragging.originalX + dragging.offsetPdfX, dragging.originalY + dragging.offsetPdfY);
     }
     setDragging(null);
   }
 
-  // ── Click handler (suppressed if drag just finished) ──────────────────────────
+  function handleContainerMouseMove(e: React.MouseEvent) { updateDragOffset(e.clientX, e.clientY); }
+  function handleContainerTouchMove(e: React.TouchEvent) { updateDragOffset(e.touches[0].clientX, e.touches[0].clientY); }
+  function handleContainerMouseUp() { commitDrag(); }
+  function handleContainerTouchEnd() { commitDrag(); }
+
+  // ── Click handler ─────────────────────────────────────────────────────────────
 
   function handleCanvasClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (dragMoved.current) { dragMoved.current = false; return; } // swallow click after drag
+    if (dragMoved.current) { dragMoved.current = false; return; }
     if (!dropMode || !onFieldPlace || !pageDims) return;
-    const pos = screenToPDF(e);
-    if (!pos) return;
+    if (!canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const pdfX = (e.clientX - rect.left) / scale;
+    const pdfY = pageDims.height - (e.clientY - rect.top) / scale;
     const isTextOrDate = dropMode === "text" || dropMode === "date";
     const fieldW = isTextOrDate ? 160 : 180;
     const fieldH = isTextOrDate ? 36 : 50;
     onFieldPlace({
       page: currentPage,
-      x: pos.pdfX - fieldW / 2,
-      y: pos.pdfY - fieldH / 2,
+      x: pdfX - fieldW / 2,
+      y: pdfY - fieldH / 2,
       width: fieldW,
       height: fieldH,
       role: dropMode === "sender" ? "sender" : "recipient",
@@ -217,21 +216,15 @@ export function PDFViewer({
       {/* Toolbar */}
       <div className="flex shrink-0 items-center justify-between border-b border-border bg-card/80 px-4 py-2">
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage <= 1}
-            className="rounded p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30"
-          >
+          <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage <= 1}
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="min-w-[70px] text-center text-xs text-muted-foreground">
             {numPages > 0 ? `${currentPage} / ${numPages}` : "—"}
           </span>
-          <button
-            onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
-            disabled={currentPage >= numPages}
-            className="rounded p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30"
-          >
+          <button onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))} disabled={currentPage >= numPages}
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-30">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
@@ -246,7 +239,7 @@ export function PDFViewer({
             </span>
           )}
           {canDrag && !dropMode && (
-            <span className="text-[10px] text-muted-foreground/50">Drag fields to reposition</span>
+            <span className="text-[10px] text-muted-foreground/50">Drag to reposition</span>
           )}
           <div className="flex items-center gap-1">
             <button onClick={() => setScale((s) => Math.max(0.5, s - 0.25))} className="rounded p-1.5 text-muted-foreground hover:bg-muted" title="Zoom out">
@@ -273,6 +266,8 @@ export function PDFViewer({
         onMouseMove={handleContainerMouseMove}
         onMouseUp={handleContainerMouseUp}
         onMouseLeave={() => { if (dragging) { setDragging(null); dragMoved.current = false; } }}
+        onTouchMove={handleContainerTouchMove}
+        onTouchEnd={handleContainerTouchEnd}
       >
         {loading && (
           <div className="flex h-full min-h-[400px] items-center justify-center">
@@ -291,7 +286,6 @@ export function PDFViewer({
             {pageDims && pageFields.map((field) => {
               const fieldType = field.type ?? "signature";
               const isDraggingThis = dragging?.fieldId === field.id;
-              // Use live drag offset for the field being dragged
               const renderX = field.x + (isDraggingThis ? dragging!.offsetPdfX : 0);
               const renderY = field.y + (isDraggingThis ? dragging!.offsetPdfY : 0);
               const { left, top } = pdfToScreen(renderX, renderY + field.height);
@@ -300,64 +294,67 @@ export function PDFViewer({
               const isHovered = hoveredFieldId === field.id;
               const dragCursor = canDrag ? (isDraggingThis ? "cursor-grabbing" : "cursor-grab") : "";
 
-              // ── Text / Date field overlay ────────────────────────────
+              // ── Text / Date overlay ──────────────────────────────────
               if (fieldType === "text" || fieldType === "date") {
                 return (
                   <div
                     key={field.id}
-                    className={`absolute flex items-center rounded border-2 border-dashed select-none overflow-hidden
-                      ${isDraggingThis
-                        ? "border-violet-500 bg-violet-500/5 shadow-lg opacity-90"
-                        : "border-violet-400/70 bg-transparent hover:border-violet-500 hover:bg-violet-500/5"}
+                    className={`absolute flex items-center rounded border-2 border-dashed select-none overflow-hidden transition-colors
+                      ${isDraggingThis ? "border-violet-500 shadow-lg opacity-90" : "border-violet-400/80 hover:border-violet-500"}
                       ${dragCursor}
                       ${onFieldClick && !canDrag ? "cursor-pointer" : ""}
                     `}
-                    style={{ left: left + 16, top: top + 16, width: w, height: h, zIndex: isDraggingThis ? 50 : 10 }}
+                    style={{
+                      left: left + 16, top: top + 16, width: w, height: h,
+                      zIndex: isDraggingThis ? 50 : 10,
+                      touchAction: onFieldMove ? "none" : "auto",
+                      background: "rgba(255,255,255,0.15)",
+                    }}
                     onMouseEnter={() => setHoveredFieldId(field.id)}
                     onMouseLeave={() => setHoveredFieldId(null)}
                     onMouseDown={(e) => handleFieldMouseDown(e, field)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!dragMoved.current && onFieldClick) onFieldClick(field);
-                    }}
+                    onTouchStart={(e) => handleFieldTouchStart(e, field)}
+                    onClick={(e) => { e.stopPropagation(); if (!dragMoved.current && onFieldClick) onFieldClick(field); }}
                   >
-                    <span className="px-2 text-[11px] font-medium text-zinc-900 dark:text-zinc-100 truncate w-full">
-                      {field.value
-                        ? field.value
-                        : <span className="text-zinc-400 dark:text-zinc-500 font-normal">{fieldType === "date" ? "Click to set date" : "Click to enter text"}</span>}
+                    <span
+                      className="px-2 text-[11px] font-semibold truncate w-full"
+                      style={{ color: field.value ? "#111111" : "#9333ea", opacity: field.value ? 1 : 0.7 }}
+                    >
+                      {field.value || (fieldType === "date" ? "Click to set date" : "Click to enter text")}
                     </span>
                     {onFieldDelete && isHovered && !isDraggingThis && (
                       <button
                         className="absolute -top-2 -right-2 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] leading-none hover:bg-red-600 shadow"
                         onClick={(e) => { e.stopPropagation(); onFieldDelete(field.id); }}
-                        title="Remove field"
                       >×</button>
                     )}
                   </div>
                 );
               }
 
-              // ── Signature field overlay ──────────────────────────────
+              // ── Signature overlay ────────────────────────────────────
               const isHighlighted = highlightRole === field.role;
               const isSender = field.role === "sender";
               return (
                 <div
                   key={field.id}
-                  className={`absolute flex flex-col items-center justify-center border-2 rounded transition-colors select-none
+                  className={`absolute flex flex-col items-center justify-center border-2 rounded select-none transition-colors
                     ${isSender ? "border-[#d4a853] bg-[#d4a853]/10" : "border-sky-400 bg-sky-400/10"}
                     ${isHighlighted ? "animate-pulse ring-2 ring-offset-1 ring-sky-400/50" : ""}
                     ${isDraggingThis ? "shadow-lg opacity-90 scale-[1.02]" : ""}
                     ${dragCursor}
                     ${onFieldClick && !canDrag ? "cursor-pointer hover:opacity-90" : ""}
                   `}
-                  style={{ left: left + 16, top: top + 16, width: w, height: h, zIndex: isDraggingThis ? 50 : 10 }}
+                  style={{
+                    left: left + 16, top: top + 16, width: w, height: h,
+                    zIndex: isDraggingThis ? 50 : 10,
+                    touchAction: onFieldMove ? "none" : "auto",
+                  }}
                   onMouseEnter={() => setHoveredFieldId(field.id)}
                   onMouseLeave={() => setHoveredFieldId(null)}
                   onMouseDown={(e) => handleFieldMouseDown(e, field)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!dragMoved.current && onFieldClick) onFieldClick(field);
-                  }}
+                  onTouchStart={(e) => handleFieldTouchStart(e, field)}
+                  onClick={(e) => { e.stopPropagation(); if (!dragMoved.current && onFieldClick) onFieldClick(field); }}
                 >
                   {(field as any).signatureData ? (
                     <img src={(field as any).signatureData} alt="Signature" className="max-h-full max-w-full object-contain p-1" />
@@ -366,14 +363,13 @@ export function PDFViewer({
                       <span className={`text-[10px] font-semibold ${isSender ? "text-[#d4a853]" : "text-sky-400"}`}>
                         {isSender ? "Your Signature" : "Sign Here"}
                       </span>
-                      {onFieldClick && isSender && !canDrag && (
+                      {isSender && onFieldClick && !canDrag && (
                         <span className="text-[9px] mt-0.5 text-[#d4a853]/60">Click to sign</span>
                       )}
                       {!isSender && (
-                        <span className="text-[9px] mt-0.5 text-sky-400/60">Recipient signs via link</span>
-                      )}
-                      {isHighlighted && (
-                        <span className="text-[9px] text-sky-400/70 mt-0.5">Tap to sign</span>
+                        <span className="text-[9px] mt-0.5 text-sky-400/60">
+                          {highlightRole === "recipient" ? "Tap to sign" : "Recipient signs via link"}
+                        </span>
                       )}
                     </>
                   )}
@@ -381,7 +377,6 @@ export function PDFViewer({
                     <button
                       className="absolute -top-2 -right-2 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] leading-none hover:bg-red-600 shadow"
                       onClick={(e) => { e.stopPropagation(); onFieldDelete(field.id); }}
-                      title="Remove field"
                     >×</button>
                   )}
                 </div>

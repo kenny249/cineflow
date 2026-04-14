@@ -3,9 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Plus, FileSignature, Send, Trash2, CheckCircle2,
-  FileText, Upload, Copy, ExternalLink, X, ChevronDown, Pencil,
-  Download, PenLine, RotateCcw, Loader2, MousePointer, Users,
-  FolderOpen, ChevronRight, Type, CalendarDays,
+  FileText, Copy, ExternalLink, X, ChevronDown, Pencil,
+  Download, PenLine, RotateCcw, Loader2, Users,
+  FolderOpen, ChevronRight, Type, CalendarDays, Smartphone, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -130,6 +130,21 @@ export default function ContractsPage() {
   const [textEditField, setTextEditField] = useState<SignatureField | null>(null);
   const [textEditValue, setTextEditValue] = useState("");
 
+  // Delete confirmation
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  // In-person iPad signing
+  const [inPersonOpen, setInPersonOpen] = useState(false);
+  const [ipName, setIpName] = useState("");
+  const [ipEmail, setIpEmail] = useState("");
+  const [ipDrawing, setIpDrawing] = useState(false);
+  const [ipHasSig, setIpHasSig] = useState(false);
+  const [ipSigMode, setIpSigMode] = useState<"draw" | "type">("draw");
+  const [ipTyped, setIpTyped] = useState("");
+  const [ipSaving, setIpSaving] = useState(false);
+  const ipCanvasRef = useRef<HTMLCanvasElement>(null);
+  const ipLastPos = useRef<{ x: number; y: number } | null>(null);
+
   // ── Load ────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -247,6 +262,8 @@ export default function ContractsPage() {
       toast.success("Deleted");
     } catch {
       toast.error("Failed to delete");
+    } finally {
+      setDeleteTargetId(null);
     }
   }, [selected, contracts]);
 
@@ -504,6 +521,115 @@ export default function ContractsPage() {
     }
   }, [selected, hasInlineSig, inlineSignerName, signModalField]);
 
+  // ── In-person signing ────────────────────────────────────────────────────────
+
+  function openInPerson() {
+    if (!selected) return;
+    setIpName(selected.recipient_name ?? "");
+    setIpEmail(selected.recipient_email ?? "");
+    setIpSigMode("draw");
+    setIpTyped("");
+    setIpHasSig(false);
+    setIpDrawing(false);
+    setInPersonOpen(true);
+    setTimeout(() => {
+      const c = ipCanvasRef.current;
+      if (c) c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+    }, 60);
+  }
+
+  function getIpPos(e: React.MouseEvent | React.TouchEvent) {
+    const canvas = ipCanvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width;
+    const sy = canvas.height / rect.height;
+    if ("touches" in e) return { x: (e.touches[0].clientX - rect.left) * sx, y: (e.touches[0].clientY - rect.top) * sy };
+    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
+  }
+
+  function startIpDraw(e: React.MouseEvent | React.TouchEvent) {
+    e.preventDefault();
+    setIpDrawing(true);
+    ipLastPos.current = getIpPos(e);
+  }
+
+  function drawIp(e: React.MouseEvent | React.TouchEvent) {
+    if (!ipDrawing) return;
+    e.preventDefault();
+    const canvas = ipCanvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    const pos = getIpPos(e);
+    ctx.beginPath();
+    ctx.moveTo(ipLastPos.current!.x, ipLastPos.current!.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    ipLastPos.current = pos;
+    setIpHasSig(true);
+  }
+
+  function stopIpDraw() { setIpDrawing(false); ipLastPos.current = null; }
+
+  function clearIpCanvas() {
+    const c = ipCanvasRef.current;
+    if (c) c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+    setIpHasSig(false);
+    setIpTyped("");
+  }
+
+  function renderIpTyped(name: string) {
+    const canvas = ipCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!name.trim()) { setIpHasSig(false); return; }
+    ctx.font = "italic 72px Palatino Linotype, Palatino, Book Antiqua, Georgia, serif";
+    ctx.fillStyle = "#18181b";
+    ctx.textBaseline = "middle";
+    const tw = ctx.measureText(name).width;
+    const x = Math.max(24, (canvas.width - tw) / 2);
+    const y = canvas.height / 2;
+    ctx.fillText(name, x, y);
+    ctx.beginPath();
+    ctx.moveTo(x - 8, y + 38);
+    ctx.lineTo(x + tw + 8, y + 38);
+    ctx.strokeStyle = "#18181b";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    setIpHasSig(true);
+  }
+
+  const handleInPersonSubmit = useCallback(async () => {
+    if (!selected?.signing_token || !ipHasSig || !ipName.trim()) return;
+    setIpSaving(true);
+    try {
+      const signatureData = ipCanvasRef.current!.toDataURL("image/png");
+      const res = await fetch(`/api/contracts/sign?token=${selected.signing_token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signer_name: ipName.trim(),
+          signer_email: ipEmail.trim() || undefined,
+          signature_data: signatureData,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save signature");
+      const updated = { ...selected, status: "signed" as ContractStatus, signed_at: new Date().toISOString() };
+      setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
+      setSelected(updated);
+      setInPersonOpen(false);
+      toast.success("Signed! Contract is fully executed.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save signature");
+    } finally {
+      setIpSaving(false);
+    }
+  }, [selected, ipHasSig, ipName, ipEmail]);
+
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
   const signingUrl = selected?.signing_token
@@ -591,7 +717,7 @@ export default function ContractsPage() {
                               </div>
                             </div>
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
+                              onClick={(e) => { e.stopPropagation(); setDeleteTargetId(c.id); }}
                               className="shrink-0 rounded p-1 text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-400 transition-all"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -846,7 +972,22 @@ export default function ContractsPage() {
                     </div>
                   )}
 
-                  {/* ── 6. Download signed PDF ──────────────────────────────── */}
+                  {/* ── 6. Sign In Person (iPad / On Set) ───────────────────── */}
+                  {selected.signing_token && selected.status !== "signed" && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">In-Person Signing</p>
+                      <button
+                        onClick={openInPerson}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card px-3 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-foreground/30 hover:bg-accent transition-colors"
+                      >
+                        <Smartphone className="h-3.5 w-3.5" />
+                        Sign In Person — iPad / On Set
+                      </button>
+                      <p className="text-[10px] text-muted-foreground/50 text-center">Hand your device to the signer</p>
+                    </div>
+                  )}
+
+                  {/* ── 7. Download signed PDF ──────────────────────────────── */}
                   {selected.status === "signed" && (
                     <div className="space-y-2">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Documents</p>
@@ -885,7 +1026,7 @@ export default function ContractsPage() {
                     </div>
                   )}
 
-                  {/* ── 7. Timeline ─────────────────────────────────────────── */}
+                  {/* ── 8. Timeline ─────────────────────────────────────────── */}
                   <div className="space-y-2">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Timeline</p>
                     <div className="space-y-1.5 text-xs text-muted-foreground">
@@ -920,6 +1061,26 @@ export default function ContractsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Delete Confirmation Dialog ───────────────────────────────────────── */}
+      <Dialog open={!!deleteTargetId} onOpenChange={(v) => { if (!v) setDeleteTargetId(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete contract?</DialogTitle>
+            <DialogDescription>This cannot be undone. The contract and all associated data will be permanently removed.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteTargetId(null)}>Cancel</Button>
+            <Button
+              size="sm"
+              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={() => { if (deleteTargetId) handleDelete(deleteTargetId); }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Text / Date Field Edit Modal ─────────────────────────────────────── */}
       <Dialog open={textEditOpen} onOpenChange={setTextEditOpen}>
@@ -1191,6 +1352,144 @@ export default function ContractsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── In-Person Signing Overlay (full-screen, iPad-optimized) ──────────── */}
+      {inPersonOpen && selected && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-zinc-950 overflow-hidden">
+          {/* Header */}
+          <div className="shrink-0 flex items-center gap-4 border-b border-zinc-200 dark:border-zinc-800 px-6 py-4">
+            <button
+              onClick={() => setInPersonOpen(false)}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            >
+              <X className="h-4 w-4" /> Cancel
+            </button>
+            <div className="flex-1 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Sign In Person</p>
+              <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{selected.title}</p>
+            </div>
+            <div className="w-20" />
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
+
+              {/* Name + Email */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                    Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    value={ipName}
+                    onChange={(e) => { setIpName(e.target.value); if (ipSigMode === "type") renderIpTyped(e.target.value); }}
+                    placeholder="Legal name"
+                    className="w-full rounded-xl border-2 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-base text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:border-zinc-900 dark:focus:border-zinc-400 focus:outline-none transition-colors"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                    Email <span className="text-zinc-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={ipEmail}
+                    onChange={(e) => setIpEmail(e.target.value)}
+                    placeholder="their@email.com"
+                    className="w-full rounded-xl border-2 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-base text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:border-zinc-900 dark:focus:border-zinc-400 focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Draw / Type toggle */}
+              <div className="flex items-center justify-between">
+                <div className="flex rounded-xl border-2 border-zinc-200 dark:border-zinc-700 p-1 gap-0.5">
+                  <button
+                    onClick={() => { setIpSigMode("draw"); clearIpCanvas(); }}
+                    className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${
+                      ipSigMode === "draw" ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    <PenLine className="h-4 w-4" /> Draw
+                  </button>
+                  <button
+                    onClick={() => { setIpSigMode("type"); setIpTyped(ipName); renderIpTyped(ipName); }}
+                    className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${
+                      ipSigMode === "type" ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900" : "text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
+                    }`}
+                  >
+                    <span className="font-serif italic text-base leading-none">T</span> Type
+                  </button>
+                </div>
+                {ipHasSig && (
+                  <button onClick={clearIpCanvas} className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors">
+                    <RotateCcw className="h-4 w-4" /> Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Type name input */}
+              {ipSigMode === "type" && (
+                <input
+                  value={ipTyped}
+                  onChange={(e) => { setIpTyped(e.target.value); renderIpTyped(e.target.value); }}
+                  placeholder="Type your name to sign…"
+                  className="w-full rounded-xl border-2 border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-3 text-base text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:border-zinc-900 dark:focus:border-zinc-400 focus:outline-none transition-colors"
+                  autoFocus
+                />
+              )}
+
+              {/* Signature canvas — large for finger/stylus */}
+              <div className={`relative overflow-hidden rounded-2xl border-2 transition-colors bg-white ${
+                ipDrawing ? "border-zinc-900" : ipHasSig ? "border-[#d4a853]" : "border-zinc-200 dark:border-zinc-700"
+              }`}>
+                <canvas
+                  ref={ipCanvasRef}
+                  width={960}
+                  height={300}
+                  className="w-full touch-none"
+                  style={{ cursor: "crosshair", display: "block" }}
+                  onMouseDown={startIpDraw}
+                  onMouseMove={drawIp}
+                  onMouseUp={stopIpDraw}
+                  onMouseLeave={stopIpDraw}
+                  onTouchStart={startIpDraw}
+                  onTouchMove={drawIp}
+                  onTouchEnd={stopIpDraw}
+                />
+                {!ipHasSig && (
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3">
+                    <PenLine className="h-10 w-10 text-zinc-200" />
+                    <p className="text-base text-zinc-300">
+                      {ipSigMode === "draw" ? "Sign here with your finger or stylus" : "Type your name above to preview"}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Legal copy */}
+              <p className="text-center text-xs text-zinc-400 leading-relaxed">
+                By signing, you confirm this electronic signature is the legal equivalent of a handwritten signature and is legally binding.
+              </p>
+
+              {/* Submit */}
+              <button
+                onClick={handleInPersonSubmit}
+                disabled={ipSaving || !ipHasSig || !ipName.trim()}
+                className="w-full flex items-center justify-center gap-3 rounded-2xl bg-[#d4a853] py-4 text-base font-bold text-black hover:bg-[#c49840] disabled:opacity-40 transition-colors"
+              >
+                {ipSaving
+                  ? <><Loader2 className="h-5 w-5 animate-spin" /> Saving…</>
+                  : <><CheckCircle2 className="h-5 w-5" /> Confirm Signature</>
+                }
+              </button>
+
+              <div className="pb-8" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
