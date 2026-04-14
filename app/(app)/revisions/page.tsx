@@ -29,11 +29,11 @@ import type { Project, Revision, RevisionStatus, ReviewToken } from "@/types";
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<RevisionStatus, { label: string; color: string; dot: string; description: string }> = {
-  draft:               { label: "Draft",              color: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",    dot: "bg-zinc-500",   description: "Internal only" },
-  in_review:           { label: "In Review",          color: "bg-amber-500/10 text-amber-400 border-amber-500/20", dot: "bg-amber-400",  description: "Awaiting client" },
-  revisions_requested: { label: "Changes Requested",  color: "bg-sky-500/10 text-sky-400 border-sky-500/20",       dot: "bg-sky-400",    description: "Client left notes" },
-  approved:            { label: "Approved",           color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", dot: "bg-emerald-400", description: "Client signed off" },
-  final:               { label: "Final",              color: "bg-purple-500/10 text-purple-400 border-purple-500/20", dot: "bg-purple-400", description: "Delivered" },
+  draft:               { label: "In House",         color: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",         dot: "bg-zinc-500",    description: "Internal review" },
+  in_review:           { label: "With Client",      color: "bg-amber-500/10 text-amber-400 border-amber-500/20",      dot: "bg-amber-400",   description: "Awaiting client feedback" },
+  revisions_requested: { label: "Revision Needed",  color: "bg-sky-500/10 text-sky-400 border-sky-500/20",            dot: "bg-sky-400",     description: "Client left feedback" },
+  approved:            { label: "Approved",         color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20", dot: "bg-emerald-400", description: "Client signed off" },
+  final:               { label: "Delivered",        color: "bg-purple-500/10 text-purple-400 border-purple-500/20",   dot: "bg-purple-400",  description: "Project complete" },
 };
 
 const ALL_STATUSES: RevisionStatus[] = ["draft", "in_review", "revisions_requested", "approved", "final"];
@@ -455,12 +455,12 @@ function RevisionCard({
             onClick={(e) => { e.stopPropagation(); onDeploy(); }}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-2 text-xs font-bold text-black transition-colors hover:bg-[#c49843]"
           >
-            <Rocket className="h-3.5 w-3.5" /> Deploy to Client
+            <Rocket className="h-3.5 w-3.5" /> Send for Review
           </button>
         )}
         {revision.status === "revisions_requested" && (
           <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-2.5 py-2">
-            <p className="text-[11px] font-semibold text-sky-400">Client left notes — review &amp; upload a new cut</p>
+            <p className="text-[11px] font-semibold text-sky-400">Client left feedback — upload a revision</p>
           </div>
         )}
         {revision.status === "approved" && (
@@ -711,6 +711,8 @@ export default function ReviewPage() {
         )
       );
       setCommentDraft("");
+      // Auto-resume playback after posting
+      if (videoRef.current) videoRef.current.play();
     } catch { toast.error("Failed to save comment"); }
     finally { setSavingComment(false); }
   }
@@ -1081,7 +1083,7 @@ export default function ReviewPage() {
                   onClick={() => setDeployTarget(activeRevision)}
                   className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-[#c49843]"
                 >
-                  <Rocket className="h-3.5 w-3.5" /> Deploy to Client
+                  <Rocket className="h-3.5 w-3.5" /> Send for Review
                 </button>
               )}
               <div className="relative">
@@ -1147,12 +1149,56 @@ export default function ReviewPage() {
                     )}
                   </div>
                   {/* Controls */}
-                  <div className="shrink-0 space-y-2 bg-black px-4 pb-4 pt-2">
-                    <input
-                      type="range" min={0} max={playerDuration || 100} step={0.1} value={currentTime}
-                      onChange={(e) => { const t = parseFloat(e.target.value); setCurrentTime(t); if (videoRef.current) videoRef.current.currentTime = t; }}
-                      className="h-1 w-full cursor-pointer accent-[#d4a853]"
-                    />
+                  <div className="shrink-0 space-y-2 bg-black px-4 pb-4 pt-3">
+                    {/* Frame.io-style timeline with comment ticks */}
+                    <div
+                      className="group relative flex h-5 w-full cursor-pointer items-center"
+                      onClick={(e) => {
+                        if (!playerDuration) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const pct = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
+                        const t = pct * playerDuration;
+                        setCurrentTime(t);
+                        if (videoRef.current) videoRef.current.currentTime = t;
+                      }}
+                      onMouseMove={(e) => {
+                        if (e.buttons !== 1 || !playerDuration) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const pct = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
+                        const t = pct * playerDuration;
+                        setCurrentTime(t);
+                        if (videoRef.current) videoRef.current.currentTime = t;
+                      }}
+                    >
+                      {/* Track */}
+                      <div className="relative h-[3px] w-full overflow-visible rounded-full bg-white/[0.12] transition-all group-hover:h-1">
+                        {/* Filled */}
+                        <div
+                          className="h-full rounded-full bg-[#d4a853] transition-none"
+                          style={{ width: `${playerDuration ? (currentTime / playerDuration) * 100 : 0}%` }}
+                        />
+                        {/* Comment tick marks */}
+                        {activeRevision.comments?.map((c) => {
+                          if (c.timestamp_seconds == null || !playerDuration) return null;
+                          const pct = (c.timestamp_seconds / playerDuration) * 100;
+                          const isClient = portalToken?.client_name && c.author_name === portalToken.client_name;
+                          return (
+                            <div
+                              key={c.id}
+                              className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+                              style={{ left: `${pct}%` }}
+                            >
+                              <div className={`h-3 w-[3px] rounded-full ${isClient ? "bg-sky-400" : "bg-[#d4a853]"}`} />
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Playhead scrubber dot */}
+                      <div
+                        className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-lg opacity-0 transition-opacity group-hover:opacity-100"
+                        style={{ left: `${playerDuration ? (currentTime / playerDuration) * 100 : 0}%` }}
+                      />
+                    </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-0.5">
                         <button onClick={() => { if (!videoRef.current) return; isPlaying ? videoRef.current.pause() : videoRef.current.play(); }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
@@ -1182,55 +1228,79 @@ export default function ReviewPage() {
 
             {/* Notes panel */}
             <div className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-border">
-              <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4">
-                {(activeRevision.comments?.length ?? 0) > 0 ? (
-                  <div>
-                    <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-                      Notes ({activeRevision.comments?.length})
-                    </p>
-                    <div className="space-y-2">
-                      {activeRevision.comments?.map((comment) => (
-                        <div key={comment.id} className="group flex items-start gap-2.5 rounded-xl border border-border bg-card/50 px-3.5 py-2.5">
-                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-                            {(comment.author_name ?? "?")[0].toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-xs font-semibold text-foreground">{comment.author_name ?? "You"}</span>
-                              {comment.timestamp_seconds != null && (
-                                <button
-                                  type="button"
-                                  className="font-mono text-[10px] text-[#d4a853] hover:underline"
-                                  onClick={() => {
-                                    const t = comment.timestamp_seconds!;
-                                    setCurrentTime(t);
-                                    if (videoRef.current) { videoRef.current.currentTime = t; videoRef.current.play(); }
-                                    setIsPlaying(true);
-                                  }}
-                                >
-                                  {formatTime(comment.timestamp_seconds)}
-                                </button>
-                              )}
-                              <span className="ml-auto text-[10px] text-muted-foreground/60">{formatRelative(comment.created_at)}</span>
-                            </div>
-                            <p className="text-sm text-foreground/80 leading-snug">{comment.content}</p>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteComment(activeRevision.id, comment.id)}
-                            disabled={deletingCommentId === comment.id}
-                            className="shrink-0 rounded-lg p-1 text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
-                          >
-                            {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                          </button>
+              <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-5">
+                {(activeRevision.comments?.length ?? 0) > 0 ? (() => {
+                  const clientName = portalToken?.client_name;
+                  const clientNotes = activeRevision.comments?.filter((c) => clientName && c.author_name === clientName) ?? [];
+                  const internalNotes = activeRevision.comments?.filter((c) => !clientName || c.author_name !== clientName) ?? [];
+
+                  const NoteCard = ({ comment, isClient }: { comment: NonNullable<typeof activeRevision.comments>[0]; isClient: boolean }) => (
+                    <div key={comment.id} className={`group flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 ${
+                      isClient
+                        ? "border-sky-500/15 bg-sky-500/[0.04]"
+                        : "border-[#d4a853]/10 bg-[#d4a853]/[0.03]"
+                    }`}>
+                      <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                        isClient ? "bg-sky-500/15 text-sky-400" : "bg-[#d4a853]/15 text-[#d4a853]"
+                      }`}>
+                        {(comment.author_name ?? "?")[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <span className="text-xs font-semibold text-foreground">{comment.author_name ?? "You"}</span>
+                          {comment.timestamp_seconds != null && (
+                            <button
+                              type="button"
+                              className={`font-mono text-[10px] hover:underline ${isClient ? "text-sky-400" : "text-[#d4a853]"}`}
+                              onClick={() => {
+                                const t = comment.timestamp_seconds!;
+                                setCurrentTime(t);
+                                if (videoRef.current) { videoRef.current.currentTime = t; videoRef.current.play(); }
+                                setIsPlaying(true);
+                              }}
+                            >
+                              {formatTime(comment.timestamp_seconds)}
+                            </button>
+                          )}
+                          <span className="ml-auto text-[10px] text-muted-foreground/50">{formatRelative(comment.created_at)}</span>
                         </div>
-                      ))}
+                        <p className="text-sm text-foreground/80 leading-snug">{comment.content}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteComment(activeRevision.id, comment.id)}
+                        disabled={deletingCommentId === comment.id}
+                        className="shrink-0 rounded-lg p-1 text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+                      >
+                        {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      </button>
                     </div>
-                  </div>
-                ) : (
+                  );
+
+                  return (
+                    <>
+                      {clientNotes.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-widest text-sky-500/60">
+                            Client Feedback ({clientNotes.length})
+                          </p>
+                          {clientNotes.map((c) => <NoteCard key={c.id} comment={c} isClient={true} />)}
+                        </div>
+                      )}
+                      {internalNotes.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#d4a853]/50">
+                            Internal Notes ({internalNotes.length})
+                          </p>
+                          {internalNotes.map((c) => <NoteCard key={c.id} comment={c} isClient={false} />)}
+                        </div>
+                      )}
+                    </>
+                  );
+                })() : (
                   <div className="flex flex-col items-center justify-center py-10 text-center">
                     <MessageSquare className="h-8 w-8 text-muted-foreground/20 mb-2" />
                     <p className="text-xs text-muted-foreground">No notes yet</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground/60">Type below and press Enter</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground/60">Click the note box below — video pauses automatically</p>
                   </div>
                 )}
               </div>
@@ -1241,6 +1311,9 @@ export default function ReviewPage() {
                   <textarea
                     value={commentDraft}
                     onChange={(e) => setCommentDraft(e.target.value)}
+                    onFocus={() => {
+                      if (videoRef.current && isPlaying) videoRef.current.pause();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
