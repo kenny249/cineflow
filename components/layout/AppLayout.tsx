@@ -14,6 +14,7 @@ import { MobileSplash } from "./MobileSplash";
 import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
 import { OnboardingIntro } from "./OnboardingIntro";
+import { DemoBanner } from "./DemoBanner";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -165,6 +166,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
         <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
           <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} />
         </Suspense>
+        <DemoBanner />
         {/* pb-20 on mobile for bottom nav clearance (nav is ~68px + safe area) */}
         <main className="flex-1 overflow-hidden pb-20 md:pb-0">{children}</main>
       </div>

@@ -10,9 +10,6 @@ import { createClient } from "@/lib/supabase/client";
 import { getOrCreateDisplayName } from "@/lib/random-name";
 import { cn } from "@/lib/utils";
 
-const DEMO_EMAIL    = "kenny@maltavmedia.com";
-const DEMO_PASSWORD = "DopeDrops17!";
-
 type Plan = "solo" | "studio";
 
 const PLANS: { id: Plan; icon: typeof Camera; label: string; desc: string }[] = [
@@ -59,53 +56,20 @@ export function LoginPageClient() {
 
   async function handleBetaAccess() {
     setIsLoading(true);
-    const displayName = getOrCreateDisplayName();
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: DEMO_EMAIL,
-        password: DEMO_PASSWORD,
+      const res = await fetch("/api/demo/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: planValue }),
       });
-      if (error) {
-        if (
-          error.message.toLowerCase().includes("user not found") ||
-          error.message.toLowerCase().includes("invalid login credentials")
-        ) {
-          const { data: sd, error: se } = await supabase.auth.signUp({
-            email: DEMO_EMAIL,
-            password: DEMO_PASSWORD,
-            options: {
-              emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin}/login`,
-              data: { full_name: displayName, plan: planValue },
-            },
-          });
-          if (!se && sd?.session) {
-            const { data: confirmed } = await supabase.auth.getSession();
-            if (confirmed.session) {
-              window.location.assign("/welcome");
-              return;
-            }
-          }
-        }
-        toast.error("Demo sign-in failed. Please try again.");
+      const json = await res.json();
+      if (!res.ok || !json.action_link) {
+        toast.error("Could not start demo. Please try again.");
         setIsLoading(false);
         return;
       }
-      const { data: confirmed } = await supabase.auth.getSession();
-      if (!confirmed.session) {
-        toast.error("Could not establish your session. Please try again.");
-        setIsLoading(false);
-        return;
-      }
-      // Update plan on the demo profile so the experience matches the selected card
-      const uid = confirmed.session.user.id;
-      await supabase.from("profiles").upsert(
-        { id: uid, plan: planValue, updated_at: new Date().toISOString() },
-        { onConflict: "id" }
-      );
-      // Store plan so dashboard/welcome render the correct mode instantly
-      sessionStorage.setItem("cf_plan", planValue);
-      window.location.assign("/welcome");
+      // Redirect through Supabase's verify endpoint → our auth callback → /welcome
+      window.location.assign(json.action_link);
     } catch {
       toast.error("Demo sign-in failed. Please try again.");
       setIsLoading(false);
