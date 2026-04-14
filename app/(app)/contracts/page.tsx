@@ -5,6 +5,7 @@ import {
   Plus, FileSignature, Send, Trash2, CheckCircle2,
   FileText, Upload, Copy, ExternalLink, X, ChevronDown, Pencil,
   Download, PenLine, RotateCcw, Loader2, MousePointer, Users,
+  FolderOpen, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -15,7 +16,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { getProjects } from "@/lib/supabase/queries";
 import dynamic from "next/dynamic";
-import type { Contract, ContractStatus, Project, SignatureField } from "@/types";
+import type { Contract, ContractStatus, ContractRecipientRole, Project, SignatureField } from "@/types";
 // Load PDFViewer client-only — pdfjs-dist uses Node canvas which breaks SSR
 const PDFViewer = dynamic(
   () => import("@/components/contracts/PDFViewer").then((m) => m.PDFViewer),
@@ -39,12 +40,35 @@ function StatusBadge({ status }: { status: ContractStatus }) {
   );
 }
 
+const ROLE_CONFIG: Record<ContractRecipientRole, { label: string; color: string }> = {
+  client:   { label: "Client",   color: "text-[#d4a853] bg-[#d4a853]/10" },
+  crew:     { label: "Crew",     color: "text-blue-400 bg-blue-400/10" },
+  talent:   { label: "Talent",   color: "text-purple-400 bg-purple-400/10" },
+  location: { label: "Location", color: "text-emerald-400 bg-emerald-400/10" },
+  vendor:   { label: "Vendor",   color: "text-orange-400 bg-orange-400/10" },
+  other:    { label: "Other",    color: "text-muted-foreground bg-muted/60" },
+};
+
+function RoleBadge({ role }: { role?: ContractRecipientRole | string }) {
+  const cfg = ROLE_CONFIG[(role as ContractRecipientRole) ?? "client"] ?? ROLE_CONFIG.client;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${cfg.color}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+const ALL_ROLES: ContractRecipientRole[] = ["client", "crew", "talent", "location", "vendor", "other"];
+
 export default function ContractsPage() {
   const supabase = createClient();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Contract | null>(null);
+
+  // Sidebar project grouping
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
 
   // New contract dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -53,6 +77,7 @@ export default function ContractsPage() {
   const [fProject, setFProject] = useState("");
   const [fRecipientName, setFRecipientName] = useState("");
   const [fRecipientEmail, setFRecipientEmail] = useState("");
+  const [fRecipientRole, setFRecipientRole] = useState<ContractRecipientRole>("client");
   const [fFile, setFFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -64,6 +89,7 @@ export default function ContractsPage() {
   const [eProject, setEProject] = useState("");
   const [eRecipientName, setERecipientName] = useState("");
   const [eRecipientEmail, setERecipientEmail] = useState("");
+  const [eRecipientRole, setERecipientRole] = useState<ContractRecipientRole>("client");
   const [saving, setSaving] = useState(false);
 
   // Send state
@@ -128,6 +154,7 @@ export default function ContractsPage() {
   function openNew() {
     setFTitle(""); setFDescription(""); setFProject("");
     setFRecipientName(""); setFRecipientEmail(""); setFFile(null);
+    setFRecipientRole("client");
     setDialogOpen(true);
   }
 
@@ -160,6 +187,7 @@ export default function ContractsPage() {
           project_id: fProject || undefined,
           recipient_name: fRecipientName.trim() || undefined,
           recipient_email: fRecipientEmail.trim() || undefined,
+          recipient_role: fRecipientRole,
           file_url: fileUrl,
         }),
       });
@@ -176,7 +204,7 @@ export default function ContractsPage() {
     } finally {
       setCreating(false);
     }
-  }, [fTitle, fDescription, fProject, fRecipientName, fRecipientEmail, fFile]);
+  }, [fTitle, fDescription, fProject, fRecipientName, fRecipientEmail, fRecipientRole, fFile]);
 
   const handleSend = useCallback(async () => {
     if (!selected) return;
@@ -222,6 +250,7 @@ export default function ContractsPage() {
     setEProject((selected.project as any)?.id ?? selected.project_id ?? "");
     setERecipientName(selected.recipient_name ?? "");
     setERecipientEmail(selected.recipient_email ?? "");
+    setERecipientRole((selected.recipient_role as ContractRecipientRole) ?? "client");
     setEditOpen(true);
   }
 
@@ -239,6 +268,7 @@ export default function ContractsPage() {
           project_id: eProject || null,
           recipient_name: eRecipientName.trim() || null,
           recipient_email: eRecipientEmail.trim() || null,
+          recipient_role: eRecipientRole,
         }),
       });
       const data = await res.json();
@@ -467,41 +497,76 @@ export default function ContractsPage() {
               <p className="text-xs text-muted-foreground">No contracts yet.</p>
               <button onClick={openNew} className="text-xs text-[#d4a853] hover:underline">Create your first</button>
             </div>
-          ) : (
-            <div className="p-2 space-y-1">
-              {contracts.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setSelected(c)}
-                  className={`group w-full rounded-xl border px-3.5 py-3 text-left transition-all ${
-                    selected?.id === c.id
-                      ? "border-[#d4a853] bg-[#d4a853]/10"
-                      : "border-border bg-card hover:border-[#d4a853]/30"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className={`truncate text-sm font-medium ${selected?.id === c.id ? "text-foreground" : "text-foreground/80"}`}>
-                        {c.title}
-                      </p>
-                      {c.recipient_name && (
-                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{c.recipient_name}</p>
-                      )}
-                      <div className="mt-1.5">
-                        <StatusBadge status={c.status} />
-                      </div>
+          ) : (() => {
+            // Group contracts by project
+            const groups: { key: string; label: string; contracts: Contract[] }[] = [];
+            const seen = new Set<string>();
+            for (const c of contracts) {
+              const key = (c.project as any)?.id ?? "none";
+              const label = (c.project as any)?.title ?? "No Project";
+              if (!seen.has(key)) {
+                seen.add(key);
+                groups.push({ key, label, contracts: [] });
+              }
+              groups.find((g) => g.key === key)!.contracts.push(c);
+            }
+            return (
+              <div className="p-2 space-y-1">
+                {groups.map(({ key, label, contracts: groupContracts }) => {
+                  const isExpanded = expandedProjects[key] !== false; // default open
+                  return (
+                    <div key={key} className="space-y-0.5">
+                      {/* Project group header */}
+                      <button
+                        onClick={() => setExpandedProjects((p) => ({ ...p, [key]: !isExpanded }))}
+                        className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-muted/50 transition-colors"
+                      >
+                        {isExpanded
+                          ? <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          : <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        }
+                        <FolderOpen className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                        <span className="flex-1 truncate text-[11px] font-semibold text-muted-foreground">{label}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground/50">{groupContracts.length}</span>
+                      </button>
+                      {isExpanded && groupContracts.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => setSelected(c)}
+                          className={`group ml-4 w-[calc(100%-1rem)] rounded-xl border px-3 py-2.5 text-left transition-all ${
+                            selected?.id === c.id
+                              ? "border-[#d4a853] bg-[#d4a853]/10"
+                              : "border-border bg-card hover:border-[#d4a853]/30"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className={`truncate text-sm font-medium ${selected?.id === c.id ? "text-foreground" : "text-foreground/80"}`}>
+                                {c.title}
+                              </p>
+                              {c.recipient_name && (
+                                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{c.recipient_name}</p>
+                              )}
+                              <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                <StatusBadge status={c.status} />
+                                <RoleBadge role={c.recipient_role} />
+                              </div>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
+                              className="shrink-0 rounded p-1 text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-400 transition-all"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
-                      className="shrink-0 rounded p-1 text-muted-foreground/30 opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-400 transition-all"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            );
+          })()}
         </aside>
 
         {/* Right: contract detail */}
@@ -523,9 +588,10 @@ export default function ContractsPage() {
               {/* Contract header */}
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="font-display text-xl font-semibold text-foreground">{selected.title}</h2>
                     <StatusBadge status={selected.status} />
+                    <RoleBadge role={selected.recipient_role} />
                   </div>
                   {selected.description && (
                     <p className="mt-1 text-sm text-muted-foreground">{selected.description}</p>
@@ -1013,6 +1079,25 @@ export default function ContractsPage() {
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               </div>
             </div>
+            <div className="space-y-1.5">
+              <Label>Signer Role</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_ROLES.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setERecipientRole(r)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                      eRecipientRole === r
+                        ? ROLE_CONFIG[r].color + " ring-1 ring-current"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {ROLE_CONFIG[r].label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Recipient Name</Label>
@@ -1061,6 +1146,26 @@ export default function ContractsPage() {
                   {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+            </div>
+            {/* Recipient role */}
+            <div className="space-y-1.5">
+              <Label>Signer Role</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {ALL_ROLES.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setFRecipientRole(r)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                      fRecipientRole === r
+                        ? ROLE_CONFIG[r].color + " ring-1 ring-current"
+                        : "bg-muted/60 text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {ROLE_CONFIG[r].label}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">

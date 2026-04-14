@@ -290,8 +290,8 @@ export function PDFViewer({
                     if (onFieldClick) onFieldClick(field);
                   }}
                 >
-                  {field.role === "sender" && (field as any).signatureData ? (
-                    <img src={(field as any).signatureData} alt="Signature" className="max-h-full max-w-full object-contain" />
+                  {(field as any).signatureData ? (
+                    <img src={(field as any).signatureData} alt="Signature" className="max-h-full max-w-full object-contain p-1" />
                   ) : (
                     <>
                       <span className={`text-[10px] font-semibold ${isSender ? "text-[#d4a853]" : "text-sky-400"}`}>

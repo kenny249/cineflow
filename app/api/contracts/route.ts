@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { title: string; description?: string; project_id?: string; recipient_name?: string; recipient_email?: string; file_url?: string };
+  let body: { title: string; description?: string; project_id?: string; recipient_name?: string; recipient_email?: string; recipient_role?: string; file_url?: string };
   try {
     body = await req.json();
   } catch {
@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
       project_id: body.project_id || null,
       recipient_name: body.recipient_name?.trim() || null,
       recipient_email: body.recipient_email?.trim() || null,
+      recipient_role: body.recipient_role || "client",
       file_url: body.file_url || null,
       status: "draft",
     })

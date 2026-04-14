@@ -473,6 +473,7 @@ export interface ProjectTask {
 
 // ─── Contracts ───────────────────────────────────────────────────────────────
 export type ContractStatus = "draft" | "sent" | "signed" | "declined" | "voided";
+export type ContractRecipientRole = "client" | "crew" | "talent" | "location" | "vendor" | "other";
 
 export interface SignatureField {
   id: string;
@@ -495,6 +496,7 @@ export interface Contract {
   status: ContractStatus;
   recipient_name?: string;
   recipient_email?: string;
+  recipient_role?: ContractRecipientRole;
   signing_token?: string;
   sent_at?: string;
   signed_at?: string;
