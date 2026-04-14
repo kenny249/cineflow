@@ -1160,25 +1160,25 @@ export default function ReviewPage() {
                       )}
 
                       {/* Add internal note */}
-                      <div>
-                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">Internal note</p>
-                        <div className="flex gap-2 items-end">
-                          <textarea
-                            value={commentDraft}
-                            onChange={(e) => setCommentDraft(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleAddComment(); }}
-                            placeholder={`Add a note at ${formatTime(currentTime)}… (⌘↵ to submit)`}
-                            rows={2}
-                            className="flex-1 resize-none rounded-xl border border-border bg-muted/20 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/40 focus:outline-none leading-relaxed"
-                          />
-                          <button
-                            onClick={handleAddComment}
-                            disabled={!commentDraft.trim() || savingComment}
-                            className="mb-0.5 shrink-0 rounded-xl bg-muted/50 p-2.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 transition-colors"
-                          >
-                            {savingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                          </button>
-                        </div>
+                      <div className="relative">
+                        <textarea
+                          value={commentDraft}
+                          onChange={(e) => setCommentDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleAddComment();
+                            }
+                          }}
+                          placeholder={`Note at ${formatTime(currentTime)}… (Enter to post)`}
+                          rows={2}
+                          className="w-full resize-none rounded-xl border border-border bg-muted/20 px-3 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/40 focus:outline-none leading-relaxed"
+                        />
+                        {savingComment ? (
+                          <Loader2 className="absolute right-3 bottom-3 h-3.5 w-3.5 animate-spin text-muted-foreground/40" />
+                        ) : commentDraft.trim() ? (
+                          <Send className="absolute right-3 bottom-3 h-3.5 w-3.5 text-[#d4a853]/60" />
+                        ) : null}
                       </div>
                     </div>
                   </div>
