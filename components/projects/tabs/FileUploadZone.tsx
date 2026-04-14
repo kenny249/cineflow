@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, File, X, Loader2, Download, Eye } from "lucide-react";
+import { Upload, File, X, Loader2, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { createProjectFile, deleteProjectFile } from "@/lib/supabase/queries";
 import type { ProjectFile, ProjectFileTab } from "@/types";
@@ -267,7 +267,8 @@ export function FileUploadZone({
           {files.map((file) => (
             <div
               key={file.id}
-              className="group flex items-center gap-3 rounded-xl border border-border bg-card/50 px-4 py-3 transition-colors hover:bg-card"
+              onClick={() => canPreviewFile(file.mime_type, file.name) ? setPreviewFile(file) : handleDownload(file)}
+              className="group flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card/50 px-4 py-3 transition-colors hover:bg-card hover:border-[#d4a853]/30"
             >
               <span className="text-xl leading-none">{fileIcon(file.mime_type)}</span>
               <div className="min-w-0 flex-1">
@@ -279,17 +280,8 @@ export function FileUploadZone({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                {canPreviewFile(file.mime_type, file.name) && (
-                  <button
-                    onClick={() => setPreviewFile(file)}
-                    className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-                    title="Preview"
-                  >
-                    <Eye className="h-3.5 w-3.5" />
-                  </button>
-                )}
                 <button
-                  onClick={() => handleDownload(file)}
+                  onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
                   className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
                   title="Download"
                 >
@@ -297,7 +289,7 @@ export function FileUploadZone({
                 </button>
                 {!readOnly && (
                   <button
-                    onClick={() => handleDelete(file)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(file); }}
                     className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-400"
                     title="Delete"
                   >
