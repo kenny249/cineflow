@@ -114,7 +114,10 @@ export default function DashboardPage() {
   })();
 
   const solo = isSoloPlan(plan);
-  const activeProjects = projects.filter((p) => p.status === "active" || p.status === "review");
+  const activeProjects = projects.filter(
+    (p) => p.status !== "archived" && p.status !== "cancelled" && p.status !== "delivered"
+  );
+  const inFlightCount = projects.filter((p) => p.status === "active" || p.status === "review").length;
   const now = new Date();
   const weekEnd = new Date(now); weekEnd.setDate(weekEnd.getDate() + 7);
   const thisWeekEvents = calendarEvents.filter((e) => {
@@ -129,13 +132,13 @@ export default function DashboardPage() {
 
   const stats = solo
     ? [
-        { label: "Active Jobs",       value: activeProjects.length,                                    icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
+        { label: "Active Jobs",       value: inFlightCount,                                            icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
         { label: "Shoots This Week",  value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10"  },
         { label: "Awaiting Feedback", value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10" },
         { label: "Delivered",         value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10"},
       ]
     : [
-        { label: "Active",        value: activeProjects.length,                                    icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
+        { label: "Active",        value: inFlightCount,                                            icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
         { label: "This Week",     value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10"  },
         { label: "Pending review",value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10" },
         { label: "Delivered",     value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10"},
@@ -215,7 +218,7 @@ export default function DashboardPage() {
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
                     <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                    {solo ? "Active Jobs" : "Active Projects"}
+                    {solo ? "Current Jobs" : "Current Projects"}
                     <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
                       {activeProjects.length}
                     </span>
