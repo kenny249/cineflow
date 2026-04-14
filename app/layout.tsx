@@ -31,11 +31,13 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://usecineflow.com",
     siteName: "Cineflow",
+    images: [{ url: "/api/og", width: 1200, height: 630, alt: "Cineflow" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Cineflow",
     description: "Film production software for solo creators and studios.",
+    images: ["/api/og"],
   },
 };
 
