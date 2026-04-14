@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { label: "Tasks",      href: "/project-tasks",  icon: ClipboardList,   category: "Go to" },
   { label: "Contracts",  href: "/contracts",      icon: FileSignature,   category: "Go to" },
   { label: "Scripts",    href: "/scripts",        icon: ScrollText,      category: "Go to" },
+  { label: "Review",     href: "/revisions",      icon: Film,            category: "Go to" },
   { label: "Finance",    href: "/finance",        icon: DollarSign,      category: "Go to" },
   { label: "Team",       href: "/team",           icon: UsersRound,      category: "Go to" },
   { label: "Settings",   href: "/settings",       icon: Settings,        category: "Go to" },

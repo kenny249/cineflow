@@ -192,3 +192,62 @@ export function emailFinalDelivery({
   `;
   return { subject, html: base(subject, body) };
 }
+
+// ─── Template: Owner — client approved a cut ─────────────────────────────────
+export function emailOwnerClientApproved({
+  projectTitle,
+  revisionTitle,
+  clientName,
+  reviewUrl,
+}: {
+  projectTitle: string;
+  revisionTitle: string;
+  clientName: string;
+  reviewUrl: string;
+}): { subject: string; html: string } {
+  const subject = `${clientName} approved "${revisionTitle}" — ${projectTitle}`;
+  const body = `
+    ${h1("Client approved a cut.")}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;"><strong style="color:#f0f0f0;">${clientName}</strong> has approved <strong style="color:#f0f0f0;">${revisionTitle}</strong> for <strong style="color:#f0f0f0;">${projectTitle}</strong>. You can now prepare the final delivery.</p>
+    ${divider()}
+    <table cellpadding="0" cellspacing="0" width="100%">
+      ${meta("Project", projectTitle)}
+      ${meta("Revision", revisionTitle)}
+      ${meta("Approved by", clientName)}
+    </table>
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#666666;">Log into CineFlow to mark the revision as Final and deliver the files.</p>
+    ${btn("Open Review hub", reviewUrl)}
+  `;
+  return { subject, html: base(subject, body) };
+}
+
+// ─── Template: Owner — client requested changes ───────────────────────────────
+export function emailOwnerClientRequestedChanges({
+  projectTitle,
+  revisionTitle,
+  clientName,
+  feedback,
+  reviewUrl,
+}: {
+  projectTitle: string;
+  revisionTitle: string;
+  clientName: string;
+  feedback: string;
+  reviewUrl: string;
+}): { subject: string; html: string } {
+  const subject = `${clientName} requested changes on ${projectTitle}`;
+  const body = `
+    ${h1("Client requested changes.")}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;"><strong style="color:#f0f0f0;">${clientName}</strong> reviewed <strong style="color:#f0f0f0;">${revisionTitle}</strong> and has requested changes on <strong style="color:#f0f0f0;">${projectTitle}</strong>.</p>
+    ${divider()}
+    <p style="margin:0 0 8px;font-size:12px;font-weight:600;color:#555555;text-transform:uppercase;letter-spacing:0.06em;">Their feedback:</p>
+    <div style="background:#161616;border-left:3px solid #d4a853;border-radius:0 8px 8px 0;padding:14px 16px;margin:0;">
+      <p style="margin:0;font-size:14px;line-height:1.7;color:#cccccc;white-space:pre-wrap;">${feedback.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+    </div>
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#666666;">Address their notes and upload a new version when ready.</p>
+    ${btn("Open Review hub", reviewUrl)}
+  `;
+  return { subject, html: base(subject, body) };
+}

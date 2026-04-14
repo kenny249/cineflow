@@ -7,6 +7,8 @@ import {
   emailFeedbackReceived,
   emailApproved,
   emailFinalDelivery,
+  emailOwnerClientApproved,
+  emailOwnerClientRequestedChanges,
 } from "@/lib/email-templates";
 
 const resend = process.env.RESEND_API_KEY
@@ -20,31 +22,31 @@ export type NotifyEvent =
   | "revision_ready"
   | "feedback_received"
   | "approved"
-  | "final_delivery";
+  | "final_delivery"
+  | "client_approved"
+  | "client_requested_changes";
 
 export interface NotifyPayload {
   event: NotifyEvent;
+  // Recipient — defaults to clientEmail, use `to` to override (e.g. owner notifications)
+  to?: string;
   clientName: string;
   clientEmail: string;
   projectTitle: string;
   revisionTitle?: string;
   versionNumber?: number;
   portalUrl: string;
+  // Owner notification extras
+  ownerName?: string;
+  feedback?: string;
 }
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
 
-  if (!resend) {
-    // No API key configured — log and return success so callers don't break
-    console.warn("[notify] RESEND_API_KEY not set — email skipped");
-    return NextResponse.json({ ok: true, skipped: true });
-  }
-
+  // Allow unauthenticated calls only for client_approved / client_requested_changes
+  // (these originate from the public portal page)
   let body: NotifyPayload;
   try {
     body = await req.json();
@@ -52,9 +54,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { event, clientName, clientEmail, projectTitle, revisionTitle, versionNumber, portalUrl } = body;
+  const isOwnerEvent = body.event === "client_approved" || body.event === "client_requested_changes";
+  if (!user && !isOwnerEvent) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  if (!event || !clientEmail || !projectTitle || !portalUrl) {
+  if (!resend) {
+    console.warn("[notify] RESEND_API_KEY not set — email skipped");
+    return NextResponse.json({ ok: true, skipped: true });
+  }
+
+  const {
+    event,
+    to,
+    clientName,
+    clientEmail,
+    projectTitle,
+    revisionTitle,
+    versionNumber,
+    portalUrl,
+    ownerName,
+    feedback,
+  } = body;
+
+  const recipient = to ?? clientEmail;
+
+  if (!event || !recipient || !projectTitle || !portalUrl) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
@@ -87,6 +112,23 @@ export async function POST(req: NextRequest) {
     case "final_delivery":
       template = emailFinalDelivery({ clientName, projectTitle, portalUrl });
       break;
+    case "client_approved":
+      template = emailOwnerClientApproved({
+        projectTitle,
+        revisionTitle: revisionTitle ?? "Revision",
+        clientName,
+        reviewUrl: portalUrl,
+      });
+      break;
+    case "client_requested_changes":
+      template = emailOwnerClientRequestedChanges({
+        projectTitle,
+        revisionTitle: revisionTitle ?? "Revision",
+        clientName,
+        feedback: feedback ?? "(no details provided)",
+        reviewUrl: portalUrl,
+      });
+      break;
     default:
       return NextResponse.json({ error: "Unknown event" }, { status: 400 });
   }
@@ -94,7 +136,7 @@ export async function POST(req: NextRequest) {
   try {
     const { error } = await resend.emails.send({
       from: FROM,
-      to: clientEmail,
+      to: recipient,
       subject: template.subject,
       html: template.html,
     });

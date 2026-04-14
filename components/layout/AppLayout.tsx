@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical, Film } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { SidebarDivider } from "./SidebarDivider";
@@ -33,6 +33,7 @@ const MOBILE_SOLO_MORE: MobileNavItem[] = [
   { label: "Clients",       href: "/clients",       icon: Users },
   { label: "Contracts",     href: "/contracts",     icon: FileSignature },
   { label: "Scripts",       href: "/scripts",       icon: ScrollText },
+  { label: "Review",        href: "/revisions",     icon: Film },
   { label: "Finance",       href: "/finance",       icon: DollarSign },
   { label: "Settings",      href: "/settings",      icon: Settings },
   { label: "Beta Feedback", href: "/beta-feedback", icon: FlaskConical, special: true },
@@ -50,6 +51,7 @@ const MOBILE_STUDIO_MORE: MobileNavItem[] = [
   { label: "Clients",       href: "/clients",       icon: Users },
   { label: "Contracts",     href: "/contracts",     icon: FileSignature },
   { label: "Scripts",       href: "/scripts",       icon: ScrollText },
+  { label: "Review",        href: "/revisions",     icon: Film },
   { label: "Finance",       href: "/finance",       icon: DollarSign },
   { label: "Team",          href: "/team",          icon: UsersRound },
   { label: "Settings",      href: "/settings",      icon: Settings },

@@ -183,6 +183,7 @@ export interface RevisionComment {
   revision_id: string;
   parent_id?: string;
   author_id?: string;
+  author_name?: string;
   author?: Profile;
   content: string;
   timestamp_seconds?: number;
