@@ -476,8 +476,9 @@ export async function getTeamTopics(): Promise<TeamTopic[]> {
 }
 
 export async function createTeamTopic(name: string, description: string, emoji = '💬'): Promise<TeamTopic> {
+  const { data: { user } } = await db().auth.getUser();
   const { data, error } = await db()
-    .from('team_topics').insert({ name, description, emoji }).select().single();
+    .from('team_topics').insert({ name, description, emoji, created_by: user?.id }).select().single();
   if (error) throw error;
   return data as TeamTopic;
 }

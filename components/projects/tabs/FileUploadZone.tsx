@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, File, X, Loader2, Download } from "lucide-react";
+import { Upload, File, X, Loader2, Download, Eye } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { createProjectFile, deleteProjectFile } from "@/lib/supabase/queries";
 import type { ProjectFile, ProjectFileTab } from "@/types";
@@ -33,6 +33,94 @@ function fileIcon(mime?: string): string {
   return "📄";
 }
 
+function canPreviewFile(mime?: string, name?: string): "pdf" | "image" | "text" | null {
+  const ext = name?.split(".").pop()?.toLowerCase();
+  if (mime?.includes("pdf") || ext === "pdf") return "pdf";
+  if (mime?.includes("image") || ["png","jpg","jpeg","gif","webp"].includes(ext ?? "")) return "image";
+  if (mime?.includes("text") || ["txt","fountain","fdx"].includes(ext ?? "")) return "text";
+  return null;
+}
+
+function PreviewModal({ file, onClose }: { file: ProjectFile; onClose: () => void }) {
+  const kind = canPreviewFile(file.mime_type, file.name);
+  const url = file.public_url;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
+          <File className="h-4 w-4 shrink-0 text-[#d4a853]" />
+          <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{file.name}</p>
+          {url && (
+            <button
+              onClick={() => window.open(url, "_blank")}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          {kind === "pdf" && url && (
+            <iframe src={url} className="h-full w-full bg-white" title={file.name} />
+          )}
+          {kind === "image" && url && (
+            <div className="flex h-full items-center justify-center overflow-auto p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={file.name} className="max-h-full max-w-full rounded-lg object-contain" />
+            </div>
+          )}
+          {kind === "text" && url && <TextPreview url={url} />}
+          {!kind && (
+            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+              <File className="h-12 w-12 text-muted-foreground/30" />
+              <div>
+                <p className="text-sm font-medium text-foreground">Preview not available</p>
+                <p className="mt-1 text-xs text-muted-foreground">Download to open this file.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TextPreview({ url }: { url: string }) {
+  const [text, setText] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  useState(() => {
+    fetch(url, { cache: "no-store" })
+      .then((r) => r.text())
+      .then(setText)
+      .catch(() => setText("(Could not load)"))
+      .finally(() => setLoading(false));
+  });
+  if (loading) return (
+    <div className="flex h-full items-center justify-center">
+      <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#d4a853]/30 border-t-[#d4a853]" />
+    </div>
+  );
+  return (
+    <div className="h-full overflow-y-auto p-6">
+      <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-foreground">{text}</pre>
+    </div>
+  );
+}
+
 export function FileUploadZone({
   projectId,
   tab,
@@ -48,6 +136,7 @@ export function FileUploadZone({
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState<string[]>([]); // file names in progress
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<ProjectFile | null>(null);
 
   async function uploadFiles(fileList: FileList | File[]) {
     const arr = Array.from(fileList);
@@ -127,6 +216,7 @@ export function FileUploadZone({
   }
 
   return (
+    <>
     <div className="space-y-3">
       {/* Drop zone */}
       {!readOnly && (
@@ -188,7 +278,16 @@ export function FileUploadZone({
                   {file.created_at ? new Date(file.created_at).toLocaleDateString() : ""}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {canPreviewFile(file.mime_type, file.name) && (
+                  <button
+                    onClick={() => setPreviewFile(file)}
+                    className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                    title="Preview"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={() => handleDownload(file)}
                   className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
@@ -221,5 +320,7 @@ export function FileUploadZone({
         </div>
       )}
     </div>
+    {previewFile && <PreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
+    </>
   );
 }

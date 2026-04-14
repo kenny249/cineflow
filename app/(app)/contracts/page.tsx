@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Plus, FileSignature, Send, Trash2, CheckCircle2, Clock,
-  FileText, Upload, Link2, Copy, ExternalLink, X, ChevronDown,
+  FileText, Upload, Link2, Copy, ExternalLink, X, ChevronDown, Pencil, PenLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -49,6 +49,15 @@ export default function ContractsPage() {
   const [fFile, setFFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Edit contract dialog
+  const [editOpen, setEditOpen] = useState(false);
+  const [eTitle, setETitle] = useState("");
+  const [eDescription, setEDescription] = useState("");
+  const [eProject, setEProject] = useState("");
+  const [eRecipientName, setERecipientName] = useState("");
+  const [eRecipientEmail, setERecipientEmail] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // Send state
   const [sending, setSending] = useState(false);
@@ -165,6 +174,45 @@ export default function ContractsPage() {
       toast.error("Failed to delete contract");
     }
   }, [selected, contracts]);
+
+  function openEdit() {
+    if (!selected) return;
+    setETitle(selected.title);
+    setEDescription(selected.description ?? "");
+    setEProject((selected.project as any)?.id ?? selected.project_id ?? "");
+    setERecipientName(selected.recipient_name ?? "");
+    setERecipientEmail(selected.recipient_email ?? "");
+    setEditOpen(true);
+  }
+
+  const handleSave = useCallback(async () => {
+    if (!selected || !eTitle.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/contracts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selected.id,
+          title: eTitle.trim(),
+          description: eDescription.trim() || null,
+          project_id: eProject || null,
+          recipient_name: eRecipientName.trim() || null,
+          recipient_email: eRecipientEmail.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setContracts((prev) => prev.map((c) => c.id === selected.id ? data.contract : c));
+      setSelected(data.contract);
+      setEditOpen(false);
+      toast.success("Contract updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setSaving(false);
+    }
+  }, [selected, eTitle, eDescription, eProject, eRecipientName, eRecipientEmail]);
 
   const signingUrl = selected?.signing_token
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/sign/${selected.signing_token}`
@@ -285,6 +333,26 @@ export default function ContractsPage() {
                       {sending ? "Sending…" : selected.status === "sent" ? "Resend" : "Send for Signature"}
                     </Button>
                   )}
+                  {selected.status === "draft" && signingUrl && (
+                    <a
+                      href={signingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                    >
+                      <PenLine className="h-3.5 w-3.5" />
+                      Sign yourself
+                    </a>
+                  )}
+                  {selected.status !== "signed" && (
+                    <button
+                      onClick={openEdit}
+                      className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                  )}
                   {selected.status === "signed" && (
                     <div className="flex items-center gap-1.5 rounded-lg bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
                       <CheckCircle2 className="h-3.5 w-3.5" />
@@ -401,6 +469,56 @@ export default function ContractsPage() {
           )}
         </main>
       </div>
+
+      {/* Edit Contract Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Contract</DialogTitle>
+            <DialogDescription>Update contract details and recipient info.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label>Title</Label>
+              <Input value={eTitle} onChange={(e) => setETitle(e.target.value)} autoFocus />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Textarea value={eDescription} onChange={(e) => setEDescription(e.target.value)} rows={2} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Project <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <div className="relative">
+                <select
+                  value={eProject}
+                  onChange={(e) => setEProject(e.target.value)}
+                  className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">No project</option>
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Recipient Name</Label>
+                <Input value={eRecipientName} onChange={(e) => setERecipientName(e.target.value)} placeholder="Sarah Chen" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Recipient Email</Label>
+                <Input type="email" value={eRecipientEmail} onChange={(e) => setERecipientEmail(e.target.value)} placeholder="sarah@meridianfilms.com" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button variant="gold" size="sm" onClick={handleSave} disabled={saving || !eTitle.trim()}>
+              {saving ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* New Contract Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

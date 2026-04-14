@@ -28,6 +28,7 @@ import { WrapNotesTab } from "@/components/projects/tabs/WrapNotesTab";
 import { FinanceTab } from "@/components/projects/tabs/FinanceTab";
 import { ProductionDocsTab } from "@/components/projects/tabs/ProductionDocsTab";
 import { ScriptsTab } from "@/components/projects/tabs/ScriptsTab";
+import { ProjectTasksTab } from "@/components/projects/tabs/ProjectTasksTab";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
 import { downloadCSV } from "@/lib/export";
@@ -1248,6 +1249,7 @@ export default function ProjectDetailTabs({
               <TabsList className="flex h-10 w-max min-w-full bg-transparent gap-0 rounded-none border-b-0 p-0 px-4 sm:px-6">
               {[
                 { value: "overview",     label: "Overview" },
+                { value: "tasks",        label: "Tasks" },
                 { value: "shot-list",    label: `Shot List ${totalShots ? `(${completedShots}/${totalShots})` : ""}` },
                 { value: "storyboard",   label: "Storyboard" },
                 { value: "scripts",      label: "Scripts" },
@@ -1680,6 +1682,11 @@ export default function ProjectDetailTabs({
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            {/* ── Tasks ── */}
+            <TabsContent value="tasks" className="m-0">
+              <ProjectTasksTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
             {/* ── Scripts (file-upload focused) ── */}
