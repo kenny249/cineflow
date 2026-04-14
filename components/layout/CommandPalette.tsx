@@ -3,22 +3,26 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search, LayoutDashboard, FolderKanban, Calendar, List,
-  Layers, UploadCloud, Settings, Users, ArrowRight, Film, Plus,
+  Search, LayoutDashboard, FolderKanban, Calendar, CheckSquare,
+  ClipboardList, FileSignature, ScrollText, DollarSign, UsersRound,
+  Settings, Users, ArrowRight, Film, Plus,
 } from "lucide-react";
 import { getProjects } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types";
 
 const NAV_ITEMS = [
-  { label: "Dashboard",  href: "/dashboard",  icon: LayoutDashboard, category: "Go to" },
-  { label: "Projects",   href: "/projects",   icon: FolderKanban,    category: "Go to" },
-  { label: "Clients",    href: "/clients",    icon: Users,           category: "Go to" },
-  { label: "Calendar",   href: "/calendar",   icon: Calendar,        category: "Go to" },
-  { label: "Shot Lists", href: "/shot-lists", icon: List,            category: "Go to" },
-  { label: "Storyboard", href: "/storyboard", icon: Layers,          category: "Go to" },
-  { label: "Revisions",  href: "/revisions",  icon: UploadCloud,     category: "Go to" },
-  { label: "Settings",   href: "/settings",   icon: Settings,        category: "Go to" },
+  { label: "Dashboard",  href: "/dashboard",      icon: LayoutDashboard, category: "Go to" },
+  { label: "Projects",   href: "/projects",       icon: FolderKanban,    category: "Go to" },
+  { label: "Clients",    href: "/clients",        icon: Users,           category: "Go to" },
+  { label: "Calendar",   href: "/calendar",       icon: Calendar,        category: "Go to" },
+  { label: "To Do",      href: "/tasks",          icon: CheckSquare,     category: "Go to" },
+  { label: "Tasks",      href: "/project-tasks",  icon: ClipboardList,   category: "Go to" },
+  { label: "Contracts",  href: "/contracts",      icon: FileSignature,   category: "Go to" },
+  { label: "Scripts",    href: "/scripts",        icon: ScrollText,      category: "Go to" },
+  { label: "Finance",    href: "/finance",        icon: DollarSign,      category: "Go to" },
+  { label: "Team",       href: "/team",           icon: UsersRound,      category: "Go to" },
+  { label: "Settings",   href: "/settings",       icon: Settings,        category: "Go to" },
 ];
 
 interface CommandItem {

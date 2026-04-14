@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, UploadCloud, Settings, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, List, Layers, Users, FlaskConical } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { SidebarDivider } from "./SidebarDivider";
@@ -24,15 +24,15 @@ type MobileNavItem = { label: string; href: string; icon: LucideIcon; special?: 
 
 // ── Solo: shoot-day focused bottom bar ──────────────────────────────────────
 const MOBILE_SOLO_PRIMARY: MobileNavItem[] = [
-  { label: "Dashboard",  href: "/dashboard",  icon: LayoutDashboard },
-  { label: "Tasks",      href: "/tasks",      icon: CheckSquare },
-  { label: "Shot Lists", href: "/shot-lists", icon: List },
-  { label: "Cuts",       href: "/revisions",  icon: UploadCloud },
+  { label: "Dashboard", href: "/dashboard",  icon: LayoutDashboard },
+  { label: "Projects",  href: "/projects",   icon: FolderKanban },
+  { label: "To Do",     href: "/tasks",      icon: CheckSquare },
+  { label: "Calendar",  href: "/calendar",   icon: Calendar },
 ];
 const MOBILE_SOLO_MORE: MobileNavItem[] = [
-  { label: "Projects",      href: "/projects",      icon: FolderKanban },
   { label: "Clients",       href: "/clients",       icon: Users },
-  { label: "Calendar",      href: "/calendar",      icon: Calendar },
+  { label: "Contracts",     href: "/contracts",     icon: FileSignature },
+  { label: "Scripts",       href: "/scripts",       icon: ScrollText },
   { label: "Finance",       href: "/finance",       icon: DollarSign },
   { label: "Settings",      href: "/settings",      icon: Settings },
   { label: "Beta Feedback", href: "/beta-feedback", icon: FlaskConical, special: true },
@@ -40,17 +40,16 @@ const MOBILE_SOLO_MORE: MobileNavItem[] = [
 
 // ── Studio: project management focused bottom bar ───────────────────────────
 const MOBILE_STUDIO_PRIMARY: MobileNavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Projects",  href: "/projects",  icon: FolderKanban },
-  { label: "Cuts",      href: "/revisions", icon: UploadCloud },
-  { label: "Calendar",  href: "/calendar",  icon: Calendar },
+  { label: "Dashboard", href: "/dashboard",  icon: LayoutDashboard },
+  { label: "Projects",  href: "/projects",   icon: FolderKanban },
+  { label: "Calendar",  href: "/calendar",   icon: Calendar },
+  { label: "Tasks",     href: "/project-tasks", icon: ClipboardList },
 ];
 const MOBILE_STUDIO_MORE: MobileNavItem[] = [
-  { label: "Tasks",         href: "/tasks",         icon: CheckSquare },
-  { label: "Shot Lists",    href: "/shot-lists",    icon: List },
-  { label: "Scripts",       href: "/scripts",       icon: ScrollText },
-  { label: "Storyboard",    href: "/storyboard",    icon: Layers },
+  { label: "To Do",         href: "/tasks",         icon: CheckSquare },
   { label: "Clients",       href: "/clients",       icon: Users },
+  { label: "Contracts",     href: "/contracts",     icon: FileSignature },
+  { label: "Scripts",       href: "/scripts",       icon: ScrollText },
   { label: "Finance",       href: "/finance",       icon: DollarSign },
   { label: "Team",          href: "/team",          icon: UsersRound },
   { label: "Settings",      href: "/settings",      icon: Settings },

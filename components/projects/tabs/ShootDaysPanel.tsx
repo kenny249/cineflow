@@ -351,9 +351,9 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
   }
 
   const dayShots = selectedDay
-    ? shots.filter((s) => (s as any).shoot_day_id === selectedDay.id)
+    ? shots.filter((s) => s.shoot_day_id === selectedDay.id)
     : [];
-  const unassignedShots = shots.filter((s) => !(s as any).shoot_day_id);
+  const unassignedShots = shots.filter((s) => !s.shoot_day_id);
 
   if (loading) {
     return (
@@ -552,7 +552,7 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
         <CallSheetModal
           day={callSheetDay}
           projectTitle={projectTitle}
-          shots={shots.filter((s) => (s as any).shoot_day_id === callSheetDay.id)}
+          shots={shots.filter((s) => s.shoot_day_id === callSheetDay.id)}
           crew={crew}
           onClose={() => setCallSheetDay(null)}
         />
