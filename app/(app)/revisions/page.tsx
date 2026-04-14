@@ -1067,7 +1067,7 @@ export default function ReviewPage() {
         className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
         onClick={(e) => { if (e.target === e.currentTarget) setActiveRevisionId(null); }}
       >
-        <div className="flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="flex h-full max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
 
           {/* Modal header */}
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3.5">

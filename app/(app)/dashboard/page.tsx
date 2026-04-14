@@ -214,7 +214,7 @@ export default function DashboardPage() {
           </div>
 
           {/* ── Main grid ── */}
-          <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
+          <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
 
             {/* Left column */}
             <div className="space-y-5 min-w-0">

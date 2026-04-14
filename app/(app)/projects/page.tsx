@@ -152,7 +152,7 @@ function ProjectsPageInner() {
       {showTrash && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowTrash(false)}>
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-2rem)] sm:max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h2 className="font-display font-semibold text-foreground flex items-center gap-2"><Trash2 className="h-4 w-4 text-muted-foreground" /> Trash</h2>

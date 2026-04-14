@@ -274,7 +274,8 @@ export default function ProjectTasksPage() {
             </Button>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-xl border border-border">
+           <div className="min-w-[620px]">
             {/* Column headers */}
             <div className="grid grid-cols-[1.5rem_1fr_120px_80px_90px_100px_auto] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
               {["", "Task", "Project", "Type", "Priority", "Due Date", ""].map((h, i) => (
@@ -344,6 +345,7 @@ export default function ProjectTasksPage() {
                 </div>
               );
             })}
+           </div>
           </div>
         )}
       </div>
