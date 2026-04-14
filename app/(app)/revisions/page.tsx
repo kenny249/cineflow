@@ -344,6 +344,141 @@ function DeployModal({
   );
 }
 
+// ── RevisionCard ─────────────────────────────────────────────────────────────
+
+function RevisionCard({
+  revision,
+  isActive,
+  onSelect,
+  onDeploy,
+  onUpdateStatus,
+  updatingStatusId,
+}: {
+  revision: Revision;
+  isActive: boolean;
+  onSelect: () => void;
+  onDeploy: () => void;
+  onUpdateStatus: (s: RevisionStatus) => void;
+  updatingStatusId: string | null;
+}) {
+  const thumbRef = useRef<HTMLVideoElement>(null);
+  const [thumbDuration, setThumbDuration] = useState(0);
+  const cfg = STATUS_CONFIG[revision.status as RevisionStatus] ?? STATUS_CONFIG.draft;
+  const commentCount = revision.comments?.length ?? 0;
+
+  return (
+    <div className={`group relative flex flex-col rounded-xl overflow-hidden border transition-all cursor-pointer ${
+      isActive ? "border-[#d4a853]/60 shadow-[0_0_0_1px_rgba(212,168,83,0.2)]" : "border-border hover:border-border/80"
+    }`}>
+      {/* Thumbnail / scrub zone */}
+      <div
+        className="relative aspect-video overflow-hidden bg-zinc-900/80 select-none"
+        onClick={onSelect}
+        onMouseMove={(e) => {
+          const el = thumbRef.current;
+          if (!el || !thumbDuration) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          const pct = (e.clientX - rect.left) / rect.width;
+          el.currentTime = Math.max(0, Math.min(pct * thumbDuration, thumbDuration - 0.1));
+        }}
+        onMouseLeave={() => {
+          if (thumbRef.current && thumbDuration) thumbRef.current.currentTime = thumbDuration * 0.1;
+        }}
+      >
+        {revision.file_url ? (
+          <video
+            ref={thumbRef}
+            src={revision.file_url}
+            muted
+            preload="metadata"
+            playsInline
+            className="h-full w-full object-cover"
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              setThumbDuration(v.duration);
+              v.currentTime = v.duration * 0.1;
+            }}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center">
+            <Film className="h-10 w-10 text-white/20" />
+          </div>
+        )}
+
+        {/* Duration badge */}
+        {thumbDuration > 0 && (
+          <div className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[11px] text-white backdrop-blur-sm">
+            {formatTime(thumbDuration)}
+          </div>
+        )}
+
+        {/* Status dot */}
+        <div className="absolute left-2 top-2">
+          <span className={`inline-block h-2 w-2 rounded-full ring-1 ring-black/30 ${cfg.dot}`} />
+        </div>
+
+        {/* Comment count */}
+        {commentCount > 0 && (
+          <div className="absolute right-2 top-2 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/80 backdrop-blur-sm">
+            <MessageSquare className="h-2.5 w-2.5" />
+            {commentCount}
+          </div>
+        )}
+
+        {/* Hover scrub hint gradient */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+
+        {/* Active ring */}
+        {isActive && (
+          <div className="pointer-events-none absolute inset-0 rounded-xl border-2 border-[#d4a853]/70" />
+        )}
+      </div>
+
+      {/* Card footer */}
+      <div className="space-y-2 bg-card p-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold leading-tight text-foreground">{revision.title}</p>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground/60">
+              <span className="font-mono">v{revision.version_number}</span>
+              <span>·</span>
+              <span>{formatRelative(revision.created_at)}</span>
+            </div>
+          </div>
+          <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.color}`}>
+            {cfg.label}
+          </span>
+        </div>
+
+        {revision.status === "draft" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeploy(); }}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-2 text-xs font-bold text-black transition-colors hover:bg-[#c49843]"
+          >
+            <Rocket className="h-3.5 w-3.5" /> Deploy to Client
+          </button>
+        )}
+        {revision.status === "revisions_requested" && (
+          <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-2.5 py-2">
+            <p className="text-[11px] font-semibold text-sky-400">Client left notes — review &amp; upload a new cut</p>
+          </div>
+        )}
+        {revision.status === "approved" && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onUpdateStatus("final"); }}
+            disabled={updatingStatusId === revision.id}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/[0.1] disabled:opacity-60"
+          >
+            {updatingStatusId === revision.id
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <><CheckCircle2 className="h-3.5 w-3.5" /> Mark as Final</>}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ReviewPage() {
@@ -602,6 +737,7 @@ export default function ReviewPage() {
   }
 
   return (
+    <>
     <div className="flex h-full flex-col overflow-hidden bg-background">
       {/* ── Header ── */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-5 py-3.5">
@@ -867,7 +1003,7 @@ export default function ReviewPage() {
           )}
         </aside>
 
-        {/* ── Main content ── */}
+        {/* ── Main content: asset grid ── */}
         <div className="flex flex-1 flex-col overflow-hidden">
           {!selectedProject ? (
             <div className="flex flex-1 items-center justify-center">
@@ -898,296 +1034,235 @@ export default function ReviewPage() {
               </button>
             </div>
           ) : (
-            <div className="flex flex-1 overflow-hidden">
-              {/* Cut list */}
-              <div className="flex w-[300px] shrink-0 flex-col overflow-hidden border-r border-border">
-                <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-2">
-                  {displayedRevisions.length === 0 ? (
-                    <p className="py-8 text-center text-xs text-muted-foreground">No cuts in this status</p>
-                  ) : (
-                    displayedRevisions.map((revision) => {
-                      const isActive = revision.id === activeRevisionId;
-                      const cfg = STATUS_CONFIG[revision.status as RevisionStatus] ?? STATUS_CONFIG.draft;
-                      const commentCount = revision.comments?.length ?? 0;
-                      const needsAttention = revision.status === "in_review" || revision.status === "revisions_requested";
-                      return (
-                        <button
-                          key={revision.id}
-                          onClick={() => setActiveRevisionId(revision.id)}
-                          className={`w-full text-left rounded-xl border p-3.5 transition-all ${
-                            isActive
-                              ? "border-[#d4a853]/30 bg-[#d4a853]/[0.06]"
-                              : "border-border bg-card hover:border-border/80 hover:bg-card/80"
-                          }`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                              <Film className="h-4 w-4 text-muted-foreground/50" />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-mono text-[10px] text-muted-foreground/60">v{revision.version_number}</span>
-                                <span className={`truncate text-xs font-semibold ${isActive ? "text-foreground" : "text-foreground/80"}`}>
-                                  {revision.title}
-                                </span>
-                              </div>
-                              <div className="mt-1 flex items-center gap-2 flex-wrap">
-                                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${cfg.color}`}>
-                                  {cfg.label}
-                                </span>
-                              </div>
-                              <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground/60">
-                                <span>{formatRelative(revision.created_at)}</span>
-                                {commentCount > 0 && (
-                                  <span className="flex items-center gap-0.5">
-                                    <MessageSquare className="h-2.5 w-2.5" /> {commentCount}
-                                  </span>
-                                )}
-                                {needsAttention && (
-                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse ml-auto" />
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Action CTA */}
-                          {revision.status === "draft" && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); setDeployTarget(revision); }}
-                              className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-2 text-xs font-bold text-black hover:bg-[#c49843] transition-colors"
-                            >
-                              <Rocket className="h-3.5 w-3.5" /> Deploy to Client
-                            </button>
-                          )}
-                          {revision.status === "revisions_requested" && (
-                            <div className="mt-2.5 rounded-lg border border-sky-500/20 bg-sky-500/[0.06] px-2.5 py-2">
-                              <p className="text-[11px] font-semibold text-sky-400">Client left notes</p>
-                              <p className="text-[10px] text-muted-foreground/70 mt-0.5">Review comments below, then upload a new version.</p>
-                            </div>
-                          )}
-                          {revision.status === "approved" && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleUpdateStatus(revision, "final"); }}
-                              disabled={updatingStatusId === revision.id}
-                              className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/[0.1] transition-colors"
-                            >
-                              {updatingStatusId === revision.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><CheckCircle2 className="h-3.5 w-3.5" /> Mark as Final</>}
-                            </button>
-                          )}
-                        </button>
-                      );
-                    })
-                  )}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
+              {displayedRevisions.length === 0 ? (
+                <p className="py-16 text-center text-sm text-muted-foreground">No cuts in this status</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+                  {displayedRevisions.map((revision) => (
+                    <RevisionCard
+                      key={revision.id}
+                      revision={revision}
+                      isActive={revision.id === activeRevisionId}
+                      onSelect={() => setActiveRevisionId(revision.id)}
+                      onDeploy={() => setDeployTarget(revision)}
+                      onUpdateStatus={(s) => handleUpdateStatus(revision, s)}
+                      updatingStatusId={updatingStatusId}
+                    />
+                  ))}
                 </div>
-              </div>
-
-              {/* Player + comments */}
-              <div className="flex flex-1 flex-col overflow-hidden">
-                {!activeRevision ? (
-                  <div className="flex flex-1 items-center justify-center">
-                    <p className="text-sm text-muted-foreground">Select a cut to preview</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-1 flex-col overflow-y-auto custom-scrollbar">
-                    {/* Revision header */}
-                    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-mono text-xs text-muted-foreground/60">v{activeRevision.version_number}</span>
-                          <span className="font-semibold text-foreground">{activeRevision.title}</span>
-                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_CONFIG[activeRevision.status as RevisionStatus]?.color}`}>
-                            {STATUS_CONFIG[activeRevision.status as RevisionStatus]?.label}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground/60">
-                          {formatRelative(activeRevision.created_at)}
-                          {activeRevision.file_size ? ` · ${formatFileSize(activeRevision.file_size)}` : ""}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        {activeRevision.status === "draft" && (
-                          <button
-                            onClick={() => setDeployTarget(activeRevision)}
-                            className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-bold text-black hover:bg-[#c49843] transition-colors"
-                          >
-                            <Rocket className="h-3.5 w-3.5" /> Deploy
-                          </button>
-                        )}
-                        {/* Status selector */}
-                        <div className="relative">
-                          <select
-                            value={activeRevision.status}
-                            onChange={(e) => handleUpdateStatus(activeRevision, e.target.value as RevisionStatus)}
-                            disabled={!!updatingStatusId}
-                            className="appearance-none rounded-lg border border-border bg-muted/30 py-1.5 pl-2.5 pr-7 text-xs text-foreground focus:border-[#d4a853]/50 focus:outline-none cursor-pointer"
-                          >
-                            {ALL_STATUSES.map((s) => (
-                              <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
-                            ))}
-                          </select>
-                          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-                        </div>
-                        <button
-                          onClick={() => handleDeleteRevision(activeRevision)}
-                          disabled={!!deletingRevisionId}
-                          className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                        >
-                          {deletingRevisionId === activeRevision.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Video player */}
-                    {activeRevision.file_url && (
-                      <div className="relative shrink-0 bg-black">
-                        <video
-                          ref={videoRef}
-                          src={activeRevision.file_url}
-                          playsInline
-                          preload="metadata"
-                          className="mx-auto block w-full"
-                          style={{ maxHeight: "45vh", objectFit: "contain" }}
-                          onClick={() => { if (!videoRef.current) return; isPlaying ? videoRef.current.pause() : videoRef.current.play(); }}
-                          onPlay={() => setIsPlaying(true)}
-                          onPause={() => setIsPlaying(false)}
-                          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                          onLoadedMetadata={(e) => setPlayerDuration(e.currentTarget.duration)}
-                        />
-                        {!isPlaying && (
-                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                            <button
-                              type="button"
-                              onClick={() => videoRef.current?.play()}
-                              className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-black/50 ring-1 ring-white/20 backdrop-blur-sm transition-transform active:scale-95"
-                            >
-                              <Play className="h-6 w-6 translate-x-0.5 text-white" />
-                            </button>
-                          </div>
-                        )}
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-4 pb-3 pt-10">
-                          <div className="mb-2">
-                            <div className="relative h-1 w-full cursor-pointer rounded-full bg-white/20"
-                              onClick={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const t = ((e.clientX - rect.left) / rect.width) * (playerDuration || 0);
-                                setCurrentTime(t);
-                                if (videoRef.current) videoRef.current.currentTime = t;
-                              }}>
-                              <div className="absolute inset-y-0 left-0 rounded-full bg-[#d4a853]" style={{ width: `${playerDuration ? (currentTime / playerDuration) * 100 : 0}%` }} />
-                              {playerDuration > 0 && activeRevision.comments?.map((c) => c.timestamp_seconds != null && (
-                                <div
-                                  key={c.id}
-                                  className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-white/70 ring-1 ring-black/40"
-                                  style={{ left: `${((c.timestamp_seconds) / playerDuration) * 100}%` }}
-                                />
-                              ))}
-                              <input type="range" min={0} max={playerDuration || 0} step={0.1} value={currentTime}
-                                onChange={(e) => { const t = parseFloat(e.target.value); setCurrentTime(t); if (videoRef.current) videoRef.current.currentTime = t; }}
-                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-0.5">
-                              <button onClick={() => { if (!videoRef.current) return; isPlaying ? videoRef.current.pause() : videoRef.current.play(); }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
-                                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                              </button>
-                              <button onClick={() => { const n = !isMuted; setIsMuted(n); if (videoRef.current) videoRef.current.muted = n; }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
-                                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-                              </button>
-                              <input type="range" min={0} max={1} step={0.05} value={isMuted ? 0 : volume}
-                                onChange={(e) => { const v = parseFloat(e.target.value); setVolume(v); setIsMuted(v === 0); if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; } }}
-                                className="h-1 w-16 cursor-pointer accent-[#d4a853]"
-                              />
-                              <span className="ml-2 font-mono text-[11px] text-white/50">{formatTime(currentTime)} / {formatTime(playerDuration)}</span>
-                            </div>
-                            <button onClick={() => { const v = videoRef.current; if (!v) return; if ((v as any).webkitEnterFullscreen) (v as any).webkitEnterFullscreen(); else v.requestFullscreen?.().catch(() => {}); }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
-                              <Maximize className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Comments */}
-                    <div className="flex-1 px-4 py-4 space-y-4">
-                      {/* Client comments */}
-                      {(activeRevision.comments?.length ?? 0) > 0 && (
-                        <div>
-                          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-                            Notes ({activeRevision.comments?.length})
-                          </p>
-                          <div className="space-y-2">
-                            {activeRevision.comments?.map((comment) => (
-                              <div key={comment.id} className="group flex items-start gap-2.5 rounded-xl border border-border bg-card/50 px-3.5 py-2.5">
-                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-                                  {(comment.author_name ?? "?")[0].toUpperCase()}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-0.5">
-                                    <span className="text-xs font-semibold text-foreground">{comment.author_name ?? "Client"}</span>
-                                    {comment.timestamp_seconds != null && (
-                                      <button
-                                        type="button"
-                                        className="font-mono text-[10px] text-[#d4a853] hover:underline"
-                                        onClick={() => {
-                                          const t = comment.timestamp_seconds!;
-                                          setCurrentTime(t);
-                                          if (videoRef.current) { videoRef.current.currentTime = t; videoRef.current.play(); }
-                                          setIsPlaying(true);
-                                        }}
-                                      >
-                                        {formatTime(comment.timestamp_seconds)}
-                                      </button>
-                                    )}
-                                    <span className="text-[10px] text-muted-foreground/60">{formatRelative(comment.created_at)}</span>
-                                  </div>
-                                  <p className="text-sm text-foreground/80 leading-snug">{comment.content}</p>
-                                </div>
-                                <button
-                                  onClick={() => handleDeleteComment(activeRevision.id, comment.id)}
-                                  disabled={deletingCommentId === comment.id}
-                                  className="shrink-0 rounded-lg p-1 text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
-                                >
-                                  {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Add internal note */}
-                      <div className="relative">
-                        <textarea
-                          value={commentDraft}
-                          onChange={(e) => setCommentDraft(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              handleAddComment();
-                            }
-                          }}
-                          placeholder={`Note at ${formatTime(currentTime)}… (Enter to post)`}
-                          rows={2}
-                          className="w-full resize-none rounded-xl border border-border bg-muted/20 px-3 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/40 focus:outline-none leading-relaxed"
-                        />
-                        {savingComment ? (
-                          <Loader2 className="absolute right-3 bottom-3 h-3.5 w-3.5 animate-spin text-muted-foreground/40" />
-                        ) : commentDraft.trim() ? (
-                          <Send className="absolute right-3 bottom-3 h-3.5 w-3.5 text-[#d4a853]/60" />
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           )}
         </div>
       </div>
+    </div>
+
+    {/* ── Player lightbox modal ── */}
+    {activeRevision && (
+      <div
+        className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+        onClick={(e) => { if (e.target === e.currentTarget) setActiveRevisionId(null); }}
+      >
+        <div className="flex h-full max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+
+          {/* Modal header */}
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="font-mono text-xs text-muted-foreground/60">v{activeRevision.version_number}</span>
+              <span className="truncate font-semibold text-foreground">{activeRevision.title}</span>
+              <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_CONFIG[activeRevision.status as RevisionStatus]?.color}`}>
+                {STATUS_CONFIG[activeRevision.status as RevisionStatus]?.label}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {activeRevision.status === "draft" && (
+                <button
+                  onClick={() => setDeployTarget(activeRevision)}
+                  className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-[#c49843]"
+                >
+                  <Rocket className="h-3.5 w-3.5" /> Deploy to Client
+                </button>
+              )}
+              <div className="relative">
+                <select
+                  value={activeRevision.status}
+                  onChange={(e) => handleUpdateStatus(activeRevision, e.target.value as RevisionStatus)}
+                  disabled={!!updatingStatusId}
+                  className="appearance-none rounded-lg border border-border bg-muted/30 py-1.5 pl-2.5 pr-7 text-xs text-foreground focus:border-[#d4a853]/50 focus:outline-none cursor-pointer"
+                >
+                  {ALL_STATUSES.map((s) => (
+                    <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+              </div>
+              <button
+                onClick={() => handleDeleteRevision(activeRevision)}
+                disabled={!!deletingRevisionId}
+                className="rounded-lg border border-border p-1.5 text-muted-foreground transition-colors hover:bg-red-500/10 hover:text-red-400"
+              >
+                {deletingRevisionId === activeRevision.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                onClick={() => setActiveRevisionId(null)}
+                className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Modal body */}
+          <div className="flex flex-1 overflow-hidden">
+
+            {/* Video player */}
+            <div className="flex flex-[3] flex-col overflow-hidden bg-black">
+              {activeRevision.file_url ? (
+                <>
+                  <div className="relative flex-1 overflow-hidden">
+                    <video
+                      ref={videoRef}
+                      src={activeRevision.file_url}
+                      playsInline
+                      preload="metadata"
+                      muted={isMuted}
+                      className="mx-auto h-full w-full object-contain"
+                      onClick={() => { if (!videoRef.current) return; isPlaying ? videoRef.current.pause() : videoRef.current.play(); }}
+                      onPlay={() => setIsPlaying(true)}
+                      onPause={() => setIsPlaying(false)}
+                      onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+                      onLoadedMetadata={(e) => setPlayerDuration(e.currentTarget.duration)}
+                    />
+                    {!isPlaying && (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => videoRef.current?.play()}
+                          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-black/50 ring-1 ring-white/20 backdrop-blur-sm transition-transform active:scale-95"
+                        >
+                          <Play className="h-6 w-6 translate-x-0.5 text-white" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {/* Controls */}
+                  <div className="shrink-0 space-y-2 bg-black px-4 pb-4 pt-2">
+                    <input
+                      type="range" min={0} max={playerDuration || 100} step={0.1} value={currentTime}
+                      onChange={(e) => { const t = parseFloat(e.target.value); setCurrentTime(t); if (videoRef.current) videoRef.current.currentTime = t; }}
+                      className="h-1 w-full cursor-pointer accent-[#d4a853]"
+                    />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-0.5">
+                        <button onClick={() => { if (!videoRef.current) return; isPlaying ? videoRef.current.pause() : videoRef.current.play(); }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
+                          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                        </button>
+                        <button onClick={() => { const n = !isMuted; setIsMuted(n); if (videoRef.current) videoRef.current.muted = n; }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
+                          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                        </button>
+                        <input type="range" min={0} max={1} step={0.05} value={isMuted ? 0 : volume}
+                          onChange={(e) => { const v = parseFloat(e.target.value); setVolume(v); setIsMuted(v === 0); if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; } }}
+                          className="h-1 w-16 cursor-pointer accent-[#d4a853]"
+                        />
+                        <span className="ml-2 font-mono text-[11px] text-white/50">{formatTime(currentTime)} / {formatTime(playerDuration)}</span>
+                      </div>
+                      <button onClick={() => { const v = videoRef.current; if (!v) return; if ((v as any).webkitEnterFullscreen) (v as any).webkitEnterFullscreen(); else v.requestFullscreen?.().catch(() => {}); }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
+                        <Maximize className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-1 items-center justify-center">
+                  <Film className="h-12 w-12 text-white/20" />
+                </div>
+              )}
+            </div>
+
+            {/* Notes panel */}
+            <div className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-border">
+              <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-4">
+                {(activeRevision.comments?.length ?? 0) > 0 ? (
+                  <div>
+                    <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                      Notes ({activeRevision.comments?.length})
+                    </p>
+                    <div className="space-y-2">
+                      {activeRevision.comments?.map((comment) => (
+                        <div key={comment.id} className="group flex items-start gap-2.5 rounded-xl border border-border bg-card/50 px-3.5 py-2.5">
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
+                            {(comment.author_name ?? "?")[0].toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-xs font-semibold text-foreground">{comment.author_name ?? "You"}</span>
+                              {comment.timestamp_seconds != null && (
+                                <button
+                                  type="button"
+                                  className="font-mono text-[10px] text-[#d4a853] hover:underline"
+                                  onClick={() => {
+                                    const t = comment.timestamp_seconds!;
+                                    setCurrentTime(t);
+                                    if (videoRef.current) { videoRef.current.currentTime = t; videoRef.current.play(); }
+                                    setIsPlaying(true);
+                                  }}
+                                >
+                                  {formatTime(comment.timestamp_seconds)}
+                                </button>
+                              )}
+                              <span className="ml-auto text-[10px] text-muted-foreground/60">{formatRelative(comment.created_at)}</span>
+                            </div>
+                            <p className="text-sm text-foreground/80 leading-snug">{comment.content}</p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteComment(activeRevision.id, comment.id)}
+                            disabled={deletingCommentId === comment.id}
+                            className="shrink-0 rounded-lg p-1 text-muted-foreground/40 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all"
+                          >
+                            {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <MessageSquare className="h-8 w-8 text-muted-foreground/20 mb-2" />
+                    <p className="text-xs text-muted-foreground">No notes yet</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground/60">Type below and press Enter</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Note input */}
+              <div className="shrink-0 border-t border-border px-4 py-3">
+                <div className="relative">
+                  <textarea
+                    value={commentDraft}
+                    onChange={(e) => setCommentDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAddComment();
+                      }
+                    }}
+                    placeholder={`Note at ${formatTime(currentTime)}… (Enter to post)`}
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-border bg-muted/20 px-3 py-2.5 pr-10 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/40 focus:outline-none leading-relaxed"
+                  />
+                  {savingComment ? (
+                    <Loader2 className="absolute right-3 bottom-3 h-3.5 w-3.5 animate-spin text-muted-foreground/40" />
+                  ) : commentDraft.trim() ? (
+                    <Send className="absolute right-3 bottom-3 h-3.5 w-3.5 text-[#d4a853]/60" />
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
 
       {/* Deploy modal */}
       {deployTarget && selectedProject && (
@@ -1199,7 +1274,6 @@ export default function ReviewPage() {
           onDeployed={(token) => {
             setPortalToken(token);
             setRevisions((prev) => prev.map((r) => r.id === deployTarget.id ? { ...r, status: "in_review" } : r));
-            // Auto-sync project to "review" when a cut is deployed to client
             if (selectedProjectId) {
               updateProject(selectedProjectId, { status: "review" }).catch(() => {});
             }
@@ -1207,6 +1281,6 @@ export default function ReviewPage() {
           onClose={() => setDeployTarget(null)}
         />
       )}
-    </div>
+    </>
   );
 }
