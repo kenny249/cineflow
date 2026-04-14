@@ -57,20 +57,35 @@ export function LoginPageClient() {
   async function handleBetaAccess() {
     setIsLoading(true);
     try {
+      // Server creates an ephemeral account and seeds demo data
       const res = await fetch("/api/demo/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: planValue }),
       });
       const json = await res.json();
-      if (!res.ok || !json.action_link) {
+      if (!res.ok || !json.email || !json.password) {
         console.error("[demo] start failed:", json?.error, json?.detail);
         toast.error("Could not start demo. Please try again.");
         setIsLoading(false);
         return;
       }
-      // Redirect through Supabase's verify endpoint → our auth callback → /welcome
-      window.location.assign(json.action_link);
+
+      // Sign in directly — no redirects, no hash tokens in the URL
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: json.email,
+        password: json.password,
+      });
+      if (error || !data.session) {
+        console.error("[demo] signIn failed:", error?.message);
+        toast.error("Could not start demo. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      sessionStorage.setItem("cf_plan", planValue);
+      window.location.assign("/welcome");
     } catch {
       toast.error("Demo sign-in failed. Please try again.");
       setIsLoading(false);

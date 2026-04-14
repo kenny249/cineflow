@@ -186,15 +186,13 @@ export async function POST(req: NextRequest) {
     const plan: string = body.plan ?? "studio_beta";
 
     const supabase = getAdminClient();
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ??
-      req.headers.get("origin") ??
-      "https://www.usecineflow.com";
 
-    // 1. Create ephemeral user (email pre-confirmed, no real email sent)
+    // 1. Create ephemeral user with a random password (email pre-confirmed, no real email sent)
     const tempEmail = `demo-${crypto.randomUUID()}@demo.usecineflow.com`;
+    const tempPassword = crypto.randomUUID(); // one-time, returned over HTTPS, account expires in 24h
     const { data: createData, error: createError } = await supabase.auth.admin.createUser({
       email: tempEmail,
+      password: tempPassword,
       email_confirm: true,
       user_metadata: { is_demo: true, plan, demo_created_at: new Date().toISOString() },
     });
@@ -206,24 +204,12 @@ export async function POST(req: NextRequest) {
 
     const userId = createData.user.id;
 
-    // 2. Seed fake data (non-blocking errors — demo still works without perfect seed)
+    // 2. Seed fake data
     await seedDemoAccount(supabase as AnyClient, userId, tempEmail, plan);
 
-    // 3. Generate a one-time magic link so the client can sign in without a password
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
-      type: "magiclink",
-      email: tempEmail,
-      options: { redirectTo: `${siteUrl}/auth/callback` },
-    });
-
-    if (linkError || !linkData?.properties?.action_link) {
-      console.error("[demo/start] generateLink failed:", linkError?.message);
-      // Clean up orphaned user so it doesn't accumulate
-      await supabase.auth.admin.deleteUser(userId);
-      return NextResponse.json({ error: "Could not generate demo link", detail: linkError?.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ action_link: linkData.properties.action_link });
+    // 3. Return credentials — client signs in directly via signInWithPassword.
+    //    No magic link redirect needed; avoids the #access_token hash fragment issue.
+    return NextResponse.json({ email: tempEmail, password: tempPassword });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[demo/start] unexpected error:", msg);
