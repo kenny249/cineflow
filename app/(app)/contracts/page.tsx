@@ -917,7 +917,7 @@ export default function ContractsPage() {
 
                       <div className="ml-auto flex items-center gap-2">
                         {/* Sign now button — shown when fields exist and contract not signed */}
-                        {localFields.length > 0 && selected.status !== "signed" && (
+                        {localFields.length > 0 && (
                           <button
                             onClick={() => openSignModal(localFields[0])}
                             className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black hover:bg-[#c49843] transition-colors"
