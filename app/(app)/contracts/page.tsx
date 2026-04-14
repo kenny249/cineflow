@@ -44,7 +44,7 @@ function StatusBadge({ status }: { status: ContractStatus }) {
 }
 
 const ROLE_CONFIG: Record<ContractRecipientRole, { label: string; color: string }> = {
-  client:   { label: "Client",   color: "text-[#d4a853] bg-[#d4a853]/10" },
+  client:   { label: "Client",   color: "text-sky-400 bg-sky-400/10" },
   crew:     { label: "Crew",     color: "text-blue-400 bg-blue-400/10" },
   talent:   { label: "Talent",   color: "text-purple-400 bg-purple-400/10" },
   location: { label: "Location", color: "text-emerald-400 bg-emerald-400/10" },
@@ -124,6 +124,11 @@ export default function ContractsPage() {
   const [inlineTypedName, setInlineTypedName] = useState("");
   const [inlineSignerName, setInlineSignerName] = useState("");
   const [savingInlineSig, setSavingInlineSig] = useState(false);
+
+  // Text / date field inline edit
+  const [textEditOpen, setTextEditOpen] = useState(false);
+  const [textEditField, setTextEditField] = useState<SignatureField | null>(null);
+  const [textEditValue, setTextEditValue] = useState("");
 
   // ── Load ────────────────────────────────────────────────────────────────────
 
@@ -333,7 +338,9 @@ export default function ContractsPage() {
   function handleAutoDetect(detected: Omit<SignatureField, "id">[]) {
     if (localFields.length === 0) {
       setLocalFields(detected.map((f) => ({ ...f, id: crypto.randomUUID() })));
-      toast.success(`Auto-detected ${detected.length} field${detected.length !== 1 ? "s" : ""} — review and save`);
+      toast.success(`Auto-detected ${detected.length} field${detected.length !== 1 ? "s" : ""}`, {
+        description: 'Fields placed for client. Use "Your Sig" button to add your own signature field.',
+      });
     } else {
       toast(`Found ${detected.length} field${detected.length !== 1 ? "s" : ""} in document`, {
         description: "Replace existing fields?",
@@ -351,6 +358,20 @@ export default function ContractsPage() {
     if (!selected) return;
     setStamping(true);
     try {
+      // Always save the current fields to DB before stamping so signatures are embedded
+      const fieldsToSave = localFields.map(({ ...f }) => {
+        const clean = { ...f };
+        delete (clean as any).signatureData;
+        return clean;
+      });
+      if (fieldsToSave.length > 0) {
+        await fetch("/api/contracts", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: selected.id, signature_fields: fieldsToSave }),
+        });
+      }
+
       const res = await fetch("/api/contracts/stamp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -358,16 +379,18 @@ export default function ContractsPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      const updated = { ...selected, signed_pdf_url: data.signed_pdf_url };
+      const updated = { ...selected, signed_pdf_url: data.signed_pdf_url, signature_fields: fieldsToSave };
       setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
       setSelected(updated);
-      toast.success("Signed PDF ready");
+      toast.success("Signed PDF ready — downloading…");
+      // Auto-open download
+      window.open(data.signed_pdf_url, "_blank");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate PDF");
     } finally {
       setStamping(false);
     }
-  }, [selected]);
+  }, [selected, localFields]);
 
   // ── Inline sign modal ────────────────────────────────────────────────────────
 
@@ -637,10 +660,26 @@ export default function ContractsPage() {
                     fields={localFields}
                     dropMode={dropMode}
                     onFieldPlace={handleFieldPlace}
+                    onFieldDelete={selected.status !== "signed" ? removeField : undefined}
                     onAutoDetect={selected.status !== "signed" ? handleAutoDetect : undefined}
                     onFieldClick={(field) => {
                       if (selected.status === "signed") return;
-                      if ((field.type ?? "signature") !== "signature") return; // text/date fields not signed via modal
+                      const type = field.type ?? "signature";
+                      // Text/date field → open inline editor
+                      if (type === "text" || type === "date") {
+                        setTextEditField(field);
+                        setTextEditValue(field.value ?? "");
+                        setTextEditOpen(true);
+                        return;
+                      }
+                      // Recipient signature field → can't sign here, guide to sharing link
+                      if (field.role !== "sender") {
+                        toast("This is the client's signature field", {
+                          description: "Share the signing link so they can sign it.",
+                        });
+                        return;
+                      }
+                      // Sender signature field → open sign modal
                       openSignModal(field);
                     }}
                     className="h-full"
@@ -895,6 +934,43 @@ export default function ContractsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Text / Date Field Edit Modal ─────────────────────────────────────── */}
+      <Dialog open={textEditOpen} onOpenChange={setTextEditOpen}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {textEditField?.type === "date" ? <CalendarDays className="h-4 w-4 text-violet-400" /> : <Type className="h-4 w-4 text-violet-400" />}
+              {textEditField?.type === "date" ? "Date Field" : "Text Field"}
+            </DialogTitle>
+            <DialogDescription>
+              This value will be stamped onto the signed PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-1">
+            <Input
+              value={textEditValue}
+              onChange={(e) => setTextEditValue(e.target.value)}
+              placeholder={textEditField?.type === "date" ? "e.g. Apr 14, 2026" : "Enter text…"}
+              className="h-9"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && textEditField) {
+                  updateFieldValue(textEditField.id, textEditValue);
+                  setTextEditOpen(false);
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setTextEditOpen(false)}>Cancel</Button>
+            <Button variant="gold" size="sm" onClick={() => {
+              if (textEditField) updateFieldValue(textEditField.id, textEditValue);
+              setTextEditOpen(false);
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Inline Sign Modal ─────────────────────────────────────────────────── */}
       <Dialog open={signModalOpen} onOpenChange={(v) => { if (!v) { setSignModalOpen(false); clearInlineCanvas(); } }}>

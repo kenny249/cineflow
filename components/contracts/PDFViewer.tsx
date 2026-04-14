@@ -14,6 +14,7 @@ interface PDFViewerProps {
   dropMode?: FieldDropMode;
   onFieldPlace?: (field: Omit<SignatureField, "id">) => void;
   onFieldClick?: (field: SignatureField) => void;
+  onFieldDelete?: (id: string) => void;
   onAutoDetect?: (fields: Omit<SignatureField, "id">[]) => void;
   highlightRole?: "sender" | "recipient";
   className?: string;
@@ -149,6 +150,7 @@ export function PDFViewer({
   dropMode = null,
   onFieldPlace,
   onFieldClick,
+  onFieldDelete,
   onAutoDetect,
   highlightRole,
   className = "",
@@ -165,6 +167,7 @@ export function PDFViewer({
   const renderTaskRef = useRef<any>(null);
   const [detecting, setDetecting] = useState(false);
   const nativeWidthRef = useRef<number>(0);
+  const [hoveredFieldId, setHoveredFieldId] = useState<string | null>(null);
 
   const computeFitScale = useCallback(() => {
     if (!containerRef.current || !nativeWidthRef.current) return 1.0;
@@ -356,6 +359,7 @@ export function PDFViewer({
               const { left, top } = pdfToScreen(field.x, field.y + field.height);
               const w = field.width * scale;
               const h = field.height * scale;
+              const isHovered = hoveredFieldId === field.id;
 
               // ── Text / Date field overlay ────────────────────────────
               if (fieldType === "text" || fieldType === "date") {
@@ -367,13 +371,22 @@ export function PDFViewer({
                       ${onFieldClick ? "cursor-pointer hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30" : "cursor-default"}
                     `}
                     style={{ left: left + 16, top: top + 16, width: w, height: h }}
+                    onMouseEnter={() => setHoveredFieldId(field.id)}
+                    onMouseLeave={() => setHoveredFieldId(null)}
                     onClick={(e) => { e.stopPropagation(); if (onFieldClick) onFieldClick(field); }}
                   >
-                    <span className="px-2 text-[11px] text-violet-600 dark:text-violet-400 truncate">
+                    <span className="px-2 text-[11px] text-violet-600 dark:text-violet-400 truncate flex-1">
                       {field.value
                         ? field.value
-                        : fieldType === "date" ? "Date" : "Text"}
+                        : <span className="opacity-50">{fieldType === "date" ? "Click to set date" : "Click to enter text"}</span>}
                     </span>
+                    {onFieldDelete && isHovered && (
+                      <button
+                        className="absolute -top-2 -right-2 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] leading-none hover:bg-red-600 shadow"
+                        onClick={(e) => { e.stopPropagation(); onFieldDelete(field.id); }}
+                        title="Remove field"
+                      >×</button>
+                    )}
                   </div>
                 );
               }
@@ -384,12 +397,14 @@ export function PDFViewer({
               return (
                 <div
                   key={field.id}
-                  className={`absolute flex flex-col items-center justify-center border-2 rounded transition-all select-none
+                  className={`relative flex flex-col items-center justify-center border-2 rounded transition-all select-none
                     ${isSender ? "border-[#d4a853] bg-[#d4a853]/10" : "border-sky-400 bg-sky-400/10"}
                     ${isHighlighted ? "animate-pulse ring-2 ring-offset-1 ring-sky-400/50" : ""}
                     ${onFieldClick ? "cursor-pointer hover:opacity-90" : "cursor-default"}
                   `}
-                  style={{ left: left + 16, top: top + 16, width: w, height: h }}
+                  style={{ position: "absolute", left: left + 16, top: top + 16, width: w, height: h }}
+                  onMouseEnter={() => setHoveredFieldId(field.id)}
+                  onMouseLeave={() => setHoveredFieldId(null)}
                   onClick={(e) => { e.stopPropagation(); if (onFieldClick) onFieldClick(field); }}
                 >
                   {(field as any).signatureData ? (
@@ -397,17 +412,27 @@ export function PDFViewer({
                   ) : (
                     <>
                       <span className={`text-[10px] font-semibold ${isSender ? "text-[#d4a853]" : "text-sky-400"}`}>
-                        {isSender ? "Your Signature" : "Sign Here"}
+                        {isSender ? "Your Signature" : "Client Signs Here"}
                       </span>
-                      {onFieldClick && (
-                        <span className={`text-[9px] mt-0.5 ${isSender ? "text-[#d4a853]/60" : "text-sky-400/60"}`}>
+                      {onFieldClick && isSender && (
+                        <span className={`text-[9px] mt-0.5 text-[#d4a853]/60`}>
                           Click to sign
                         </span>
+                      )}
+                      {!isSender && (
+                        <span className="text-[9px] mt-0.5 text-sky-400/60">Via signing link</span>
                       )}
                       {isHighlighted && (
                         <span className="text-[9px] text-sky-400/70 mt-0.5">Tap to sign</span>
                       )}
                     </>
+                  )}
+                  {onFieldDelete && isHovered && (
+                    <button
+                      className="absolute -top-2 -right-2 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white text-[10px] leading-none hover:bg-red-600 shadow"
+                      onClick={(e) => { e.stopPropagation(); onFieldDelete(field.id); }}
+                      title="Remove field"
+                    >×</button>
                   )}
                 </div>
               );
