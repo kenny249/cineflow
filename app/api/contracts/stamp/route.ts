@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
   const fields: Array<{
     id: string; page: number; x: number; y: number;
     width: number; height: number; role: "sender" | "recipient";
+    type?: "signature" | "text" | "date"; value?: string;
   }> = contract.signature_fields ?? [];
 
   // Fetch recipient signature
@@ -104,6 +105,22 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error("Failed to embed sender signature", e);
       }
+    }
+
+    // ── Text field ────────────────────────────────────────────────────────────
+    if ((field.type === "text" || field.type === "date") && field.value) {
+      try {
+        page.drawText(field.value, {
+          x: field.x + 4,
+          y: field.y + field.height / 2 - 5,
+          size: 10,
+          font: helvetica,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+      } catch (e) {
+        console.error("Failed to stamp text field", e);
+      }
+      continue;
     }
 
     if (field.role === "recipient" && recipientSig?.signature_data) {

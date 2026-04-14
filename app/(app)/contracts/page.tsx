@@ -5,7 +5,7 @@ import {
   Plus, FileSignature, Send, Trash2, CheckCircle2,
   FileText, Upload, Copy, ExternalLink, X, ChevronDown, Pencil,
   Download, PenLine, RotateCcw, Loader2, MousePointer, Users,
-  FolderOpen, ChevronRight,
+  FolderOpen, ChevronRight, Type, CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -17,18 +17,21 @@ import { createClient } from "@/lib/supabase/client";
 import { getProjects } from "@/lib/supabase/queries";
 import dynamic from "next/dynamic";
 import type { Contract, ContractStatus, ContractRecipientRole, Project, SignatureField } from "@/types";
-// Load PDFViewer client-only — pdfjs-dist uses Node canvas which breaks SSR
+import type { FieldDropMode } from "@/components/contracts/PDFViewer";
+
 const PDFViewer = dynamic(
   () => import("@/components/contracts/PDFViewer").then((m) => m.PDFViewer),
-  { ssr: false, loading: () => <div className="flex h-[560px] items-center justify-center bg-zinc-100 dark:bg-zinc-900"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> }
+  { ssr: false, loading: () => <div className="flex h-full items-center justify-center bg-zinc-100 dark:bg-zinc-900"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div> }
 );
 
+// ── Config ────────────────────────────────────────────────────────────────────
+
 const STATUS_CONFIG: Record<ContractStatus, { label: string; color: string; bg: string }> = {
-  draft:    { label: "Draft",    color: "text-muted-foreground",  bg: "bg-muted/60" },
-  sent:     { label: "Sent",     color: "text-amber-400",          bg: "bg-amber-400/10 border-amber-400/30" },
-  signed:   { label: "Signed",   color: "text-emerald-400",        bg: "bg-emerald-400/10 border-emerald-400/30" },
-  declined: { label: "Declined", color: "text-red-400",            bg: "bg-red-400/10 border-red-400/30" },
-  voided:   { label: "Voided",   color: "text-muted-foreground/50", bg: "bg-muted/30" },
+  draft:    { label: "Draft",    color: "text-muted-foreground",    bg: "bg-muted/60" },
+  sent:     { label: "Sent",     color: "text-amber-400",            bg: "bg-amber-400/10 border-amber-400/30" },
+  signed:   { label: "Signed",   color: "text-emerald-400",          bg: "bg-emerald-400/10 border-emerald-400/30" },
+  declined: { label: "Declined", color: "text-red-400",              bg: "bg-red-400/10 border-red-400/30" },
+  voided:   { label: "Voided",   color: "text-muted-foreground/50",  bg: "bg-muted/30" },
 };
 
 function StatusBadge({ status }: { status: ContractStatus }) {
@@ -60,6 +63,15 @@ function RoleBadge({ role }: { role?: ContractRecipientRole | string }) {
 
 const ALL_ROLES: ContractRecipientRole[] = ["client", "crew", "talent", "location", "vendor", "other"];
 
+const DROP_MODE_CONFIG: Record<Exclude<FieldDropMode, null>, { label: string; icon: React.ReactNode; color: string; active: string }> = {
+  sender:    { label: "Your Sig",    icon: <PenLine className="h-3 w-3" />,      color: "border-[#d4a853]/40 text-[#d4a853]/70 hover:border-[#d4a853] hover:text-[#d4a853]", active: "border-[#d4a853] bg-[#d4a853]/15 text-[#d4a853]" },
+  recipient: { label: "Client Sig",  icon: <Users className="h-3 w-3" />,        color: "border-sky-400/40 text-sky-400/70 hover:border-sky-400 hover:text-sky-400",         active: "border-sky-400 bg-sky-400/15 text-sky-400" },
+  text:      { label: "Text",        icon: <Type className="h-3 w-3" />,          color: "border-violet-400/40 text-violet-400/70 hover:border-violet-400 hover:text-violet-400", active: "border-violet-400 bg-violet-400/15 text-violet-400" },
+  date:      { label: "Date",        icon: <CalendarDays className="h-3 w-3" />, color: "border-violet-400/40 text-violet-400/70 hover:border-violet-400 hover:text-violet-400", active: "border-violet-400 bg-violet-400/15 text-violet-400" },
+};
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function ContractsPage() {
   const supabase = createClient();
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -67,7 +79,7 @@ export default function ContractsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Contract | null>(null);
 
-  // Sidebar project grouping
+  // Sidebar grouping
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
 
   // New contract dialog
@@ -82,7 +94,7 @@ export default function ContractsPage() {
   const [creating, setCreating] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Edit contract dialog
+  // Edit dialog
   const [editOpen, setEditOpen] = useState(false);
   const [eTitle, setETitle] = useState("");
   const [eDescription, setEDescription] = useState("");
@@ -92,30 +104,16 @@ export default function ContractsPage() {
   const [eRecipientRole, setERecipientRole] = useState<ContractRecipientRole>("client");
   const [saving, setSaving] = useState(false);
 
-  // Send state
+  // Send / stamp
   const [sending, setSending] = useState(false);
+  const [stamping, setStamping] = useState(false);
 
   // Field placement
-  const [dropMode, setDropMode] = useState<"sender" | "recipient" | null>(null);
+  const [dropMode, setDropMode] = useState<FieldDropMode>(null);
   const [localFields, setLocalFields] = useState<SignatureField[]>([]);
   const [savingFields, setSavingFields] = useState(false);
 
-  // Sender (agency) signing
-  const [showSenderSign, setShowSenderSign] = useState(false);
-  const [senderName, setSenderName] = useState("");
-  const [savingSenderSig, setSavingSenderSig] = useState(false);
-  const senderCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [senderDrawing, setSenderDrawing] = useState(false);
-  const [hasSenderSig, setHasSenderSig] = useState(false);
-  const senderLastPos = useRef<{ x: number; y: number } | null>(null);
-  const [senderSigMode, setSenderSigMode] = useState<"draw" | "type">("draw");
-  const [senderTypedName, setSenderTypedName] = useState("");
-
-
-  // Stamp state
-  const [stamping, setStamping] = useState(false);
-
-  // Inline sign modal (click a field → sign it right here)
+  // Inline sign modal
   const [signModalOpen, setSignModalOpen] = useState(false);
   const [signModalField, setSignModalField] = useState<SignatureField | null>(null);
   const inlineCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -127,14 +125,13 @@ export default function ContractsPage() {
   const [inlineSignerName, setInlineSignerName] = useState("");
   const [savingInlineSig, setSavingInlineSig] = useState(false);
 
+  // ── Load ────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        const [projs, res] = await Promise.all([
-          getProjects(),
-          fetch("/api/contracts"),
-        ]);
+        const [projs, res] = await Promise.all([getProjects(), fetch("/api/contracts")]);
         setProjects(projs || []);
         const data = await res.json();
         if (data.contracts) {
@@ -150,18 +147,18 @@ export default function ContractsPage() {
     load();
   }, []);
 
-  // Sync local field state when selected contract changes
+  // Sync local field state + hydrate signatureData for sender fields
   useEffect(() => {
-    setLocalFields(selected?.signature_fields ?? []);
-    setSenderName(selected?.sender_name ?? "");
+    const senderSigData = selected?.sender_signature_data;
+    const hydratedFields = (selected?.signature_fields ?? []).map((f) => ({
+      ...f,
+      ...(f.role === "sender" && senderSigData ? { signatureData: senderSigData } : {}),
+    }));
+    setLocalFields(hydratedFields as SignatureField[]);
     setDropMode(null);
-    setShowSenderSign(false);
-    setHasSenderSig(false);
-    if (senderCanvasRef.current) {
-      const ctx = senderCanvasRef.current.getContext("2d");
-      ctx?.clearRect(0, 0, senderCanvasRef.current.width, senderCanvasRef.current.height);
-    }
-  }, [selected?.id]);
+  }, [selected?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   function openNew() {
     setFTitle(""); setFDescription(""); setFProject("");
@@ -175,21 +172,16 @@ export default function ContractsPage() {
     setCreating(true);
     try {
       let fileUrl: string | undefined;
-
-      // Upload PDF if provided
       if (fFile) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");
         const ext = fFile.name.split(".").pop();
         const path = `${user.id}/${Date.now()}.${ext}`;
-        const { error: uploadErr } = await supabase.storage
-          .from("contracts")
-          .upload(path, fFile, { upsert: false });
+        const { error: uploadErr } = await supabase.storage.from("contracts").upload(path, fFile, { upsert: false });
         if (uploadErr) throw uploadErr;
         const { data: { publicUrl } } = supabase.storage.from("contracts").getPublicUrl(path);
         fileUrl = publicUrl;
       }
-
       const res = await fetch("/api/contracts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -203,10 +195,8 @@ export default function ContractsPage() {
           file_url: fileUrl,
         }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-
       setContracts((prev) => [data.contract, ...prev]);
       setSelected(data.contract);
       setDialogOpen(false);
@@ -232,9 +222,9 @@ export default function ContractsPage() {
       const updated = { ...selected, status: "sent" as ContractStatus, sent_at: new Date().toISOString() };
       setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
       setSelected(updated);
-      toast.success(`Contract sent to ${selected.recipient_email}`);
+      toast.success(`Sent to ${selected.recipient_email}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send contract");
+      toast.error(err instanceof Error ? err.message : "Failed to send");
     } finally {
       setSending(false);
     }
@@ -243,15 +233,15 @@ export default function ContractsPage() {
   const handleDelete = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/contracts?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
+      if (!res.ok) throw new Error();
       setContracts((prev) => prev.filter((c) => c.id !== id));
       if (selected?.id === id) {
         const remaining = contracts.filter((c) => c.id !== id);
         setSelected(remaining[0] ?? null);
       }
-      toast.success("Contract deleted");
+      toast.success("Deleted");
     } catch {
-      toast.error("Failed to delete contract");
+      toast.error("Failed to delete");
     }
   }, [selected, contracts]);
 
@@ -288,37 +278,47 @@ export default function ContractsPage() {
       setContracts((prev) => prev.map((c) => c.id === selected.id ? data.contract : c));
       setSelected(data.contract);
       setEditOpen(false);
-      toast.success("Contract updated");
+      toast.success("Saved");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update");
+      toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
     }
-  }, [selected, eTitle, eDescription, eProject, eRecipientName, eRecipientEmail]);
+  }, [selected, eTitle, eDescription, eProject, eRecipientName, eRecipientEmail, eRecipientRole]);
 
   // ── Field placement ──────────────────────────────────────────────────────────
+
   function handleFieldPlace(field: Omit<SignatureField, "id">) {
-    const id = crypto.randomUUID();
-    setLocalFields((prev) => [...prev, { ...field, id }]);
-    setDropMode(null); // auto-deactivate after placing one field
+    setLocalFields((prev) => [...prev, { ...field, id: crypto.randomUUID() }]);
+    setDropMode(null);
   }
 
   function removeField(id: string) {
     setLocalFields((prev) => prev.filter((f) => f.id !== id));
   }
 
+  function updateFieldValue(id: string, value: string) {
+    setLocalFields((prev) => prev.map((f) => f.id === id ? { ...f, value } : f));
+  }
+
   const handleSaveFields = useCallback(async () => {
     if (!selected) return;
     setSavingFields(true);
     try {
+      // Strip runtime-only signatureData before saving
+      const fieldsToSave = localFields.map(({ ...f }) => {
+        const clean = { ...f };
+        delete (clean as any).signatureData;
+        return clean;
+      });
       const res = await fetch("/api/contracts", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: selected.id, signature_fields: localFields }),
+        body: JSON.stringify({ id: selected.id, signature_fields: fieldsToSave }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      const updated = { ...selected, signature_fields: localFields };
+      const updated = { ...selected, signature_fields: fieldsToSave };
       setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
       setSelected(updated);
       toast.success("Fields saved");
@@ -329,142 +329,55 @@ export default function ContractsPage() {
     }
   }, [selected, localFields]);
 
-  // ── Sender canvas helpers ─────────────────────────────────────────────────
-  function getSenderPos(e: React.MouseEvent | React.TouchEvent) {
-    const canvas = senderCanvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
-    if ("touches" in e) {
-      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY };
-    }
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-  }
-
-  function startSenderDraw(e: React.MouseEvent | React.TouchEvent) {
-    e.preventDefault();
-    setSenderDrawing(true);
-    senderLastPos.current = getSenderPos(e);
-  }
-
-  function drawSender(e: React.MouseEvent | React.TouchEvent) {
-    if (!senderDrawing) return;
-    e.preventDefault();
-    const canvas = senderCanvasRef.current!;
-    const ctx = canvas.getContext("2d")!;
-    const pos = getSenderPos(e);
-    ctx.beginPath();
-    ctx.moveTo(senderLastPos.current!.x, senderLastPos.current!.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = "#18181b";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.stroke();
-    senderLastPos.current = pos;
-    setHasSenderSig(true);
-  }
-
-  function stopSenderDraw() {
-    setSenderDrawing(false);
-    senderLastPos.current = null;
-  }
-
-  function clearSenderCanvas() {
-    const canvas = senderCanvasRef.current!;
-    canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
-    setHasSenderSig(false);
-  }
-
-  // Render typed name as a cursive-style signature onto the canvas
-  function renderTypedSenderSig(name: string) {
-    const canvas = senderCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (!name.trim()) { setHasSenderSig(false); return; }
-    ctx.font = "italic 48px Palatino Linotype, Palatino, Book Antiqua, Georgia, serif";
-    ctx.fillStyle = "#18181b";
-    ctx.textBaseline = "middle";
-    const tw = ctx.measureText(name).width;
-    const x = Math.max(16, (canvas.width - tw) / 2);
-    const y = canvas.height / 2;
-    ctx.fillText(name, x, y);
-    // Subtle underline
-    ctx.beginPath();
-    ctx.moveTo(x - 8, y + 26);
-    ctx.lineTo(x + tw + 8, y + 26);
-    ctx.strokeStyle = "#18181b";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    setHasSenderSig(true);
-  }
-
-  // Auto-detect callback from PDFViewer
+  // Auto-detect callback
   function handleAutoDetect(detected: Omit<SignatureField, "id">[]) {
     if (localFields.length === 0) {
-      // No fields yet — apply automatically
-      const withIds = detected.map((f) => ({ ...f, id: crypto.randomUUID() }));
-      setLocalFields(withIds);
-      toast.success(`Auto-detected ${withIds.length} signature field${withIds.length !== 1 ? "s" : ""} — review and save`);
+      setLocalFields(detected.map((f) => ({ ...f, id: crypto.randomUUID() })));
+      toast.success(`Auto-detected ${detected.length} field${detected.length !== 1 ? "s" : ""} — review and save`);
     } else {
-      // Fields already exist — offer to replace via toast action
-      toast(`Found ${detected.length} signature field${detected.length !== 1 ? "s" : ""} in document`, {
-        description: "Replace existing fields with auto-detected ones?",
+      toast(`Found ${detected.length} field${detected.length !== 1 ? "s" : ""} in document`, {
+        description: "Replace existing fields?",
         action: {
           label: "Replace",
-          onClick: () => {
-            const withIds = detected.map((f) => ({ ...f, id: crypto.randomUUID() }));
-            setLocalFields(withIds);
-          },
+          onClick: () => setLocalFields(detected.map((f) => ({ ...f, id: crypto.randomUUID() }))),
         },
       });
     }
   }
 
-  const handleSaveSenderSig = useCallback(async () => {
-    if (!selected || !hasSenderSig || !senderName.trim()) return;
-    setSavingSenderSig(true);
+  // ── Stamp ────────────────────────────────────────────────────────────────────
+
+  const handleStamp = useCallback(async () => {
+    if (!selected) return;
+    setStamping(true);
     try {
-      const signatureData = senderCanvasRef.current!.toDataURL("image/png");
-      const res = await fetch("/api/contracts", {
-        method: "PATCH",
+      const res = await fetch("/api/contracts/stamp", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selected.id,
-          sender_name: senderName.trim(),
-          sender_signature_data: signatureData,
-          sender_signed_at: new Date().toISOString(),
-        }),
+        body: JSON.stringify({ contractId: selected.id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      const updated = { ...selected, ...data.contract };
+      const updated = { ...selected, signed_pdf_url: data.signed_pdf_url };
       setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
       setSelected(updated);
-      setShowSenderSign(false);
-      toast.success("Your signature saved");
+      toast.success("Signed PDF ready");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save signature");
+      toast.error(err instanceof Error ? err.message : "Failed to generate PDF");
     } finally {
-      setSavingSenderSig(false);
+      setStamping(false);
     }
-  }, [selected, hasSenderSig, senderName]);
+  }, [selected]);
 
-  // ── Inline sign modal helpers ─────────────────────────────────────────────
+  // ── Inline sign modal ────────────────────────────────────────────────────────
 
   function openSignModal(field: SignatureField) {
     setSignModalField(field);
     setInlineSigMode("draw");
     setInlineTypedName("");
     setHasInlineSig(false);
-    setInlineSignerName(
-      field.role === "sender"
-        ? (selected?.sender_name ?? "")
-        : (selected?.recipient_name ?? "")
-    );
+    setInlineSignerName(field.role === "sender" ? (selected?.sender_name ?? "") : (selected?.recipient_name ?? ""));
     setSignModalOpen(true);
-    // Clear canvas on next tick after modal renders
     setTimeout(() => {
       const c = inlineCanvasRef.current;
       if (c) c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
@@ -509,8 +422,8 @@ export default function ContractsPage() {
   function stopInlineDraw() { setInlineDrawing(false); inlineLastPos.current = null; }
 
   function clearInlineCanvas() {
-    const c = inlineCanvasRef.current!;
-    c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+    const c = inlineCanvasRef.current;
+    if (c) c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
     setHasInlineSig(false);
     setInlineTypedName("");
   }
@@ -554,8 +467,7 @@ export default function ContractsPage() {
         ),
       });
 
-      // If recipient in-person signing: also save to contract_signatures
-      if (!isSender) {
+      if (!isSender && selected.signing_token) {
         await fetch(`/api/contracts/sign?token=${selected.signing_token}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -565,6 +477,12 @@ export default function ContractsPage() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+
+      // ── Inject signatureData into the local field overlay immediately ──
+      setLocalFields((prev) => prev.map((f) =>
+        f.id === signModalField.id ? { ...f, signatureData } as any : f
+      ));
+
       const updated = { ...selected, ...data.contract };
       setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
       setSelected(updated);
@@ -577,28 +495,7 @@ export default function ContractsPage() {
     }
   }, [selected, hasInlineSig, inlineSignerName, signModalField]);
 
-  // ── Stamp (generate signed PDF) ────────────────────────────────────────────
-  const handleStamp = useCallback(async () => {
-    if (!selected) return;
-    setStamping(true);
-    try {
-      const res = await fetch("/api/contracts/stamp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contractId: selected.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      const updated = { ...selected, signed_pdf_url: data.signed_pdf_url };
-      setContracts((prev) => prev.map((c) => c.id === selected.id ? updated : c));
-      setSelected(updated);
-      toast.success("Signed PDF generated");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to generate PDF");
-    } finally {
-      setStamping(false);
-    }
-  }, [selected]);
+  // ── Helpers ──────────────────────────────────────────────────────────────────
 
   const signingUrl = selected?.signing_token
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/sign/${selected.signing_token}`
@@ -607,26 +504,34 @@ export default function ContractsPage() {
   function copySigningLink() {
     if (!signingUrl) return;
     navigator.clipboard.writeText(signingUrl);
-    toast.success("Signing link copied");
+    toast.success("Copied");
   }
+
+  const fieldsChanged = JSON.stringify(
+    localFields.map(({ ...f }) => { const c = { ...f }; delete (c as any).signatureData; return c; })
+  ) !== JSON.stringify(selected?.signature_fields ?? []);
+
+  const senderFields = localFields.filter((f) => f.role === "sender" && (f.type ?? "signature") === "signature");
+  const hasSenderSigned = !!selected?.sender_signed_at;
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-6 py-4">
+      {/* Top header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
         <div>
           <h1 className="font-display text-xl font-bold text-foreground">Contracts</h1>
           <p className="text-xs text-muted-foreground">Send contracts for e-signature directly from Cineflow.</p>
         </div>
         <Button variant="gold" size="sm" className="h-9 gap-2" onClick={openNew}>
-          <Plus className="h-4 w-4" />
-          New Contract
+          <Plus className="h-4 w-4" /> New Contract
         </Button>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: contract list */}
-        <aside className="hidden w-72 flex-col border-r border-border bg-card/70 overflow-y-auto custom-scrollbar sm:flex">
+        {/* ── Left: contract list ─────────────────────────────────────────────── */}
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card/70 overflow-y-auto custom-scrollbar sm:flex">
           {loading ? (
             <p className="p-4 text-xs text-muted-foreground">Loading…</p>
           ) : contracts.length === 0 ? (
@@ -636,55 +541,41 @@ export default function ContractsPage() {
               <button onClick={openNew} className="text-xs text-[#d4a853] hover:underline">Create your first</button>
             </div>
           ) : (() => {
-            // Group contracts by project
             const groups: { key: string; label: string; contracts: Contract[] }[] = [];
             const seen = new Set<string>();
             for (const c of contracts) {
               const key = (c.project as any)?.id ?? "none";
               const label = (c.project as any)?.title ?? "No Project";
-              if (!seen.has(key)) {
-                seen.add(key);
-                groups.push({ key, label, contracts: [] });
-              }
+              if (!seen.has(key)) { seen.add(key); groups.push({ key, label, contracts: [] }); }
               groups.find((g) => g.key === key)!.contracts.push(c);
             }
             return (
               <div className="p-2 space-y-1">
-                {groups.map(({ key, label, contracts: groupContracts }) => {
-                  const isExpanded = expandedProjects[key] !== false; // default open
+                {groups.map(({ key, label, contracts: gc }) => {
+                  const isExpanded = expandedProjects[key] !== false;
                   return (
                     <div key={key} className="space-y-0.5">
-                      {/* Project group header */}
                       <button
                         onClick={() => setExpandedProjects((p) => ({ ...p, [key]: !isExpanded }))}
                         className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-muted/50 transition-colors"
                       >
-                        {isExpanded
-                          ? <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-                          : <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        }
+                        {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />}
                         <FolderOpen className="h-3 w-3 shrink-0 text-muted-foreground/60" />
                         <span className="flex-1 truncate text-[11px] font-semibold text-muted-foreground">{label}</span>
-                        <span className="shrink-0 text-[10px] text-muted-foreground/50">{groupContracts.length}</span>
+                        <span className="shrink-0 text-[10px] text-muted-foreground/50">{gc.length}</span>
                       </button>
-                      {isExpanded && groupContracts.map((c) => (
+                      {isExpanded && gc.map((c) => (
                         <button
                           key={c.id}
                           onClick={() => setSelected(c)}
                           className={`group ml-4 w-[calc(100%-1rem)] rounded-xl border px-3 py-2.5 text-left transition-all ${
-                            selected?.id === c.id
-                              ? "border-[#d4a853] bg-[#d4a853]/10"
-                              : "border-border bg-card hover:border-[#d4a853]/30"
+                            selected?.id === c.id ? "border-[#d4a853] bg-[#d4a853]/10" : "border-border bg-card hover:border-[#d4a853]/30"
                           }`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <p className={`truncate text-sm font-medium ${selected?.id === c.id ? "text-foreground" : "text-foreground/80"}`}>
-                                {c.title}
-                              </p>
-                              {c.recipient_name && (
-                                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{c.recipient_name}</p>
-                              )}
+                              <p className={`truncate text-sm font-medium ${selected?.id === c.id ? "text-foreground" : "text-foreground/80"}`}>{c.title}</p>
+                              {c.recipient_name && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{c.recipient_name}</p>}
                               <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
                                 <StatusBadge status={c.status} />
                                 <RoleBadge role={c.recipient_role} />
@@ -707,533 +598,329 @@ export default function ContractsPage() {
           })()}
         </aside>
 
-        {/* Right: contract detail */}
-        <main className="flex-1 overflow-y-auto custom-scrollbar p-6">
-          {!selected ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border">
-                <FileSignature className="h-7 w-7 text-muted-foreground/40" />
-              </div>
-              <p className="font-display font-semibold text-foreground">No contract selected</p>
-              <p className="text-sm text-muted-foreground">Create a contract and send it for e-signature.</p>
-              <Button variant="gold" size="sm" onClick={openNew}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Contract
-              </Button>
+        {/* ── Right: contract detail ──────────────────────────────────────────── */}
+        {!selected ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center p-8">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border">
+              <FileSignature className="h-7 w-7 text-muted-foreground/40" />
             </div>
-          ) : (
-            <div className="mx-auto max-w-2xl space-y-6">
-              {/* Contract header */}
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="font-display text-xl font-semibold text-foreground">{selected.title}</h2>
-                    <StatusBadge status={selected.status} />
-                    <RoleBadge role={selected.recipient_role} />
-                  </div>
-                  {selected.description && (
-                    <p className="mt-1 text-sm text-muted-foreground">{selected.description}</p>
-                  )}
-                  {(selected.project as any)?.title && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Project: <span className="text-foreground">{(selected.project as any).title}</span>
-                    </p>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex shrink-0 flex-col gap-2">
-                  {(selected.status === "draft" || selected.status === "sent") && (
-                    <Button
-                      variant="gold"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={handleSend}
-                      disabled={sending || !selected.recipient_email}
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                      {sending ? "Sending…" : selected.status === "sent" ? "Resend" : "Send for Signature"}
-                    </Button>
-                  )}
-                  {selected.status === "draft" && signingUrl && (
-                    <a
-                      href={signingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-                    >
-                      <PenLine className="h-3.5 w-3.5" />
-                      Sign yourself
-                    </a>
-                  )}
-                  {selected.status !== "signed" && (
-                    <button
-                      onClick={openEdit}
-                      className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </button>
-                  )}
-                  {selected.status === "signed" && (
-                    <div className="flex flex-col gap-2">
-                      <div className="flex items-center gap-1.5 rounded-lg bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-400">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Signed
-                        {selected.signed_at && <span className="text-emerald-400/70">· {new Date(selected.signed_at).toLocaleDateString()}</span>}
-                      </div>
-                      {selected.signing_token && (
-                        <a
-                          href={`/sign/${selected.signing_token}/certificate`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-1.5 text-xs font-medium text-emerald-400 hover:bg-emerald-500/[0.1] transition-colors"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5" />
-                          View Certificate
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Recipient info */}
-              <div className="rounded-xl border border-border bg-card p-4">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Recipient</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">Name</p>
-                    <p className="text-sm text-foreground">{selected.recipient_name || <span className="text-muted-foreground/40">—</span>}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mb-0.5">Email</p>
-                    <p className="text-sm text-foreground">{selected.recipient_email || <span className="text-muted-foreground/40">—</span>}</p>
-                  </div>
-                </div>
-                {!selected.recipient_email && (
-                  <p className="mt-2 text-xs text-amber-400">Add a recipient email to send this contract.</p>
+            <p className="font-display font-semibold text-foreground">No contract selected</p>
+            <p className="text-sm text-muted-foreground">Create a contract and send it for e-signature.</p>
+            <Button variant="gold" size="sm" onClick={openNew}><Plus className="mr-2 h-4 w-4" />New Contract</Button>
+          </div>
+        ) : (
+          <div className="flex flex-1 overflow-hidden flex-col">
+            {/* Contract title bar */}
+            <div className="shrink-0 flex items-center justify-between gap-4 border-b border-border px-6 py-3">
+              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                <h2 className="font-display text-lg font-semibold text-foreground truncate">{selected.title}</h2>
+                <StatusBadge status={selected.status} />
+                <RoleBadge role={selected.recipient_role} />
+                {selected.description && (
+                  <span className="hidden sm:inline text-xs text-muted-foreground truncate">— {selected.description}</span>
                 )}
               </div>
-
-              {/* Signing link */}
-              {signingUrl && (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Signing Link</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2">
-                      <p className="truncate text-xs text-muted-foreground font-mono">{signingUrl}</p>
-                    </div>
-                    <button
-                      onClick={copySigningLink}
-                      className="shrink-0 rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                      title="Copy link"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                    <a
-                      href={signingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 rounded-lg border border-border bg-card p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                      title="Open signing page"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  </div>
-                  <p className="mt-1.5 text-[11px] text-muted-foreground/60">Share this link directly or send it via email above.</p>
-                </div>
+              {selected.status !== "signed" && (
+                <button onClick={openEdit} className="shrink-0 flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                  <Pencil className="h-3 w-3" /> Edit
+                </button>
               )}
+            </div>
 
-              {/* PDF viewer + field placement */}
-              {selected.file_url ? (
-                <div className="rounded-xl border border-border bg-card overflow-hidden">
-                  {/* Field placement toolbar */}
-                  {selected.status !== "signed" && (
-                    <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5 bg-card/80">
-                      <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mr-1">
-                        {localFields.length === 0 ? "Place Signature Fields" : "Signature Fields"}
-                      </span>
-                      {localFields.length === 0 && (
-                        <span className="text-[10px] text-muted-foreground/60">— click a button below, then click the PDF where you want the field</span>
-                      )}
-
-                      {/* Sender field button */}
-                      <button
-                        onClick={() => setDropMode(dropMode === "sender" ? null : "sender")}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
-                          dropMode === "sender"
-                            ? "border-[#d4a853] bg-[#d4a853]/15 text-[#d4a853]"
-                            : "border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
-                        }`}
-                      >
-                        <MousePointer className="h-3 w-3" />
-                        {dropMode === "sender" ? "Click PDF to place…" : "Add Your Field"}
-                        {localFields.filter((f) => f.role === "sender").length > 0 && (
-                          <span className="rounded-full bg-[#d4a853]/20 px-1.5 text-[10px] text-[#d4a853]">
-                            {localFields.filter((f) => f.role === "sender").length}
-                          </span>
-                        )}
-                      </button>
-
-                      {/* Recipient field button */}
-                      <button
-                        onClick={() => setDropMode(dropMode === "recipient" ? null : "recipient")}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
-                          dropMode === "recipient"
-                            ? "border-sky-400 bg-sky-400/15 text-sky-400"
-                            : "border-border text-muted-foreground hover:border-sky-400/40 hover:text-foreground"
-                        }`}
-                      >
-                        <Users className="h-3 w-3" />
-                        {dropMode === "recipient" ? "Click PDF to place…" : "Add Recipient Field"}
-                        {localFields.filter((f) => f.role === "recipient").length > 0 && (
-                          <span className="rounded-full bg-sky-400/20 px-1.5 text-[10px] text-sky-400">
-                            {localFields.filter((f) => f.role === "recipient").length}
-                          </span>
-                        )}
-                      </button>
-
-                      {/* Field list — remove individual fields */}
-                      {localFields.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1 ml-1">
-                          {localFields.map((f) => (
-                            <span
-                              key={f.id}
-                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] ${
-                                f.role === "sender"
-                                  ? "bg-[#d4a853]/10 text-[#d4a853]"
-                                  : "bg-sky-400/10 text-sky-400"
-                              }`}
-                            >
-                              p.{f.page} {f.role === "sender" ? "You" : "Client"}
-                              <button onClick={() => removeField(f.id)} className="hover:opacity-70">
-                                <X className="h-2.5 w-2.5" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="ml-auto flex items-center gap-2">
-                        {/* Sign now button — shown when fields exist and contract not signed */}
-                        {localFields.length > 0 && (
-                          <button
-                            onClick={() => openSignModal(localFields[0])}
-                            className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black hover:bg-[#c49843] transition-colors"
-                          >
-                            <PenLine className="h-3 w-3" /> Sign Now
-                          </button>
-                        )}
-                        {/* Save fields button — only if fields changed */}
-                        {JSON.stringify(localFields) !== JSON.stringify(selected.signature_fields ?? []) && (
-                          <button
-                            onClick={handleSaveFields}
-                            disabled={savingFields}
-                            className="flex items-center gap-1.5 rounded-lg bg-foreground/5 border border-border px-2.5 py-1 text-xs font-medium hover:bg-foreground/10 transition-colors"
-                          >
-                            {savingFields ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                            Save fields
-                          </button>
-                        )}
-                        <a
-                          href={selected.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          Open
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* PDF viewer */}
+            {/* Two-column: PDF + sidebar */}
+            <div className="flex flex-1 overflow-hidden">
+              {/* PDF viewer */}
+              <div className="flex-1 overflow-hidden min-w-0">
+                {selected.file_url ? (
                   <PDFViewer
                     url={selected.file_url}
                     fields={localFields}
                     dropMode={dropMode}
                     onFieldPlace={handleFieldPlace}
-                    onAutoDetect={handleAutoDetect}
+                    onAutoDetect={selected.status !== "signed" ? handleAutoDetect : undefined}
                     onFieldClick={(field) => {
                       if (selected.status === "signed") return;
+                      if ((field.type ?? "signature") !== "signature") return; // text/date fields not signed via modal
                       openSignModal(field);
                     }}
-                    className="h-[720px]"
+                    className="h-full"
                   />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-10 text-center">
-                  <FileText className="h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-sm text-muted-foreground">No document uploaded</p>
-                  <p className="text-xs text-muted-foreground/60">Upload a PDF when creating the contract.</p>
-                </div>
-              )}
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-center p-8">
+                    <FileText className="h-10 w-10 text-muted-foreground/30" />
+                    <p className="text-sm text-muted-foreground">No document uploaded</p>
+                    <p className="text-xs text-muted-foreground/60">Upload a PDF when creating or editing the contract.</p>
+                    <button onClick={openEdit} className="text-xs text-[#d4a853] hover:underline">Add PDF</button>
+                  </div>
+                )}
+              </div>
 
-              {/* Sender (agency) signing panel */}
-              {selected.file_url && selected.status !== "signed" && localFields.some((f) => f.role === "sender") && (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  {selected.sender_signed_at ? (
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d4a853]/10">
-                        <CheckCircle2 className="h-4 w-4 text-[#d4a853]" />
+              {/* ── Sticky right sidebar ─────────────────────────────────────── */}
+              <div className="w-72 shrink-0 border-l border-border overflow-y-auto custom-scrollbar bg-card/40">
+                <div className="p-4 space-y-5">
+
+                  {/* ── 1. Field tools (setup mode) ─────────────────────────── */}
+                  {selected.file_url && selected.status !== "signed" && (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        {localFields.length === 0 ? "Place Signature Fields" : "Fields"}
+                      </p>
+
+                      {/* Drop mode buttons */}
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {(Object.entries(DROP_MODE_CONFIG) as [Exclude<FieldDropMode, null>, typeof DROP_MODE_CONFIG[keyof typeof DROP_MODE_CONFIG]][]).map(([mode, cfg]) => (
+                          <button
+                            key={mode}
+                            onClick={() => setDropMode(dropMode === mode ? null : mode)}
+                            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-xs font-medium transition-all ${
+                              dropMode === mode ? cfg.active : cfg.color + " border"
+                            }`}
+                          >
+                            {cfg.icon} {cfg.label}
+                          </button>
+                        ))}
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">Your signature collected</p>
-                        <p className="text-xs text-muted-foreground">
-                          {selected.sender_name} · {new Date(selected.sender_signed_at).toLocaleDateString()}
+
+                      {dropMode && (
+                        <p className="rounded-lg bg-muted/50 px-3 py-2 text-[11px] text-muted-foreground text-center">
+                          Click anywhere on the PDF to place a <strong>{DROP_MODE_CONFIG[dropMode].label}</strong> field
                         </p>
-                      </div>
-                      <button
-                        onClick={() => setShowSenderSign(true)}
-                        className="ml-auto text-xs text-muted-foreground hover:text-foreground underline"
-                      >
-                        Re-sign
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="mb-3 flex items-center gap-2">
-                        <PenLine className="h-4 w-4 text-[#d4a853]" />
-                        <p className="text-sm font-semibold text-foreground">Sign your field</p>
-                        <span className="text-xs text-muted-foreground">— sign before sending to client</span>
-                      </div>
-                      {!showSenderSign ? (
-                        <button
-                          onClick={() => setShowSenderSign(true)}
-                          className="flex items-center gap-2 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/5 px-4 py-2 text-sm font-medium text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
-                        >
-                          <PenLine className="h-3.5 w-3.5" /> Sign Document
-                        </button>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Your Name</Label>
-                            <Input
-                              value={senderName}
-                              onChange={(e) => {
-                                setSenderName(e.target.value);
-                                if (senderSigMode === "type") {
-                                  setSenderTypedName(e.target.value);
-                                  renderTypedSenderSig(e.target.value);
-                                }
-                              }}
-                              placeholder="Your full name"
-                              className="h-8 text-sm"
-                            />
-                          </div>
-                          {/* Draw / Type tabs */}
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
-                                <button
-                                  type="button"
-                                  onClick={() => { setSenderSigMode("draw"); clearSenderCanvas(); }}
-                                  className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${senderSigMode === "draw" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                                >
-                                  <PenLine className="h-3 w-3" /> Draw
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSenderSigMode("type");
-                                    setSenderTypedName(senderName);
-                                    renderTypedSenderSig(senderName);
-                                  }}
-                                  className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${senderSigMode === "type" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                                >
-                                  <span className="font-serif italic text-sm leading-none">T</span> Type
-                                </button>
-                              </div>
-                              {hasSenderSig && (
-                                <button onClick={clearSenderCanvas} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
-                                  <RotateCcw className="h-3 w-3" /> Clear
-                                </button>
-                              )}
-                            </div>
-                            {senderSigMode === "type" ? (
-                              <div className="space-y-2">
-                                <Input
-                                  value={senderTypedName}
-                                  onChange={(e) => {
-                                    setSenderTypedName(e.target.value);
-                                    renderTypedSenderSig(e.target.value);
-                                  }}
-                                  placeholder="Type your name to sign…"
-                                  className="h-8 text-sm font-medium"
-                                />
-                                {/* Canvas preview (hidden but rendered for export) */}
-                                <div className={`relative overflow-hidden rounded-xl border-2 ${hasSenderSig ? "border-[#d4a853]" : "border-border"} bg-white`}>
-                                  <canvas ref={senderCanvasRef} width={560} height={140} className="w-full" />
-                                  {!hasSenderSig && (
-                                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                      <p className="font-serif italic text-lg text-zinc-300">Your name will appear here</p>
-                                    </div>
-                                  )}
+                      )}
+
+                      {/* Field list */}
+                      {localFields.length > 0 && (
+                        <div className="space-y-1.5">
+                          {localFields.map((f) => {
+                            const fType = f.type ?? "signature";
+                            const icon = fType === "date" ? <CalendarDays className="h-3 w-3 shrink-0" /> : fType === "text" ? <Type className="h-3 w-3 shrink-0" /> : f.role === "sender" ? <PenLine className="h-3 w-3 shrink-0 text-[#d4a853]" /> : <Users className="h-3 w-3 shrink-0 text-sky-400" />;
+                            const label = fType === "date" ? "Date" : fType === "text" ? "Text" : f.role === "sender" ? "Your sig" : "Client sig";
+                            return (
+                              <div key={f.id} className="space-y-1">
+                                <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${
+                                  fType === "signature" && f.role === "sender" ? "border-[#d4a853]/20 bg-[#d4a853]/5" :
+                                  fType === "signature" ? "border-sky-400/20 bg-sky-400/5" :
+                                  "border-violet-400/20 bg-violet-400/5"
+                                }`}>
+                                  {icon}
+                                  <span className="flex-1 text-[11px] text-muted-foreground">{label} · p.{f.page}</span>
+                                  <button onClick={() => removeField(f.id)} className="text-muted-foreground/40 hover:text-red-400 transition-colors">
+                                    <X className="h-3 w-3" />
+                                  </button>
                                 </div>
-                              </div>
-                            ) : (
-                              <div className={`relative overflow-hidden rounded-xl border-2 transition-colors ${senderDrawing ? "border-[#d4a853]" : "border-border"} bg-white`}>
-                                <canvas
-                                  ref={senderCanvasRef}
-                                  width={560}
-                                  height={140}
-                                  className="w-full touch-none cursor-crosshair"
-                                  onMouseDown={startSenderDraw}
-                                  onMouseMove={drawSender}
-                                  onMouseUp={stopSenderDraw}
-                                  onMouseLeave={stopSenderDraw}
-                                  onTouchStart={startSenderDraw}
-                                  onTouchMove={drawSender}
-                                  onTouchEnd={stopSenderDraw}
-                                />
-                                {!hasSenderSig && (
-                                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                    <p className="text-sm text-zinc-300">Draw your signature here</p>
-                                  </div>
+                                {/* Editable value for text/date fields */}
+                                {(fType === "text" || fType === "date") && (
+                                  <Input
+                                    value={f.value ?? ""}
+                                    onChange={(e) => updateFieldValue(f.id, e.target.value)}
+                                    placeholder={fType === "date" ? "e.g. Apr 14, 2026" : "Enter text…"}
+                                    className="h-7 text-xs"
+                                  />
                                 )}
                               </div>
-                            )}
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Save fields */}
+                      {fieldsChanged && (
+                        <button
+                          onClick={handleSaveFields}
+                          disabled={savingFields}
+                          className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-foreground/5 border border-border px-3 py-2 text-xs font-medium hover:bg-foreground/10 transition-colors disabled:opacity-50"
+                        >
+                          {savingFields ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                          Save Fields
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── 2. Sign your field ──────────────────────────────────── */}
+                  {selected.file_url && selected.status !== "signed" && senderFields.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Your Signature</p>
+                      {hasSenderSigned ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/5 px-3 py-2">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-[#d4a853] shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-[#d4a853]">Signed</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{selected.sender_name} · {new Date(selected.sender_signed_at!).toLocaleDateString()}</p>
                           </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => { setShowSenderSign(false); clearSenderCanvas(); setSenderSigMode("draw"); setSenderTypedName(""); }}
-                              className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={handleSaveSenderSig}
-                              disabled={savingSenderSig || !hasSenderSig || !senderName.trim()}
-                              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
-                            >
-                              {savingSenderSig ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
-                              Confirm Signature
-                            </button>
-                          </div>
+                          <button onClick={() => openSignModal(senderFields[0])} className="ml-auto text-[10px] text-muted-foreground hover:text-foreground underline shrink-0">Re-sign</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => openSignModal(senderFields[0])}
+                          className="w-full flex items-center justify-center gap-2 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/5 px-3 py-2.5 text-sm font-medium text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
+                        >
+                          <PenLine className="h-3.5 w-3.5" /> Sign Your Field
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── 3. Recipient info ───────────────────────────────────── */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Recipient</p>
+                    <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+                      <div>
+                        <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60">Name</p>
+                        <p className="text-xs text-foreground">{selected.recipient_name || <span className="text-muted-foreground/40">Not set</span>}</p>
+                      </div>
+                      <div>
+                        <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60">Email</p>
+                        <p className="text-xs text-foreground truncate">{selected.recipient_email || <span className="text-muted-foreground/40">Not set</span>}</p>
+                      </div>
+                    </div>
+                    {!selected.recipient_email && (
+                      <p className="text-[11px] text-amber-400">Add a recipient email to send this contract.</p>
+                    )}
+                  </div>
+
+                  {/* ── 4. Actions ──────────────────────────────────────────── */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Actions</p>
+                    <div className="space-y-1.5">
+                      {(selected.status === "draft" || selected.status === "sent") && (
+                        <button
+                          onClick={handleSend}
+                          disabled={sending || !selected.recipient_email}
+                          className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#d4a853] px-3 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
+                        >
+                          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                          {sending ? "Sending…" : selected.status === "sent" ? "Resend for Signature" : "Send for Signature"}
+                        </button>
+                      )}
+                      {selected.status === "signed" && (
+                        <div className="flex items-center gap-2 rounded-lg bg-emerald-400/10 border border-emerald-400/20 px-3 py-2">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                          <span className="text-xs font-semibold text-emerald-400">
+                            Signed {selected.signed_at && `· ${new Date(selected.signed_at).toLocaleDateString()}`}
+                          </span>
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
 
-              {/* Signed PDF download */}
-              {(selected.signed_pdf_url || selected.status === "signed") && (
-                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/10">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">Fully Executed Contract</p>
-                        <p className="text-xs text-muted-foreground">Both parties have signed</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {selected.signed_pdf_url ? (
-                        <a
-                          href={selected.signed_pdf_url}
-                          download
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          Download Signed PDF
-                        </a>
-                      ) : (
-                        <button
-                          onClick={handleStamp}
-                          disabled={stamping}
-                          className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
-                        >
-                          {stamping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                          Generate Signed PDF
+                  {/* ── 5. Signing link ─────────────────────────────────────── */}
+                  {signingUrl && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Signing Link</p>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex-1 min-w-0 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5">
+                          <p className="truncate text-[11px] text-muted-foreground font-mono">{signingUrl.replace("https://", "")}</p>
+                        </div>
+                        <button onClick={copySigningLink} className="shrink-0 rounded-lg border border-border bg-card p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" title="Copy">
+                          <Copy className="h-3.5 w-3.5" />
                         </button>
-                      )}
-                      {selected.signing_token && (
-                        <a
-                          href={`/sign/${selected.signing_token}/certificate`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                        >
+                        <a href={signingUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-lg border border-border bg-card p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" title="Open">
                           <ExternalLink className="h-3.5 w-3.5" />
-                          Certificate
                         </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── 6. Download signed PDF ──────────────────────────────── */}
+                  {selected.status === "signed" && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Documents</p>
+                      <div className="space-y-1.5">
+                        {selected.signed_pdf_url ? (
+                          <a
+                            href={selected.signed_pdf_url}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                          >
+                            <Download className="h-3.5 w-3.5" /> Download Signed PDF
+                          </a>
+                        ) : (
+                          <button
+                            onClick={handleStamp}
+                            disabled={stamping}
+                            className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                          >
+                            {stamping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                            {stamping ? "Generating…" : "Generate Signed PDF"}
+                          </button>
+                        )}
+                        {selected.signing_token && (
+                          <a
+                            href={`/sign/${selected.signing_token}/certificate`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" /> View Certificate
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── 7. Timeline ─────────────────────────────────────────── */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Timeline</p>
+                    <div className="space-y-1.5 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5 shrink-0" />
+                        Created {new Date(selected.created_at).toLocaleDateString()}
+                      </div>
+                      {selected.sender_signed_at && (
+                        <div className="flex items-center gap-2 text-[#d4a853]">
+                          <PenLine className="h-3.5 w-3.5 shrink-0" />
+                          You signed · {new Date(selected.sender_signed_at).toLocaleDateString()}
+                        </div>
+                      )}
+                      {selected.sent_at && (
+                        <div className="flex items-center gap-2 text-amber-400">
+                          <Send className="h-3.5 w-3.5 shrink-0" />
+                          Sent · {new Date(selected.sent_at).toLocaleDateString()}
+                        </div>
+                      )}
+                      {selected.signed_at && (
+                        <div className="flex items-center gap-2 text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                          {selected.recipient_name ?? "Client"} signed · {new Date(selected.signed_at).toLocaleDateString()}
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Timeline */}
-              <div className="rounded-xl border border-border bg-card p-4">
-                <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Timeline</p>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5 shrink-0" />
-                    Created {new Date(selected.created_at).toLocaleDateString()}
-                  </div>
-                  {selected.sender_signed_at && (
-                    <div className="flex items-center gap-2 text-xs text-[#d4a853]">
-                      <PenLine className="h-3.5 w-3.5 shrink-0" />
-                      You signed · {selected.sender_name} · {new Date(selected.sender_signed_at).toLocaleDateString()}
-                    </div>
-                  )}
-                  {selected.sent_at && (
-                    <div className="flex items-center gap-2 text-xs text-amber-400">
-                      <Send className="h-3.5 w-3.5 shrink-0" />
-                      Sent to {selected.recipient_name ?? selected.recipient_email} · {new Date(selected.sent_at).toLocaleDateString()}
-                    </div>
-                  )}
-                  {selected.signed_at && (
-                    <div className="flex items-center gap-2 text-xs text-emerald-400">
-                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                      {selected.recipient_name ?? "Client"} signed · {new Date(selected.signed_at).toLocaleDateString()}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
-          )}
-        </main>
+          </div>
+        )}
       </div>
 
-      {/* ── Inline Sign Modal ─────────────────────────────────────────────── */}
+      {/* ── Inline Sign Modal ─────────────────────────────────────────────────── */}
       <Dialog open={signModalOpen} onOpenChange={(v) => { if (!v) { setSignModalOpen(false); clearInlineCanvas(); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PenLine className="h-4 w-4 text-[#d4a853]" />
-              {signModalField?.role === "sender" ? "Sign as Agency" : "Sign as Recipient"}
+              {signModalField?.role === "sender" ? "Sign as Sender" : "Sign as Recipient"}
             </DialogTitle>
             <DialogDescription>
               {signModalField?.role === "sender"
-                ? "Add your signature to this field — you'll send the contract to the client afterward."
-                : "Signing on behalf of the recipient in-person."}
+                ? "Add your signature — you'll send to the client afterward."
+                : "Signing on behalf of the recipient in person."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-1">
-            {/* Name */}
             <div className="space-y-1.5">
               <Label className="text-xs">Full Name *</Label>
               <Input
                 value={inlineSignerName}
-                onChange={(e) => {
-                  setInlineSignerName(e.target.value);
-                  if (inlineSigMode === "type") renderInlineTyped(e.target.value);
-                }}
+                onChange={(e) => { setInlineSignerName(e.target.value); if (inlineSigMode === "type") renderInlineTyped(e.target.value); }}
                 placeholder="Legal name"
                 className="h-8 text-sm"
                 autoFocus
               />
             </div>
-
-            {/* Draw / Type toggle */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
@@ -1258,7 +945,6 @@ export default function ContractsPage() {
                   </button>
                 )}
               </div>
-
               {inlineSigMode === "type" ? (
                 <div className="space-y-2">
                   <Input
@@ -1302,19 +988,14 @@ export default function ContractsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => { setSignModalOpen(false); clearInlineCanvas(); }}>Cancel</Button>
-            <Button
-              variant="gold"
-              size="sm"
-              onClick={handleSaveInlineSig}
-              disabled={savingInlineSig || !hasInlineSig || !inlineSignerName.trim()}
-            >
+            <Button variant="gold" size="sm" onClick={handleSaveInlineSig} disabled={savingInlineSig || !hasInlineSig || !inlineSignerName.trim()}>
               {savingInlineSig ? <><Loader2 className="mr-1.5 h-3 w-3 animate-spin" />Saving…</> : <><CheckCircle2 className="mr-1.5 h-3 w-3" />Confirm Signature</>}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Contract Dialog */}
+      {/* ── Edit Contract Dialog ──────────────────────────────────────────────── */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -1333,11 +1014,7 @@ export default function ContractsPage() {
             <div className="space-y-1.5">
               <Label>Project <span className="text-muted-foreground font-normal">(optional)</span></Label>
               <div className="relative">
-                <select
-                  value={eProject}
-                  onChange={(e) => setEProject(e.target.value)}
-                  className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
+                <select value={eProject} onChange={(e) => setEProject(e.target.value)} className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
                   <option value="">No project</option>
                   {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
                 </select>
@@ -1348,16 +1025,8 @@ export default function ContractsPage() {
               <Label>Signer Role</Label>
               <div className="flex flex-wrap gap-1.5">
                 {ALL_ROLES.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setERecipientRole(r)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-                      eRecipientRole === r
-                        ? ROLE_CONFIG[r].color + " ring-1 ring-current"
-                        : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
+                  <button key={r} type="button" onClick={() => setERecipientRole(r)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${eRecipientRole === r ? ROLE_CONFIG[r].color + " ring-1 ring-current" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                     {ROLE_CONFIG[r].label}
                   </button>
                 ))}
@@ -1370,7 +1039,7 @@ export default function ContractsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Recipient Email</Label>
-                <Input type="email" value={eRecipientEmail} onChange={(e) => setERecipientEmail(e.target.value)} placeholder="sarah@meridianfilms.com" />
+                <Input type="email" value={eRecipientEmail} onChange={(e) => setERecipientEmail(e.target.value)} placeholder="sarah@example.com" />
               </div>
             </div>
           </div>
@@ -1383,51 +1052,38 @@ export default function ContractsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* New Contract Dialog */}
+      {/* ── New Contract Dialog ───────────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>New Contract</DialogTitle>
-            <DialogDescription>Upload a PDF and set the recipient. They'll get a signing link via email.</DialogDescription>
+            <DialogDescription>Upload a PDF and set the recipient. They'll receive a signing link.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label>Title</Label>
-              <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="Service Agreement — Protetta" autoFocus />
+              <Input value={fTitle} onChange={(e) => setFTitle(e.target.value)} placeholder="Service Agreement — Client Name" autoFocus />
             </div>
             <div className="space-y-1.5">
               <Label>Description <span className="text-muted-foreground font-normal">(optional)</span></Label>
-              <Textarea value={fDescription} onChange={(e) => setFDescription(e.target.value)} rows={2} placeholder="Brief summary of what this contract covers…" />
+              <Textarea value={fDescription} onChange={(e) => setFDescription(e.target.value)} rows={2} placeholder="Brief summary…" />
             </div>
             <div className="space-y-1.5">
               <Label>Project <span className="text-muted-foreground font-normal">(optional)</span></Label>
               <div className="relative">
-                <select
-                  value={fProject}
-                  onChange={(e) => setFProject(e.target.value)}
-                  className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
+                <select value={fProject} onChange={(e) => setFProject(e.target.value)} className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
                   <option value="">No project</option>
                   {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               </div>
             </div>
-            {/* Recipient role */}
             <div className="space-y-1.5">
               <Label>Signer Role</Label>
               <div className="flex flex-wrap gap-1.5">
                 {ALL_ROLES.map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setFRecipientRole(r)}
-                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-                      fRecipientRole === r
-                        ? ROLE_CONFIG[r].color + " ring-1 ring-current"
-                        : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
+                  <button key={r} type="button" onClick={() => setFRecipientRole(r)}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${fRecipientRole === r ? ROLE_CONFIG[r].color + " ring-1 ring-current" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`}>
                     {ROLE_CONFIG[r].label}
                   </button>
                 ))}
@@ -1440,48 +1096,35 @@ export default function ContractsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Recipient Email</Label>
-                <Input type="email" value={fRecipientEmail} onChange={(e) => setFRecipientEmail(e.target.value)} placeholder="sarah@meridianfilms.com" />
+                <Input type="email" value={fRecipientEmail} onChange={(e) => setFRecipientEmail(e.target.value)} placeholder="sarah@example.com" />
               </div>
             </div>
-            {/* PDF upload */}
             <div className="space-y-1.5">
-              <Label>Contract PDF <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Label>PDF Document <span className="text-muted-foreground font-normal">(optional — can upload later)</span></Label>
               <div
                 onClick={() => fileRef.current?.click()}
-                className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-card/50 py-6 text-center transition-colors hover:border-[#d4a853]/40 hover:bg-[#d4a853]/[0.03]"
+                className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border p-6 text-center hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5 transition-colors"
               >
                 {fFile ? (
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-[#d4a853]" />
-                    <span className="text-sm text-foreground">{fFile.name}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setFFile(null); }}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <>
+                    <FileText className="h-6 w-6 text-[#d4a853]" />
+                    <p className="text-sm font-medium text-foreground">{fFile.name}</p>
+                    <p className="text-xs text-muted-foreground">{(fFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                  </>
                 ) : (
                   <>
-                    <Upload className="mb-2 h-6 w-6 text-muted-foreground/50" />
+                    <Upload className="h-6 w-6 text-muted-foreground/40" />
                     <p className="text-sm text-muted-foreground">Click to upload PDF</p>
-                    <p className="text-xs text-muted-foreground/60 mt-0.5">PDF · Max 20MB</p>
                   </>
                 )}
               </div>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".pdf,application/pdf"
-                className="hidden"
-                onChange={(e) => setFFile(e.target.files?.[0] ?? null)}
-              />
+              <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={(e) => setFFile(e.target.files?.[0] ?? null)} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button variant="gold" size="sm" onClick={handleCreate} disabled={creating || !fTitle.trim()}>
-              {creating ? "Creating…" : "Create Contract"}
+              {creating ? <><Loader2 className="mr-1.5 h-3 w-3 animate-spin" />Creating…</> : "Create Contract"}
             </Button>
           </DialogFooter>
         </DialogContent>

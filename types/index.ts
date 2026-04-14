@@ -475,6 +475,8 @@ export interface ProjectTask {
 export type ContractStatus = "draft" | "sent" | "signed" | "declined" | "voided";
 export type ContractRecipientRole = "client" | "crew" | "talent" | "location" | "vendor" | "other";
 
+export type SignatureFieldType = "signature" | "text" | "date";
+
 export interface SignatureField {
   id: string;
   page: number;        // 1-based page number
@@ -483,6 +485,8 @@ export interface SignatureField {
   width: number;
   height: number;
   role: "sender" | "recipient";
+  type?: SignatureFieldType;  // defaults to "signature" if omitted
+  value?: string;             // pre-filled value for text/date fields
 }
 
 export interface Contract {

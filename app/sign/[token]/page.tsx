@@ -331,7 +331,7 @@ export default function SigningPage() {
                 url={contract.file_url}
                 fields={fieldsWithPreview}
                 highlightRole="recipient"
-                onFieldClick={() => setStep("sign")}
+                onFieldClick={(field) => { if ((field.type ?? "signature") === "signature") setStep("sign"); }}
                 className="h-[520px]"
               />
             </div>
