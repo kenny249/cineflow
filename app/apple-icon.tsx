@@ -13,30 +13,22 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #0d0d0d 0%, #111111 100%)",
+          background: "#000000",
+          fontFamily: "system-ui, -apple-system, 'Helvetica Neue', sans-serif",
         }}
       >
-        {/* Gold glow */}
-        <div
+        <span
           style={{
-            position: "absolute",
-            width: 120,
-            height: 120,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(212,168,83,0.18) 0%, transparent 70%)",
+            fontSize: 76,
+            fontWeight: 700,
+            color: "#ffffff",
+            letterSpacing: "-5px",
+            lineHeight: 1,
             display: "flex",
           }}
-        />
-        {/* Play triangle */}
-        <svg width="80" height="80" viewBox="0 0 32 32">
-          <defs>
-            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#f0c97a" />
-              <stop offset="100%" stopColor="#d4a853" />
-            </linearGradient>
-          </defs>
-          <polygon points="10,8 10,24 24,16" fill="url(#g)" />
-        </svg>
+        >
+          CF
+        </span>
       </div>
     ),
     { ...size }
