@@ -16,6 +16,7 @@ import {
 import Link from "next/link";
 import { getOrCreateDisplayName, getInitials } from "@/lib/random-name";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import { getNotifications, markNotificationRead, markAllNotificationsRead, type AppNotification } from "@/lib/supabase/queries";
 import { formatDistanceToNow } from "date-fns";
 
@@ -66,11 +67,39 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
     setDisplayName(userFullName || getOrCreateDisplayName());
   }, [userFullName]);
 
-  // Load on mount + poll every 60s for new notifications
+  // Load on mount + set up real-time subscription for new notifications
   useEffect(() => {
     loadNotifications();
-    const interval = setInterval(loadNotifications, 60_000);
-    return () => clearInterval(interval);
+
+    // Real-time: subscribe to new notifications for the current user
+    let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      channel = supabase
+        .channel("notifications-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            setNotifications((prev) => [payload.new as AppNotification, ...prev]);
+          }
+        )
+        .subscribe();
+    });
+
+    // Fallback poll every 5 min (in case real-time misses something)
+    const interval = setInterval(loadNotifications, 5 * 60_000);
+
+    return () => {
+      clearInterval(interval);
+      if (channel) supabase.removeChannel(channel);
+    };
   }, [loadNotifications]);
 
   // Reload when dropdown opens

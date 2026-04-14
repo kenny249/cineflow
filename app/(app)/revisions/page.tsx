@@ -14,11 +14,14 @@ import {
   getProjectRevisions,
   createRevision,
   updateRevision,
+  updateProject,
   deleteRevision,
   createRevisionComment,
   deleteRevisionComment,
   getProjectReviewToken,
   createReviewToken,
+  getClientContacts,
+  type ClientContact,
 } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import type { Project, Revision, RevisionStatus, ReviewToken } from "@/types";
@@ -73,18 +76,25 @@ function DeployModal({
   revision,
   project,
   portalToken,
+  clients,
   onDeployed,
   onClose,
 }: {
   revision: Revision;
   project: Project;
   portalToken: ReviewToken | null;
+  clients: ClientContact[];
   onDeployed: (token: ReviewToken) => void;
   onClose: () => void;
 }) {
+  // CRM auto-fill: find a contact matching the project's client name
+  const crmMatch = clients.find(
+    (c) => c.client_name.toLowerCase() === (project.client_name ?? "").toLowerCase()
+  );
   const [step, setStep] = useState<"setup" | "compose">(portalToken ? "compose" : "setup");
-  const [clientName, setClientName] = useState(portalToken?.client_name ?? "");
-  const [clientEmail, setClientEmail] = useState(portalToken?.client_email ?? "");
+  const [clientName, setClientName] = useState(portalToken?.client_name ?? project.client_name ?? "");
+  const [clientEmail, setClientEmail] = useState(portalToken?.client_email ?? crmMatch?.email ?? "");
+  const crmAutoFilled = !portalToken && !!crmMatch?.email;
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
@@ -212,6 +222,29 @@ function DeployModal({
                 placeholder="Client email"
                 className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-[#d4a853]/40 focus:outline-none"
               />
+              {crmAutoFilled && (
+                <p className="flex items-center gap-1.5 text-[11px] text-emerald-400/80">
+                  <Check className="h-3 w-3" />
+                  Auto-filled from your Clients
+                </p>
+              )}
+              {!crmAutoFilled && clients.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">Quick select from CRM</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {clients.slice(0, 5).map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => { setClientName(c.client_name); if (c.email) setClientEmail(c.email); }}
+                        className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-zinc-400 hover:border-[#d4a853]/30 hover:text-[#d4a853] transition-colors"
+                      >
+                        {c.client_name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <button
                 onClick={() => { if (clientName.trim() && clientEmail.trim()) setStep("compose"); }}
                 disabled={!clientName.trim() || !clientEmail.trim()}
@@ -314,14 +347,21 @@ function DeployModal({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ReviewPage() {
+  // Read ?project= deep-link after mount (avoids Suspense requirement)
+  const deepLinkProjectId =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("project")
+      : null;
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(deepLinkProjectId);
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [loadingRevisions, setLoadingRevisions] = useState(false);
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
   const [projectSearch, setProjectSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<RevisionStatus | "all">("all");
+  const [clients, setClients] = useState<ClientContact[]>([]);
 
   // Upload
   const [showUploadForm, setShowUploadForm] = useState(false);
@@ -353,16 +393,18 @@ export default function ReviewPage() {
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
 
-  // Load projects
+  // Load projects + CRM contacts
   useEffect(() => {
     getProjects()
       .then((data) => {
         setProjects(data);
-        if (data.length > 0) setSelectedProjectId(data[0].id);
+        // Only auto-select first project if no deep-link was provided
+        if (!deepLinkProjectId && data.length > 0) setSelectedProjectId(data[0].id);
       })
       .catch(() => toast.error("Failed to load projects"))
       .finally(() => setLoadingProjects(false));
-  }, []);
+    getClientContacts().then(setClients).catch(() => {});
+  }, [deepLinkProjectId]);
 
   // Load revisions
   useEffect(() => {
@@ -476,7 +518,7 @@ export default function ReviewPage() {
     finally { setDeletingRevisionId(null); }
   }
 
-  // Update status
+  // Update status — with project status auto-sync
   async function handleUpdateStatus(revision: Revision, status: RevisionStatus) {
     if (updatingStatusId) return;
     setUpdatingStatusId(revision.id);
@@ -484,6 +526,18 @@ export default function ReviewPage() {
     try {
       await updateRevision(revision.id, { status });
       toast.success(STATUS_CONFIG[status].label);
+
+      // Auto-sync project status
+      if (selectedProjectId) {
+        if (status === "final") {
+          // Revision finalised → mark project as delivered
+          updateProject(selectedProjectId, { status: "delivered" }).catch(() => {});
+        } else if (status === "approved") {
+          // Client approved → project still in post, but mark active
+          updateProject(selectedProjectId, { status: "active" }).catch(() => {});
+        }
+      }
+
       // If marking final, send final delivery email
       if (status === "final" && portalToken) {
         fetch("/api/notify", {
@@ -609,6 +663,56 @@ export default function ReviewPage() {
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Mobile project selector (hidden on sm+, sidebar handles it) ── */}
+      {!loadingProjects && projects.length > 0 && (
+        <div className="flex sm:hidden shrink-0 overflow-x-auto no-scrollbar gap-2 px-4 py-2.5 border-b border-border bg-card/30">
+          {projects.map((project) => {
+            const isSelected = project.id === selectedProjectId;
+            const projRevisions = project.id === selectedProjectId ? revisions : [];
+            const pending = projRevisions.filter((r) => r.status === "in_review" || r.status === "revisions_requested").length;
+            return (
+              <button
+                key={project.id}
+                onClick={() => setSelectedProjectId(project.id)}
+                className={`relative flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all ${
+                  isSelected
+                    ? "bg-[#d4a853]/10 text-[#d4a853] ring-[0.5px] ring-[#d4a853]/20"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/60"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isSelected ? "bg-[#d4a853]" : "bg-muted-foreground/30"}`} />
+                <span className="max-w-[130px] truncate">{project.title}</span>
+                {pending > 0 && (
+                  <span className="shrink-0 rounded-full bg-amber-500/20 px-1 py-0.5 text-[9px] font-bold text-amber-400">{pending}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Mobile portal status (shown inline on mobile when a portal is active) ── */}
+      {selectedProject && portalToken && (
+        <div className="flex sm:hidden shrink-0 items-center gap-2.5 border-b border-border bg-emerald-500/[0.03] px-4 py-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[11px] text-emerald-400 font-medium">
+            Portal live · {portalToken.client_name}
+          </span>
+          {portalToken.last_viewed_at && (
+            <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/60">
+              <Eye className="h-3 w-3" />
+              {formatRelative(portalToken.last_viewed_at)}
+            </span>
+          )}
+          <button
+            onClick={handleCopyPortal}
+            className="ml-1 flex items-center gap-1 rounded-lg border border-border/60 px-2 py-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {copiedPortal ? <><Check className="h-3 w-3 text-emerald-400" /> Copied</> : <><Copy className="h-3 w-3" /> Link</>}
+          </button>
         </div>
       )}
 
@@ -1091,9 +1195,14 @@ export default function ReviewPage() {
           revision={deployTarget}
           project={selectedProject}
           portalToken={portalToken}
+          clients={clients}
           onDeployed={(token) => {
             setPortalToken(token);
             setRevisions((prev) => prev.map((r) => r.id === deployTarget.id ? { ...r, status: "in_review" } : r));
+            // Auto-sync project to "review" when a cut is deployed to client
+            if (selectedProjectId) {
+              updateProject(selectedProjectId, { status: "review" }).catch(() => {});
+            }
           }}
           onClose={() => setDeployTarget(null)}
         />

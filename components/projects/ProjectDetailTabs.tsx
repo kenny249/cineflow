@@ -1860,316 +1860,122 @@ export default function ProjectDetailTabs({
               </TabsContent>
             )}
 
-            <TabsContent value="revisions" className="m-0 p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-display text-sm font-semibold text-foreground">Cuts & Deliverables</h3>
-                <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowRevisionDialog(true)}>
-                  <Upload className="h-3.5 w-3.5" />
-                  Upload revision
-                </Button>
+            <TabsContent value="revisions" className="m-0 p-4 sm:p-6">
+              {/* ── Header ── */}
+              <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="font-display text-sm font-semibold text-foreground">Cuts & Deliverables</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {revisions.length === 0
+                      ? "No cuts uploaded yet — open the Review Hub to get started."
+                      : `${revisions.length} cut${revisions.length !== 1 ? "s" : ""} · manage in the Review Hub for full controls`}
+                  </p>
+                </div>
+                <Link
+                  href={`/revisions?project=${project.id}`}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors w-fit"
+                >
+                  <Film className="h-3.5 w-3.5" />
+                  Open in Review Hub
+                  <ExternalLink className="h-3 w-3 opacity-70" />
+                </Link>
               </div>
 
               {revisions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <p className="font-display font-semibold">No revisions uploaded yet</p>
-                  <p className="mt-2 text-sm text-muted-foreground">Upload a cut to review and leave frame-accurate comments.</p>
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/30 py-12 text-center">
+                  <Film className="mx-auto mb-3 h-8 w-8 text-muted-foreground/20" />
+                  <p className="font-display text-sm font-semibold text-foreground">No cuts yet</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Upload your first cut in the Review Hub.</p>
+                  <Link
+                    href={`/revisions?project=${project.id}`}
+                    className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#d4a853]/10 border border-[#d4a853]/20 px-3 py-1.5 text-xs font-semibold text-[#d4a853] hover:bg-[#d4a853]/15 transition-colors"
+                  >
+                    <Upload className="h-3.5 w-3.5" /> Upload first cut
+                  </Link>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {revisions.map((revision) => {
-                    const comments = revision.comments ?? [];
-                    const isActive = activeRevisionId === revision.id;
-                    const hasVideo = !!revision.file_url;
                     const statusStyles: Record<string, string> = {
                       draft: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
-                      in_review: "bg-sky-500/10 text-sky-400 border-sky-500/20",
-                      revisions_requested: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                      in_review: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+                      revisions_requested: "bg-sky-500/10 text-sky-400 border-sky-500/20",
                       approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
                       final: "bg-purple-500/10 text-purple-400 border-purple-500/20",
                     };
                     const statusLabels: Record<string, string> = {
                       draft: "Draft",
                       in_review: "In Review",
-                      revisions_requested: "Revisions Requested",
+                      revisions_requested: "Changes Requested",
                       approved: "Approved",
                       final: "Final",
                     };
+                    const needsAttention = revision.status === "in_review" || revision.status === "revisions_requested";
 
                     return (
-                      <div key={revision.id} className="overflow-hidden rounded-xl border border-border bg-card">
-                        {/* ── Video player (shown when active) ── */}
-                        {isActive && hasVideo && (
-                          <div className="relative bg-black">
-                            <video
-                              ref={videoRef}
-                              src={revision.file_url}
-                              className="max-h-[420px] w-full object-contain"
-                              onPlay={() => setIsPlaying(true)}
-                              onPause={() => setIsPlaying(false)}
-                              onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                              onLoadedMetadata={(e) => setPlayerDuration(e.currentTarget.duration)}
-                            />
-                            {/* Controls overlay */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-4 pb-3 pt-8">
-                              <div className="mb-2 flex items-center gap-2">
-                                <input
-                                  type="range"
-                                  min={0}
-                                  max={playerDuration || 0}
-                                  value={currentTime}
-                                  onChange={(e) => {
-                                    const t = parseFloat(e.target.value);
-                                    setCurrentTime(t);
-                                    if (videoRef.current) videoRef.current.currentTime = t;
-                                  }}
-                                  className="flex-1 h-1 cursor-pointer accent-[#d4a853]"
-                                />
-                                <span className="text-[11px] text-white/60 tabular-nums">
-                                  {formatTime(currentTime)} / {formatTime(playerDuration)}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => { if (videoRef.current) { isPlaying ? videoRef.current.pause() : videoRef.current.play(); } }}
-                                    className="rounded-lg p-2 hover:bg-white/15 transition-all duration-150 active:scale-90"
-                                  >
-                                    {isPlaying ? <Pause className="h-4 w-4 text-white" /> : <Play className="h-4 w-4 text-white" />}
-                                  </button>
-                                  <button
-                                    onClick={() => { setIsMuted((p) => !p); if (videoRef.current) videoRef.current.muted = !isMuted; }}
-                                    className="rounded-lg p-1.5 hover:bg-white/15 transition-all duration-150 active:scale-90"
-                                  >
-                                    {isMuted ? <VolumeX className="h-4 w-4 text-white" /> : <Volume2 className="h-4 w-4 text-white" />}
-                                  </button>
-                                  <input
-                                    type="range" min={0} max={1} step={0.1} value={volume}
-                                    onChange={(e) => { const v = parseFloat(e.target.value); setVolume(v); if (videoRef.current) videoRef.current.volume = v; }}
-                                    className="w-16 h-1 cursor-pointer accent-[#d4a853]"
-                                  />
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => { const a = document.createElement("a"); a.href = revision.file_url!; a.download = revision.title; a.click(); }}
-                                    className="rounded-lg p-2 hover:bg-white/15 transition-all duration-150 active:scale-90"
-                                    title="Download"
-                                  >
-                                    <Download className="h-4 w-4 text-white" />
-                                  </button>
-                                  <button
-                                    onClick={() => videoRef.current?.requestFullscreen()}
-                                    className="rounded-lg p-2 hover:bg-white/15 transition-all duration-150 active:scale-90"
-                                    title="Fullscreen"
-                                  >
-                                    <Maximize className="h-4 w-4 text-white" />
-                                  </button>
-                                  <button
-                                    onClick={() => setActiveRevisionId(null)}
-                                    className="rounded-lg p-2 hover:bg-white/15 transition-all duration-150 active:scale-90"
-                                    title="Close player"
-                                  >
-                                    <X className="h-4 w-4 text-white" />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
+                      <Link
+                        key={revision.id}
+                        href={`/revisions?project=${project.id}`}
+                        className="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 hover:border-border/80 hover:bg-card/80 transition-all group"
+                      >
+                        {/* Icon */}
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${statusStyles[revision.status] ?? "bg-muted/50"}`}>
+                          <Film className="h-3.5 w-3.5" />
+                        </div>
+                        {/* Info */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-mono text-[10px] text-muted-foreground/60">v{revision.version_number}</span>
+                            <span className="truncate text-xs font-semibold text-foreground">{revision.title}</span>
+                            <Badge variant="outline" className={`shrink-0 text-[10px] px-1.5 py-0.5 ${statusStyles[revision.status]}`}>
+                              {statusLabels[revision.status] ?? revision.status}
+                            </Badge>
                           </div>
-                        )}
-
-                        {/* ── Revision header ── */}
-                        <div className="flex items-start gap-4 p-4">
-                          <button
-                            type="button"
-                            disabled={!hasVideo}
-                            onClick={() => {
-                              setActiveRevisionId(isActive ? null : revision.id);
-                              setCurrentTime(0);
-                              setIsPlaying(false);
-                            }}
-                            className={`relative h-16 w-28 shrink-0 overflow-hidden rounded-lg bg-muted flex items-center justify-center transition-all duration-200 ${hasVideo ? "cursor-pointer hover:ring-2 hover:ring-[#d4a853]/50" : "cursor-default opacity-50"}`}
-                          >
-                            {revision.thumbnail_url ? (
-                              <Image src={revision.thumbnail_url} alt={revision.title} fill className="object-cover" sizes="112px" unoptimized />
-                            ) : null}
-                            {hasVideo && !isActive && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                                <Play className="h-6 w-6 text-white drop-shadow" />
-                              </div>
+                          <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground/60">
+                            <span>{formatRelative(revision.created_at)}</span>
+                            {revision.file_size && <><span>·</span><span>{formatFileSize(revision.file_size)}</span></>}
+                            {(revision.comments?.length ?? 0) > 0 && (
+                              <span className="flex items-center gap-0.5">
+                                <MessageSquare className="h-2.5 w-2.5" />
+                                {revision.comments!.length}
+                              </span>
                             )}
-                            {isActive && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-[#d4a853]/20 ring-2 ring-[#d4a853]/60">
-                                <Pause className="h-5 w-5 text-[#d4a853]" />
-                              </div>
+                            {needsAttention && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
                             )}
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono text-xs text-muted-foreground">v{revision.version_number}</span>
-                                  <h4 className="text-sm font-semibold text-foreground">{revision.title}</h4>
-                                </div>
-                                {revision.description && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{revision.description}</p>}
-                              </div>
-                              <Badge variant="outline" className={`shrink-0 text-[10px] ${statusStyles[revision.status]}`}>{statusLabels[revision.status]}</Badge>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
-                              <span>{formatRelative(revision.created_at)}</span>
-                              {revision.file_size && <><span>·</span><span>{formatFileSize(revision.file_size)}</span></>}
-                              {!hasVideo && <span className="text-amber-400">· Video not available (re-upload to restore)</span>}
-                              {comments.length > 0 && (
-                                <><span>·</span>
-                                  <span className="flex items-center gap-0.5">
-                                    <MessageSquare className="h-2.5 w-2.5" />{comments.length} comments
-                                  </span>
-                                </>
-                              )}
-                            </div>
                           </div>
                         </div>
-
-                        {/* ── Comments ── */}
-                        <div className="border-t border-border">
-                          {comments.length > 0 ? (
-                            comments.map((comment) => (
-                              <div key={comment.id} className="border-b border-border/50 last:border-0">
-                                {/* Top-level comment */}
-                                <div className="flex gap-3 px-4 py-3">
-                                  <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                                    <AvatarImage src={comment.author?.avatar_url ?? ""} alt={comment.author?.full_name ?? "User"} />
-                                    <AvatarFallback className="text-[9px]">{getInitials(comment.author?.full_name ?? comment.author_id ?? "")}</AvatarFallback>
-                                  </Avatar>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                      <span className="text-xs font-medium text-foreground">{comment.author?.full_name ?? comment.author_id ?? "Unknown"}</span>
-                                      {comment.timestamp_seconds != null && (
-                                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                                          {Math.floor(comment.timestamp_seconds / 60)}:{String(comment.timestamp_seconds % 60).padStart(2, "0")}
-                                        </span>
-                                      )}
-                                      <span className="text-[10px] text-muted-foreground">{formatRelative(comment.created_at)}</span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground leading-relaxed">{comment.content}</p>
-                                    <button
-                                      onClick={() => { setReplyingTo({ revisionId: revision.id, commentId: comment.id, authorName: comment.author?.full_name ?? "them" }); setReplyDraft(""); }}
-                                      className="mt-1 text-[10px] text-muted-foreground hover:text-[#d4a853] transition-colors"
-                                    >
-                                      Reply
-                                    </button>
-                                  </div>
-                                </div>
-                                {/* Inline reply form */}
-                                {replyingTo?.commentId === comment.id && (
-                                  <div className="ml-9 mr-4 mb-3 flex gap-2">
-                                    <input
-                                      autoFocus
-                                      type="text"
-                                      value={replyDraft}
-                                      onChange={(e) => setReplyDraft(e.target.value)}
-                                      placeholder={`Reply to ${replyingTo.authorName}…`}
-                                      className="flex-1 rounded-md border border-[#d4a853]/30 bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground outline-none"
-                                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddRevisionComment(revision.id, comment.id); } if (e.key === "Escape") setReplyingTo(null); }}
-                                    />
-                                    <Button type="button" variant="gold" size="sm" onClick={() => handleAddRevisionComment(revision.id, comment.id)}>Post</Button>
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => setReplyingTo(null)}>Cancel</Button>
-                                  </div>
-                                )}
-                                {/* Replies */}
-                                {(comment.replies ?? []).map((reply) => (
-                                  <div key={reply.id} className="ml-9 flex gap-3 border-t border-border/30 px-4 py-2.5 bg-muted/20">
-                                    <Avatar className="h-5 w-5 shrink-0 mt-0.5">
-                                      <AvatarFallback className="text-[8px]">{getInitials(reply.author?.full_name ?? reply.author_id ?? "")}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2 mb-0.5">
-                                        <span className="text-[11px] font-medium text-foreground">{reply.author?.full_name ?? reply.author_id ?? "Unknown"}</span>
-                                        <span className="text-[10px] text-muted-foreground">{formatRelative(reply.created_at)}</span>
-                                      </div>
-                                      <p className="text-[11px] text-muted-foreground leading-relaxed">{reply.content}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ))
-                          ) : (
-                            <div className="px-4 py-4 text-sm text-muted-foreground">No comments yet. Leave feedback on this revision.</div>
-                          )}
-                          <div className="flex gap-3 px-4 py-3 bg-muted/30">
-                            <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                              <AvatarImage src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&q=80" alt="You" />
-                              <AvatarFallback className="text-[9px]">KG</AvatarFallback>
-                            </Avatar>
-                            <input
-                              type="text"
-                              value={commentDrafts[revision.id] ?? ""}
-                              onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [revision.id]: e.target.value }))}
-                              placeholder="Add a comment..."
-                              className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none"
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleAddRevisionComment(revision.id);
-                                }
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              variant="gold"
-                              size="sm"
-                              onClick={() => handleAddRevisionComment(revision.id)}
-                            >
-                              Post
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
+                        {/* CTA arrow */}
+                        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/30 group-hover:text-[#d4a853] transition-colors" />
+                      </Link>
                     );
                   })}
                 </div>
               )}
 
-              {/* ── Client Portal (merged into Deliverables) ── */}
-              <div className="mt-6 border-t border-border pt-5" onClick={loadPortalToken}>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-display text-sm font-semibold text-foreground">Client Portal</h3>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Share a private link so your client can review cuts and track progress.</p>
+              {/* ── Portal shortcut ── */}
+              {portalToken && (
+                <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] px-4 py-3 flex items-center gap-3">
+                  <div className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-emerald-400">Client portal active — {portalToken.client_name}</p>
+                    {portalToken.last_viewed_at && (
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                        Last viewed {formatRelative(portalToken.last_viewed_at)}
+                      </p>
+                    )}
                   </div>
-                  {portalToken && (
-                    <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-red-400" onClick={handleRevokePortal}>
-                      <Trash2 className="h-3 w-3" /> Revoke
-                    </Button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleCopyPortalUrl}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  >
+                    {portalCopied ? <><Check className="h-3 w-3 text-emerald-400" /> Copied</> : <><Copy className="h-3 w-3" /> Copy link</>}
+                  </button>
                 </div>
-                {portalLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />Loading…
-                  </div>
-                ) : portalToken ? (
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.03] p-4 space-y-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                      <span className="text-xs font-semibold text-emerald-400">Portal Active — {portalToken.client_name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                      <span className="flex-1 truncate font-mono text-[11px] text-muted-foreground">{portalUrl(portalToken.token)}</span>
-                      <button type="button" onClick={handleCopyPortalUrl} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#d4a853]/10 px-2.5 py-1 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/20">
-                        {portalCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
-                      </button>
-                      <a href={portalUrl(portalToken.token)} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:text-foreground"><ExternalLink className="h-3.5 w-3.5" /></a>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-border bg-card/30 p-6 text-center">
-                    <p className="text-sm font-medium text-foreground">No portal yet</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Create a private portal link for your client.</p>
-                    <Button variant="gold" size="sm" className="mt-3 h-8 gap-1.5 text-xs" onClick={() => setPortalShowForm(true)}>
-                      <Link2 className="h-3.5 w-3.5" /> Create client portal
-                    </Button>
-                  </div>
-                )}
-              </div>
+              )}
             </TabsContent>
+
 
             {/* ── Notes (hidden standalone — merged into Overview) ── */}
             <TabsContent value="notes" className="m-0 p-6">
