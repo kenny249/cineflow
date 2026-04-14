@@ -1177,18 +1177,33 @@ export default function ReviewPage() {
                           className="h-full rounded-full bg-[#d4a853] transition-none"
                           style={{ width: `${playerDuration ? (currentTime / playerDuration) * 100 : 0}%` }}
                         />
-                        {/* Comment tick marks */}
+                        {/* Comment tick marks — silver dots, clickable, with tooltip */}
                         {activeRevision.comments?.map((c) => {
                           if (c.timestamp_seconds == null || !playerDuration) return null;
                           const pct = (c.timestamp_seconds / playerDuration) * 100;
-                          const isClient = portalToken?.client_name && c.author_name === portalToken.client_name;
                           return (
                             <div
                               key={c.id}
-                              className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2"
+                              className="group/tick absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
                               style={{ left: `${pct}%` }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const t = c.timestamp_seconds!;
+                                setCurrentTime(t);
+                                if (videoRef.current) { videoRef.current.currentTime = t; videoRef.current.play(); }
+                                setIsPlaying(true);
+                              }}
                             >
-                              <div className={`h-3 w-[3px] rounded-full ${isClient ? "bg-sky-400" : "bg-[#d4a853]"}`} />
+                              {/* Dot */}
+                              <div className="h-2.5 w-2.5 rounded-full bg-white/60 ring-1 ring-white/20 shadow transition-all group-hover/tick:bg-white group-hover/tick:scale-125" />
+                              {/* Tooltip */}
+                              <div className="pointer-events-none absolute bottom-full left-1/2 mb-2.5 hidden -translate-x-1/2 group-hover/tick:block">
+                                <div className="w-max max-w-[200px] rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-1.5 shadow-xl">
+                                  <p className="text-[10px] font-semibold text-white/50">{c.author_name} · {formatTime(c.timestamp_seconds!)}</p>
+                                  <p className="mt-0.5 truncate text-xs text-white">{c.content}</p>
+                                </div>
+                                <div className="mx-auto -mt-[5px] h-2 w-2 rotate-45 border-b border-r border-white/10 bg-zinc-900" />
+                              </div>
                             </div>
                           );
                         })}
