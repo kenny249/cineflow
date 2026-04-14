@@ -69,7 +69,11 @@ export default function SettingsClient() {
 
   // Business info
   const [businessName, setBusinessName] = useState("");
-  const [businessAddress, setBusinessAddress] = useState("");
+  const [addrLine1, setAddrLine1] = useState("");
+  const [addrLine2, setAddrLine2] = useState("");
+  const [addrCity, setAddrCity] = useState("");
+  const [addrState, setAddrState] = useState("");
+  const [addrZip, setAddrZip] = useState("");
   const [businessPhone, setBusinessPhone] = useState("");
   const [businessWebsite, setBusinessWebsite] = useState("");
   const [isSavingBusiness, setIsSavingBusiness] = useState(false);
@@ -99,7 +103,11 @@ export default function SettingsClient() {
           setCompany(profile.company ?? "");
           setAvatarUrl(profile.avatar_url ?? "");
           setBusinessName(profile.business_name ?? "");
-          setBusinessAddress(profile.business_address ?? "");
+          setAddrLine1(profile.address_line1 ?? "");
+          setAddrLine2(profile.address_line2 ?? "");
+          setAddrCity(profile.city ?? "");
+          setAddrState(profile.state ?? "");
+          setAddrZip(profile.zip ?? "");
           setBusinessPhone(profile.business_phone ?? "");
           setBusinessWebsite(profile.business_website ?? "");
           setPaySettings((profile.payment_settings as PaymentSettings) ?? {});
@@ -145,7 +153,11 @@ export default function SettingsClient() {
     try {
       await updateProfile({
         business_name: businessName.trim() || undefined,
-        business_address: businessAddress.trim() || undefined,
+        address_line1: addrLine1.trim() || undefined,
+        address_line2: addrLine2.trim() || undefined,
+        city: addrCity.trim() || undefined,
+        state: addrState.trim() || undefined,
+        zip: addrZip.trim() || undefined,
         business_phone: businessPhone.trim() || undefined,
         business_website: businessWebsite.trim() || undefined,
       });
@@ -286,13 +298,34 @@ export default function SettingsClient() {
                   placeholder="Your studio or company name"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>Address</Label>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Street address</Label>
+                  <Input
+                    value={addrLine1}
+                    onChange={(e) => setAddrLine1(e.target.value)}
+                    placeholder="123 Main St"
+                  />
+                </div>
                 <Input
-                  value={businessAddress}
-                  onChange={(e) => setBusinessAddress(e.target.value)}
-                  placeholder="123 Main St, City, State ZIP"
+                  value={addrLine2}
+                  onChange={(e) => setAddrLine2(e.target.value)}
+                  placeholder="Suite, floor, unit (optional)"
                 />
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-1 space-y-1.5">
+                    <Label>City</Label>
+                    <Input value={addrCity} onChange={(e) => setAddrCity(e.target.value)} placeholder="Los Angeles" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>State</Label>
+                    <Input value={addrState} onChange={(e) => setAddrState(e.target.value)} placeholder="CA" maxLength={2} className="uppercase" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>ZIP</Label>
+                    <Input value={addrZip} onChange={(e) => setAddrZip(e.target.value)} placeholder="90001" />
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -333,6 +366,7 @@ export default function SettingsClient() {
                 label="Stripe"
                 badge="Auto-generates payment links"
                 badgeColor="text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                configured={!!paySettings.stripe_secret_key}
                 open={paymentOpen === "stripe"}
                 onToggle={() => setPaymentOpen(paymentOpen === "stripe" ? null : "stripe")}
               >
@@ -360,6 +394,7 @@ export default function SettingsClient() {
                 label="PayPal"
                 badge="Uses PayPal.me"
                 badgeColor="text-blue-400 bg-blue-500/10 border-blue-500/20"
+                configured={!!paySettings.paypal_me_username}
                 open={paymentOpen === "paypal"}
                 onToggle={() => setPaymentOpen(paymentOpen === "paypal" ? null : "paypal")}
               >
@@ -388,6 +423,7 @@ export default function SettingsClient() {
                 label="Zelle"
                 badge="Zero fees, instant"
                 badgeColor="text-violet-400 bg-violet-500/10 border-violet-500/20"
+                configured={!!paySettings.zelle_contact}
                 open={paymentOpen === "zelle"}
                 onToggle={() => setPaymentOpen(paymentOpen === "zelle" ? null : "zelle")}
               >
@@ -412,6 +448,7 @@ export default function SettingsClient() {
                 label="ACH / Bank Transfer"
                 badge="Best for large invoices"
                 badgeColor="text-amber-400 bg-amber-500/10 border-amber-500/20"
+                configured={!!(paySettings.ach_routing && paySettings.ach_account)}
                 open={paymentOpen === "ach"}
                 onToggle={() => setPaymentOpen(paymentOpen === "ach" ? null : "ach")}
               >
@@ -455,6 +492,7 @@ export default function SettingsClient() {
                 label="Wire Transfer"
                 badge="International clients"
                 badgeColor="text-cyan-400 bg-cyan-500/10 border-cyan-500/20"
+                configured={!!paySettings.wire_instructions}
                 open={paymentOpen === "wire"}
                 onToggle={() => setPaymentOpen(paymentOpen === "wire" ? null : "wire")}
               >
@@ -481,6 +519,7 @@ export default function SettingsClient() {
                 label="Check"
                 badge="Traditional billing"
                 badgeColor="text-zinc-400 bg-zinc-500/10 border-zinc-500/20"
+                configured={!!(paySettings.check_payable_to || paySettings.check_mail_to)}
                 open={paymentOpen === "check"}
                 onToggle={() => setPaymentOpen(paymentOpen === "check" ? null : "check")}
               >
@@ -639,6 +678,7 @@ function PaymentSection({
   label,
   badge,
   badgeColor,
+  configured,
   open,
   onToggle,
   children,
@@ -647,6 +687,7 @@ function PaymentSection({
   label: string;
   badge: string;
   badgeColor: string;
+  configured: boolean;
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
@@ -663,6 +704,11 @@ function PaymentSection({
           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badgeColor}`}>
             {badge}
           </span>
+          {configured && (
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+              Configured
+            </span>
+          )}
         </div>
         <ChevronDown
           className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${open ? "rotate-180" : ""}`}

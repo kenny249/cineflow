@@ -32,7 +32,13 @@ export interface Profile {
   role?: string;
   plan?: PlanType;
   business_name?: string;
-  business_address?: string;
+  business_address?: string; // legacy single-string fallback
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
   business_phone?: string;
   business_website?: string;
   payment_settings?: PaymentSettings;
@@ -411,11 +417,33 @@ export interface Invoice {
   notes?: string;
   line_items?: LineItem[];
   tax_rate?: number;
+  currency?: string;
   payment_method?: PaymentMethod;
   payment_link?: string;
   payment_terms?: PaymentTerms;
+  accepted_payment_methods?: string[];
   invoice_date?: string;
   created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Client Contacts ─────────────────────────────────────────────────────────
+export interface ClientContact {
+  id: string;
+  user_id: string;
+  client_name: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  notes?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
   created_at: string;
   updated_at: string;
 }

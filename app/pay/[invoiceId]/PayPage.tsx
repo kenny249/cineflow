@@ -38,34 +38,27 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-// ─── Payment section ──────────────────────────────────────────────────────────
+// ─── Single method block ──────────────────────────────────────────────────────
 
-function PaymentSection({
+function SingleMethodBlock({
+  method,
   invoice,
   total,
   biz,
 }: {
+  method: string;
   invoice: Invoice;
   total: number;
   biz: PayPageProps["biz"];
 }) {
   const ps = biz.payment_settings as Record<string, string>;
-  const method = invoice.payment_method;
 
-  if (!method) return null;
-
-  if (method === "stripe" || method === "paypal") {
+  if (method === "stripe") {
     const link = invoice.payment_link;
     return (
       <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-6">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-          Pay Online
-        </p>
-        <p className="mb-4 text-sm text-zinc-600">
-          {method === "stripe"
-            ? "Securely pay by credit card, Apple Pay, or Google Pay."
-            : "Pay via PayPal — no account required."}
-        </p>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Pay by Card</p>
+        <p className="mb-4 text-sm text-zinc-600">Securely pay by credit card, Apple Pay, or Google Pay.</p>
         {link ? (
           <a
             href={link}
@@ -78,6 +71,29 @@ function PaymentSection({
           </a>
         ) : (
           <p className="text-sm text-zinc-500 italic">Payment link not yet available — contact {biz.email || "the sender"}.</p>
+        )}
+      </div>
+    );
+  }
+
+  if (method === "paypal") {
+    const link = invoice.payment_link || (ps.paypal_me_username ? `https://paypal.me/${ps.paypal_me_username}/${total.toFixed(2)}` : null);
+    return (
+      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-6">
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Pay via PayPal</p>
+        <p className="mb-4 text-sm text-zinc-600">Pay via PayPal — no account required.</p>
+        {link ? (
+          <a
+            href={link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-6 py-3 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Pay {fmt(total)} via PayPal
+          </a>
+        ) : (
+          <p className="text-sm text-zinc-500 italic">Contact {biz.email || "the sender"} for PayPal details.</p>
         )}
       </div>
     );
@@ -97,7 +113,7 @@ function PaymentSection({
         <div className="flex items-center text-sm text-zinc-700">
           <span className="w-16 shrink-0 text-zinc-400">Amount</span>
           <span className="font-medium">{fmt(total)}</span>
-          <CopyButton text={fmt(total)} />
+          <CopyButton text={total.toFixed(2)} />
         </div>
         <div className="flex items-center text-sm text-zinc-700">
           <span className="w-16 shrink-0 text-zinc-400">Memo</span>
@@ -187,6 +203,41 @@ function PaymentSection({
   return null;
 }
 
+// ─── Payment section (all methods) ───────────────────────────────────────────
+
+function PaymentSection({
+  invoice,
+  total,
+  biz,
+}: {
+  invoice: Invoice;
+  total: number;
+  biz: PayPageProps["biz"];
+}) {
+  // Use all configured methods from seller's Settings.
+  // Fall back to per-invoice methods for backwards compat with old invoices.
+  const methods = biz.configured_methods?.length
+    ? biz.configured_methods
+    : invoice.accepted_payment_methods?.length
+    ? invoice.accepted_payment_methods
+    : invoice.payment_method ? [invoice.payment_method] : [];
+
+  if (methods.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {methods.length > 1 && (
+        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest px-1">
+          Choose a payment method
+        </p>
+      )}
+      {methods.map((method) => (
+        <SingleMethodBlock key={method} method={method} invoice={invoice} total={total} biz={biz} />
+      ))}
+    </div>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 interface PayPageProps {
@@ -197,7 +248,7 @@ interface PayPageProps {
     phone: string;
     address: string;
     website: string;
-    payment_method: string | undefined;
+    configured_methods: string[];
     payment_settings: Omit<PaymentSettings, "stripe_secret_key" | "resend_api_key">;
   };
 }

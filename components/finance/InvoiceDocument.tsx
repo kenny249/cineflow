@@ -5,7 +5,7 @@ import {
   X, Printer, Copy, ExternalLink, Loader2, CheckCircle2, Send,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Invoice, Profile, PaymentMethod } from "@/types";
+import type { Invoice, Profile } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -21,15 +21,6 @@ const TERMS_LABEL: Record<string, string> = {
   net15: "Net 15",
   net30: "Net 30",
   net60: "Net 60",
-};
-
-const METHOD_LABEL: Record<PaymentMethod, string> = {
-  stripe: "Credit / Debit Card",
-  paypal: "PayPal",
-  zelle: "Zelle",
-  ach: "ACH Bank Transfer",
-  wire: "Wire Transfer",
-  check: "Check",
 };
 
 function formatDate(iso?: string) {
@@ -75,10 +66,27 @@ export function InvoiceDocument({
   const bizName = profile?.business_name || profile?.company || profile?.full_name || "Your Studio";
   const bizEmail = profile?.email ?? "";
   const bizPhone = profile?.business_phone ?? "";
-  const bizAddress = profile?.business_address ?? "";
   const bizWebsite = profile?.business_website ?? "";
 
+  // Build structured address, falling back to legacy single-string field
+  const addrParts = [
+    profile?.address_line1,
+    profile?.address_line2,
+    [profile?.city, profile?.state, profile?.zip].filter(Boolean).join(", "),
+  ].filter(Boolean);
+  const bizAddress = addrParts.length > 0 ? addrParts.join(", ") : (profile?.business_address ?? "");
+
   const paySettings = profile?.payment_settings ?? {};
+
+  // All methods configured in Settings — used to decide what to show in the payment section
+  const ps = paySettings as Record<string, string>;
+  const configuredMethods: string[] = [];
+  if (ps.stripe_secret_key) configuredMethods.push("stripe");
+  if (ps.paypal_me_username) configuredMethods.push("paypal");
+  if (ps.zelle_contact) configuredMethods.push("zelle");
+  if (ps.ach_routing && ps.ach_account) configuredMethods.push("ach");
+  if (ps.wire_instructions) configuredMethods.push("wire");
+  if (ps.check_payable_to || ps.check_mail_to) configuredMethods.push("check");
 
   const handlePrint = () => {
     window.print();
@@ -360,13 +368,11 @@ export function InvoiceDocument({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Active payment link */}
+                  {/* Active Stripe payment link */}
                   {invoice.payment_link ? (
                     <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-0.5">
-                          {invoice.payment_method ? METHOD_LABEL[invoice.payment_method] : "Pay Online"}
-                        </p>
+                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-0.5">Pay by Card (Stripe)</p>
                         <p className="truncate font-mono text-xs text-zinc-700">{invoice.payment_link}</p>
                       </div>
                       <button
@@ -389,95 +395,62 @@ export function InvoiceDocument({
                   ) : null}
 
                   {/* Generate link buttons (not printed) */}
-                  <div className="invoice-no-print flex flex-wrap gap-2">
-                    {!invoice.payment_link && (
-                      <>
-                        {(paySettings as Record<string, string>).stripe_secret_key && (
-                          <button
-                            type="button"
-                            onClick={handleGenerateStripeLink}
-                            disabled={generatingLink}
-                            className="flex items-center gap-1.5 rounded-lg bg-[#635bff] px-3 py-2 text-xs font-semibold text-white hover:bg-[#4f46e5] transition-colors disabled:opacity-60"
-                          >
-                            {generatingLink ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : null}
-                            Generate Stripe Link
-                          </button>
-                        )}
-                        {(paySettings as Record<string, string>).paypal_me_username && (
-                          <button
-                            type="button"
-                            onClick={handleGeneratePayPalLink}
-                            className="flex items-center gap-1.5 rounded-lg bg-[#003087] px-3 py-2 text-xs font-semibold text-white hover:bg-[#002570] transition-colors"
-                          >
-                            Generate PayPal Link
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Manual payment instructions */}
-                  {invoice.payment_method === "zelle" &&
-                    (paySettings as Record<string, string>).zelle_contact && (
-                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                          Pay via Zelle
-                        </p>
-                        <p className="text-sm font-medium text-zinc-800">
-                          {(paySettings as Record<string, string>).zelle_contact}
-                        </p>
-                      </div>
-                    )}
-
-                  {invoice.payment_method === "ach" && (
-                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                        ACH Bank Transfer
-                      </p>
-                      <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
-                        {(paySettings as Record<string, string>).ach_bank_name && (
-                          <><span className="text-zinc-400">Bank</span><span className="font-medium text-zinc-800">{(paySettings as Record<string, string>).ach_bank_name}</span></>
-                        )}
-                        {(paySettings as Record<string, string>).ach_routing && (
-                          <><span className="text-zinc-400">Routing</span><span className="font-mono font-medium text-zinc-800">{(paySettings as Record<string, string>).ach_routing}</span></>
-                        )}
-                        {(paySettings as Record<string, string>).ach_account && (
-                          <><span className="text-zinc-400">Account</span><span className="font-mono font-medium text-zinc-800">{(paySettings as Record<string, string>).ach_account}</span></>
-                        )}
-                      </div>
+                  {(configuredMethods.includes("stripe") || configuredMethods.includes("paypal")) && (
+                    <div className="invoice-no-print flex flex-wrap gap-2">
+                      {configuredMethods.includes("stripe") && !invoice.payment_link && ps.stripe_secret_key && (
+                        <button
+                          type="button"
+                          onClick={handleGenerateStripeLink}
+                          disabled={generatingLink}
+                          className="flex items-center gap-1.5 rounded-lg bg-[#635bff] px-3 py-2 text-xs font-semibold text-white hover:bg-[#4f46e5] transition-colors disabled:opacity-60"
+                        >
+                          {generatingLink ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                          Generate Stripe Link
+                        </button>
+                      )}
+                      {configuredMethods.includes("paypal") && !invoice.payment_link && ps.paypal_me_username && (
+                        <button
+                          type="button"
+                          onClick={handleGeneratePayPalLink}
+                          className="flex items-center gap-1.5 rounded-lg bg-[#003087] px-3 py-2 text-xs font-semibold text-white hover:bg-[#002570] transition-colors"
+                        >
+                          Generate PayPal Link
+                        </button>
+                      )}
                     </div>
                   )}
 
-                  {invoice.payment_method === "wire" &&
-                    (paySettings as Record<string, string>).wire_instructions && (
-                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                        <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                          Wire Transfer
-                        </p>
-                        <pre className="whitespace-pre-wrap font-mono text-xs text-zinc-700">
-                          {(paySettings as Record<string, string>).wire_instructions}
-                        </pre>
-                      </div>
-                    )}
-
-                  {invoice.payment_method === "check" && (
+                  {/* Manual payment instructions — all configured methods */}
+                  {configuredMethods.includes("zelle") && ps.zelle_contact && (
                     <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                        Pay by Check
-                      </p>
-                      {(paySettings as Record<string, string>).check_payable_to && (
-                        <p className="text-sm text-zinc-700">
-                          Make payable to:{" "}
-                          <span className="font-semibold">{(paySettings as Record<string, string>).check_payable_to}</span>
-                        </p>
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Pay via Zelle</p>
+                      <p className="text-sm font-medium text-zinc-800">{ps.zelle_contact}</p>
+                    </div>
+                  )}
+                  {configuredMethods.includes("ach") && (
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">ACH Bank Transfer</p>
+                      <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+                        {ps.ach_bank_name && (<><span className="text-zinc-400">Bank</span><span className="font-medium text-zinc-800">{ps.ach_bank_name}</span></>)}
+                        {ps.ach_routing && (<><span className="text-zinc-400">Routing</span><span className="font-mono font-medium text-zinc-800">{ps.ach_routing}</span></>)}
+                        {ps.ach_account && (<><span className="text-zinc-400">Account</span><span className="font-mono font-medium text-zinc-800">{ps.ach_account}</span></>)}
+                      </div>
+                    </div>
+                  )}
+                  {configuredMethods.includes("wire") && ps.wire_instructions && (
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Wire Transfer</p>
+                      <pre className="whitespace-pre-wrap font-mono text-xs text-zinc-700">{ps.wire_instructions}</pre>
+                    </div>
+                  )}
+                  {configuredMethods.includes("check") && (
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Pay by Check</p>
+                      {ps.check_payable_to && (
+                        <p className="text-sm text-zinc-700">Make payable to: <span className="font-semibold">{ps.check_payable_to}</span></p>
                       )}
-                      {(paySettings as Record<string, string>).check_mail_to && (
-                        <p className="text-sm text-zinc-700">
-                          Mail to:{" "}
-                          <span className="font-semibold">{(paySettings as Record<string, string>).check_mail_to}</span>
-                        </p>
+                      {ps.check_mail_to && (
+                        <p className="text-sm text-zinc-700">Mail to: <span className="font-semibold">{ps.check_mail_to}</span></p>
                       )}
                     </div>
                   )}

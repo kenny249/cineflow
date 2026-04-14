@@ -13,7 +13,7 @@ async function getInvoiceData(invoiceId: string): Promise<{
     phone: string;
     address: string;
     website: string;
-    payment_method: string | undefined;
+    configured_methods: string[];
     payment_settings: Omit<PaymentSettings, "stripe_secret_key" | "resend_api_key">;
   };
 } | null> {
@@ -38,7 +38,7 @@ async function getInvoiceData(invoiceId: string): Promise<{
   const { data: profile } = serviceKey
     ? await supabase
         .from("profiles")
-        .select("full_name, company, email, business_name, business_address, business_phone, business_website, payment_settings")
+        .select("full_name, company, email, business_name, business_address, address_line1, address_line2, city, state, zip, business_phone, business_website, payment_settings")
         .eq("id", invoice.created_by)
         .single()
     : { data: null };
@@ -46,15 +46,32 @@ async function getInvoiceData(invoiceId: string): Promise<{
   const p = profile as Profile | null;
   const ps = (p?.payment_settings ?? {}) as PaymentSettings;
 
+  // Build structured address, falling back to legacy single-string field
+  const addrParts = [
+    p?.address_line1,
+    p?.address_line2,
+    [p?.city, p?.state, p?.zip].filter(Boolean).join(", "),
+  ].filter(Boolean);
+  const bizAddress = addrParts.length > 0 ? addrParts.join(", ") : (p?.business_address ?? "");
+
+  // Compute which payment methods are configured (server-side — can safely read stripe_secret_key)
+  const configuredMethods: string[] = [];
+  if (ps.stripe_secret_key) configuredMethods.push("stripe");
+  if (ps.paypal_me_username) configuredMethods.push("paypal");
+  if (ps.zelle_contact) configuredMethods.push("zelle");
+  if (ps.ach_routing && ps.ach_account) configuredMethods.push("ach");
+  if (ps.wire_instructions) configuredMethods.push("wire");
+  if (ps.check_payable_to || ps.check_mail_to) configuredMethods.push("check");
+
   return {
     invoice: invoice as Invoice,
     biz: {
       name: p?.business_name || p?.company || p?.full_name || "Studio",
       email: p?.email ?? "",
       phone: p?.business_phone ?? "",
-      address: p?.business_address ?? "",
+      address: bizAddress,
       website: p?.business_website ?? "",
-      payment_method: (invoice as Invoice).payment_method,
+      configured_methods: configuredMethods,
       payment_settings: {
         paypal_me_username: ps.paypal_me_username,
         zelle_contact: ps.zelle_contact,

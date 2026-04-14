@@ -20,16 +20,25 @@ const TERMS_LABEL: Record<string, string> = {
   net60: "Net 60",
 };
 
-function buildPaymentInstructions(invoice: Invoice, ps: PaymentSettings, total: number): string {
-  const method = invoice.payment_method;
-  if (!method) return "";
-
-  if ((method === "stripe" || method === "paypal") && invoice.payment_link) {
+function buildSingleMethodHtml(method: string, invoice: Invoice, ps: PaymentSettings, total: number): string {
+  if (method === "stripe" && invoice.payment_link) {
     return `
-    <div style="margin-top:0;padding:20px 40px 0;">
-      <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Pay Online</p>
+    <div style="border-top:1px solid #f4f4f5;padding:20px 40px 0;">
+      <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Pay by Card (Stripe)</p>
       <a href="${invoice.payment_link}" style="display:inline-block;background:#d4a853;color:#000;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;">
         Pay ${fmt(total)} Now →
+      </a>
+    </div>`;
+  }
+
+  if (method === "paypal") {
+    const link = invoice.payment_link || (ps.paypal_me_username ? `https://paypal.me/${ps.paypal_me_username}/${total.toFixed(2)}` : null);
+    if (!link) return "";
+    return `
+    <div style="border-top:1px solid #f4f4f5;padding:20px 40px 0;">
+      <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Pay via PayPal</p>
+      <a href="${link}" style="display:inline-block;background:#0070ba;color:#fff;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;">
+        Pay ${fmt(total)} via PayPal →
       </a>
     </div>`;
   }
@@ -84,11 +93,25 @@ function buildPaymentInstructions(invoice: Invoice, ps: PaymentSettings, total: 
   return "";
 }
 
+function buildPaymentInstructions(invoice: Invoice, ps: PaymentSettings, total: number): string {
+  // Build from all configured methods in Settings — client picks whichever works for them.
+  // Stripe only included if a payment link exists on this invoice.
+  const methods: string[] = [];
+  if (invoice.payment_link) methods.push("stripe");
+  if (ps.paypal_me_username) methods.push("paypal");
+  if (ps.zelle_contact) methods.push("zelle");
+  if (ps.ach_routing && ps.ach_account) methods.push("ach");
+  if (ps.wire_instructions) methods.push("wire");
+  if (ps.check_payable_to || ps.check_mail_to) methods.push("check");
+  return methods.map((m) => buildSingleMethodHtml(m, invoice, ps, total)).filter(Boolean).join("\n");
+}
+
 function buildEmailHtml({
   invoice,
   total,
   bizName,
   bizEmail,
+  bizAddress,
   payUrl,
   appUrl,
   paymentSettings,
@@ -97,6 +120,7 @@ function buildEmailHtml({
   total: number;
   bizName: string;
   bizEmail: string;
+  bizAddress: string;
   payUrl: string;
   appUrl: string;
   paymentSettings: PaymentSettings;
@@ -136,7 +160,8 @@ function buildEmailHtml({
     <div style="background:#18181b;padding:32px 40px;display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <p style="margin:0;font-size:18px;font-weight:700;color:#fff;">${bizName}</p>
-        ${bizEmail ? `<p style="margin:4px 0 0;font-size:12px;color:#a1a1aa;">${bizEmail}</p>` : ""}
+        ${bizAddress ? `<p style="margin:4px 0 0;font-size:11px;color:#a1a1aa;">${bizAddress}</p>` : ""}
+        ${bizEmail ? `<p style="margin:2px 0 0;font-size:11px;color:#a1a1aa;">${bizEmail}</p>` : ""}
       </div>
       <div style="text-align:right;">
         <p style="margin:0;font-size:28px;font-weight:900;color:#d4a853;letter-spacing:-0.5px;">INVOICE</p>
@@ -223,7 +248,7 @@ export async function POST(req: NextRequest) {
     // Get profile (needs Resend key + from info + biz name)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, company, email, business_name, payment_settings")
+      .select("full_name, company, email, business_name, business_address, address_line1, address_line2, city, state, zip, payment_settings")
       .eq("id", user.id)
       .single();
 
@@ -269,6 +294,9 @@ export async function POST(req: NextRequest) {
 
     const bizName = profile?.business_name || profile?.company || profile?.full_name || "Studio";
     const bizEmail = profile?.email ?? "";
+    const p = profile as { address_line1?: string; address_line2?: string; city?: string; state?: string; zip?: string; business_address?: string } | null;
+    const addrParts = [p?.address_line1, p?.address_line2, [p?.city, p?.state, p?.zip].filter(Boolean).join(", ")].filter(Boolean);
+    const bizAddress = addrParts.length > 0 ? addrParts.join(", ") : (p?.business_address ?? "");
 
     // Per-user from settings takes priority, then platform env vars
     const fromName = ps.invoice_from_name || bizName;
@@ -282,7 +310,7 @@ export async function POST(req: NextRequest) {
       from: `${fromName} <${fromEmail}>`,
       to: [inv.client_email as string],
       subject: `Invoice ${inv.invoice_number} from ${bizName} — ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(total)} due`,
-      html: buildEmailHtml({ invoice: inv, total, bizName, bizEmail, payUrl, appUrl, paymentSettings: ps }),
+      html: buildEmailHtml({ invoice: inv, total, bizName, bizEmail, bizAddress, payUrl, appUrl, paymentSettings: ps }),
     });
 
     if (emailError) {

@@ -18,7 +18,7 @@ import {
 import { InvoiceDocument } from "@/components/finance/InvoiceDocument";
 import type {
   Invoice, InvoiceStatus, BudgetLine, Project, Profile,
-  PaymentMethod, PaymentTerms,
+  PaymentTerms,
 } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -38,16 +38,6 @@ const STATUS_META: Record<InvoiceStatus, { label: string; color: string; icon: R
   paid:    { label: "Paid",    color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20", icon: CheckCircle2 },
   overdue: { label: "Overdue", color: "bg-red-500/15 text-red-400 border-red-500/20",             icon: AlertCircle },
 };
-
-const PAYMENT_METHODS: { value: PaymentMethod | ""; label: string }[] = [
-  { value: "",        label: "— No payment method —" },
-  { value: "stripe",  label: "Stripe (Card / Apple Pay)" },
-  { value: "paypal",  label: "PayPal" },
-  { value: "zelle",   label: "Zelle" },
-  { value: "ach",     label: "ACH / Bank Transfer" },
-  { value: "wire",    label: "Wire Transfer" },
-  { value: "check",   label: "Check" },
-];
 
 const PAYMENT_TERMS: { value: PaymentTerms; label: string }[] = [
   { value: "due_on_receipt", label: "Due on Receipt" },
@@ -78,9 +68,7 @@ interface InvoiceFormState {
   project_id: string;
   line_items: LineItemForm[];
   tax_rate: string;
-  payment_method: PaymentMethod | "";
   payment_terms: PaymentTerms;
-  payment_link: string;
 }
 
 const EMPTY_LINE: () => LineItemForm = () => ({
@@ -93,8 +81,7 @@ const EMPTY_LINE: () => LineItemForm = () => ({
 const EMPTY_FORM: InvoiceFormState = {
   invoice_number: "", client_name: "", client_email: "", description: "", status: "draft",
   invoice_date: "", due_date: "", paid_date: "", notes: "", project_id: "",
-  line_items: [EMPTY_LINE()], tax_rate: "0",
-  payment_method: "", payment_terms: "net30", payment_link: "",
+  line_items: [EMPTY_LINE()], tax_rate: "0", payment_terms: "net30",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -308,9 +295,7 @@ export default function FinancePage() {
       project_id: inv.project_id ?? "",
       line_items: lineItems,
       tax_rate: String(inv.tax_rate ?? 0),
-      payment_method: inv.payment_method ?? "",
       payment_terms: inv.payment_terms ?? "net30",
-      payment_link: inv.payment_link ?? "",
     });
     setEditingId(inv.id);
     setShowForm(true);
@@ -349,8 +334,6 @@ export default function FinancePage() {
         project_id: form.project_id || undefined,
         line_items: lineItems.length > 0 ? lineItems : undefined,
         tax_rate: parseFloat(form.tax_rate) || 0,
-        payment_method: form.payment_method || undefined,
-        payment_link: form.payment_link.trim() || undefined,
         payment_terms: form.payment_terms,
       };
 
@@ -784,55 +767,23 @@ export default function FinancePage() {
               <div>
                 <p className="fin-section-label">Payment</p>
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="fin-label">Accept payment via</label>
-                      <select
-                        className="fin-input"
-                        value={form.payment_method}
-                        onChange={(e) => setForm((f) => ({ ...f, payment_method: e.target.value as PaymentMethod | "" }))}
-                      >
-                        {PAYMENT_METHODS.map((m) => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="fin-label">Terms</label>
-                      <select
-                        className="fin-input"
-                        value={form.payment_terms}
-                        onChange={(e) => setForm((f) => ({ ...f, payment_terms: e.target.value as PaymentTerms }))}
-                      >
-                        {PAYMENT_TERMS.map((t) => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
+                  <div>
+                    <label className="fin-label">Terms</label>
+                    <select
+                      className="fin-input"
+                      value={form.payment_terms}
+                      onChange={(e) => setForm((f) => ({ ...f, payment_terms: e.target.value as PaymentTerms }))}
+                    >
+                      {PAYMENT_TERMS.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
                   </div>
-                  {["stripe", "paypal"].includes(form.payment_method) && (
-                    <div>
-                      <label className="fin-label">
-                        {form.payment_method === "stripe" ? "Stripe Payment Link" : "PayPal Checkout Link"}
-                      </label>
-                      <input
-                        className="fin-input"
-                        type="url"
-                        value={form.payment_link}
-                        onChange={(e) => setForm((f) => ({ ...f, payment_link: e.target.value }))}
-                        placeholder={form.payment_method === "stripe" ? "https://buy.stripe.com/..." : "https://paypal.me/..."}
-                      />
-                      <p className="mt-1 text-[11px] text-muted-foreground/60">
-                        This link goes on the invoice so clients can pay directly. Leave blank to add later.
-                      </p>
-                    </div>
-                  )}
-                  {["zelle", "ach", "wire", "check"].includes(form.payment_method) && (
-                    <p className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
-                      <span className="text-[#d4a853]">✓</span>
-                      Your payment instructions from Settings will appear on the invoice and in the email automatically.
-                    </p>
-                  )}
+                  <p className="rounded-lg border border-border bg-muted/10 px-3 py-2.5 text-[11px] text-muted-foreground leading-relaxed">
+                    All payment methods you&apos;ve configured in{" "}
+                    <a href="/settings" className="text-[#d4a853] hover:underline">Settings → Payment</a>
+                    {" "}will appear on the invoice automatically. Your client picks whichever works for them.
+                  </p>
                 </div>
               </div>
 
