@@ -65,7 +65,7 @@ const ALL_ROLES: ContractRecipientRole[] = ["client", "crew", "talent", "locatio
 
 const DROP_MODE_CONFIG: Record<Exclude<FieldDropMode, null>, { label: string; icon: React.ReactNode; color: string; active: string }> = {
   sender:    { label: "Your Sig",    icon: <PenLine className="h-3 w-3" />,      color: "border-[#d4a853]/40 text-[#d4a853]/70 hover:border-[#d4a853] hover:text-[#d4a853]", active: "border-[#d4a853] bg-[#d4a853]/15 text-[#d4a853]" },
-  recipient: { label: "Client Sig",  icon: <Users className="h-3 w-3" />,        color: "border-sky-400/40 text-sky-400/70 hover:border-sky-400 hover:text-sky-400",         active: "border-sky-400 bg-sky-400/15 text-sky-400" },
+  recipient: { label: "Recipient",    icon: <Users className="h-3 w-3" />,        color: "border-sky-400/40 text-sky-400/70 hover:border-sky-400 hover:text-sky-400",         active: "border-sky-400 bg-sky-400/15 text-sky-400" },
   text:      { label: "Text",        icon: <Type className="h-3 w-3" />,          color: "border-violet-400/40 text-violet-400/70 hover:border-violet-400 hover:text-violet-400", active: "border-violet-400 bg-violet-400/15 text-violet-400" },
   date:      { label: "Date",        icon: <CalendarDays className="h-3 w-3" />, color: "border-violet-400/40 text-violet-400/70 hover:border-violet-400 hover:text-violet-400", active: "border-violet-400 bg-violet-400/15 text-violet-400" },
 };
@@ -337,24 +337,6 @@ export default function ContractsPage() {
       setSavingFields(false);
     }
   }, [selected, localFields]);
-
-  // Auto-detect callback
-  function handleAutoDetect(detected: Omit<SignatureField, "id">[]) {
-    if (localFields.length === 0) {
-      setLocalFields(detected.map((f) => ({ ...f, id: crypto.randomUUID() })));
-      toast.success(`Auto-detected ${detected.length} field${detected.length !== 1 ? "s" : ""}`, {
-        description: 'Fields placed for client. Use "Your Sig" button to add your own signature field.',
-      });
-    } else {
-      toast(`Found ${detected.length} field${detected.length !== 1 ? "s" : ""} in document`, {
-        description: "Replace existing fields?",
-        action: {
-          label: "Replace",
-          onClick: () => setLocalFields(detected.map((f) => ({ ...f, id: crypto.randomUUID() }))),
-        },
-      });
-    }
-  }
 
   // ── Stamp ────────────────────────────────────────────────────────────────────
 
@@ -666,7 +648,6 @@ export default function ContractsPage() {
                     onFieldPlace={handleFieldPlace}
                     onFieldDelete={selected.status !== "signed" ? removeField : undefined}
                     onFieldMove={selected.status !== "signed" ? moveField : undefined}
-                    onAutoDetect={selected.status !== "signed" ? handleAutoDetect : undefined}
                     onFieldClick={(field) => {
                       if (selected.status === "signed") return;
                       const type = field.type ?? "signature";
@@ -737,7 +718,7 @@ export default function ContractsPage() {
                           {localFields.map((f) => {
                             const fType = f.type ?? "signature";
                             const icon = fType === "date" ? <CalendarDays className="h-3 w-3 shrink-0" /> : fType === "text" ? <Type className="h-3 w-3 shrink-0" /> : f.role === "sender" ? <PenLine className="h-3 w-3 shrink-0 text-[#d4a853]" /> : <Users className="h-3 w-3 shrink-0 text-sky-400" />;
-                            const label = fType === "date" ? "Date" : fType === "text" ? "Text" : f.role === "sender" ? "Your sig" : "Client sig";
+                            const label = fType === "date" ? "Date" : fType === "text" ? "Text" : f.role === "sender" ? "Your sig" : "Recipient sig";
                             return (
                               <div key={f.id} className="space-y-1">
                                 <div className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs ${

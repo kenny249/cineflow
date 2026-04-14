@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
-import type { SignatureField, SignatureFieldType } from "@/types";
+import type { SignatureField } from "@/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,6 @@ interface PDFViewerProps {
   onFieldClick?: (field: SignatureField) => void;
   onFieldDelete?: (id: string) => void;
   onFieldMove?: (id: string, x: number, y: number) => void;
-  onAutoDetect?: (fields: Omit<SignatureField, "id">[]) => void;
   highlightRole?: "sender" | "recipient";
   className?: string;
 }
@@ -36,89 +35,6 @@ interface DragState {
   offsetPdfY: number;
 }
 
-// ── Signature field detection ─────────────────────────────────────────────────
-
-async function detectSignatureFields(pdf: any): Promise<Omit<SignatureField, "id">[]> {
-  const results: Omit<SignatureField, "id">[] = [];
-
-  const SIG_KEYWORD_RE = /accepted\s*by|sign\s*here|signature|authorized\s*sign|client\s*sign|sign\s*below|signed?\s*by/i;
-  const DATE_LABEL_RE = /^\s*date\s*:/i;
-  const TEXT_LABEL_RE = /^\s*(name|title|print\s*name|company|position)\s*:/i;
-  const COLON_LABEL_RE = /^\s*(by|date|name|title|print\s*name|company|position|signed?)\s*:/i;
-  const PLACEHOLDER_RE = /\[.{2,40}\]/;
-  const DATE_PLACEHOLDER_RE = /\[(date|today|mm.dd.yyyy)\]/i;
-  const TEXT_PLACEHOLDER_RE = /\[(your\s+name|client.{0,10}name|print\s*name|your\s+title|client.{0,10}title|company|position)\]/i;
-  const STANDALONE_LINE_RE = /^[_\-]{6,}$/;
-  const EMBEDDED_LINE_RE = /[_\-]{8,}/;
-
-  function addField(
-    pn: number, x: number, y: number,
-    type: SignatureFieldType = "signature",
-    role: "sender" | "recipient" = "recipient",
-    value = ""
-  ) {
-    const duplicate = results.some(
-      (r) => r.page === pn && Math.abs(r.x - x) < 80 && Math.abs(r.y - y) < 40
-    );
-    if (!duplicate) {
-      const w = type === "signature" ? 190 : 160;
-      const h = type === "signature" ? 50 : 36;
-      results.push({ page: pn, x, y, width: w, height: h, role, type, value });
-    }
-  }
-
-  for (let pn = 1; pn <= pdf.numPages; pn++) {
-    const page = await pdf.getPage(pn);
-    const content = await page.getTextContent();
-    const rawItems = (content.items as any[])
-      .filter((i) => i.str?.trim())
-      .map((i) => ({ str: i.str.trim(), x: i.transform[4], y: i.transform[5] }));
-
-    rawItems.sort((a, b) => b.y - a.y);
-
-    for (let i = 0; i < rawItems.length; i++) {
-      const { str, x, y } = rawItems[i];
-
-      if (SIG_KEYWORD_RE.test(str) && str.length <= 60) {
-        const lineBelow = rawItems.slice(i + 1).find(
-          (t) => STANDALONE_LINE_RE.test(t.str) && Math.abs(t.x - x) < 200 && y - t.y > 0 && y - t.y < 80
-        );
-        addField(pn, lineBelow ? lineBelow.x - 5 : x, lineBelow ? lineBelow.y - 5 : y - 60, "signature");
-        continue;
-      }
-      if (DATE_PLACEHOLDER_RE.test(str)) { addField(pn, x - 5, y - 5, "date"); continue; }
-      if (TEXT_PLACEHOLDER_RE.test(str)) { addField(pn, x - 5, y - 5, "text"); continue; }
-      if (PLACEHOLDER_RE.test(str) && !SIG_KEYWORD_RE.test(str)) { addField(pn, x - 5, y - 5, "text"); continue; }
-      if (DATE_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) { addField(pn, x, y - 5, "date"); continue; }
-      if (TEXT_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) { addField(pn, x, y - 5, "text"); continue; }
-      if (COLON_LABEL_RE.test(str) && EMBEDDED_LINE_RE.test(str)) { addField(pn, x, y - 5, "signature"); continue; }
-      if (COLON_LABEL_RE.test(str) && str.length <= 30) {
-        const lineBelow = rawItems.slice(i + 1).find(
-          (t) => (STANDALONE_LINE_RE.test(t.str) || EMBEDDED_LINE_RE.test(t.str)) &&
-            Math.abs(t.x - x) < 220 && y - t.y > 0 && y - t.y < 80
-        );
-        const fieldX = lineBelow ? lineBelow.x - 5 : x;
-        const fieldY = lineBelow ? lineBelow.y - 5 : y - 55;
-        const type: SignatureFieldType = DATE_LABEL_RE.test(str) ? "date" : TEXT_LABEL_RE.test(str) ? "text" : "signature";
-        addField(pn, fieldX, fieldY, type);
-        continue;
-      }
-    }
-
-    for (const { str, x, y } of rawItems) {
-      if (!STANDALONE_LINE_RE.test(str) || str.length < 8) continue;
-      const alreadyCovered = results.some(
-        (r) => r.page === pn && Math.abs(r.x - x) < 100 && Math.abs(r.y - y) < 40
-      );
-      if (!alreadyCovered) {
-        results.push({ page: pn, x: x - 5, y: y - 5, width: 190, height: 50, role: "recipient", type: "signature", value: "" });
-      }
-    }
-  }
-
-  return results;
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function PDFViewer({
@@ -129,7 +45,6 @@ export function PDFViewer({
   onFieldClick,
   onFieldDelete,
   onFieldMove,
-  onAutoDetect,
   highlightRole,
   className = "",
 }: PDFViewerProps) {
@@ -143,7 +58,6 @@ export function PDFViewer({
   const [pageDims, setPageDims] = useState<PageDimensions | null>(null);
   const pdfRef = useRef<any>(null);
   const renderTaskRef = useRef<any>(null);
-  const [detecting, setDetecting] = useState(false);
   const nativeWidthRef = useRef<number>(0);
   const [hoveredFieldId, setHoveredFieldId] = useState<string | null>(null);
 
@@ -180,16 +94,6 @@ export function PDFViewer({
         if (!cancelled) setScale(computeFitScale());
 
         setLoading(false);
-
-        if (onAutoDetect) {
-          setDetecting(true);
-          try {
-            const detected = await detectSignatureFields(pdf);
-            if (!cancelled && detected.length > 0) onAutoDetect(detected);
-          } finally {
-            if (!cancelled) setDetecting(false);
-          }
-        }
       } catch {
         if (!cancelled) setError("Failed to load PDF");
         setLoading(false);
@@ -332,18 +236,13 @@ export function PDFViewer({
           </button>
         </div>
         <div className="flex items-center gap-2">
-          {detecting && (
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground animate-pulse">
-              Scanning…
-            </span>
-          )}
           {dropMode && (
             <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
               dropMode === "sender" ? "bg-[#d4a853]/20 text-[#d4a853]" :
               dropMode === "recipient" ? "bg-sky-500/20 text-sky-400" :
               "bg-violet-500/20 text-violet-400"
             }`}>
-              Click to place {dropMode === "sender" ? "your sig" : dropMode === "recipient" ? "client sig" : dropMode} field
+              Click to place {dropMode === "sender" ? "your sig" : dropMode === "recipient" ? "recipient sig" : dropMode} field
             </span>
           )}
           {canDrag && !dropMode && (
@@ -406,10 +305,10 @@ export function PDFViewer({
                 return (
                   <div
                     key={field.id}
-                    className={`absolute flex items-center rounded border-2 select-none overflow-hidden
+                    className={`absolute flex items-center rounded border-2 border-dashed select-none overflow-hidden
                       ${isDraggingThis
-                        ? "border-violet-500 bg-white dark:bg-zinc-800 shadow-lg opacity-90"
-                        : "border-violet-400 bg-white dark:bg-zinc-800 border-dashed"}
+                        ? "border-violet-500 bg-violet-500/5 shadow-lg opacity-90"
+                        : "border-violet-400/70 bg-transparent hover:border-violet-500 hover:bg-violet-500/5"}
                       ${dragCursor}
                       ${onFieldClick && !canDrag ? "cursor-pointer" : ""}
                     `}
@@ -422,10 +321,10 @@ export function PDFViewer({
                       if (!dragMoved.current && onFieldClick) onFieldClick(field);
                     }}
                   >
-                    <span className="px-2 text-[11px] text-violet-700 dark:text-violet-300 truncate w-full">
+                    <span className="px-2 text-[11px] font-medium text-zinc-900 dark:text-zinc-100 truncate w-full">
                       {field.value
                         ? field.value
-                        : <span className="text-violet-400/70 dark:text-violet-500">{fieldType === "date" ? "Click to set date" : "Click to enter text"}</span>}
+                        : <span className="text-zinc-400 dark:text-zinc-500 font-normal">{fieldType === "date" ? "Click to set date" : "Click to enter text"}</span>}
                     </span>
                     {onFieldDelete && isHovered && !isDraggingThis && (
                       <button
@@ -465,13 +364,13 @@ export function PDFViewer({
                   ) : (
                     <>
                       <span className={`text-[10px] font-semibold ${isSender ? "text-[#d4a853]" : "text-sky-400"}`}>
-                        {isSender ? "Your Signature" : "Client Signs Here"}
+                        {isSender ? "Your Signature" : "Sign Here"}
                       </span>
                       {onFieldClick && isSender && !canDrag && (
                         <span className="text-[9px] mt-0.5 text-[#d4a853]/60">Click to sign</span>
                       )}
                       {!isSender && (
-                        <span className="text-[9px] mt-0.5 text-sky-400/60">Via signing link</span>
+                        <span className="text-[9px] mt-0.5 text-sky-400/60">Recipient signs via link</span>
                       )}
                       {isHighlighted && (
                         <span className="text-[9px] text-sky-400/70 mt-0.5">Tap to sign</span>
