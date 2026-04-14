@@ -72,10 +72,13 @@ export default function DashboardPage() {
 
       // Load plan — awaited so the correct mode renders before loading clears
       if (user) {
-        const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+        const { data: profile } = await supabase.from("profiles").select("plan, first_name, last_name").eq("id", user.id).single();
         if (profile?.plan) {
           setPlan(profile.plan);
           sessionStorage.setItem("cf_plan", profile.plan);
+        }
+        if (profile?.first_name || profile?.last_name) {
+          setDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
         }
       }
 

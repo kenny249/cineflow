@@ -122,7 +122,8 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background/80 px-5 backdrop-blur-sm">
+    <header className="shrink-0 border-b border-border bg-background/80 backdrop-blur-sm pt-[env(safe-area-inset-top)]">
+    <div className="flex h-14 items-center justify-between px-5">
       {/* ⌘K Search trigger */}
       <div className="relative hidden w-64 md:block">
         <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -285,6 +286,7 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    </div>
     </header>
   );
 }
