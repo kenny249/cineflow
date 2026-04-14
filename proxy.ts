@@ -13,6 +13,8 @@ const PUBLIC_PATHS = [
   "/board",         // public storyboard share
   "/review",        // public client review portal
   "/pay",           // public invoice pay page
+  "/forms",         // public client intake forms
+  "/sign",          // public contract signing
   "/opengraph-image",
 ];
 
