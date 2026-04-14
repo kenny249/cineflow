@@ -24,6 +24,7 @@ interface Revision {
   file_url?: string;
   file_type?: string;
   file_size?: number;
+  thumbnail_url?: string;
   created_at: string;
   comments: Comment[];
 }
@@ -593,6 +594,14 @@ export default function ReviewPortalClient({ token }: { token: string }) {
             </section>
           )}
 
+          {/* ── From your team ── */}
+          {project.description && (
+            <section className="rounded-2xl border border-white/[0.06] bg-[#0d0d0d] px-6 py-5">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">From your team</p>
+              <p className="text-sm leading-relaxed text-zinc-300">{project.description}</p>
+            </section>
+          )}
+
           {/* ── Cuts ── */}
           <section id="cuts-section">
             <p className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">
@@ -607,29 +616,64 @@ export default function ReviewPortalClient({ token }: { token: string }) {
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Version tabs if multiple */}
+                {/* Frame.io-style asset grid when multiple revisions */}
                 {revisions.length > 1 && (
-                  <div className="flex gap-2 flex-wrap">
-                    {revisions.map((r) => (
-                      <button
-                        key={r.id}
-                        onClick={() => setActiveRevisionId(r.id)}
-                        className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-medium transition-all ${
-                          activeRevisionId === r.id
-                            ? "border-[#d4a853]/40 bg-[#d4a853]/10 text-[#d4a853]"
-                            : "border-zinc-800 bg-[#0d0d0d] text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
-                        }`}
-                      >
-                        <span className="font-mono">v{r.version_number}</span>
-                        <span>{r.title}</span>
-                        {r.status === "in_review" && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                        )}
-                        {r.status === "approved" && (
-                          <Check className="h-3 w-3 text-emerald-400" strokeWidth={3} />
-                        )}
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {revisions.map((r) => {
+                      const isSelected = activeRevisionId === r.id;
+                      const cfg = STATUS_CONFIG[r.status];
+                      return (
+                        <button
+                          key={r.id}
+                          onClick={() => setActiveRevisionId(r.id)}
+                          className={`group relative overflow-hidden rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? "border-[#d4a853]/50 ring-1 ring-[#d4a853]/25 shadow-[0_0_20px_rgba(212,168,83,0.08)]"
+                              : "border-zinc-800 hover:border-zinc-700"
+                          }`}
+                        >
+                          {/* Thumbnail */}
+                          <div className="aspect-video bg-zinc-950 relative overflow-hidden">
+                            {r.thumbnail_url ? (
+                              <img src={r.thumbnail_url} alt={r.title} className="h-full w-full object-cover" />
+                            ) : r.file_url ? (
+                              <video src={`${r.file_url}#t=0.1`} className="h-full w-full object-cover" preload="metadata" muted />
+                            ) : (
+                              <div className="flex h-full items-center justify-center">
+                                <Film className="h-8 w-8 text-zinc-800" />
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                            {/* Status badge */}
+                            <div className="absolute bottom-2 left-2">
+                              <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur-sm ${cfg?.color ?? "bg-zinc-800/80 text-zinc-500"}`}>
+                                {cfg?.label ?? r.status}
+                              </span>
+                            </div>
+                            {/* Play hint on hover */}
+                            <div className={`absolute inset-0 flex items-center justify-center transition-opacity opacity-0 group-hover:opacity-100`}>
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm ring-1 ring-white/20">
+                                <Play className="h-4 w-4 translate-x-0.5 text-white" />
+                              </div>
+                            </div>
+                            {/* Selected indicator */}
+                            {isSelected && (
+                              <div className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[#d4a853] shadow-lg">
+                                <Check className="h-3.5 w-3.5 text-black" strokeWidth={3} />
+                              </div>
+                            )}
+                          </div>
+                          {/* Card footer */}
+                          <div className="bg-[#0d0d0d] px-3 py-2.5">
+                            <div className="flex items-center gap-1.5 mb-0.5">
+                              <span className="font-mono text-[10px] text-zinc-600">v{r.version_number}</span>
+                              <span className="truncate text-xs font-medium text-white">{r.title}</span>
+                            </div>
+                            <p className="text-[11px] text-zinc-600">{formatDate(r.created_at)}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 

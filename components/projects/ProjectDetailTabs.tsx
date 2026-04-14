@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag } from "lucide-react";
+import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays } from "lucide-react";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -582,6 +582,7 @@ export default function ProjectDetailTabs({
 
   // ── Shot list sub-mode (shots / storyboard) ──
   const [shotListSubMode, setShotListSubMode] = useState<"shots" | "storyboard">("shots");
+  const [showShootDays, setShowShootDays] = useState(false);
 
   // ── Inline video player state ──
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
@@ -1545,19 +1546,30 @@ export default function ProjectDetailTabs({
                 </button>
               </div>
 
-              {/* Shoot Days Panel — only visible in shots mode */}
+              {/* Shoot Days Panel — collapsible, shots mode only */}
               {shotListSubMode !== "storyboard" && (
                 <div className="mb-6">
-                  <ShootDaysPanel
-                    projectId={project.id}
-                    projectTitle={project.title}
-                    shots={shotList?.items ?? []}
-                    onShotsUpdated={(_updated) => {
-                      // Reload to reflect shoot_day_id changes
-                      window.location.reload();
-                    }}
-                    canEdit={canEdit}
-                  />
+                  <button
+                    onClick={() => setShowShootDays((v) => !v)}
+                    className="flex items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2 text-xs font-medium text-muted-foreground transition-all hover:border-[#d4a853]/30 hover:text-foreground w-full sm:w-auto"
+                  >
+                    <CalendarDays className="h-3.5 w-3.5 text-[#d4a853]/70" />
+                    Shoot Days &amp; Call Sheets
+                    <ChevronDown className={`h-3.5 w-3.5 ml-auto sm:ml-0 transition-transform duration-200 ${showShootDays ? "rotate-180" : ""}`} />
+                  </button>
+                  {showShootDays && (
+                    <div className="mt-3">
+                      <ShootDaysPanel
+                        projectId={project.id}
+                        projectTitle={project.title}
+                        shots={shotList?.items ?? []}
+                        onShotsUpdated={(_updated) => {
+                          window.location.reload();
+                        }}
+                        canEdit={canEdit}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
