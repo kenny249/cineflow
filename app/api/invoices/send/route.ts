@@ -208,7 +208,7 @@ function buildEmailHtml({
     ${invoice.notes ? `
     <div style="border-top:1px solid #f4f4f5;padding:16px 40px 0;">
       <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Notes</p>
-      <p style="margin:0;font-size:13px;color:#71717a;white-space:pre-wrap;">${invoice.notes}</p>
+      <p style="margin:0;font-size:13px;color:#71717a;white-space:pre-wrap;">${invoice.notes.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</p>
     </div>` : ""}
 
     ${paymentInstructions}

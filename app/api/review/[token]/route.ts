@@ -95,6 +95,9 @@ export async function POST(
   if (!revision_id || !content?.trim()) {
     return NextResponse.json({ error: "revision_id and content are required" }, { status: 400 });
   }
+  if (content.length > 5000) {
+    return NextResponse.json({ error: "Comment too long (max 5000 characters)" }, { status: 400 });
+  }
 
   // 2. Verify the revision belongs to this project
   const { data: revision } = await supabase

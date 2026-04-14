@@ -212,7 +212,8 @@ async function seedDemoAccount(supabase: AnyClient, userId: string, plan: string
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const plan: string = body.plan ?? "studio_beta";
+    const VALID_PLANS = ["solo_beta", "studio_beta"];
+    const plan: string = VALID_PLANS.includes(body.plan) ? body.plan : "studio_beta";
 
     const supabase = getAdminClient();
 

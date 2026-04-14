@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@/lib/supabase/server";
 import {
   emailPortalLive,
   emailRevisionReady,
@@ -32,6 +33,12 @@ export interface NotifyPayload {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!resend) {
     // No API key configured — log and return success so callers don't break
     console.warn("[notify] RESEND_API_KEY not set — email skipped");

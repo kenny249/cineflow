@@ -9,13 +9,29 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = await createClient();
+
+    // Verify caller is authenticated and owns the project
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { data: project } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("id", project_id)
+      .eq("created_by", user.id)
+      .single();
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 403 });
+    }
+
     const token = Array.from(crypto.getRandomValues(new Uint8Array(16)))
       .map(b => b.toString(16).padStart(2, "0"))
       .join("");
 
     const { data, error } = await supabase
       .from("storyboard_shares")
-      .insert({ project_id, title, frames, token })
+      .insert({ project_id, title, frames, token, created_by: user.id })
       .select()
       .single();
 
