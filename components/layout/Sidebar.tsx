@@ -8,6 +8,7 @@ import {
   FolderKanban,
   Calendar,
   CheckSquare,
+  ClipboardList,
   List,
   Layers,
   UploadCloud,
@@ -20,6 +21,7 @@ import {
   ScrollText,
   DollarSign,
   FlaskConical,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -30,17 +32,19 @@ import { createClient } from "@/lib/supabase/client";
 import { isSoloPlan } from "@/types";
 
 const NAV_MAIN = [
-  { label: "Dashboard",   href: "/dashboard",  icon: LayoutDashboard },
-  { label: "Projects",    href: "/projects",   icon: FolderKanban },
-  { label: "Clients",     href: "/clients",    icon: Users },
-  { label: "Calendar",    href: "/calendar",   icon: Calendar },
-  { label: "Tasks",       href: "/tasks",      icon: CheckSquare },
-  { label: "Shot Lists",  href: "/shot-lists", icon: List },
-  { label: "Storyboard",  href: "/storyboard", icon: Layers },
-  { label: "Scripts",     href: "/scripts",    icon: ScrollText },
-  { label: "Cuts & Delivers",   href: "/revisions",  icon: UploadCloud },
-  { label: "Finance",     href: "/finance",    icon: DollarSign },
-  { label: "Team",        href: "/team",       icon: UsersRound },
+  { label: "Dashboard",      href: "/dashboard",      icon: LayoutDashboard },
+  { label: "Projects",       href: "/projects",       icon: FolderKanban },
+  { label: "Clients",        href: "/clients",        icon: Users },
+  { label: "Calendar",       href: "/calendar",       icon: Calendar },
+  { label: "To Do",          href: "/tasks",          icon: CheckSquare },
+  { label: "Tasks",          href: "/project-tasks",  icon: ClipboardList },
+  { label: "Contracts",      href: "/contracts",      icon: FileSignature },
+  { label: "Shot Lists",     href: "/shot-lists",     icon: List },
+  { label: "Storyboard",     href: "/storyboard",     icon: Layers },
+  { label: "Scripts",        href: "/scripts",        icon: ScrollText },
+  { label: "Cuts & Delivers", href: "/revisions",     icon: UploadCloud },
+  { label: "Finance",        href: "/finance",        icon: DollarSign },
+  { label: "Team",           href: "/team",           icon: UsersRound },
 ];
 
 const NAV_BOTTOM = [
@@ -69,7 +73,7 @@ function NavItem({
         collapsed ? "justify-center w-9 px-0" : "",
         isActive
           ? "bg-[#d4a853]/[0.07] text-foreground font-medium ring-[0.5px] ring-inset ring-[#d4a853]/10"
-          : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+          : "text-muted-foreground hover:bg-accent hover:text-foreground"
       )}
     >
       {/* Active indicator */}

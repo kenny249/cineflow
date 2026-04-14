@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { CheckCircle2, Circle, ChevronRight, Film, Plus, Tag, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { CheckCircle2, Circle, ChevronRight, Film, Image, Pencil, Plus, Tag, Trash2, Upload, X } from "lucide-react";
 import { getProjects, getShotLists, createShotList, deleteShotList, createShotListItem, updateShotListItem, deleteShotListItem } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -14,10 +15,10 @@ import type { Project, ShotList, ShotListItem } from "@/types";
 import { formatDate } from "@/lib/utils";
 
 const DEFAULT_CATEGORIES = ["All", "Interior", "Exterior", "B-Roll", "Interview", "Action", "Dialogue", "VFX", "Other"];
-
 const SHOT_TYPES = ["wide", "medium", "close_up", "extreme_close_up", "overhead", "drone", "pov", "other"] as const;
 
 export default function ShotListsPage() {
+  const supabase = createClient();
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState<string>("");
   const [shotLists, setShotLists] = useState<ShotList[]>([]);
@@ -36,18 +37,21 @@ export default function ShotListsPage() {
   });
   const [isCreating, setIsCreating] = useState(false);
 
-  // Add shot dialog
-  const [addShotOpen, setAddShotOpen] = useState(false);
+  // Add / Edit shot dialog
+  const [shotDialogOpen, setShotDialogOpen] = useState(false);
+  const [editingShot, setEditingShot] = useState<ShotListItem | null>(null);
   const [shotDesc, setShotDesc] = useState("");
   const [shotType, setShotType] = useState<ShotListItem["shot_type"]>("wide");
   const [shotScene, setShotScene] = useState("");
   const [shotNotes, setShotNotes] = useState("");
-  const [isAddingShot, setIsAddingShot] = useState(false);
+  const [shotImageFile, setShotImageFile] = useState<File | null>(null);
+  const [shotImagePreview, setShotImagePreview] = useState<string | null>(null);
+  const [isSavingShot, setIsSavingShot] = useState(false);
+  const imageFileRef = useRef<HTMLInputElement>(null);
 
   // Category filter
   const [categoryFilter, setCategoryFilter] = useState("All");
 
-  // Load projects
   useEffect(() => {
     async function load() {
       try {
@@ -63,7 +67,6 @@ export default function ShotListsPage() {
     load();
   }, []);
 
-  // Load shot lists when project changes
   useEffect(() => {
     if (!projectId) return;
     async function load() {
@@ -107,10 +110,7 @@ export default function ShotListsPage() {
       setShotLists((prev) => [newList, ...prev]);
       setSelectedListId(newList.id);
       setCreateOpen(false);
-      setListTitle("");
-      setListDescription("");
-      setListCategory("Interior");
-      setCustomCategory("");
+      setListTitle(""); setListDescription(""); setListCategory("Interior"); setCustomCategory("");
       toast.success("Shot list created");
     } catch {
       toast.error("Failed to create shot list");
@@ -119,39 +119,98 @@ export default function ShotListsPage() {
     }
   }, [listTitle, listDescription, listCategory, customCategory, projectId]);
 
-  const handleAddShot = useCallback(async () => {
-    if (!shotDesc.trim() || !selectedListId) return;
-    setIsAddingShot(true);
-    try {
-      const list = shotLists.find((l) => l.id === selectedListId);
-      const nextNum = (list?.items?.length ?? 0) + 1;
-      const newItem = await createShotListItem({
-        shot_list_id: selectedListId,
-        shot_number: nextNum,
-        description: shotDesc.trim(),
-        shot_type: shotType,
-        camera_movement: "static",
-        scene: shotScene.trim() || undefined,
-        notes: shotNotes.trim() || undefined,
-        is_complete: false,
-      } as any);
-      setShotLists((prev) =>
-        prev.map((l) =>
-          l.id === selectedListId ? { ...l, items: [...(l.items ?? []), newItem] } : l
-        )
-      );
-      setAddShotOpen(false);
-      setShotDesc("");
-      setShotScene("");
-      setShotNotes("");
-      setShotType("wide");
-      toast.success("Shot added");
-    } catch {
-      toast.error("Failed to add shot");
-    } finally {
-      setIsAddingShot(false);
+  function openAddShot() {
+    setEditingShot(null);
+    setShotDesc(""); setShotType("wide"); setShotScene(""); setShotNotes("");
+    setShotImageFile(null); setShotImagePreview(null);
+    setShotDialogOpen(true);
+  }
+
+  function openEditShot(item: ShotListItem) {
+    setEditingShot(item);
+    setShotDesc(item.description);
+    setShotType(item.shot_type);
+    setShotScene(item.scene || "");
+    setShotNotes(item.notes || "");
+    setShotImageFile(null);
+    setShotImagePreview(item.image_url || null);
+    setShotDialogOpen(true);
+  }
+
+  function handleImageChange(file: File | null) {
+    setShotImageFile(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => setShotImagePreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setShotImagePreview(editingShot?.image_url || null);
     }
-  }, [shotDesc, shotType, shotScene, shotNotes, selectedListId, shotLists]);
+  }
+
+  async function uploadShotImage(file: File): Promise<string> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("shot-images").upload(path, file, { upsert: false });
+    if (error) throw error;
+    const { data: { publicUrl } } = supabase.storage.from("shot-images").getPublicUrl(path);
+    return publicUrl;
+  }
+
+  const handleSaveShot = useCallback(async () => {
+    if (!shotDesc.trim() || !selectedListId) return;
+    setIsSavingShot(true);
+    try {
+      let imageUrl = editingShot?.image_url || undefined;
+      if (shotImageFile) {
+        imageUrl = await uploadShotImage(shotImageFile);
+      }
+
+      if (editingShot) {
+        const updated = await updateShotListItem(editingShot.id, {
+          description: shotDesc.trim(),
+          shot_type: shotType,
+          scene: shotScene.trim() || undefined,
+          notes: shotNotes.trim() || undefined,
+          image_url: imageUrl,
+        });
+        setShotLists((prev) =>
+          prev.map((l) => ({
+            ...l,
+            items: l.items?.map((s) => s.id === editingShot.id ? updated : s),
+          }))
+        );
+        toast.success("Shot updated");
+      } else {
+        const list = shotLists.find((l) => l.id === selectedListId);
+        const nextNum = (list?.items?.length ?? 0) + 1;
+        const newItem = await createShotListItem({
+          shot_list_id: selectedListId,
+          shot_number: nextNum,
+          description: shotDesc.trim(),
+          shot_type: shotType,
+          camera_movement: "static",
+          scene: shotScene.trim() || undefined,
+          notes: shotNotes.trim() || undefined,
+          image_url: imageUrl,
+          is_complete: false,
+        } as any);
+        setShotLists((prev) =>
+          prev.map((l) =>
+            l.id === selectedListId ? { ...l, items: [...(l.items ?? []), newItem] } : l
+          )
+        );
+        toast.success("Shot added");
+      }
+      setShotDialogOpen(false);
+    } catch {
+      toast.error("Failed to save shot");
+    } finally {
+      setIsSavingShot(false);
+    }
+  }, [shotDesc, shotType, shotScene, shotNotes, shotImageFile, editingShot, selectedListId, shotLists]);
 
   const toggleComplete = useCallback(async (item: ShotListItem) => {
     const newVal = !item.is_complete;
@@ -171,6 +230,18 @@ export default function ShotListsPage() {
         }))
       );
       toast.error("Failed to update shot");
+    }
+  }, []);
+
+  const handleDeleteShot = useCallback(async (itemId: string) => {
+    setShotLists((prev) =>
+      prev.map((l) => ({ ...l, items: l.items?.filter((s) => s.id !== itemId) }))
+    );
+    try {
+      await deleteShotListItem(itemId);
+      toast.success("Shot deleted");
+    } catch {
+      toast.error("Failed to delete shot");
     }
   }, []);
 
@@ -221,9 +292,8 @@ export default function ShotListsPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar — project + list selector */}
+        {/* Sidebar */}
         <aside className="hidden w-72 flex-col border-r border-border bg-card/70 p-4 sm:flex overflow-y-auto custom-scrollbar">
-          {/* Project selector */}
           <div className="mb-4">
             <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Project</label>
             <div className="relative">
@@ -232,15 +302,12 @@ export default function ShotListsPage() {
                 onChange={(e) => setProjectId(e.target.value)}
                 className="w-full appearance-none rounded-lg border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
-                ))}
+                {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
               </select>
               <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
             </div>
           </div>
 
-          {/* Category filter */}
           <div className="mb-4">
             <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Category</label>
             <div className="flex flex-wrap gap-1.5">
@@ -260,7 +327,6 @@ export default function ShotListsPage() {
             </div>
           </div>
 
-          {/* Shot lists for this project */}
           <div className="space-y-1.5">
             <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
               Lists ({filteredLists.length})
@@ -306,7 +372,7 @@ export default function ShotListsPage() {
           </div>
         </aside>
 
-        {/* Main content — selected shot list */}
+        {/* Main content */}
         <main className="flex-1 overflow-y-auto custom-scrollbar">
           {!selectedList ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
@@ -322,7 +388,6 @@ export default function ShotListsPage() {
             </div>
           ) : (
             <div className="p-6">
-              {/* List header */}
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
@@ -346,13 +411,12 @@ export default function ShotListsPage() {
                     </p>
                   )}
                 </div>
-                <Button variant="outline" size="sm" className="shrink-0 h-8 gap-1.5 text-xs" onClick={() => setAddShotOpen(true)}>
+                <Button variant="outline" size="sm" className="shrink-0 h-8 gap-1.5 text-xs" onClick={openAddShot}>
                   <Plus className="h-3.5 w-3.5" />
                   Add Shot
                 </Button>
               </div>
 
-              {/* Progress bar */}
               {totalCount > 0 && (
                 <div className="mb-5 h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
@@ -362,29 +426,25 @@ export default function ShotListsPage() {
                 </div>
               )}
 
-              {/* Shot rows */}
               {!selectedList.items?.length ? (
                 <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-14 text-center">
                   <p className="text-sm text-muted-foreground">No shots yet.</p>
-                  <button onClick={() => setAddShotOpen(true)} className="mt-2 text-sm text-[#d4a853] hover:underline">
+                  <button onClick={openAddShot} className="mt-2 text-sm text-[#d4a853] hover:underline">
                     Add the first shot
                   </button>
                 </div>
               ) : (
                 <div className="overflow-hidden rounded-xl border border-border">
-                  {/* Column header */}
-                  <div className="grid grid-cols-[2.5rem_1fr_6rem_7rem_auto] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
-                    {["#", "Description", "Type", "Scene", ""].map((h) => (
-                      <div key={h} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                        {h}
-                      </div>
+                  <div className="grid grid-cols-[2.5rem_auto_1fr_6rem_7rem_5rem] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
+                    {["#", "Inspo", "Description", "Type", "Scene", ""].map((h, i) => (
+                      <div key={i} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{h}</div>
                     ))}
                   </div>
 
                   {selectedList.items.map((item) => (
                     <div
                       key={item.id}
-                      className={`grid grid-cols-[2.5rem_1fr_6rem_7rem_auto] items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0 ${
+                      className={`grid grid-cols-[2.5rem_auto_1fr_6rem_7rem_5rem] items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0 ${
                         item.is_complete ? "bg-muted/20" : "bg-card hover:bg-accent/30"
                       }`}
                     >
@@ -393,12 +453,22 @@ export default function ShotListsPage() {
                         onClick={() => toggleComplete(item)}
                         className="flex items-center justify-center text-muted-foreground transition-colors hover:text-[#d4a853]"
                       >
-                        {item.is_complete ? (
-                          <CheckCircle2 className="h-4.5 w-4.5 text-emerald-400" />
-                        ) : (
-                          <Circle className="h-4.5 w-4.5" />
-                        )}
+                        {item.is_complete
+                          ? <CheckCircle2 className="h-4.5 w-4.5 text-emerald-400" />
+                          : <Circle className="h-4.5 w-4.5" />
+                        }
                       </button>
+
+                      {/* Inspo thumbnail */}
+                      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md border border-border bg-muted/40">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt="inspo" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Image className="h-3.5 w-3.5 text-muted-foreground/30" />
+                          </div>
+                        )}
+                      </div>
 
                       {/* Description */}
                       <div className="min-w-0">
@@ -420,10 +490,23 @@ export default function ShotListsPage() {
                         {item.scene || "—"}
                       </span>
 
-                      {/* Shot number */}
-                      <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground/50">
-                        #{item.shot_number}
-                      </span>
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => openEditShot(item)}
+                          className="rounded p-1 text-muted-foreground/40 hover:bg-accent hover:text-foreground transition-colors"
+                          title="Edit shot"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteShot(item.id)}
+                          className="rounded p-1 text-muted-foreground/40 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                          title="Delete shot"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -449,9 +532,7 @@ export default function ShotListsPage() {
                   onChange={(e) => setProjectId(e.target.value)}
                   className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.title}</option>
-                  ))}
+                  {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
                 </select>
                 <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
               </div>
@@ -503,12 +584,14 @@ export default function ShotListsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Shot Dialog */}
-      <Dialog open={addShotOpen} onOpenChange={setAddShotOpen}>
+      {/* Add / Edit Shot Dialog */}
+      <Dialog open={shotDialogOpen} onOpenChange={setShotDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Shot</DialogTitle>
-            <DialogDescription>Add a new shot to "{selectedList?.title}".</DialogDescription>
+            <DialogTitle>{editingShot ? "Edit Shot" : "Add Shot"}</DialogTitle>
+            <DialogDescription>
+              {editingShot ? "Update this shot's details." : `Add a new shot to "${selectedList?.title}".`}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
@@ -540,11 +623,53 @@ export default function ShotListsPage() {
               <Label>Notes</Label>
               <Input value={shotNotes} onChange={(e) => setShotNotes(e.target.value)} placeholder="Golden hour, handheld…" />
             </div>
+
+            {/* Inspo photo upload */}
+            <div className="space-y-1.5">
+              <Label>Inspo Photo <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <div
+                onClick={() => imageFileRef.current?.click()}
+                className="flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-border bg-card/50 px-4 py-3 transition-colors hover:border-[#d4a853]/40 hover:bg-[#d4a853]/[0.03]"
+              >
+                {shotImagePreview ? (
+                  <>
+                    <img src={shotImagePreview} alt="inspo preview" className="h-12 w-12 rounded-lg object-cover border border-border" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground">{shotImageFile?.name || "Current photo"}</p>
+                      <p className="text-xs text-muted-foreground">Click to change</p>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShotImageFile(null); setShotImagePreview(null); }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/60">
+                      <Upload className="h-4 w-4 text-muted-foreground/50" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Upload inspiration photo</p>
+                      <p className="text-xs text-muted-foreground/60">JPG, PNG · Max 5MB</p>
+                    </div>
+                  </>
+                )}
+              </div>
+              <input
+                ref={imageFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleImageChange(e.target.files?.[0] ?? null)}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setAddShotOpen(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" onClick={handleAddShot} disabled={isAddingShot || !shotDesc.trim()}>
-              {isAddingShot ? "Adding…" : "Add shot"}
+            <Button variant="outline" size="sm" onClick={() => setShotDialogOpen(false)}>Cancel</Button>
+            <Button variant="gold" size="sm" onClick={handleSaveShot} disabled={isSavingShot || !shotDesc.trim()}>
+              {isSavingShot ? "Saving…" : editingShot ? "Save Changes" : "Add Shot"}
             </Button>
           </DialogFooter>
         </DialogContent>

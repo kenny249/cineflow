@@ -133,6 +133,7 @@ export interface ShotListItem {
   lens?: string;
   notes?: string;
   is_complete: boolean;
+  image_url?: string;
   duration_seconds?: number;
   camera_angle?: string;
   props?: string[];
@@ -446,6 +447,57 @@ export interface ClientContact {
   country?: string;
   created_at: string;
   updated_at: string;
+}
+
+// ─── Project Tasks ───────────────────────────────────────────────────────────
+export type ProjectTaskType = "general" | "pre_production" | "production" | "post_production" | "admin";
+export type ProjectTaskStatus = "todo" | "in_progress" | "done";
+
+export interface ProjectTask {
+  id: string;
+  created_by?: string;
+  project_id?: string;
+  project?: Pick<Project, "id" | "title">;
+  title: string;
+  description?: string;
+  type: ProjectTaskType;
+  priority: TaskPriority;
+  status: ProjectTaskStatus;
+  due_date?: string;
+  assignee_name?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+// ─── Contracts ───────────────────────────────────────────────────────────────
+export type ContractStatus = "draft" | "sent" | "signed" | "declined" | "voided";
+
+export interface Contract {
+  id: string;
+  created_by?: string;
+  project_id?: string;
+  project?: Pick<Project, "id" | "title">;
+  title: string;
+  description?: string;
+  file_url?: string;
+  status: ContractStatus;
+  recipient_name?: string;
+  recipient_email?: string;
+  signing_token?: string;
+  sent_at?: string;
+  signed_at?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ContractSignature {
+  id: string;
+  contract_id: string;
+  signer_name?: string;
+  signer_email?: string;
+  signature_data: string;
+  signed_at: string;
+  ip_address?: string;
 }
 
 // ─── Review Tokens ────────────────────────────────────────────────────────────
