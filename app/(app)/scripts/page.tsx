@@ -91,9 +91,9 @@ function PreviewModal({ file, onClose }: { file: ScriptFile; onClose: () => void
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 sm:p-4" onClick={onClose}>
       <div
-        className="relative flex h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
+        className="relative flex h-[92dvh] sm:h-[90vh] w-full sm:max-w-4xl flex-col overflow-hidden rounded-t-2xl sm:rounded-2xl border border-border bg-background shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -307,7 +307,7 @@ export default function ScriptsPage() {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex shrink-0 items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
                   {(canPreview(file.mime_type, file.name) || isTextFile(file.mime_type, file.name)) && (
                     <button
                       onClick={() => setPreview(file)}

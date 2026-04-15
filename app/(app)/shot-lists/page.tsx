@@ -280,19 +280,54 @@ export default function ShotListsPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-6 py-4">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
         <div>
-          <h1 className="font-display text-xl font-bold text-foreground">Shot Lists</h1>
+          <h1 className="font-display text-lg font-bold text-foreground sm:text-xl">Shot Lists</h1>
           <p className="text-xs text-muted-foreground">Plan camera work for every project.</p>
         </div>
         <Button variant="gold" size="sm" className="h-9 gap-2" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
-          New Shot List
+          <span className="hidden sm:inline">New Shot List</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 
+      {/* ── Mobile selectors (project + list) ── */}
+      <div className="shrink-0 border-b border-border bg-card/50 px-4 py-3 sm:hidden space-y-2">
+        <div className="relative">
+          <select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className="w-full appearance-none rounded-lg border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+          </select>
+          <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
+        </div>
+        {filteredLists.length > 0 && (
+          <div className="relative">
+            <select
+              value={selectedListId ?? ""}
+              onChange={(e) => setSelectedListId(e.target.value || null)}
+              className="w-full appearance-none rounded-lg border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">— Select a shot list —</option>
+              {filteredLists.map((l) => {
+                const done = l.items?.filter((i) => i.is_complete).length ?? 0;
+                const total = l.items?.length ?? 0;
+                return <option key={l.id} value={l.id}>{l.title} ({done}/{total})</option>;
+              })}
+            </select>
+            <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
+          </div>
+        )}
+        {filteredLists.length === 0 && !loading && (
+          <p className="text-xs text-muted-foreground text-center py-1">No shot lists yet for this project.</p>
+        )}
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
+        {/* Sidebar — desktop only */}
         <aside className="hidden w-72 flex-col border-r border-border bg-card/70 p-4 sm:flex overflow-y-auto custom-scrollbar">
           <div className="mb-4">
             <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Project</label>
@@ -356,10 +391,10 @@ export default function ShotListsPage() {
                         {total > 0 ? `${done}/${total} done` : "No shots"}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteList(list.id); }}
-                        className="p-1 rounded text-red-400 hover:bg-red-500/10"
+                        className="p-1 rounded text-muted-foreground/30 hover:text-red-400 hover:bg-red-500/10 transition-colors"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -387,11 +422,11 @@ export default function ShotListsPage() {
               </Button>
             </div>
           ) : (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="font-display text-lg font-semibold text-foreground">{selectedList.title}</h2>
+                    <h2 className="font-display text-base font-semibold text-foreground sm:text-lg">{selectedList.title}</h2>
                     {(selectedList as any).category && (
                       <span className="flex items-center gap-1 rounded-full border border-[#d4a853]/30 bg-[#d4a853]/10 px-2 py-0.5 text-[10px] font-semibold text-[#d4a853]">
                         <Tag className="h-2.5 w-2.5" />
@@ -434,82 +469,95 @@ export default function ShotListsPage() {
                   </button>
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-xl border border-border">
-                  <div className="grid grid-cols-[2.5rem_auto_1fr_6rem_7rem_5rem] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
-                    {["#", "Inspo", "Description", "Type", "Scene", ""].map((h, i) => (
-                      <div key={i} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{h}</div>
+                <>
+                  {/* ── Desktop table ── */}
+                  <div className="hidden sm:block overflow-hidden rounded-xl border border-border">
+                    <div className="grid grid-cols-[2.5rem_auto_1fr_6rem_7rem_5rem] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
+                      {["#", "Inspo", "Description", "Type", "Scene", ""].map((h, i) => (
+                        <div key={i} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{h}</div>
+                      ))}
+                    </div>
+                    {selectedList.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`grid grid-cols-[2.5rem_auto_1fr_6rem_7rem_5rem] items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0 ${
+                          item.is_complete ? "bg-muted/20" : "bg-card hover:bg-accent/30"
+                        }`}
+                      >
+                        <button onClick={() => toggleComplete(item)} className="flex items-center justify-center text-muted-foreground transition-colors hover:text-[#d4a853]">
+                          {item.is_complete ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <Circle className="h-4 w-4" />}
+                        </button>
+                        <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md border border-border bg-muted/40">
+                          {item.image_url ? <img src={item.image_url} alt="inspo" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center"><Image className="h-3.5 w-3.5 text-muted-foreground/30" /></div>}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-sm font-medium ${item.is_complete ? "text-muted-foreground line-through" : "text-foreground"}`}>{item.description}</p>
+                          {item.notes && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.notes}</p>}
+                        </div>
+                        <span className="truncate text-xs text-muted-foreground capitalize">{item.shot_type?.replace(/_/g, " ")}</span>
+                        <span className="truncate text-xs text-muted-foreground">{item.scene || "—"}</span>
+                        <div className="flex items-center gap-1 justify-end">
+                          <button onClick={() => openEditShot(item)} className="rounded p-1 text-muted-foreground/40 hover:bg-accent hover:text-foreground transition-colors" title="Edit shot"><Pencil className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => handleDeleteShot(item.id)} className="rounded p-1 text-muted-foreground/40 hover:bg-red-500/10 hover:text-red-400 transition-colors" title="Delete shot"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      </div>
                     ))}
                   </div>
 
-                  {selectedList.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`grid grid-cols-[2.5rem_auto_1fr_6rem_7rem_5rem] items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0 ${
-                        item.is_complete ? "bg-muted/20" : "bg-card hover:bg-accent/30"
-                      }`}
-                    >
-                      {/* Complete toggle */}
-                      <button
-                        onClick={() => toggleComplete(item)}
-                        className="flex items-center justify-center text-muted-foreground transition-colors hover:text-[#d4a853]"
+                  {/* ── Mobile cards ── */}
+                  <div className="sm:hidden space-y-2">
+                    {selectedList.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`rounded-xl border border-border overflow-hidden ${item.is_complete ? "bg-muted/20" : "bg-card"}`}
                       >
-                        {item.is_complete
-                          ? <CheckCircle2 className="h-4.5 w-4.5 text-emerald-400" />
-                          : <Circle className="h-4.5 w-4.5" />
-                        }
-                      </button>
+                        <div className="flex items-start gap-3 p-3">
+                          {/* Complete toggle */}
+                          <button onClick={() => toggleComplete(item)} className="mt-0.5 shrink-0 text-muted-foreground hover:text-[#d4a853] transition-colors">
+                            {item.is_complete ? <CheckCircle2 className="h-5 w-5 text-emerald-400" /> : <Circle className="h-5 w-5" />}
+                          </button>
 
-                      {/* Inspo thumbnail */}
-                      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-md border border-border bg-muted/40">
-                        {item.image_url ? (
-                          <img src={item.image_url} alt="inspo" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center">
-                            <Image className="h-3.5 w-3.5 text-muted-foreground/30" />
+                          {/* Thumbnail */}
+                          {item.image_url && (
+                            <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/40">
+                              <img src={item.image_url} alt="inspo" className="h-full w-full object-cover" />
+                            </div>
+                          )}
+
+                          {/* Content */}
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm font-medium leading-snug ${item.is_complete ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                              {item.description}
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {item.shot_type && (
+                                <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[10px] capitalize text-muted-foreground">
+                                  {item.shot_type.replace(/_/g, " ")}
+                                </span>
+                              )}
+                              {item.scene && (
+                                <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[10px] text-muted-foreground">
+                                  Scene: {item.scene}
+                                </span>
+                              )}
+                            </div>
+                            {item.notes && <p className="mt-1 text-[11px] text-muted-foreground/70 leading-relaxed">{item.notes}</p>}
                           </div>
-                        )}
+
+                          {/* Actions */}
+                          <div className="flex shrink-0 gap-1">
+                            <button onClick={() => openEditShot(item)} className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button onClick={() => handleDeleteShot(item.id)} className="rounded-lg p-2 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-colors">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-
-                      {/* Description */}
-                      <div className="min-w-0">
-                        <p className={`text-sm font-medium ${item.is_complete ? "text-muted-foreground line-through" : "text-foreground"}`}>
-                          {item.description}
-                        </p>
-                        {item.notes && (
-                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.notes}</p>
-                        )}
-                      </div>
-
-                      {/* Shot type */}
-                      <span className="truncate text-xs text-muted-foreground capitalize">
-                        {item.shot_type?.replace(/_/g, " ")}
-                      </span>
-
-                      {/* Scene */}
-                      <span className="truncate text-xs text-muted-foreground">
-                        {item.scene || "—"}
-                      </span>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 justify-end">
-                        <button
-                          onClick={() => openEditShot(item)}
-                          className="rounded p-1 text-muted-foreground/40 hover:bg-accent hover:text-foreground transition-colors"
-                          title="Edit shot"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteShot(item.id)}
-                          className="rounded p-1 text-muted-foreground/40 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                          title="Delete shot"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}

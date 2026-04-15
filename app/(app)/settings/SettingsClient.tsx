@@ -277,7 +277,7 @@ export default function SettingsClient() {
                 </div>
               </div>
               <Separator />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>First name</Label>
                   <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -363,8 +363,8 @@ export default function SettingsClient() {
                   onChange={(e) => setAddrLine2(e.target.value)}
                   placeholder="Suite, floor, unit (optional)"
                 />
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-1 space-y-1.5">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="col-span-2 space-y-1.5 sm:col-span-1">
                     <Label>City</Label>
                     <Input value={addrCity} onChange={(e) => setAddrCity(e.target.value)} placeholder="Los Angeles" />
                   </div>

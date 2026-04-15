@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical, Film } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical, Film, Clapperboard, Camera } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { SidebarDivider } from "./SidebarDivider";
@@ -30,6 +30,8 @@ const MOBILE_SOLO_PRIMARY: MobileNavItem[] = [
   { label: "Calendar",  href: "/calendar",   icon: Calendar },
 ];
 const MOBILE_SOLO_MORE: MobileNavItem[] = [
+  { label: "Storyboard",    href: "/storyboard",    icon: Clapperboard },
+  { label: "Shot Lists",    href: "/shot-lists",    icon: Camera },
   { label: "Clients",       href: "/clients",       icon: Users },
   { label: "Contracts",     href: "/contracts",     icon: FileSignature },
   { label: "Forms",         href: "/forms",         icon: ClipboardList },
@@ -49,6 +51,8 @@ const MOBILE_STUDIO_PRIMARY: MobileNavItem[] = [
 ];
 const MOBILE_STUDIO_MORE: MobileNavItem[] = [
   { label: "To Do",         href: "/tasks",         icon: CheckSquare },
+  { label: "Storyboard",    href: "/storyboard",    icon: Clapperboard },
+  { label: "Shot Lists",    href: "/shot-lists",    icon: Camera },
   { label: "Clients",       href: "/clients",       icon: Users },
   { label: "Contracts",     href: "/contracts",     icon: FileSignature },
   { label: "Forms",         href: "/forms",         icon: ClipboardList },
@@ -197,11 +201,11 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
               className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] transition-all active:opacity-60"
             >
               <div className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200",
+                "flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200",
                 active ? "bg-[#d4a853]/12 shadow-[0_0_12px_rgba(212,168,83,0.15)]" : ""
               )}>
                 <item.icon className={cn(
-                  "h-[1.2rem] w-[1.2rem] transition-all duration-200",
+                  "h-5 w-5 transition-all duration-200",
                   active ? "text-[#d4a853] scale-110" : "text-muted-foreground"
                 )} />
               </div>
@@ -220,11 +224,11 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
           className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] transition-all active:opacity-60"
         >
           <div className={cn(
-            "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200",
+            "flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200",
             moreOpen || moreIsActive ? "bg-[#d4a853]/12 shadow-[0_0_12px_rgba(212,168,83,0.15)]" : ""
           )}>
             <MoreHorizontal className={cn(
-              "h-[1.2rem] w-[1.2rem] transition-all duration-200",
+              "h-5 w-5 transition-all duration-200",
               moreOpen || moreIsActive ? "text-[#d4a853]" : "text-muted-foreground"
             )} />
           </div>

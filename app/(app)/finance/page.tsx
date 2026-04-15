@@ -649,7 +649,7 @@ export default function FinancePage() {
                     <label className="fin-label">Description / Subject</label>
                     <input className="fin-input" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. Brand film production — Phase 1" />
                   </div>
-                  <div className={`grid gap-3 ${["paid", "partial"].includes(form.status) ? "grid-cols-3" : "grid-cols-2"}`}>
+                  <div className={`grid gap-3 ${["paid", "partial"].includes(form.status) ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}`}>
                     <DateInput
                       label="Invoice Date"
                       value={form.invoice_date}
@@ -804,39 +804,41 @@ export default function FinancePage() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-between items-center gap-2 border-t border-border px-5 py-3 shrink-0">
-              <p className="text-xs text-muted-foreground">
-                Total: <span className="font-semibold text-foreground">{fmtFull(total)}</span>
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowForm(false)}
-                  className="rounded-lg border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-muted/20 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleSave(false)}
-                  disabled={saving || sending}
-                  className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843] transition-colors disabled:opacity-60"
-                >
-                  {saving && !sending
-                    ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-                    : <Check className="h-3.5 w-3.5" />
-                  }
-                  {editingId ? "Save" : "Create Invoice"}
-                </button>
-                <button
-                  onClick={() => handleSave(true)}
-                  disabled={saving || sending}
-                  className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors disabled:opacity-60"
-                >
-                  {sending
-                    ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    : <Send className="h-3.5 w-3.5" />
-                  }
-                  Save & Send
-                </button>
+            <div className="border-t border-border px-5 py-3 shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Total: <span className="font-semibold text-foreground">{fmtFull(total)}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setShowForm(false)}
+                    className="rounded-lg border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-muted/20 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSave(false)}
+                    disabled={saving || sending}
+                    className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843] transition-colors disabled:opacity-60"
+                  >
+                    {saving && !sending
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                      : <Check className="h-3.5 w-3.5" />
+                    }
+                    {editingId ? "Save" : "Create"}
+                  </button>
+                  <button
+                    onClick={() => handleSave(true)}
+                    disabled={saving || sending}
+                    className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700 transition-colors disabled:opacity-60"
+                  >
+                    {sending
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      : <Send className="h-3.5 w-3.5" />
+                    }
+                    Save & Send
+                  </button>
+                </div>
               </div>
             </div>
           </div>

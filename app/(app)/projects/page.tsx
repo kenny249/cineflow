@@ -504,7 +504,7 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
                 e.stopPropagation();
                 setOpenMenuId((current) => (current === project.id ? null : project.id));
               }}
-              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-accent hover:text-foreground"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 hover:bg-accent hover:text-foreground"
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
