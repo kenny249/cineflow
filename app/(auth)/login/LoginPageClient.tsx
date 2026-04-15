@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, Camera, Users, Check } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Sparkles, Camera, Users, Check, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { HeroPreview } from "./HeroPreview";
 import { PageParticles } from "./PageParticles";
 import { HexField } from "./HexField";
 import { createClient } from "@/lib/supabase/client";
-import { getOrCreateDisplayName } from "@/lib/random-name";
 import { cn } from "@/lib/utils";
 
 type Plan = "solo" | "studio";
@@ -51,8 +50,83 @@ export function LoginPageClient() {
   const [email, setEmail]               = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
   const [linkSentTo, setLinkSentTo]     = useState<string | null>(null);
+  const [digits, setDigits]             = useState<string[]>(["", "", "", "", "", ""]);
+  const [isVerifying, setIsVerifying]   = useState(false);
+  const [otpError, setOtpError]         = useState<string | null>(null);
+  const digitRefs                       = useRef<Array<HTMLInputElement | null>>([]);
 
   const planValue = selectedPlan === "solo" ? "solo_beta" : "studio_beta";
+
+  // Auto-focus first digit box when OTP step appears
+  useEffect(() => {
+    if (linkSentTo) setTimeout(() => digitRefs.current[0]?.focus(), 100);
+  }, [linkSentTo]);
+
+  async function handleVerifyOtp(code: string) {
+    if (code.length !== 6 || !linkSentTo) return;
+    setIsVerifying(true);
+    setOtpError(null);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: linkSentTo,
+        token: code,
+        type: "email",
+      });
+      if (error || !data.user) {
+        setOtpError("Incorrect code. Check your email and try again.");
+        setDigits(["", "", "", "", "", ""]);
+        setTimeout(() => digitRefs.current[0]?.focus(), 50);
+        setIsVerifying(false);
+        return;
+      }
+      // Upsert profile with plan
+      try {
+        await supabase.from("profiles").upsert(
+          { id: data.user.id, email: data.user.email, plan: planValue, updated_at: new Date().toISOString() },
+          { onConflict: "id" }
+        );
+        sessionStorage.setItem("cf_plan", planValue);
+        const { data: profile } = await supabase
+          .from("profiles").select("first_name, last_name").eq("id", data.user.id).single();
+        if (profile?.first_name || profile?.last_name) {
+          localStorage.setItem("cf_display_name", [profile.first_name, profile.last_name].filter(Boolean).join(" "));
+        }
+      } catch { /* non-fatal */ }
+      window.location.replace("/welcome");
+    } catch {
+      setOtpError("Something went wrong. Please try again.");
+      setIsVerifying(false);
+    }
+  }
+
+  function handleDigitChange(index: number, value: string) {
+    // Handle paste of full code
+    if (value.length > 1) {
+      const pasted = value.replace(/\D/g, "").slice(0, 6);
+      if (pasted.length === 6) {
+        const next = pasted.split("");
+        setDigits(next);
+        digitRefs.current[5]?.focus();
+        handleVerifyOtp(pasted);
+        return;
+      }
+    }
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+    setOtpError(null);
+    if (digit && index < 5) digitRefs.current[index + 1]?.focus();
+    const code = next.join("");
+    if (code.length === 6 && !next.includes("")) handleVerifyOtp(code);
+  }
+
+  function handleDigitKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && !digits[index] && index > 0) {
+      digitRefs.current[index - 1]?.focus();
+    }
+  }
 
   async function handleBetaAccess() {
     setIsLoading(true);
@@ -208,43 +282,96 @@ export function LoginPageClient() {
           </div>
 
           <div className="space-y-3">
-            {/* Magic link form */}
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <label htmlFor="beta-email" className="mb-2 block text-left text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
-                {isSolo ? "Start Solo Beta" : "Start Studio Beta"}
-              </label>
-              <input
-                id="beta-email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleMagicLink()}
-                placeholder={isSolo ? "you@gmail.com" : "you@studio.com"}
-                className="mb-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-[#d4a853]/50 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleMagicLink}
-                disabled={isSendingLink}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-semibold text-white transition-all hover:border-[#d4a853]/30 hover:bg-white/[0.06] active:scale-[0.98] disabled:opacity-60"
-              >
-                {isSendingLink ? "Sending link..." : "Email me a magic link"}
-              </button>
-              {linkSentTo ? (
-                <div className="mt-2 space-y-1 text-center">
-                  <p className="text-[11px] text-zinc-400">
-                    Check <span className="text-white">{linkSentTo}</span> — click the link to sign in.
-                  </p>
-                  <p className="text-[10px] text-zinc-600">
-                    On iPhone? Open the email in the Mail app for best results.
-                  </p>
-                </div>
-              ) : (
+            {!linkSentTo ? (
+              /* ── Step 1: Email entry ── */
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                <label htmlFor="beta-email" className="mb-2 block text-left text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-500">
+                  {isSolo ? "Start Solo Beta" : "Start Studio Beta"}
+                </label>
+                <input
+                  id="beta-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleMagicLink()}
+                  placeholder={isSolo ? "you@gmail.com" : "you@studio.com"}
+                  className="mb-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:border-[#d4a853]/50 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleMagicLink}
+                  disabled={isSendingLink}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-semibold text-white transition-all hover:border-[#d4a853]/30 hover:bg-white/[0.06] active:scale-[0.98] disabled:opacity-60"
+                >
+                  {isSendingLink ? "Sending…" : "Email me a code"}
+                </button>
                 <p className="mt-2 text-center text-[11px] text-zinc-600">
-                  No password needed. One click and you&apos;re in.
+                  No password needed. Works in any browser.
                 </p>
-              )}
-            </div>
+              </div>
+            ) : (
+              /* ── Step 2: OTP code entry ── */
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <button
+                  type="button"
+                  onClick={() => { setLinkSentTo(null); setDigits(["","","","","",""]); setOtpError(null); }}
+                  className="mb-3 flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <ArrowLeft className="h-3 w-3" /> Back
+                </button>
+
+                <p className="mb-1 text-sm font-semibold text-white">Check your email</p>
+                <p className="mb-4 text-[11px] text-zinc-500">
+                  We sent a 6-digit code to <span className="text-zinc-300">{linkSentTo}</span>
+                </p>
+
+                {/* 6-digit boxes */}
+                <div className="mb-4 flex justify-between gap-2">
+                  {digits.map((d, i) => (
+                    <input
+                      key={i}
+                      ref={(el) => { digitRefs.current[i] = el; }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={d}
+                      onChange={(e) => handleDigitChange(i, e.target.value)}
+                      onKeyDown={(e) => handleDigitKeyDown(i, e)}
+                      onFocus={(e) => e.target.select()}
+                      disabled={isVerifying}
+                      className={cn(
+                        "h-12 w-full rounded-xl border text-center text-lg font-bold text-white transition-all focus:outline-none disabled:opacity-50",
+                        d
+                          ? "border-[#d4a853]/60 bg-[#d4a853]/10 text-[#d4a853]"
+                          : "border-white/10 bg-black/20 focus:border-[#d4a853]/40"
+                      )}
+                    />
+                  ))}
+                </div>
+
+                {otpError && (
+                  <p className="mb-3 text-center text-[11px] text-red-400">{otpError}</p>
+                )}
+
+                {isVerifying ? (
+                  <div className="flex items-center justify-center gap-2 py-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#d4a853]/20 border-t-[#d4a853]" />
+                    <span className="text-xs text-zinc-400">Verifying…</span>
+                  </div>
+                ) : (
+                  <p className="text-center text-[11px] text-zinc-600">
+                    Didn&apos;t get it?{" "}
+                    <button
+                      type="button"
+                      onClick={() => { setDigits(["","","","","",""]); setOtpError(null); handleMagicLink(); }}
+                      className="text-zinc-400 underline underline-offset-2 hover:text-white transition-colors"
+                    >
+                      Resend code
+                    </button>
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Demo button */}
             <button
