@@ -50,7 +50,8 @@ export function LoginPageClient() {
   const [email, setEmail]               = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
   const [linkSentTo, setLinkSentTo]     = useState<string | null>(null);
-  const [digits, setDigits]             = useState<string[]>(["", "", "", "", "", ""]);
+  const CODE_LENGTH = 8;
+  const [digits, setDigits]             = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [isVerifying, setIsVerifying]   = useState(false);
   const [otpError, setOtpError]         = useState<string | null>(null);
   const digitRefs                       = useRef<Array<HTMLInputElement | null>>([]);
@@ -63,7 +64,7 @@ export function LoginPageClient() {
   }, [linkSentTo]);
 
   async function handleVerifyOtp(code: string) {
-    if (code.length !== 6 || !linkSentTo) return;
+    if (code.length !== CODE_LENGTH || !linkSentTo) return;
     setIsVerifying(true);
     setOtpError(null);
     try {
@@ -75,7 +76,7 @@ export function LoginPageClient() {
       });
       if (error || !data.user) {
         setOtpError("Incorrect code. Check your email and try again.");
-        setDigits(["", "", "", "", "", ""]);
+        setDigits(Array(CODE_LENGTH).fill(""));
         setTimeout(() => digitRefs.current[0]?.focus(), 50);
         setIsVerifying(false);
         return;
@@ -103,11 +104,11 @@ export function LoginPageClient() {
   function handleDigitChange(index: number, value: string) {
     // Handle paste of full code
     if (value.length > 1) {
-      const pasted = value.replace(/\D/g, "").slice(0, 6);
-      if (pasted.length === 6) {
+      const pasted = value.replace(/\D/g, "").slice(0, CODE_LENGTH);
+      if (pasted.length === CODE_LENGTH) {
         const next = pasted.split("");
         setDigits(next);
-        digitRefs.current[5]?.focus();
+        digitRefs.current[CODE_LENGTH - 1]?.focus();
         handleVerifyOtp(pasted);
         return;
       }
@@ -117,9 +118,9 @@ export function LoginPageClient() {
     next[index] = digit;
     setDigits(next);
     setOtpError(null);
-    if (digit && index < 5) digitRefs.current[index + 1]?.focus();
+    if (digit && index < CODE_LENGTH - 1) digitRefs.current[index + 1]?.focus();
     const code = next.join("");
-    if (code.length === 6 && !next.includes("")) handleVerifyOtp(code);
+    if (code.length === CODE_LENGTH && !next.includes("")) handleVerifyOtp(code);
   }
 
   function handleDigitKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
@@ -176,10 +177,12 @@ export function LoginPageClient() {
     setIsSendingLink(true);
     try {
       const supabase = createClient();
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://usecineflow.com";
       const { error } = await supabase.auth.signInWithOtp({
         email: trimmedEmail,
         options: {
           shouldCreateUser: true,
+          emailRedirectTo: `${siteUrl}/auth/callback`,
           data: { plan: planValue },
         },
       });
@@ -308,7 +311,7 @@ export function LoginPageClient() {
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <button
                   type="button"
-                  onClick={() => { setLinkSentTo(null); setDigits(["","","","","",""]); setOtpError(null); }}
+                  onClick={() => { setLinkSentTo(null); setDigits(Array(CODE_LENGTH).fill("")); setOtpError(null); }}
                   className="mb-3 flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
                   <ArrowLeft className="h-3 w-3" /> Back
@@ -316,7 +319,7 @@ export function LoginPageClient() {
 
                 <p className="mb-1 text-sm font-semibold text-white">Check your email</p>
                 <p className="mb-4 text-[11px] text-zinc-500">
-                  We sent a 6-digit code to <span className="text-zinc-300">{linkSentTo}</span>
+                  We sent a login code to <span className="text-zinc-300">{linkSentTo}</span>
                 </p>
 
                 {/* 6-digit boxes */}
@@ -357,7 +360,7 @@ export function LoginPageClient() {
                     Didn&apos;t get it?{" "}
                     <button
                       type="button"
-                      onClick={() => { setDigits(["","","","","",""]); setOtpError(null); handleMagicLink(); }}
+                      onClick={() => { setDigits(Array(CODE_LENGTH).fill("")); setOtpError(null); handleMagicLink(); }}
                       className="text-zinc-400 underline underline-offset-2 hover:text-white transition-colors"
                     >
                       Resend code
