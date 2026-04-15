@@ -449,9 +449,12 @@ export async function getTeamMembers(): Promise<TeamMember[]> {
 }
 
 export async function inviteTeamMember(email: string, name: string, role: TeamMember['role'] = 'member'): Promise<TeamMember> {
-  const { data, error } = await db()
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await client
     .from('team_members')
-    .insert({ email, name, role, status: 'pending' })
+    .insert({ email, name, role, status: 'pending', invited_by: user.id })
     .select().single();
   if (error) throw error;
   return data as TeamMember;

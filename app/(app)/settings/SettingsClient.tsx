@@ -609,7 +609,9 @@ export default function SettingsClient() {
           <section>
             <h2 className="mb-1 font-display text-sm font-semibold text-foreground">Invoice Email</h2>
             <p className="mb-4 text-xs text-muted-foreground">
-              Send invoices directly to clients via email. Powered by Resend — get your free API key at resend.com.
+              Send invoices directly to clients via email. Powered by{" "}
+              <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">Resend</a>
+              {" "}— free plan includes 3,000 emails/month.
             </p>
             <div className="rounded-xl border border-border bg-card p-6 space-y-4">
               <div className="space-y-1.5">
@@ -620,7 +622,8 @@ export default function SettingsClient() {
                   placeholder="re_…"
                 />
                 <p className="text-[11px] text-muted-foreground/60">
-                  Resend dashboard → API Keys → Create key with "Sending access". Stored securely in your account.
+                  <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-muted-foreground transition-colors">Get your free API key at Resend →</a>
+                  {" "}Sign up → API Keys → Create key → choose <strong>Sending access</strong>. Paste it here.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -640,7 +643,9 @@ export default function SettingsClient() {
                     placeholder="invoices@yourdomain.com"
                   />
                   <p className="text-[11px] text-muted-foreground/60">
-                    Must be a verified domain in Resend. Use onboarding@resend.dev for testing.
+                    Must be a{" "}
+                    <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-muted-foreground transition-colors">verified domain in Resend</a>
+                    . Use <code className="text-[10px]">onboarding@resend.dev</code> to test first.
                   </p>
                 </div>
               </div>

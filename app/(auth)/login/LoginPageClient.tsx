@@ -301,7 +301,7 @@ export function LoginPageClient() {
                   type="button"
                   onClick={handleMagicLink}
                   disabled={isSendingLink}
-                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 text-sm font-semibold text-white transition-all hover:border-[#d4a853]/30 hover:bg-white/[0.06] active:scale-[0.98] disabled:opacity-60"
+                  className="w-full rounded-xl border border-[#d4a853]/40 bg-[#d4a853]/10 py-3 text-sm font-semibold text-[#d4a853] transition-all hover:border-[#d4a853]/60 hover:bg-[#d4a853]/15 active:scale-[0.98] disabled:opacity-60"
                 >
                   {isSendingLink ? "Sending…" : "Email me a code"}
                 </button>
