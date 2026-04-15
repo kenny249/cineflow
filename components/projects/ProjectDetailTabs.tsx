@@ -4,7 +4,8 @@ import { useEffect, useRef, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { formatDate, formatRelative, formatFileSize, getProgressColor, getInitials, PROJECT_TYPE_LABELS } from "@/lib/utils";
+import { formatDate, formatRelative, formatFileSize, getProgressColor, getInitials, PROJECT_TYPE_LABELS, PROJECT_STATUS_LABELS } from "@/lib/utils";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -168,6 +169,8 @@ export default function ProjectDetailTabs({
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description ?? "");
   const [status, setStatus] = useState<Project["status"]>(project.status);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
   const [shotList, setShotList] = useState<ShotList | null>(initialShotList);
   const [storyboardFrames, setStoryboardFrames] = useState<StoryboardFrame[]>(initialStoryboardFrames);
   const [revisions, setRevisions] = useState<Revision[]>(initialRevisions);
@@ -983,8 +986,28 @@ export default function ProjectDetailTabs({
           }
         }
       }
-    } catch {
-      toast.error("Failed to save, changes may not persist.");
+    } catch (err) {
+      console.error("Save project error:", err);
+      const msg = err instanceof Error ? err.message : "Failed to save";
+      toast.error(msg);
+    }
+  };
+
+  const handleQuickStatusChange = async (newStatus: Project["status"]) => {
+    if (newStatus === status || statusSaving) return;
+    const prev = status;
+    setStatus(newStatus);
+    setStatusDropdownOpen(false);
+    setStatusSaving(true);
+    try {
+      await updateProject(project.id, { status: newStatus });
+      toast.success(`Status → ${PROJECT_STATUS_LABELS[newStatus]}`);
+    } catch (err) {
+      setStatus(prev);
+      const msg = err instanceof Error ? err.message : "Failed to update status";
+      toast.error(msg);
+    } finally {
+      setStatusSaving(false);
     }
   };
 
@@ -1203,7 +1226,36 @@ export default function ProjectDetailTabs({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <Badge variant="outline">{status}</Badge>
+                {/* Quick status picker */}
+                <div className="relative">
+                  <button
+                    onClick={() => setStatusDropdownOpen((o) => !o)}
+                    disabled={statusSaving}
+                    className="flex items-center gap-1 rounded-full transition-opacity hover:opacity-80 disabled:opacity-50"
+                    title="Change status"
+                  >
+                    <StatusBadge status={status} />
+                    <ChevronDown className="h-3 w-3 text-muted-foreground -ml-0.5" />
+                  </button>
+                  {statusDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setStatusDropdownOpen(false)} />
+                      <div className="absolute left-0 top-full z-20 mt-1 w-40 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+                        {(["draft","active","review","delivered"] as Project["status"][]).map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => handleQuickStatusChange(s)}
+                            className={`flex w-full items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-accent ${s === status ? "bg-accent/50" : ""}`}
+                          >
+                            <span className={`h-1.5 w-1.5 rounded-full ${s === "active" ? "bg-blue-400" : s === "review" ? "bg-amber-400" : s === "delivered" ? "bg-emerald-400" : "bg-muted-foreground"}`} />
+                            {PROJECT_STATUS_LABELS[s]}
+                            {s === status && <Check className="ml-auto h-3 w-3 text-[#d4a853]" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
                 <Badge variant="outline">{PROJECT_TYPE_LABELS[project.type]}</Badge>
                 {project.tags?.map((tag) => (
                   <Badge key={tag} variant="outline">{tag}</Badge>
