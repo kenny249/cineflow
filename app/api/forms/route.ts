@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { PRODUCTION_INTAKE_QUESTIONS } from "@/lib/forms-template";
+import { getTemplateQuestions, type FormTemplateId } from "@/lib/forms-template";
 
 // GET /api/forms — list user's forms
 export async function GET() {
@@ -18,17 +18,29 @@ export async function GET() {
   return NextResponse.json({ forms: data });
 }
 
-// POST /api/forms — create a new form (defaults to Production Intake template)
+// POST /api/forms — create a new form from a template
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  let body: { title?: string; description?: string; template?: "production_intake" | "blank" } = {};
+  let body: { title?: string; description?: string; template?: FormTemplateId } = {};
   try { body = await req.json(); } catch { /* empty body is fine */ }
 
-  const questions = body.template === "blank" ? [] : PRODUCTION_INTAKE_QUESTIONS;
-  const title = body.title?.trim() || "Production Intake";
+  const templateId: FormTemplateId = body.template ?? "production_intake";
+  const questions = getTemplateQuestions(templateId);
+
+  const defaultTitles: Record<FormTemplateId, string> = {
+    production_intake:  "Production Intake",
+    talent_intake:      "Talent Intake",
+    location_scouting:  "Location Scouting",
+    client_feedback:    "Client Feedback",
+    event_coverage:     "Event Coverage Brief",
+    revision_request:   "Revision Request",
+    blank:              "Untitled Form",
+  };
+
+  const title = body.title?.trim() || defaultTitles[templateId] || "Untitled Form";
 
   const { data, error } = await supabase
     .from("forms")

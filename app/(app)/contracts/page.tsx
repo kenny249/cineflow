@@ -18,6 +18,7 @@ import { getProjects } from "@/lib/supabase/queries";
 import dynamic from "next/dynamic";
 import type { Contract, ContractStatus, ContractRecipientRole, Project, SignatureField } from "@/types";
 import type { FieldDropMode } from "@/components/contracts/PDFViewer";
+import { ContractTemplatePicker, type ContractTemplate } from "@/components/contracts/ContractTemplatePicker";
 
 const PDFViewer = dynamic(
   () => import("@/components/contracts/PDFViewer").then((m) => m.PDFViewer),
@@ -81,6 +82,9 @@ export default function ContractsPage() {
 
   // Sidebar grouping
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+
+  // Template picker
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
 
   // New contract dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -181,9 +185,18 @@ export default function ContractsPage() {
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   function openNew() {
-    setFTitle(""); setFDescription(""); setFProject("");
-    setFRecipientName(""); setFRecipientEmail(""); setFFile(null);
-    setFRecipientRole("client");
+    setTemplatePickerOpen(true);
+  }
+
+  function handleTemplateSelect(template: ContractTemplate) {
+    setFTitle(template.suggestedTitle);
+    setFDescription(template.suggestedDescription);
+    setFRecipientRole(template.recipientRole);
+    setFRecipientName("");
+    setFRecipientEmail("");
+    setFProject("");
+    setFFile(null);
+    setTemplatePickerOpen(false);
     setDialogOpen(true);
   }
 
@@ -1061,6 +1074,13 @@ export default function ContractsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Contract Template Picker ────────────────────────────────────────── */}
+      <ContractTemplatePicker
+        open={templatePickerOpen}
+        onClose={() => setTemplatePickerOpen(false)}
+        onSelect={handleTemplateSelect}
+      />
 
       {/* ── Delete Confirmation Dialog ───────────────────────────────────────── */}
       <Dialog open={!!deleteTargetId} onOpenChange={(v) => { if (!v) setDeleteTargetId(null); }}>

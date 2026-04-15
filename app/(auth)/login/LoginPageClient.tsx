@@ -186,10 +186,13 @@ export function LoginPageClient() {
       });
 
       if (error) {
+        const msg = error.message;
         toast.error(
-          error.message.includes("fetch failed")
-            ? "Unable to reach Supabase. Check your project URL and network."
-            : error.message
+          msg.includes("fetch failed")
+            ? "Unable to reach our servers. Check your internet connection and try again."
+            : msg.toLowerCase().includes("unable to validate email") || msg.toLowerCase().includes("invalid format") || msg.toLowerCase().includes("invalid email")
+              ? "Having trouble with that email address? Try using a Gmail or personal email to sign in — some work domains aren't supported by our auth provider."
+              : msg
         );
         return;
       }

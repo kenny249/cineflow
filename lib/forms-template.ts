@@ -1,5 +1,7 @@
 import type { FormQuestion } from "@/types";
 
+// ── Production Intake (existing) ──────────────────────────────────────────────
+
 export const PRODUCTION_INTAKE_QUESTIONS: FormQuestion[] = [
   // ── About You ──────────────────────────────────────────────────────────────
   { id: "q_name",     section: "About You", type: "short_text",    question: "Your name",           required: true },
@@ -70,3 +72,219 @@ export const PRODUCTION_INTAKE_QUESTIONS: FormQuestion[] = [
   { id: "q_notes", section: "Final", type: "long_text", question: "Anything else we should know?", required: false,
     placeholder: "Timeline pressures, stakeholders, budget context, past experiences — anything that helps us understand what you need" },
 ];
+
+// ── Talent Intake ─────────────────────────────────────────────────────────────
+
+export const TALENT_INTAKE_QUESTIONS: FormQuestion[] = [
+  { id: "t_name",       section: "About You",   type: "short_text",    question: "Full name",                   required: true },
+  { id: "t_pronouns",   section: "About You",   type: "single_choice", question: "Pronouns",                    required: false,
+    options: ["He / Him", "She / Her", "They / Them", "Prefer not to say"] },
+  { id: "t_email",      section: "Contact",     type: "short_text",    question: "Email address",               required: true },
+  { id: "t_phone",      section: "Contact",     type: "short_text",    question: "Phone number",                required: false },
+  { id: "t_agency",     section: "Contact",     type: "short_text",    question: "Agency or management (if any)", required: false },
+  { id: "t_union",      section: "Experience",  type: "single_choice", question: "Union status",                required: false,
+    options: ["SAG-AFTRA", "Non-union", "Open to either", "Unsure"] },
+  { id: "t_experience", section: "Experience",  type: "single_choice", question: "Years of on-camera experience", required: false,
+    options: ["This is my first time", "1–2 years", "3–5 years", "5–10 years", "10+ years"] },
+  { id: "t_reel",       section: "Experience",  type: "short_text",    question: "Link to headshot, reel, or portfolio", required: false },
+  { id: "t_skills",     section: "Skills",      type: "multi_select",  question: "Special skills", required: false,
+    options: ["Dancing", "Stunt work", "Horseback riding", "Driving (specialty vehicles)", "Musical instruments", "Foreign language / accents", "Martial arts", "Athletics / sports", "None of the above"] },
+  { id: "t_languages",  section: "Skills",      type: "short_text",    question: "Languages spoken fluently", required: false },
+  { id: "t_dietary",    section: "Logistics",   type: "short_text",    question: "Dietary restrictions or allergies", required: false },
+  { id: "t_emergency",  section: "Logistics",   type: "short_text",    question: "Emergency contact name & phone number", required: false },
+];
+
+// ── Location Scouting ─────────────────────────────────────────────────────────
+
+export const LOCATION_SCOUTING_QUESTIONS: FormQuestion[] = [
+  { id: "l_name",        section: "The Location", type: "short_text",    question: "Location name or description",  required: true },
+  { id: "l_address",     section: "The Location", type: "short_text",    question: "Full address or general area",  required: true },
+  { id: "l_type",        section: "The Location", type: "single_choice", question: "Location type",                 required: true,
+    options: ["Residential home", "Commercial / office", "Industrial / warehouse", "Outdoor / nature", "Rooftop", "Studio / creative space", "Retail", "Restaurant / cafe", "Other"] },
+  { id: "l_sqft",        section: "The Location", type: "short_text",    question: "Approximate square footage or capacity", required: false },
+  { id: "l_natural",     section: "Environment", type: "single_choice",  question: "Natural light availability",    required: false,
+    options: ["Excellent — large windows / open air", "Moderate", "Limited", "None / fully enclosed"] },
+  { id: "l_dates",       section: "Availability", type: "short_text",   question: "Available dates or general availability", required: false },
+  { id: "l_parking",     section: "Logistics",   type: "single_choice", question: "Parking available?",            required: false,
+    options: ["Yes — on-site, free", "Yes — on-site, paid", "Street parking nearby", "No parking available"] },
+  { id: "l_power",       section: "Logistics",   type: "multi_select",  question: "Power access",                  required: false,
+    options: ["Standard outlets (120V)", "High-amperage / 3-phase", "Generator friendly", "Limited / no access"] },
+  { id: "l_restrictions", section: "Rules",      type: "long_text",     question: "Any restrictions we should know about?", required: false,
+    placeholder: "Noise curfews, no smoking, catering rules, number of crew, etc." },
+  { id: "l_rate",        section: "Pricing",     type: "short_text",    question: "Daily rental rate (if any)",    required: false },
+  { id: "l_contact",     section: "Contact",     type: "short_text",    question: "Best contact name & phone number", required: true },
+];
+
+// ── Client Feedback ───────────────────────────────────────────────────────────
+
+export const CLIENT_FEEDBACK_QUESTIONS: FormQuestion[] = [
+  { id: "f_name",       section: "About You",      type: "short_text",    question: "Your name",              required: false },
+  { id: "f_project",    section: "About You",      type: "short_text",    question: "Project name",           required: false },
+  { id: "f_overall",    section: "Your Experience", type: "single_choice", question: "Overall satisfaction with the final video", required: true,
+    options: ["5 — Exceeded expectations", "4 — Very satisfied", "3 — Satisfied", "2 — Needs improvement", "1 — Disappointed"] },
+  { id: "f_quality",    section: "Your Experience", type: "single_choice", question: "Video quality and production value", required: false,
+    options: ["Exceptional", "Very good", "Good", "Fair", "Below expectations"] },
+  { id: "f_comms",      section: "Your Experience", type: "single_choice", question: "Communication throughout the project", required: false,
+    options: ["Exceptional", "Very good", "Good", "Fair", "Below expectations"] },
+  { id: "f_timeline",   section: "Your Experience", type: "single_choice", question: "Was the project delivered on time?", required: false,
+    options: ["Yes, on or ahead of schedule", "Slightly delayed but acceptable", "There were significant delays"] },
+  { id: "f_well",       section: "Feedback",        type: "long_text",     question: "What did we do particularly well?", required: false,
+    placeholder: "We'd love to hear what stood out" },
+  { id: "f_improve",    section: "Feedback",        type: "long_text",     question: "What could we improve for next time?", required: false,
+    placeholder: "Honest feedback helps us serve you better" },
+  { id: "f_again",      section: "Looking Ahead",   type: "single_choice", question: "Would you work with us again?", required: false,
+    options: ["Absolutely", "Probably", "Not sure", "Unlikely"] },
+  { id: "f_recommend",  section: "Looking Ahead",   type: "single_choice", question: "How likely are you to recommend us?", required: false,
+    options: ["10 — Definitely", "8–9 — Very likely", "6–7 — Maybe", "Under 6 — Unlikely"] },
+  { id: "f_testimonial", section: "Testimonial",    type: "long_text",     question: "Would you like to leave a testimonial we can use publicly?", required: false,
+    placeholder: "Optional — only shared with your permission" },
+];
+
+// ── Event Coverage Brief ──────────────────────────────────────────────────────
+
+export const EVENT_COVERAGE_QUESTIONS: FormQuestion[] = [
+  { id: "e_name",       section: "The Event",     type: "short_text",    question: "Event name",                     required: true },
+  { id: "e_type",       section: "The Event",     type: "single_choice", question: "Type of event",                  required: true,
+    options: ["Wedding / celebration", "Corporate event", "Product launch", "Conference / panel", "Concert / performance", "Birthday / milestone", "Networking event", "Other"] },
+  { id: "e_date",       section: "The Event",     type: "short_text",    question: "Date and time (including any setup time)", required: true },
+  { id: "e_venue",      section: "The Event",     type: "short_text",    question: "Venue name and address",          required: true },
+  { id: "e_attendance", section: "The Event",     type: "single_choice", question: "Expected attendance",             required: false,
+    options: ["Under 50", "50–150", "150–500", "500–1,000", "1,000+"] },
+  { id: "e_moments",    section: "Coverage",      type: "long_text",     question: "Key moments we must capture",     required: true,
+    placeholder: "First dance, keynote speech, product reveal, awards, etc." },
+  { id: "e_vips",       section: "Coverage",      type: "long_text",     question: "Important people or VIPs we should prioritize", required: false,
+    placeholder: "Names, titles, or descriptions of key individuals" },
+  { id: "e_schedule",   section: "Coverage",      type: "single_choice", question: "Will you have a run-of-show or program we can reference?", required: false,
+    options: ["Yes — I'll send it before the event", "I'll have a loose timeline", "No formal schedule"] },
+  { id: "e_restricted", section: "Coverage",      type: "long_text",     question: "Any restricted areas or moments (no filming zones, private portions)?", required: false,
+    placeholder: "Let us know what's off limits" },
+  { id: "e_dresscode",  section: "Logistics",     type: "single_choice", question: "Dress code for our team",         required: false,
+    options: ["Black tie / formal", "Business casual", "Casual", "Creative / themed", "No preference"] },
+  { id: "e_deliverables", section: "Deliverables", type: "multi_select", question: "What deliverables do you need?", required: true,
+    options: ["Full event highlight reel", "Short social media cut (60s or under)", "Raw / unedited footage", "Same-day edit", "Photo stills", "Multi-cam edit", "Interview / testimonials"] },
+  { id: "e_delivery",   section: "Deliverables",  type: "single_choice", question: "Preferred delivery timeline",     required: false,
+    options: ["Same day", "Within 48 hours", "Within 1 week", "2–3 weeks", "Flexible"] },
+  { id: "e_notes",      section: "Final",          type: "long_text",     question: "Anything else we need to know before the event?", required: false,
+    placeholder: "Parking, load-in instructions, points of contact on the day, etc." },
+];
+
+// ── Revision Request ──────────────────────────────────────────────────────────
+
+export const REVISION_REQUEST_QUESTIONS: FormQuestion[] = [
+  { id: "r_project",   section: "Project Info",  type: "short_text",    question: "Project / video name",          required: true },
+  { id: "r_version",   section: "Project Info",  type: "short_text",    question: "Which edit version is this feedback on? (e.g. V1, V2)", required: true },
+  { id: "r_overall",   section: "Your Feedback", type: "single_choice", question: "Overall impression of the current cut", required: true,
+    options: ["Love it — just small tweaks", "Getting there — some notable changes needed", "Significant changes required", "Not quite the right direction yet"] },
+  { id: "r_sections",  section: "Your Feedback", type: "long_text",     question: "Specific sections or timecodes to change", required: false,
+    placeholder: "e.g. 0:12 — remove the pause. 0:45–0:58 — this section feels slow." },
+  { id: "r_remove",    section: "Your Feedback", type: "long_text",     question: "Anything you'd like removed from the edit?", required: false,
+    placeholder: "Shots, music moments, interview clips, etc." },
+  { id: "r_add",       section: "Your Feedback", type: "long_text",     question: "Anything you'd like added or included?", required: false,
+    placeholder: "Specific shots, text, logos, b-roll, etc." },
+  { id: "r_music",     section: "Audio & Look",  type: "single_choice", question: "Any music changes?", required: false,
+    options: ["No — keep it as is", "Yes — I'll explain in notes", "Open to your suggestion"] },
+  { id: "r_color",     section: "Audio & Look",  type: "single_choice", question: "Any color or grade changes?", required: false,
+    options: ["No — looks great", "Slightly brighter", "Slightly moodier / darker", "More saturated", "More neutral / clean", "Please describe in notes"] },
+  { id: "r_deadline",  section: "Timeline",      type: "single_choice", question: "When do you need this revision back?", required: false,
+    options: ["As soon as possible", "Within 48 hours", "Within 1 week", "No hard deadline"] },
+];
+
+// ── Template metadata (used by the picker UI) ─────────────────────────────────
+
+export type FormTemplateId =
+  | "production_intake"
+  | "talent_intake"
+  | "location_scouting"
+  | "client_feedback"
+  | "event_coverage"
+  | "revision_request"
+  | "blank";
+
+export interface FormTemplateMeta {
+  id: FormTemplateId;
+  name: string;
+  description: string;
+  questionCount: number;
+  category: "Client" | "Talent" | "Production" | "Post" | "Custom";
+  categoryColor: string;
+  tags: string[];
+}
+
+export const FORM_TEMPLATES: FormTemplateMeta[] = [
+  {
+    id: "production_intake",
+    name: "Production Intake",
+    description: "Full pre-production questionnaire. Covers budget, timeline, deliverables, creative direction, and logistics. Send this before quoting any project.",
+    questionCount: PRODUCTION_INTAKE_QUESTIONS.length,
+    category: "Client",
+    categoryColor: "bg-sky-400/15 text-sky-400",
+    tags: ["budget", "timeline", "deliverables", "creative", "client"],
+  },
+  {
+    id: "event_coverage",
+    name: "Event Coverage Brief",
+    description: "Everything you need before shooting an event. Key moments, VIPs, schedule, deliverables, and day-of logistics all in one form.",
+    questionCount: EVENT_COVERAGE_QUESTIONS.length,
+    category: "Production",
+    categoryColor: "bg-emerald-400/15 text-emerald-400",
+    tags: ["event", "wedding", "corporate", "coverage", "day-of"],
+  },
+  {
+    id: "talent_intake",
+    name: "Talent Intake",
+    description: "Send to on-camera talent before a shoot. Collects availability, experience, special skills, union status, and emergency contacts.",
+    questionCount: TALENT_INTAKE_QUESTIONS.length,
+    category: "Talent",
+    categoryColor: "bg-purple-400/15 text-purple-400",
+    tags: ["talent", "casting", "availability", "skills"],
+  },
+  {
+    id: "location_scouting",
+    name: "Location Scouting",
+    description: "Send to location owners or scouts. Covers logistics, power access, parking, restrictions, and rental rates.",
+    questionCount: LOCATION_SCOUTING_QUESTIONS.length,
+    category: "Production",
+    categoryColor: "bg-emerald-400/15 text-emerald-400",
+    tags: ["location", "scouting", "permits", "logistics"],
+  },
+  {
+    id: "client_feedback",
+    name: "Client Feedback",
+    description: "Post-project satisfaction survey. Captures ratings, testimonials, and improvement areas. Great for building your reputation.",
+    questionCount: CLIENT_FEEDBACK_QUESTIONS.length,
+    category: "Post",
+    categoryColor: "bg-amber-400/15 text-amber-400",
+    tags: ["feedback", "review", "testimonial", "satisfaction"],
+  },
+  {
+    id: "revision_request",
+    name: "Revision Request",
+    description: "Structured form for clients to submit edit feedback clearly. Reduces email back-and-forth and keeps revision notes organized.",
+    questionCount: REVISION_REQUEST_QUESTIONS.length,
+    category: "Post",
+    categoryColor: "bg-amber-400/15 text-amber-400",
+    tags: ["revisions", "edits", "feedback", "post-production"],
+  },
+  {
+    id: "blank",
+    name: "Blank Form",
+    description: "Start from scratch and build a fully custom form tailored to your exact needs.",
+    questionCount: 0,
+    category: "Custom",
+    categoryColor: "bg-muted/60 text-muted-foreground",
+    tags: ["custom", "blank"],
+  },
+];
+
+export function getTemplateQuestions(templateId: FormTemplateId): FormQuestion[] {
+  switch (templateId) {
+    case "production_intake":  return PRODUCTION_INTAKE_QUESTIONS;
+    case "talent_intake":      return TALENT_INTAKE_QUESTIONS;
+    case "location_scouting":  return LOCATION_SCOUTING_QUESTIONS;
+    case "client_feedback":    return CLIENT_FEEDBACK_QUESTIONS;
+    case "event_coverage":     return EVENT_COVERAGE_QUESTIONS;
+    case "revision_request":   return REVISION_REQUEST_QUESTIONS;
+    case "blank":              return [];
+    default:                   return PRODUCTION_INTAKE_QUESTIONS;
+  }
+}

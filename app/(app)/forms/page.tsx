@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { getProfile, updateProfile } from "@/lib/supabase/queries";
 import type { CineForm, FormResponse, FormQuestion } from "@/types";
+import { FormTemplatePicker } from "@/components/forms/FormTemplatePicker";
+import type { FormTemplateId } from "@/lib/forms-template";
 
 // ── Response detail ───────────────────────────────────────────────────────────
 
@@ -299,6 +301,7 @@ export default function FormsPage() {
   const [forms, setForms] = useState<(CineForm & { _responseCount?: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -382,17 +385,18 @@ export default function FormsPage() {
 
   useEffect(() => { loadForms(); }, [loadForms]);
 
-  const handleCreate = async () => {
+  const handleCreate = async (templateId: FormTemplateId, title: string) => {
     setCreating(true);
     try {
       const res = await fetch("/api/forms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template: "production_intake" }),
+        body: JSON.stringify({ template: templateId, title }),
       });
       const { form, error } = await res.json();
       if (error) { toast.error(error); return; }
       setForms((prev) => [{ ...form, _responseCount: 0 }, ...prev]);
+      setTemplatePickerOpen(false);
       toast.success("Form created! Copy the link and send it to your client.");
     } catch {
       toast.error("Failed to create form");
@@ -424,8 +428,8 @@ export default function FormsPage() {
           <h1 className="font-display text-xl font-bold text-foreground">Forms</h1>
           <p className="text-xs text-muted-foreground">Send intake questionnaires to clients before quoting a project</p>
         </div>
-        <Button variant="gold" size="sm" onClick={handleCreate} disabled={creating}>
-          {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+        <Button variant="gold" size="sm" onClick={() => setTemplatePickerOpen(true)}>
+          <Plus className="h-4 w-4" />
           New Form
         </Button>
       </div>
@@ -445,9 +449,9 @@ export default function FormsPage() {
               <ClipboardList className="h-10 w-10 text-muted-foreground/30 mb-3" />
               <p className="font-semibold text-foreground">No forms yet</p>
               <p className="mt-1 text-sm text-muted-foreground">Create a Production Intake form to send to your next client</p>
-              <Button variant="gold" size="sm" className="mt-4" onClick={handleCreate} disabled={creating}>
-                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Create Production Intake
+              <Button variant="gold" size="sm" className="mt-4" onClick={() => setTemplatePickerOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Create a Form
               </Button>
             </div>
           ) : (
@@ -491,6 +495,13 @@ export default function FormsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Template picker */}
+      <FormTemplatePicker
+        open={templatePickerOpen}
+        onClose={() => setTemplatePickerOpen(false)}
+        onCreate={handleCreate}
+      />
 
       {/* Branding edit modal */}
       <Dialog open={brandingOpen} onOpenChange={(v) => { if (!v) setBrandingOpen(false); }}>
