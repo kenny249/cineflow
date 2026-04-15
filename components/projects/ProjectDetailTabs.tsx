@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays } from "lucide-react";
+import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays } from "lucide-react";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -254,6 +254,8 @@ export default function ProjectDetailTabs({
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description);
   const [editStatus, setEditStatus] = useState<Project["status"]>(status);
+  const [editClientName, setEditClientName] = useState(project.client_name ?? "");
+  const [editClientEmail, setEditClientEmail] = useState(project.client_email ?? "");
   const [editTags, setEditTags] = useState<string[]>(project.tags ?? []);
   const [editTagInput, setEditTagInput] = useState("");
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
@@ -270,8 +272,8 @@ export default function ProjectDetailTabs({
   const [portalToken, setPortalToken] = useState<ReviewToken | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalCreating, setPortalCreating] = useState(false);
-  const [portalClientName, setPortalClientName] = useState("");
-  const [portalClientEmail, setPortalClientEmail] = useState("");
+  const [portalClientName, setPortalClientName] = useState(project.client_name ?? "");
+  const [portalClientEmail, setPortalClientEmail] = useState(project.client_email ?? "");
   const [portalShowForm, setPortalShowForm] = useState(false);
   const [portalCopied, setPortalCopied] = useState(false);
   const [deliverables, setDeliverables] = useState<PortalDeliverable[]>([]);
@@ -937,6 +939,8 @@ export default function ProjectDetailTabs({
       title: editTitle.trim() || title,
       description: editDescription,
       status: editStatus,
+      client_name: editClientName.trim() || undefined,
+      client_email: editClientEmail.trim() || undefined,
       tags: editTags,
     };
     setTitle(updates.title);
@@ -988,6 +992,8 @@ export default function ProjectDetailTabs({
     setEditTitle(title);
     setEditDescription(description);
     setEditStatus(status);
+    setEditClientName(project.client_name ?? "");
+    setEditClientEmail(project.client_email ?? "");
     setEditTags(project.tags ?? []);
     setEditTagInput("");
     setShowEditDialog(true);
@@ -1205,7 +1211,13 @@ export default function ProjectDetailTabs({
               </div>
               <h1 className="font-display text-xl font-bold text-foreground">{title}</h1>
               {project.client_name && (
-                <p className="mt-0.5 text-sm text-muted-foreground">{project.client_name}</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Users className="h-3.5 w-3.5 shrink-0" />
+                  {project.client_name}
+                  {project.client_email && (
+                    <span className="text-muted-foreground/50">· {project.client_email}</span>
+                  )}
+                </p>
               )}
             </div>
             <div className="flex items-center gap-4 shrink-0">
@@ -2193,14 +2205,22 @@ export default function ProjectDetailTabs({
                           )}
                         </div>
                       </div>
-                      {/* Portal URL */}
-                      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                        <span className="flex-1 truncate font-mono text-[11px] text-muted-foreground">{portalUrl(portalToken.token)}</span>
-                        <button type="button" onClick={handleCopyPortalUrl} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#d4a853]/10 px-2.5 py-1 text-[11px] font-medium text-[#d4a853] transition hover:bg-[#d4a853]/20">
-                          {portalCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
-                        </button>
-                        <a href={portalUrl(portalToken.token)} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-md p-1.5 text-muted-foreground transition hover:text-foreground">
+                      {/* Portal URL + actions */}
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                          <span className="flex-1 truncate font-mono text-[11px] text-muted-foreground">{portalUrl(portalToken.token)}</span>
+                          <button type="button" onClick={handleCopyPortalUrl} className="flex shrink-0 items-center gap-1.5 rounded-md bg-[#d4a853]/10 px-2.5 py-1 text-[11px] font-medium text-[#d4a853] transition hover:bg-[#d4a853]/20">
+                            {portalCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
+                          </button>
+                        </div>
+                        <a
+                          href={portalUrl(portalToken.token)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/20 py-2 text-xs font-medium text-muted-foreground transition hover:border-[#d4a853]/30 hover:bg-[#d4a853]/[0.05] hover:text-[#d4a853]"
+                        >
                           <ExternalLink className="h-3.5 w-3.5" />
+                          Preview as client
                         </a>
                       </div>
                     </div>
@@ -2321,6 +2341,16 @@ export default function ProjectDetailTabs({
                 <option value="review">In review</option>
                 <option value="delivered">Delivered</option>
               </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-client-name">Client name</Label>
+                <Input id="edit-client-name" value={editClientName} onChange={(e) => setEditClientName(e.target.value)} placeholder="e.g. Volta EV" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-client-email">Client email</Label>
+                <Input id="edit-client-email" type="email" value={editClientEmail} onChange={(e) => setEditClientEmail(e.target.value)} placeholder="client@example.com" />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Tags</Label>

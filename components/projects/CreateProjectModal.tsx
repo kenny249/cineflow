@@ -46,6 +46,7 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
   const [form, setForm] = useState({
     title: "",
     client_name: "",
+    client_email: "",
     status: "draft" as const,
     description: "",
     due_date: "",
@@ -116,6 +117,7 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
       const projectData: Omit<Project, "id" | "created_at" | "updated_at"> = {
         title: form.title.trim(),
         client_name: form.client_name || undefined,
+        client_email: form.client_email || undefined,
         status: form.status as any,
         type: "commercial" as any,
         description: form.description || undefined,
@@ -134,6 +136,7 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
       setForm({
         title: "",
         client_name: "",
+        client_email: "",
         status: "draft",
         description: "",
         due_date: "",
@@ -204,15 +207,27 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
             />
           </div>
 
-          {/* Client name */}
-          <div className="space-y-1.5">
-            <Label htmlFor="client">Client name</Label>
-            <Input
-              id="client"
-              placeholder="e.g. Volta EV"
-              value={form.client_name}
-              onChange={(e) => setForm((f) => ({ ...f, client_name: e.target.value }))}
-            />
+          {/* Client name + email */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="client">Client name</Label>
+              <Input
+                id="client"
+                placeholder="e.g. Volta EV"
+                value={form.client_name}
+                onChange={(e) => setForm((f) => ({ ...f, client_name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="client-email">Client email</Label>
+              <Input
+                id="client-email"
+                type="email"
+                placeholder="client@example.com"
+                value={form.client_email}
+                onChange={(e) => setForm((f) => ({ ...f, client_email: e.target.value }))}
+              />
+            </div>
           </div>
 
           {/* Type + Status row */}

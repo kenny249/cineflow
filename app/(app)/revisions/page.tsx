@@ -1070,29 +1070,33 @@ export default function ReviewPage() {
         <div className="flex h-full max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
 
           {/* Modal header */}
-          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div className="flex shrink-0 flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-3.5">
+            {/* Title row */}
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <span className="font-mono text-xs text-muted-foreground/60">v{activeRevision.version_number}</span>
-              <span className="truncate font-semibold text-foreground">{activeRevision.title}</span>
+              <span className="truncate text-sm font-semibold text-foreground">{activeRevision.title}</span>
               <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${STATUS_CONFIG[activeRevision.status as RevisionStatus]?.color}`}>
                 {STATUS_CONFIG[activeRevision.status as RevisionStatus]?.label}
               </span>
             </div>
+            {/* Controls row */}
             <div className="flex shrink-0 items-center gap-2">
               {activeRevision.status === "draft" && (
                 <button
                   onClick={() => setDeployTarget(activeRevision)}
                   className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-bold text-black transition-colors hover:bg-[#c49843]"
                 >
-                  <Rocket className="h-3.5 w-3.5" /> Send for Review
+                  <Rocket className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Send for Review</span>
+                  <span className="sm:hidden">Send</span>
                 </button>
               )}
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-none">
                 <select
                   value={activeRevision.status}
                   onChange={(e) => handleUpdateStatus(activeRevision, e.target.value as RevisionStatus)}
                   disabled={!!updatingStatusId}
-                  className="appearance-none rounded-lg border border-border bg-muted/30 py-1.5 pl-2.5 pr-7 text-xs text-foreground focus:border-[#d4a853]/50 focus:outline-none cursor-pointer"
+                  className="w-full appearance-none rounded-lg border border-border bg-muted/30 py-1.5 pl-2.5 pr-7 text-xs text-foreground focus:border-[#d4a853]/50 focus:outline-none cursor-pointer sm:w-auto"
                 >
                   {ALL_STATUSES.map((s) => (
                     <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
@@ -1117,10 +1121,10 @@ export default function ReviewPage() {
           </div>
 
           {/* Modal body */}
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
 
             {/* Video player */}
-            <div className="flex flex-[3] flex-col overflow-hidden bg-black">
+            <div className="flex h-[44vw] shrink-0 flex-col overflow-hidden bg-black md:h-auto md:flex-[3]">
               {activeRevision.file_url ? (
                 <>
                   <div className="relative flex-1 overflow-hidden">
@@ -1250,7 +1254,7 @@ export default function ReviewPage() {
             </div>
 
             {/* Notes panel */}
-            <div className="flex w-[300px] shrink-0 flex-col overflow-hidden border-l border-border">
+            <div className="flex flex-1 flex-col overflow-hidden border-t border-border md:w-[300px] md:flex-none md:border-l md:border-t-0">
               <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-5">
                 {(activeRevision.comments?.length ?? 0) > 0 ? (() => {
                   const clientName = portalToken?.client_name;

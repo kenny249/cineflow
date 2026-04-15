@@ -83,6 +83,7 @@ export interface Project {
   title: string;
   description?: string;
   client_name?: string;
+  client_email?: string;
   status: ProjectStatus;
   type: ProjectType;
   progress: number;
