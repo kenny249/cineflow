@@ -315,6 +315,8 @@ export default function TasksPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [completingIds, setCompletingIds] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [dailyQuote, setDailyQuote] = useState("");
   const [sessionCompletedCount, setSessionCompletedCount] = useState(0);
@@ -486,6 +488,20 @@ export default function TasksPage() {
   const deleteTask = (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     dbDeleteTask(id).catch(() => {});
+  };
+
+  const startEdit = (task: Task) => {
+    setEditingId(task.id);
+    setEditingTitle(task.title);
+  };
+
+  const saveEdit = (id: string) => {
+    const trimmed = editingTitle.trim();
+    if (trimmed && trimmed !== tasks.find((t) => t.id === id)?.title) {
+      setTasks((prev) => prev.map((t) => t.id === id ? { ...t, title: trimmed } : t));
+      dbUpdateTask(id, { title: trimmed }).catch(() => {});
+    }
+    setEditingId(null);
   };
   // Keep refreshTasks available for future use
   void refreshTasks;
@@ -731,7 +747,26 @@ export default function TasksPage() {
                   completing={completingIds.includes(task.id)}
                   onClick={(e) => toggleTask(task.id, e)}
                 />
-                <p className="flex-1 min-w-0 text-sm font-medium text-foreground truncate">{task.title}</p>
+                {editingId === task.id ? (
+                  <input
+                    autoFocus
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    onBlur={() => saveEdit(task.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); saveEdit(task.id); }
+                      if (e.key === "Escape") setEditingId(null);
+                    }}
+                    className="flex-1 min-w-0 bg-transparent text-sm font-medium text-foreground outline-none border-b border-[#d4a853]/50 focus:border-[#d4a853] transition-colors"
+                  />
+                ) : (
+                  <p
+                    className="flex-1 min-w-0 text-sm font-medium text-foreground truncate cursor-text"
+                    onDoubleClick={() => startEdit(task)}
+                  >
+                    {task.title}
+                  </p>
+                )}
                 <span
                   className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_CONFIG[task.priority].dot}`}
                   title={`${PRIORITY_CONFIG[task.priority].label} priority`}
