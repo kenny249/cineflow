@@ -177,12 +177,10 @@ export function LoginPageClient() {
     setIsSendingLink(true);
     try {
       const supabase = createClient();
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://usecineflow.com";
       const { error } = await supabase.auth.signInWithOtp({
         email: trimmedEmail,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: `${siteUrl}/auth/callback`,
           data: { plan: planValue },
         },
       });
