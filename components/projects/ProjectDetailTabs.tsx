@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays } from "lucide-react";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -125,6 +125,28 @@ const PROD_PHASES = [
   },
 ];
 
+// Phase → status relationship: which status means "this phase is active",
+// what to advance to when complete, and what the CTA button says.
+const PHASE_STATUS_MAP: Record<string, {
+  activeWhenStatus: Project["status"];
+  nextStatus: Project["status"];
+  ctaLabel: string;
+}> = {
+  pre_prod:  { activeWhenStatus: "draft",     nextStatus: "active",    ctaLabel: "Start Production"        },
+  shoot:     { activeWhenStatus: "active",    nextStatus: "review",    ctaLabel: "Move to Post-Production" },
+  post_prod: { activeWhenStatus: "review",    nextStatus: "delivered", ctaLabel: "Mark as Delivered"       },
+  delivery:  { activeWhenStatus: "delivered", nextStatus: "delivered", ctaLabel: ""                        },
+};
+
+const STATUS_TO_PHASE: Record<string, string> = {
+  draft:     "pre_prod",
+  active:    "shoot",
+  review:    "post_prod",
+  delivered: "delivery",
+  archived:  "delivery",
+  cancelled: "delivery",
+};
+
 // Inline gradient background used as the cover fallback
 function CoverGradient({ seed }: { seed: string }) {
   // 12 film-noir palettes matching cinematic-images.ts
@@ -171,6 +193,8 @@ export default function ProjectDetailTabs({
   const [status, setStatus] = useState<Project["status"]>(project.status);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
+  const currentPhaseId = STATUS_TO_PHASE[status] ?? "pre_prod";
+  const currentPhaseIndex = PROD_PHASES.findIndex((p) => p.id === currentPhaseId);
   const [shotList, setShotList] = useState<ShotList | null>(initialShotList);
   const [storyboardFrames, setStoryboardFrames] = useState<StoryboardFrame[]>(initialStoryboardFrames);
   const [revisions, setRevisions] = useState<Revision[]>(initialRevisions);
@@ -1031,7 +1055,8 @@ export default function ProjectDetailTabs({
       }
     } catch (err) {
       setStatus(prev);
-      const msg = err instanceof Error ? err.message : "Failed to update status";
+      const msg = (err as any)?.message ?? (err as any)?.details ?? "Failed to update status";
+      console.error("Status update error:", err);
       toast.error(msg);
     } finally {
       setStatusSaving(false);
@@ -1428,14 +1453,14 @@ export default function ProjectDetailTabs({
                     </section>
                   )}
 
-                  {/* \u2500\u2500 Production Phases \u2500\u2500 */}
+                  {/* ── Production Phases ── */}
                   <section>
                     <h3 className="mb-3 font-display text-sm font-semibold text-foreground flex items-center gap-2">
                       Production Phases
                       <span className="font-mono text-xs font-normal text-muted-foreground">{computedProgress}%</span>
                     </h3>
                     <div className="space-y-2">
-                      {PROD_PHASES.map((phase) => {
+                      {PROD_PHASES.map((phase, phaseIndex) => {
                         const isShoot = phase.id === "shoot";
                         const checkedCount = isShoot
                           ? completedShots
@@ -1443,37 +1468,59 @@ export default function ProjectDetailTabs({
                         const total = isShoot ? totalShots : phase.items.length;
                         const phasePct = total > 0 ? checkedCount / total : 0;
                         const isComplete = total > 0 && phasePct >= 1;
+                        const isPast = phaseIndex < currentPhaseIndex;
+                        const isCurrent = phaseIndex === currentPhaseIndex;
+                        const phaseMap = PHASE_STATUS_MAP[phase.id];
+                        const showCta = isCurrent && isComplete && phaseMap.nextStatus !== phaseMap.activeWhenStatus;
                         return (
                           <div
                             key={phase.id}
-                            className={`rounded-xl border overflow-hidden transition-colors ${
-                              isComplete ? "border-emerald-500/20 bg-emerald-500/[0.02]" : "border-border bg-card"
+                            className={`rounded-xl border overflow-hidden transition-all duration-200 ${
+                              isPast
+                                ? "border-emerald-500/20 bg-emerald-500/[0.02]"
+                                : isCurrent
+                                ? "border-[#d4a853]/30 bg-[#d4a853]/[0.02]"
+                                : "border-border bg-card"
                             }`}
                           >
                             <div className="px-3 py-2.5">
+                              {/* Phase header */}
                               <div className="flex items-center justify-between mb-1.5">
                                 <div className="flex items-center gap-2">
-                                  {isComplete
+                                  {isPast || isComplete
                                     ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                    : isCurrent
+                                    ? <div className="h-3.5 w-3.5 rounded-full border-2 border-[#d4a853]/60 shrink-0" />
                                     : <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30 shrink-0" />
                                   }
-                                  <span className="text-xs font-medium text-foreground">{phase.label}</span>
+                                  <span className={`text-xs font-medium ${isCurrent ? "text-foreground" : "text-muted-foreground"}`}>
+                                    {phase.label}
+                                  </span>
+                                  {isCurrent && !isComplete && (
+                                    <span className="rounded bg-[#d4a853]/15 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-[#d4a853] uppercase">
+                                      Current
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] text-muted-foreground">{total > 0 ? `${checkedCount}/${total}` : "\u2014"}</span>
+                                  <span className="text-[10px] text-muted-foreground">{total > 0 ? `${checkedCount}/${total}` : "—"}</span>
                                   <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">{phase.weight}%</span>
                                 </div>
                               </div>
+
+                              {/* Phase mini progress bar */}
                               {total > 0 && (
                                 <div className="mb-2 h-[2px] rounded-full bg-border overflow-hidden">
                                   <motion.div
-                                    className="h-full bg-[#d4a853]"
+                                    className={`h-full ${isPast || isComplete ? "bg-emerald-400" : "bg-[#d4a853]"}`}
                                     initial={false}
                                     animate={{ width: `${phasePct * 100}%` }}
                                     transition={{ duration: 0.4, ease: "easeOut" }}
                                   />
                                 </div>
                               )}
+
+                              {/* Phase items */}
                               {isShoot ? (
                                 <div className="flex items-center gap-1.5">
                                   <Film className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -1502,13 +1549,31 @@ export default function ProjectDetailTabs({
                                         }`}>
                                           {done && <Check className="h-2 w-2 text-black" />}
                                         </div>
-                                        <span className={`text-[11px] transition-colors ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                                        <span className={`text-[11px] transition-colors ${done ? "line-through text-muted-foreground" : isCurrent ? "text-foreground" : "text-muted-foreground"}`}>
                                           {item.label}
                                         </span>
                                       </button>
                                     );
                                   })}
                                 </div>
+                              )}
+
+                              {/* ── Advance phase CTA ── */}
+                              {showCta && (
+                                <button
+                                  onClick={() => handleQuickStatusChange(phaseMap.nextStatus)}
+                                  disabled={statusSaving}
+                                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#d4a853] px-3 py-2 text-xs font-semibold text-black transition-all hover:bg-[#c49843] active:scale-[0.98] disabled:opacity-50"
+                                >
+                                  {statusSaving ? (
+                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                                  ) : (
+                                    <>
+                                      {phaseMap.ctaLabel}
+                                      <ArrowRight className="h-3.5 w-3.5" />
+                                    </>
+                                  )}
+                                </button>
                               )}
                             </div>
                           </div>
