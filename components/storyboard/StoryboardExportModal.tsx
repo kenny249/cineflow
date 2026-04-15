@@ -23,7 +23,7 @@ import type {
   PdfLayout,
   PdfTheme,
   StoryboardPdfSettings,
-} from "@/lib/storyboard-pdf";
+} from "@/lib/storyboard-pdf-types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -17,6 +17,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   // PDFViewer uses pdfjs-dist with ssr:false dynamic import, so canvas is never needed server-side
+  // @react-pdf/renderer is Node-only — keep it out of the client bundle
+  serverExternalPackages: ["@react-pdf/renderer"],
   turbopack: {},
   headers: () => Promise.resolve([
     { source: "/(.*)", headers: securityHeaders },

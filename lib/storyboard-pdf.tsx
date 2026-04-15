@@ -9,43 +9,24 @@ import {
   Font,
 } from "@react-pdf/renderer";
 import type { StoryboardFrame } from "@/types";
+import type {
+  PdfTheme,
+  PdfFont,
+  PdfLayout,
+  PdfSections,
+  PdfBranding,
+  StoryboardPdfSettings,
+} from "./storyboard-pdf-types";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export type PdfTheme = "dark" | "light";
-export type PdfFont =
-  | "inter"
-  | "montserrat"
-  | "playfair"
-  | "bebas"
-  | "oswald"
-  | "dm_sans";
-export type PdfLayout = "1up" | "2up" | "3up";
-
-export interface PdfSections {
-  coverPage: boolean;
-  frameImages: boolean;
-  shotDetails: boolean;
-  directorNotes: boolean;
-  mood: boolean;
-  frameNumbers: boolean;
-}
-
-export interface PdfBranding {
-  agencyName: string;
-  tagline: string;
-  accentColor: string;
-  showPoweredBy: boolean;
-  logoUrl?: string;
-}
-
-export interface StoryboardPdfSettings {
-  theme: PdfTheme;
-  font: PdfFont;
-  layout: PdfLayout;
-  sections: PdfSections;
-  branding: PdfBranding;
-}
+// Re-export so the API route can import from one place
+export type {
+  PdfTheme,
+  PdfFont,
+  PdfLayout,
+  PdfSections,
+  PdfBranding,
+  StoryboardPdfSettings,
+} from "./storyboard-pdf-types";
 
 // ─── Font Registration ────────────────────────────────────────────────────────
 
