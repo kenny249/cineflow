@@ -19,6 +19,7 @@ import {
   DollarSign,
   FlaskConical,
   FileSignature,
+  Clapperboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -37,6 +38,7 @@ const NAV_MAIN = [
   { label: "Tasks",      href: "/project-tasks",  icon: ClipboardList },
   { label: "Contracts",  href: "/contracts",      icon: FileSignature },
   { label: "Forms",      href: "/forms",           icon: ClipboardList },
+  { label: "Storyboard", href: "/storyboard",     icon: Clapperboard },
   { label: "Scripts",    href: "/scripts",        icon: ScrollText },
   { label: "Review",     href: "/revisions",      icon: Film },
   { label: "Finance",    href: "/finance",        icon: DollarSign },
