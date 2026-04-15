@@ -176,16 +176,10 @@ export function LoginPageClient() {
     setIsSendingLink(true);
     try {
       const supabase = createClient();
-      // Always use the canonical non-www URL — window.location.origin can
-      // return https://www.usecineflow.com which may not be in Supabase's
-      // allowed redirect list and fails on mobile browsers.
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://usecineflow.com";
-
       const { error } = await supabase.auth.signInWithOtp({
         email: trimmedEmail,
         options: {
           shouldCreateUser: true,
-          emailRedirectTo: `${siteUrl}/auth/callback`,
           data: { plan: planValue },
         },
       });
