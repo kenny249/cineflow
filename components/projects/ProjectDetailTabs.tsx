@@ -191,7 +191,6 @@ export default function ProjectDetailTabs({
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description ?? "");
   const [status, setStatus] = useState<Project["status"]>(project.status);
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const currentPhaseId = STATUS_TO_PHASE[status] ?? "pre_prod";
   const currentPhaseIndex = PROD_PHASES.findIndex((p) => p.id === currentPhaseId);
@@ -280,7 +279,6 @@ export default function ProjectDetailTabs({
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description);
-  const [editStatus, setEditStatus] = useState<Project["status"]>(status);
   const [editClientName, setEditClientName] = useState(project.client_name ?? "");
   const [editClientEmail, setEditClientEmail] = useState(project.client_email ?? "");
   const [editTags, setEditTags] = useState<string[]>(project.tags ?? []);
@@ -961,58 +959,22 @@ export default function ProjectDetailTabs({
   };
 
   const handleSaveProject = async () => {
-    const prevStatus = status;
     const updates = {
       title: editTitle.trim() || title,
       description: editDescription,
-      status: editStatus,
       client_name: editClientName.trim() || undefined,
       client_email: editClientEmail.trim() || undefined,
       tags: editTags,
     };
     setTitle(updates.title);
     setDescription(updates.description);
-    setStatus(updates.status);
     setShowEditDialog(false);
     try {
       await updateProject(project.id, updates);
       toast.success("Project details updated.");
-
-      // Fire stage notification email when status advances to a new pillar
-      if (updates.status !== prevStatus) {
-        const STAGE_EMAILS: Record<string, { event: string; stageName: string; stageDescription: string }> = {
-          active:    { event: "stage_update",  stageName: "Production",      stageDescription: "Your team has started production. We'll keep you updated as the project progresses." },
-          shooting:  { event: "stage_update",  stageName: "Production",      stageDescription: "Your team has started production. We'll keep you updated as the project progresses." },
-          review:    { event: "stage_update",  stageName: "Post-Production", stageDescription: "Production is complete and your project has moved into post-production. A cut will be ready for your review soon." },
-          editing:   { event: "stage_update",  stageName: "Post-Production", stageDescription: "Production is complete and your project has moved into post-production. A cut will be ready for your review soon." },
-          delivered: { event: "final_delivery", stageName: "Delivered",       stageDescription: "" },
-          completed: { event: "final_delivery", stageName: "Delivered",       stageDescription: "" },
-        };
-        const stageInfo = STAGE_EMAILS[updates.status];
-        if (stageInfo) {
-          // Fetch portal token if not already loaded
-          const token = portalToken ?? await getProjectReviewToken(project.id).catch(() => null);
-          if (token?.client_email) {
-            const base = typeof window !== "undefined" ? window.location.origin : "https://usecineflow.com";
-            await fetch("/api/notify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                event: stageInfo.event,
-                clientName: token.client_name,
-                clientEmail: token.client_email,
-                projectTitle: updates.title,
-                portalUrl: `${base}/review/${token.token}`,
-                stageName: stageInfo.stageName,
-                stageDescription: stageInfo.stageDescription,
-              }),
-            }).catch(() => {}); // non-fatal
-          }
-        }
-      }
     } catch (err) {
       console.error("Save project error:", err);
-      const msg = err instanceof Error ? err.message : "Failed to save";
+      const msg = (err as any)?.message ?? (err as any)?.details ?? "Failed to save";
       toast.error(msg);
     }
   };
@@ -1021,7 +983,6 @@ export default function ProjectDetailTabs({
     if (newStatus === status || statusSaving) return;
     const prev = status;
     setStatus(newStatus);
-    setStatusDropdownOpen(false);
     setStatusSaving(true);
     try {
       await updateProject(project.id, { status: newStatus });
@@ -1066,7 +1027,6 @@ export default function ProjectDetailTabs({
   const openEditDialog = () => {
     setEditTitle(title);
     setEditDescription(description);
-    setEditStatus(status);
     setEditClientName(project.client_name ?? "");
     setEditClientEmail(project.client_email ?? "");
     setEditTags(project.tags ?? []);
@@ -1278,36 +1238,8 @@ export default function ProjectDetailTabs({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                {/* Quick status picker */}
-                <div className="relative">
-                  <button
-                    onClick={() => setStatusDropdownOpen((o) => !o)}
-                    disabled={statusSaving}
-                    className="flex items-center gap-1 rounded-full transition-opacity hover:opacity-80 disabled:opacity-50"
-                    title="Change status"
-                  >
-                    <StatusBadge status={status} />
-                    <ChevronDown className="h-3 w-3 text-muted-foreground -ml-0.5" />
-                  </button>
-                  {statusDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setStatusDropdownOpen(false)} />
-                      <div className="absolute left-0 top-full z-20 mt-1 w-40 overflow-hidden rounded-xl border border-border bg-card shadow-xl">
-                        {(["draft","active","review","delivered"] as Project["status"][]).map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => handleQuickStatusChange(s)}
-                            className={`flex w-full items-center gap-2.5 px-3 py-2 text-xs transition-colors hover:bg-accent ${s === status ? "bg-accent/50" : ""}`}
-                          >
-                            <span className={`h-1.5 w-1.5 rounded-full ${s === "active" ? "bg-blue-400" : s === "review" ? "bg-amber-400" : s === "delivered" ? "bg-emerald-400" : "bg-muted-foreground"}`} />
-                            {PROJECT_STATUS_LABELS[s]}
-                            {s === status && <Check className="ml-auto h-3 w-3 text-[#d4a853]" />}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
+                {/* Status indicator — read-only, driven by phase completion */}
+                <StatusBadge status={status} />
                 <Badge variant="outline">{PROJECT_TYPE_LABELS[project.type]}</Badge>
                 {project.tags?.map((tag) => (
                   <Badge key={tag} variant="outline">{tag}</Badge>
@@ -2476,15 +2408,6 @@ export default function ProjectDetailTabs({
             <div className="space-y-1.5">
               <Label htmlFor="edit-description">Description</Label>
               <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} placeholder="Project description" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-status">Status</Label>
-              <select id="edit-status" value={editStatus} onChange={(e) => setEditStatus(e.target.value as Project["status"])} className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground">
-                <option value="draft">Draft</option>
-                <option value="active">In production</option>
-                <option value="review">In review</option>
-                <option value="delivered">Delivered</option>
-              </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
