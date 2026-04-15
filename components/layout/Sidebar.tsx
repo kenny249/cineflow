@@ -173,7 +173,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     });
   }, []);
 
-  const SOLO_HIDDEN = ["/team", "/storyboard", "/scripts"];
+  const SOLO_HIDDEN = ["/team", "/scripts"];
   const navItems = isSoloPlan(plan)
     ? NAV_MAIN.filter((item) => !SOLO_HIDDEN.includes(item.href))
     : NAV_MAIN;

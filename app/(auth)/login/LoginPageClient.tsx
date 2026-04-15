@@ -373,25 +373,27 @@ export function LoginPageClient() {
               </div>
             )}
 
-            {/* Demo button */}
-            <button
-              onClick={handleBetaAccess}
-              disabled={isLoading}
-              className="group relative w-full overflow-hidden rounded-2xl bg-[#d4a853] py-4 text-[0.95rem] font-bold text-black transition-all hover:bg-[#e0b55e] active:scale-[0.98] disabled:opacity-60"
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
-                  Opening demo…
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  Try {isSolo ? "Solo" : "Studio"} Demo, No signup
-                  <span className="transition-transform group-hover:translate-x-0.5">→</span>
-                </span>
-              )}
-            </button>
+            {/* Demo button — hide once user is in OTP step */}
+            {!linkSentTo && (
+              <button
+                onClick={handleBetaAccess}
+                disabled={isLoading}
+                className="group relative w-full overflow-hidden rounded-2xl bg-[#d4a853] py-4 text-[0.95rem] font-bold text-black transition-all hover:bg-[#e0b55e] active:scale-[0.98] disabled:opacity-60"
+              >
+                {isLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                    Opening demo…
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Try {isSolo ? "Solo" : "Studio"} Demo, No signup
+                    <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                  </span>
+                )}
+              </button>
+            )}
           </div>
 
           <p className="mt-5 text-center text-[11px] text-zinc-600">
