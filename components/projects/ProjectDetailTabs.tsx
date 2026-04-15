@@ -1002,6 +1002,33 @@ export default function ProjectDetailTabs({
     try {
       await updateProject(project.id, { status: newStatus });
       toast.success(`Status → ${PROJECT_STATUS_LABELS[newStatus]}`);
+
+      // Fire stage notification email (same as full edit flow)
+      const STAGE_EMAILS: Record<string, { event: string; stageName: string; stageDescription: string }> = {
+        active:    { event: "stage_update",   stageName: "Production",      stageDescription: "Your team has started production. We'll keep you updated as the project progresses." },
+        review:    { event: "stage_update",   stageName: "Post-Production", stageDescription: "Production is complete and your project has moved into post-production. A cut will be ready for your review soon." },
+        delivered: { event: "final_delivery", stageName: "Delivered",       stageDescription: "" },
+      };
+      const stageInfo = STAGE_EMAILS[newStatus];
+      if (stageInfo) {
+        const token = portalToken ?? await getProjectReviewToken(project.id).catch(() => null);
+        if (token?.client_email) {
+          const base = typeof window !== "undefined" ? window.location.origin : "https://usecineflow.com";
+          fetch("/api/notify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event: stageInfo.event,
+              clientName: token.client_name,
+              clientEmail: token.client_email,
+              projectTitle: title,
+              portalUrl: `${base}/review/${token.token}`,
+              stageName: stageInfo.stageName,
+              stageDescription: stageInfo.stageDescription,
+            }),
+          }).catch(() => {});
+        }
+      }
     } catch (err) {
       setStatus(prev);
       const msg = err instanceof Error ? err.message : "Failed to update status";
