@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot, Camera, Check, ChevronRight, Clapperboard, Clock, Copy, Film,
-  ImageIcon, Layers, Link2, Loader2, MessageSquare, Pencil, Plus,
+  GripVertical, ImageIcon, Layers, Link2, Loader2, MessageSquare, Pencil, Plus,
   Send, Share2, Sparkles, Trash2, Upload, X, ZoomIn,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +30,19 @@ const MOODS = ["Cinematic", "Golden Hour", "Moody", "High Energy", "Intimate", "
 
 function formatShotType(t: string) {
   return t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function totalRuntime(frames: StoryboardFrame[]): string {
+  let seconds = 0;
+  for (const f of frames) {
+    if (!f.shot_duration) continue;
+    const parts = f.shot_duration.split(":").map(Number);
+    if (parts.length === 3) seconds += parts[0] * 3600 + parts[1] * 60 + parts[2];
+    else if (parts.length === 2) seconds += parts[0] * 60 + parts[1];
+  }
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 // ─── FrameCard ────────────────────────────────────────────────────────────────
@@ -102,6 +115,11 @@ function FrameCard({
         {/* Frame number badge */}
         <div className="absolute left-3 top-3 z-10 flex h-6 min-w-[1.5rem] items-center justify-center rounded-md bg-black/60 px-1.5 text-[10px] font-bold uppercase tracking-widest text-[#d4a853] backdrop-blur-sm">
           {String(index + 1).padStart(2, "0")}
+        </div>
+
+        {/* Drag handle */}
+        <div className="absolute left-1/2 top-3 z-10 hidden -translate-x-1/2 cursor-grab items-center justify-center rounded-md bg-black/60 px-1.5 py-1 text-zinc-400 backdrop-blur-sm active:cursor-grabbing group-hover:flex">
+          <GripVertical className="h-3.5 w-3.5" />
         </div>
 
         {/* Delete */}
@@ -251,6 +269,11 @@ function FrameCard({
                 <p className="mb-3 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{frame.description}</p>
               )}
               <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border/50 pt-2">
+                {frame.shot_type && (
+                  <span className="rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {formatShotType(frame.shot_type)}
+                  </span>
+                )}
                 {frame.shot_duration && (
                   <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
                     <Clock className="h-3 w-3" />
@@ -292,6 +315,8 @@ export default function StoryboardPage() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [dragSrcIdx, setDragSrcIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -379,6 +404,24 @@ export default function StoryboardPage() {
     },
     [projectId, handleUpdate]
   );
+
+  const handleReorder = useCallback(async (srcIdx: number, destIdx: number) => {
+    if (srcIdx === destIdx) return;
+    const reordered = [...frames];
+    const [moved] = reordered.splice(srcIdx, 1);
+    reordered.splice(destIdx, 0, moved);
+    const updated = reordered.map((f, idx) => ({ ...f, frame_number: idx + 1 }));
+    setFrames(updated);
+    setDragSrcIdx(null);
+    setDragOverIdx(null);
+    try {
+      await Promise.all(
+        updated.map((f) => updateStoryboardFrame(f.id, { frame_number: f.frame_number }))
+      );
+    } catch {
+      toast.error("Failed to save new order");
+    }
+  }, [frames]);
 
   const handleAddFrame = async () => {
     if (!projectId || !newTitle.trim()) return;
@@ -554,14 +597,18 @@ export default function StoryboardPage() {
 
         {/* Stats */}
         {frames.length > 0 && (
-          <div className="mb-5 grid grid-cols-2 gap-2">
+          <div className="mb-5 grid grid-cols-3 gap-2">
             <div className="rounded-xl border border-border bg-background/50 p-3 text-center">
               <p className="text-lg font-bold text-[#d4a853]">{frames.length}</p>
               <p className="text-[10px] text-muted-foreground">Frames</p>
             </div>
             <div className="rounded-xl border border-border bg-background/50 p-3 text-center">
               <p className="text-lg font-bold text-foreground">{frames.filter((f) => f.image_url).length}</p>
-              <p className="text-[10px] text-muted-foreground">With images</p>
+              <p className="text-[10px] text-muted-foreground">Images</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/50 p-3 text-center">
+              <p className="text-base font-bold text-foreground">{totalRuntime(frames)}</p>
+              <p className="text-[10px] text-muted-foreground">Runtime</p>
             </div>
           </div>
         )}
@@ -708,15 +755,28 @@ export default function StoryboardPage() {
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {frames.map((frame, i) => (
-                <FrameCard
+                <div
                   key={frame.id}
-                  frame={frame}
-                  index={i}
-                  onUpdate={handleUpdate}
-                  onDelete={handleDelete}
-                  onImageUpload={handleImageUpload}
-                  uploading={uploadingId}
-                />
+                  draggable
+                  onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; setDragSrcIdx(i); }}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragOverIdx !== i) setDragOverIdx(i); }}
+                  onDrop={(e) => { e.preventDefault(); if (dragSrcIdx !== null) handleReorder(dragSrcIdx, i); }}
+                  onDragEnd={() => { setDragSrcIdx(null); setDragOverIdx(null); }}
+                  className={cn(
+                    "transition-all duration-150",
+                    dragSrcIdx === i && "opacity-40 scale-95",
+                    dragOverIdx === i && dragSrcIdx !== i && "ring-2 ring-[#d4a853]/70 rounded-2xl scale-[1.02]"
+                  )}
+                >
+                  <FrameCard
+                    frame={frame}
+                    index={i}
+                    onUpdate={handleUpdate}
+                    onDelete={handleDelete}
+                    onImageUpload={handleImageUpload}
+                    uploading={uploadingId}
+                  />
+                </div>
               ))}
               {/* Ghost add card */}
               <button
@@ -731,9 +791,21 @@ export default function StoryboardPage() {
         </div>
       </div>
 
-      {/* ── AI Assistant panel ────────────────────────────────────── */}
+      {/* ── Mobile backdrop ───────────────────────────────────────── */}
       {aiOpen && (
-        <div className="flex w-80 shrink-0 flex-col border-l border-border bg-card/80 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setAiOpen(false)}
+        />
+      )}
+
+      {/* ── AI Assistant panel ────────────────────────────────────── */}
+      {/* Desktop: always inline (lg:flex), Mobile: fixed overlay when aiOpen */}
+      <div className={cn(
+        "flex-col border-l border-border bg-card/80 backdrop-blur-sm",
+        "hidden lg:flex lg:w-72 lg:shrink-0",
+        aiOpen && "fixed inset-y-0 right-0 z-40 flex w-80 shadow-2xl lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shadow-none"
+      )}>
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-2">
@@ -747,7 +819,7 @@ export default function StoryboardPage() {
             </div>
             <button
               onClick={() => setAiOpen(false)}
-              className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground lg:hidden"
             >
               <X className="h-4 w-4" />
             </button>
@@ -886,7 +958,6 @@ export default function StoryboardPage() {
             </form>
           )}
         </div>
-      )}
 
       {/* ── Add Frame modal ───────────────────────────────────────── */}
       {addOpen && (
