@@ -50,7 +50,7 @@ export function LoginPageClient() {
   const [email, setEmail]               = useState("");
   const [isSendingLink, setIsSendingLink] = useState(false);
   const [linkSentTo, setLinkSentTo]     = useState<string | null>(null);
-  const CODE_LENGTH = 8;
+  const CODE_LENGTH = 6;
   const [digits, setDigits]             = useState<string[]>(Array(CODE_LENGTH).fill(""));
   const [isVerifying, setIsVerifying]   = useState(false);
   const [otpError, setOtpError]         = useState<string | null>(null);
