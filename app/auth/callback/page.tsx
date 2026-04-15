@@ -46,7 +46,9 @@ function CallbackInner() {
       }
 
       if (!user) {
-        setErrorMsg(`${lastMsg} This link may have expired — please request a new one.`);
+        // Common on iOS Chrome — link opened in Gmail in-app browser whose
+        // session doesn't carry over. Prompt them to open the email in Safari/Mail.
+        setErrorMsg(`${lastMsg} Try opening the magic link from your iPhone's Mail app or Safari instead of Gmail or Chrome.`);
         return;
       }
 
@@ -85,15 +87,20 @@ function CallbackInner() {
           <Film className="h-7 w-7 text-red-400" />
         </div>
         <div>
-          <p className="mb-1 text-sm font-semibold text-red-400">Link expired</p>
+          <p className="mb-1 text-sm font-semibold text-red-400">Could not sign in</p>
           <p className="max-w-xs text-sm text-zinc-500">{errorMsg}</p>
         </div>
-        <a
-          href="/login"
-          className="rounded-xl border border-white/10 px-6 py-3 text-sm text-zinc-400 transition-colors hover:text-white"
-        >
-          Back to login
-        </a>
+        <div className="flex flex-col items-center gap-3">
+          <a
+            href="/login"
+            className="rounded-xl bg-[#d4a853] px-6 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+          >
+            Request a new link
+          </a>
+          <p className="text-[11px] text-zinc-600">
+            Tip: open the email in Apple Mail or Safari for the best experience.
+          </p>
+        </div>
       </div>
     );
   }

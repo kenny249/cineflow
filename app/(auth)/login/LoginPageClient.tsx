@@ -102,16 +102,17 @@ export function LoginPageClient() {
     setIsSendingLink(true);
     try {
       const supabase = createClient();
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ??
-        (typeof window !== "undefined" ? window.location.origin : "https://www.usecineflow.com");
+      // Always use the canonical non-www URL — window.location.origin can
+      // return https://www.usecineflow.com which may not be in Supabase's
+      // allowed redirect list and fails on mobile browsers.
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://usecineflow.com";
 
       const { error } = await supabase.auth.signInWithOtp({
         email: trimmedEmail,
         options: {
           shouldCreateUser: true,
           emailRedirectTo: `${siteUrl}/auth/callback`,
-          data: { full_name: getOrCreateDisplayName(), plan: planValue },
+          data: { plan: planValue },
         },
       });
 
@@ -229,11 +230,20 @@ export function LoginPageClient() {
               >
                 {isSendingLink ? "Sending link..." : "Email me a magic link"}
               </button>
-              <p className="mt-2 text-center text-[11px] text-zinc-600">
-                {linkSentTo
-                  ? `Check ${linkSentTo}, your ${isSolo ? "solo" : "studio"} workspace is ready.`
-                  : "No password needed. One click and you're in."}
-              </p>
+              {linkSentTo ? (
+                <div className="mt-2 space-y-1 text-center">
+                  <p className="text-[11px] text-zinc-400">
+                    Check <span className="text-white">{linkSentTo}</span> — click the link to sign in.
+                  </p>
+                  <p className="text-[10px] text-zinc-600">
+                    On iPhone? Open the email in the Mail app for best results.
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-2 text-center text-[11px] text-zinc-600">
+                  No password needed. One click and you&apos;re in.
+                </p>
+              )}
             </div>
 
             {/* Demo button */}
