@@ -7,6 +7,7 @@ import {
   emailFeedbackReceived,
   emailApproved,
   emailFinalDelivery,
+  emailStageUpdate,
   emailOwnerClientApproved,
   emailOwnerClientRequestedChanges,
 } from "@/lib/email-templates";
@@ -23,6 +24,7 @@ export type NotifyEvent =
   | "feedback_received"
   | "approved"
   | "final_delivery"
+  | "stage_update"
   | "client_approved"
   | "client_requested_changes";
 
@@ -36,6 +38,9 @@ export interface NotifyPayload {
   revisionTitle?: string;
   versionNumber?: number;
   portalUrl: string;
+  // Stage update extras
+  stageName?: string;
+  stageDescription?: string;
   // Owner notification extras
   ownerName?: string;
   feedback?: string;
@@ -73,6 +78,8 @@ export async function POST(req: NextRequest) {
     revisionTitle,
     versionNumber,
     portalUrl,
+    stageName,
+    stageDescription,
     ownerName,
     feedback,
   } = body;
@@ -111,6 +118,15 @@ export async function POST(req: NextRequest) {
       break;
     case "final_delivery":
       template = emailFinalDelivery({ clientName, projectTitle, portalUrl });
+      break;
+    case "stage_update":
+      template = emailStageUpdate({
+        clientName,
+        projectTitle,
+        stageName: stageName ?? "Next Phase",
+        stageDescription: stageDescription ?? "Your production team is moving things forward.",
+        portalUrl,
+      });
       break;
     case "client_approved":
       template = emailOwnerClientApproved({

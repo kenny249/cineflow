@@ -222,6 +222,31 @@ export function emailOwnerClientApproved({
   return { subject, html: base(subject, body) };
 }
 
+// ─── Template: Stage update (agency moves project to next pillar) ─────────────
+export function emailStageUpdate({
+  clientName,
+  projectTitle,
+  stageName,
+  stageDescription,
+  portalUrl,
+}: {
+  clientName: string;
+  projectTitle: string;
+  stageName: string;
+  stageDescription: string;
+  portalUrl: string;
+}): { subject: string; html: string } {
+  const subject = `${projectTitle} — Now in ${stageName}`;
+  const body = `
+    ${h1(`Your project is now in ${stageName}.`)}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;">Hi ${clientName}, <strong style="color:#f0f0f0;">${projectTitle}</strong> has advanced to the <strong style="color:#f0f0f0;">${stageName}</strong> phase.</p>
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#666666;">${stageDescription}</p>
+    ${btn("View your project portal", portalUrl)}
+  `;
+  return { subject, html: base(subject, body) };
+}
+
 // ─── Template: Owner — client requested changes ───────────────────────────────
 export function emailOwnerClientRequestedChanges({
   projectTitle,

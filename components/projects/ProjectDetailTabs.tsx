@@ -932,6 +932,7 @@ export default function ProjectDetailTabs({
   };
 
   const handleSaveProject = async () => {
+    const prevStatus = status;
     const updates = {
       title: editTitle.trim() || title,
       description: editDescription,
@@ -945,6 +946,39 @@ export default function ProjectDetailTabs({
     try {
       await updateProject(project.id, updates);
       toast.success("Project details updated.");
+
+      // Fire stage notification email when status advances to a new pillar
+      if (updates.status !== prevStatus) {
+        const STAGE_EMAILS: Record<string, { event: string; stageName: string; stageDescription: string }> = {
+          active:    { event: "stage_update",  stageName: "Production",      stageDescription: "Your team has started production. We'll keep you updated as the project progresses." },
+          shooting:  { event: "stage_update",  stageName: "Production",      stageDescription: "Your team has started production. We'll keep you updated as the project progresses." },
+          review:    { event: "stage_update",  stageName: "Post-Production", stageDescription: "Production is complete and your project has moved into post-production. A cut will be ready for your review soon." },
+          editing:   { event: "stage_update",  stageName: "Post-Production", stageDescription: "Production is complete and your project has moved into post-production. A cut will be ready for your review soon." },
+          delivered: { event: "final_delivery", stageName: "Delivered",       stageDescription: "" },
+          completed: { event: "final_delivery", stageName: "Delivered",       stageDescription: "" },
+        };
+        const stageInfo = STAGE_EMAILS[updates.status];
+        if (stageInfo) {
+          // Fetch portal token if not already loaded
+          const token = portalToken ?? await getProjectReviewToken(project.id).catch(() => null);
+          if (token?.client_email) {
+            const base = typeof window !== "undefined" ? window.location.origin : "https://usecineflow.com";
+            await fetch("/api/notify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                event: stageInfo.event,
+                clientName: token.client_name,
+                clientEmail: token.client_email,
+                projectTitle: updates.title,
+                portalUrl: `${base}/review/${token.token}`,
+                stageName: stageInfo.stageName,
+                stageDescription: stageInfo.stageDescription,
+              }),
+            }).catch(() => {}); // non-fatal
+          }
+        }
+      }
     } catch {
       toast.error("Failed to save, changes may not persist.");
     }
