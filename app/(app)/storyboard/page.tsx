@@ -3,9 +3,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot, Camera, Check, ChevronRight, Clapperboard, Clock, Copy, Film,
-  GripVertical, ImageIcon, Layers, Link2, Loader2, MessageSquare, Pencil, Plus,
+  FileDown, GripVertical, ImageIcon, Layers, Link2, Loader2, MessageSquare, Pencil, Plus,
   Send, Share2, Sparkles, Trash2, Upload, X, ZoomIn,
 } from "lucide-react";
+import { StoryboardExportModal } from "@/components/storyboard/StoryboardExportModal";
 import { toast } from "sonner";
 import {
   getProjects,
@@ -315,6 +316,7 @@ export default function StoryboardPage() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [dragSrcIdx, setDragSrcIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
@@ -641,6 +643,14 @@ export default function StoryboardPage() {
             )}
             Share with client
           </button>
+          <button
+            onClick={() => setExportOpen(true)}
+            disabled={frames.length === 0}
+            className="flex w-full items-center gap-2 rounded-xl border border-border bg-background/50 px-3 py-2.5 text-sm text-foreground transition-colors hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5 disabled:opacity-40"
+          >
+            <FileDown className="h-4 w-4 text-muted-foreground" />
+            Export PDF
+          </button>
         </div>
 
         {/* Share URL */}
@@ -689,6 +699,14 @@ export default function StoryboardPage() {
               >
                 {sharing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
                 <span className="hidden sm:inline">Share</span>
+              </button>
+              <button
+                onClick={() => setExportOpen(true)}
+                disabled={frames.length === 0}
+                className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground transition-all hover:border-[#d4a853]/40 disabled:opacity-40 sm:px-3"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Export</span>
               </button>
               <button
                 onClick={() => setAddOpen(true)}
@@ -1074,6 +1092,14 @@ export default function StoryboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Export PDF modal ──────────────────────────────────────── */}
+      <StoryboardExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        frames={frames}
+        projectTitle={selectedProject?.title ?? "Storyboard"}
+      />
 
       <style>{`
         @keyframes bounce {
