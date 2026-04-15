@@ -138,16 +138,16 @@ export default function DashboardPage() {
 
   const stats = solo
     ? [
-        { label: "Active Jobs",       value: inFlightCount,                                            icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
-        { label: "Shoots This Week",  value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10"  },
-        { label: "Awaiting Feedback", value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10" },
-        { label: "Delivered",         value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10"},
+        { label: "Active Jobs",       value: inFlightCount,                                            icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10",  href: "/projects" },
+        { label: "Shoots This Week",  value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10",   href: "/calendar" },
+        { label: "Awaiting Feedback", value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10",  href: "/projects" },
+        { label: "Delivered",         value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10", href: "/projects" },
       ]
     : [
-        { label: "Active",        value: inFlightCount,                                            icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
-        { label: "This Week",     value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10"  },
-        { label: "Pending review",value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10" },
-        { label: "Delivered",     value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10"},
+        { label: "Active",        value: inFlightCount,                                            icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10",  href: "/projects" },
+        { label: "This Week",     value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10",   href: "/calendar" },
+        { label: "Pending review",value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10",  href: "/projects" },
+        { label: "Delivered",     value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10", href: "/projects" },
       ];
 
   return (
@@ -198,9 +198,10 @@ export default function DashboardPage() {
           {/* ── Stat pills ── */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {stats.map((stat) => (
-              <div
+              <Link
                 key={stat.label}
-                className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#d4a853]/20 hover:shadow-[0_8px_32px_rgba(0,0,0,0.3)] hover:bg-card"
+                href={stat.href}
+                className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#d4a853]/20 hover:shadow-[0_8px_32px_rgba(0,0,0,0.3)] active:scale-[0.98]"
               >
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${stat.bg} transition-all duration-200 group-hover:shadow-[0_0_14px_rgba(212,168,83,0.2)]`}>
                   <stat.icon className={`h-4 w-4 ${stat.color}`} />
@@ -209,7 +210,7 @@ export default function DashboardPage() {
                   <div className="font-display text-xl font-bold text-foreground">{stat.value}</div>
                   <div className="text-[10px] text-muted-foreground">{stat.label}</div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
 

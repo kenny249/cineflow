@@ -47,6 +47,10 @@ export async function createProject(project: Omit<Project, 'id' | 'created_at' |
   }
 
   logActivity({ project_id: data.id, type: 'project_created', description: 'Created project' }).catch(() => {});
+  // Fire-and-forget notification
+  db().auth.getUser().then(({ data: { user } }) => {
+    if (user) createNotification({ user_id: user.id, type: 'project_created', title: `Project "${data.title}" created`, href: `/projects/${data.id}` }).catch(() => {});
+  });
   return data as Project;
 }
 
@@ -65,6 +69,10 @@ export async function updateProject(id: string, updates: Partial<Project>) {
   if (error) throw error;
   if (updates.status) {
     logActivity({ project_id: id, type: 'status_changed', description: `Status changed to "${updates.status}"`, metadata: { status: updates.status } }).catch(() => {});
+    // Fire-and-forget notification for status changes
+    db().auth.getUser().then(({ data: { user } }) => {
+      if (user) createNotification({ user_id: user.id, type: 'status_changed', title: `"${(data as Project).title}" → ${updates.status}`, description: `Project status updated`, href: `/projects/${id}` }).catch(() => {});
+    });
   } else {
     logActivity({ project_id: id, type: 'project_updated', description: 'Project updated' }).catch(() => {});
   }
