@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, Tv2 } from "lucide-react";
+import { CinematicWallpaper } from "@/components/shared/CinematicWallpaper";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,9 @@ export default function SettingsClient() {
   const [paySettings, setPaySettings] = useState<PaymentSettings>({});
   const [isSavingPayment, setIsSavingPayment] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState<PaymentTab | null>("stripe");
+
+  // Wallpaper mode
+  const [wallpaperOpen, setWallpaperOpen] = useState(false);
 
   // Password
   const [currentPassword, setCurrentPassword] = useState("");
@@ -237,6 +241,8 @@ export default function SettingsClient() {
   };
 
   return (
+    <>
+    {wallpaperOpen && <CinematicWallpaper onExit={() => setWallpaperOpen(false)} />}
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center border-b border-border px-6 py-4">
         <div>
@@ -698,6 +704,32 @@ export default function SettingsClient() {
             </div>
           </section>
 
+          {/* ── Studio Display ───────────────────────────────────── */}
+          <section>
+            <h2 className="mb-4 font-display text-sm font-semibold text-muted-foreground">Studio Display</h2>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#d4a853]/10">
+                    <Tv2 className="h-4 w-4 text-[#d4a853]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Cinematic Wallpaper</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Full-screen ambient display — perfect for iPad on set or wall</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10"
+                  onClick={() => setWallpaperOpen(true)}
+                >
+                  Launch
+                </Button>
+              </div>
+            </div>
+          </section>
+
           {/* ── Danger Zone ──────────────────────────────────────── */}
           <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-red-400">Danger Zone</h2>
@@ -724,6 +756,7 @@ export default function SettingsClient() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
