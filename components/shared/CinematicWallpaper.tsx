@@ -6,9 +6,19 @@ interface CinematicWallpaperProps {
   onExit: () => void;
 }
 
-type Bokeh    = { x: number; y: number; vx: number; vy: number; r: number; baseO: number; pulse: number; pSpeed: number };
-type Particle = { x: number; y: number; vx: number; vy: number; r: number; gold: boolean; o: number };
-type Floater  = { text: string; x: number; y: number; vx: number; vy: number; size: number; o: number; targetO: number; life: number; maxLife: number };
+// 3-D particle — stored in original (un-rotated) coords + current rotated coords
+type P3 = {
+  ox: number; oy: number; oz: number; // original world-space position
+  x:  number; y:  number; z:  number; // current rotated position (updated each frame)
+  r:        number;
+  gold:     boolean;
+  kind:     "bg" | "helix" | "rung";
+  pulse:    number;
+  pSpeed:   number;
+};
+
+// Strand index + neighbour index for sequential helix line connections
+type StrandLink = { a: number; b: number };
 
 export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -20,9 +30,8 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
   }
 
   useEffect(() => {
-    // Request fullscreen (best-effort on iPad Safari)
     const el = document.documentElement as any;
-    if (el.requestFullscreen)            el.requestFullscreen().catch(() => {});
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
     else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
 
     const canvas = canvasRef.current;
@@ -37,196 +46,299 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
     resize();
     window.addEventListener("resize", resize);
 
-    // ── Bokeh orbs — the key cinematic ingredient ─────────────────────────
-    const bokeh: Bokeh[] = Array.from({ length: 24 }, () => ({
-      x:      Math.random() * canvas!.width,
-      y:      Math.random() * canvas!.height,
-      vx:     (Math.random() - 0.5) * 0.05,
-      vy:     (Math.random() - 0.5) * 0.05,
-      r:      70 + Math.random() * 180,
-      baseO:  0.14 + Math.random() * 0.3,
-      pulse:  Math.random() * Math.PI * 2,
-      pSpeed: 0.002 + Math.random() * 0.005,
-    }));
+    let wakeLock: { release: () => Promise<void> } | null = null;
+    if ("wakeLock" in navigator) {
+      (navigator as any).wakeLock.request("screen")
+        .then((wl: typeof wakeLock) => { wakeLock = wl; })
+        .catch(() => {});
+    }
 
-    // ── Particles ─────────────────────────────────────────────────────────
-    const particles: Particle[] = Array.from({ length: 220 }, () => ({
-      x:    Math.random() * canvas!.width,
-      y:    Math.random() * canvas!.height,
-      vx:   (Math.random() - 0.5) * 0.11,
-      vy:   (Math.random() - 0.5) * 0.11,
-      r:    0.4 + Math.random() * 1.7,
-      gold: Math.random() < 0.48,
-      o:    0.18 + Math.random() * 0.38,
-    }));
+    // ─── Build particle system ────────────────────────────────────────────
 
-    // ── Text floaters ─────────────────────────────────────────────────────
-    const floaters: Floater[] = [];
-    function spawnFloater() {
-      const roll = Math.random();
-      const isBig = roll < 0.25;
-      const isMid = roll < 0.5;
-      floaters.push({
-        text:    isBig ? "CINEFLOW" : (isMid ? "CF" : "◈"),
-        x:       Math.random() * canvas!.width,
-        y:       Math.random() * canvas!.height,
-        vx:      (Math.random() - 0.5) * 0.16,
-        vy:      (Math.random() - 0.5) * 0.07,
-        size:    isBig ? 32 + Math.random() * 52 : isMid ? 16 + Math.random() * 14 : 10 + Math.random() * 12,
-        o:       0,
-        targetO: isBig ? 0.055 + Math.random() * 0.07 : 0.1 + Math.random() * 0.18,
-        life:    0,
-        maxLife: 700 + Math.random() * 700,
+    const particles: P3[] = [];
+
+    // Background cloud — particles scattered in a sphere around the helix
+    for (let i = 0; i < 130; i++) {
+      const theta  = Math.random() * Math.PI * 2;
+      const phi    = Math.acos(2 * Math.random() - 1);
+      const radius = 180 + Math.random() * 340;
+      const ox = radius * Math.sin(phi) * Math.cos(theta);
+      const oy = radius * Math.sin(phi) * Math.sin(theta);
+      const oz = radius * Math.cos(phi);
+      particles.push({
+        ox, oy, oz, x: ox, y: oy, z: oz,
+        r:      0.6 + Math.random() * 1.8,
+        gold:   Math.random() < 0.45,
+        kind:   "bg",
+        pulse:  Math.random() * Math.PI * 2,
+        pSpeed: 0.008 + Math.random() * 0.018,
       });
     }
-    for (let i = 0; i < 12; i++) spawnFloater();
 
-    // ── Wake lock (prevents iPad sleep) ───────────────────────────────────
-    let wakeLock: any = null;
-    if ("wakeLock" in navigator) {
-      (navigator as any).wakeLock.request("screen").then((wl: any) => { wakeLock = wl; }).catch(() => {});
+    // DNA double helix — 2 strands, 80 points each, 3 full turns
+    const HELIX_R     = 65;    // helix radius
+    const HELIX_H     = 520;   // total height of helix
+    const TURNS       = 3;
+    const PTS         = 80;    // points per strand
+    const RUNG_EVERY  = 5;     // connect strands every N steps
+
+    const strand1Idx: number[] = [];
+    const strand2Idx: number[] = [];
+    const strandLinks: StrandLink[] = [];
+
+    for (let i = 0; i < PTS; i++) {
+      const t = (i / PTS) * Math.PI * 2 * TURNS;
+      const oy = (i / (PTS - 1)) * HELIX_H - HELIX_H / 2;
+
+      // Strand 1
+      const ox1 = HELIX_R * Math.cos(t);
+      const oz1 = HELIX_R * Math.sin(t);
+      strand1Idx.push(particles.length);
+      particles.push({
+        ox: ox1, oy, oz: oz1, x: ox1, y: oy, z: oz1,
+        r: 2.4, gold: true, kind: "helix",
+        pulse: Math.random() * Math.PI * 2, pSpeed: 0.012 + Math.random() * 0.01,
+      });
+
+      // Strand 2 (offset by π)
+      const ox2 = HELIX_R * Math.cos(t + Math.PI);
+      const oz2 = HELIX_R * Math.sin(t + Math.PI);
+      strand2Idx.push(particles.length);
+      particles.push({
+        ox: ox2, oy, oz: oz2, x: ox2, y: oy, z: oz2,
+        r: 2.4, gold: true, kind: "helix",
+        pulse: Math.random() * Math.PI * 2, pSpeed: 0.012 + Math.random() * 0.01,
+      });
+
+      // Rung particles connecting the two strands
+      if (i % RUNG_EVERY === 0) {
+        const RUNG_INNER = 3; // intermediate particles along each rung
+        for (let j = 1; j <= RUNG_INNER; j++) {
+          const f  = j / (RUNG_INNER + 1);
+          const ox = ox1 + (ox2 - ox1) * f;
+          const oz = oz1 + (oz2 - oz1) * f;
+          particles.push({
+            ox, oy, oz, x: ox, y: oy, z: oz,
+            r: 0.9, gold: false, kind: "rung",
+            pulse: 0, pSpeed: 0,
+          });
+        }
+      }
     }
 
-    let t = 0;
-    let logoPhase = 0;
-    const CONNECT = 110;
+    // Sequential links along each strand (for efficient line drawing)
+    for (let i = 0; i < PTS - 1; i++) {
+      strandLinks.push({ a: strand1Idx[i], b: strand1Idx[i + 1] });
+      strandLinks.push({ a: strand2Idx[i], b: strand2Idx[i + 1] });
+    }
+    // Rung links every RUNG_EVERY steps
+    for (let i = 0; i < PTS; i += RUNG_EVERY) {
+      strandLinks.push({ a: strand1Idx[i], b: strand2Idx[i] });
+    }
+
+    // ─── Rotation state ───────────────────────────────────────────────────
+
+    let rotY  = 0;              // primary spin around Y-axis
+    let rotX  = 0.18;           // gentle fixed tilt on X
+    let driftT = 0;             // time for X-axis drift oscillation
+
+    // ─── Logo state ───────────────────────────────────────────────────────
+
+    type LogoPhase = "idle" | "fadein" | "hold" | "fadeout";
+    let logoAlpha: number   = 0;
+    let logoPhase: LogoPhase = "idle";
+    let logoTimer: number   = 0;
+    let logoCountdown: number = 80;  // first appearance after ~80 frames
+
+    const LOGO_MAX    = 0.14;
+    const LOGO_FADEIN = 100;
+    const LOGO_HOLD   = 140;
+    const LOGO_FADEOUT= 100;
+    const LOGO_GAP    = 320; // frames between appearances
+
+    // ─── Helpers ──────────────────────────────────────────────────────────
+
+    const FOV = 520;
+
+    function project(px: number, py: number, pz: number) {
+      const scale = FOV / (FOV + pz + 220);
+      return {
+        sx: canvas!.width  / 2 + px * scale,
+        sy: canvas!.height / 2 + py * scale,
+        scale,
+      };
+    }
+
+    function rotY3(px: number, py: number, pz: number, a: number) {
+      const c = Math.cos(a), s = Math.sin(a);
+      return { x: px * c + pz * s, y: py, z: -px * s + pz * c };
+    }
+
+    function rotX3(px: number, py: number, pz: number, a: number) {
+      const c = Math.cos(a), s = Math.sin(a);
+      return { x: px, y: py * c - pz * s, z: py * s + pz * c };
+    }
+
+    // ─── Draw loop ────────────────────────────────────────────────────────
 
     const draw = () => {
-      t++;
-      const W = canvas.width;
-      const H = canvas.height;
+      const W = canvas!.width;
+      const H = canvas!.height;
 
-      // True black
-      ctx.fillStyle = "#000000";
+      ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
 
-      // ── Bokeh layer ──────────────────────────────────────────────────────
-      for (const b of bokeh) {
-        b.x += b.vx; b.y += b.vy;
-        if (b.x < -b.r) b.x = W + b.r; if (b.x > W + b.r) b.x = -b.r;
-        if (b.y < -b.r) b.y = H + b.r; if (b.y > H + b.r) b.y = -b.r;
-        b.pulse += b.pSpeed;
-        const o = b.baseO * (0.65 + 0.35 * Math.sin(b.pulse));
-        const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-        g.addColorStop(0,    `rgba(212,168,83,${o})`);
-        g.addColorStop(0.3,  `rgba(212,168,83,${o * 0.35})`);
-        g.addColorStop(0.7,  `rgba(180,130,50,${o * 0.08})`);
-        g.addColorStop(1,    "rgba(0,0,0,0)");
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
+      // Advance rotation
+      rotY  += 0.0028;
+      driftT += 0.0007;
+      rotX   = 0.18 + 0.06 * Math.sin(driftT); // gentle nodding
+
+      // Transform all particles into current rotated positions
+      for (const p of particles) {
+        let r = rotY3(p.ox, p.oy, p.oz, rotY);
+        r = rotX3(r.x, r.y, r.z, rotX);
+        p.x = r.x; p.y = r.y; p.z = r.z;
+        p.pulse += p.pSpeed;
       }
 
-      // ── Particles ────────────────────────────────────────────────────────
-      for (const p of particles) {
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-        if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-      }
-      // Connection lines
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const d  = Math.sqrt(dx * dx + dy * dy);
-          if (d < CONNECT) {
-            const a = (1 - d / CONNECT) * 0.055;
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = (particles[i].gold || particles[j].gold)
-              ? `rgba(212,168,83,${a})`
-              : `rgba(180,155,100,${a * 0.5})`;
-            ctx.lineWidth = 0.4;
-            ctx.stroke();
-          }
+      // Depth-sorted draw order (painter's algorithm: far → near)
+      const sorted = [...particles].sort((a, b) => b.z - a.z);
+
+      // ── Background particle connections ──────────────────────────────────
+      const bgPs = particles.filter(p => p.kind === "bg");
+      const BG_CONNECT = 95;
+      for (let i = 0; i < bgPs.length; i++) {
+        for (let j = i + 1; j < bgPs.length; j++) {
+          const dx = bgPs[i].x - bgPs[j].x;
+          const dy = bgPs[i].y - bgPs[j].y;
+          const dz = bgPs[i].z - bgPs[j].z;
+          const d  = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          if (d >= BG_CONNECT) continue;
+          const pa  = project(bgPs[i].x, bgPs[i].y, bgPs[i].z);
+          const pb  = project(bgPs[j].x, bgPs[j].y, bgPs[j].z);
+          const avg = (pa.scale + pb.scale) * 0.5;
+          const a   = (1 - d / BG_CONNECT) * 0.045 * avg;
+          ctx.beginPath();
+          ctx.moveTo(pa.sx, pa.sy);
+          ctx.lineTo(pb.sx, pb.sy);
+          ctx.strokeStyle = (bgPs[i].gold || bgPs[j].gold)
+            ? `rgba(212,168,83,${a})`
+            : `rgba(200,175,110,${a * 0.4})`;
+          ctx.lineWidth = 0.35;
+          ctx.stroke();
         }
       }
-      // Dots
-      for (const p of particles) {
-        if (p.gold) {
-          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 11);
-          g.addColorStop(0, `rgba(212,168,83,${p.o * 0.9})`);
-          g.addColorStop(1, "rgba(212,168,83,0)");
+
+      // ── Helix strand + rung lines (sequential — O(n)) ────────────────────
+      for (const lk of strandLinks) {
+        const pa = project(particles[lk.a].x, particles[lk.a].y, particles[lk.a].z);
+        const pb = project(particles[lk.b].x, particles[lk.b].y, particles[lk.b].z);
+        const avgScale = (pa.scale + pb.scale) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(pa.sx, pa.sy);
+        ctx.lineTo(pb.sx, pb.sy);
+        ctx.strokeStyle = `rgba(212,168,83,${avgScale * 0.35})`;
+        ctx.lineWidth = 0.6 * avgScale;
+        ctx.stroke();
+      }
+
+      // ── Particles (depth-sorted) ──────────────────────────────────────────
+      for (const p of sorted) {
+        const { sx, sy, scale } = project(p.x, p.y, p.z);
+
+        // Clamp scale to avoid massive particles if z is near -FOV
+        const s  = Math.min(scale, 2.0);
+        const pf = 0.85 + 0.15 * Math.sin(p.pulse);
+        const r  = p.r * s * pf;
+        const da = Math.max(0.04, Math.min(1, s * 1.4)); // depth-based alpha
+
+        if (p.kind === "helix") {
+          // Outer glow
+          const gr = r * 9;
+          const g  = ctx.createRadialGradient(sx, sy, 0, sx, sy, gr);
+          g.addColorStop(0,   `rgba(212,168,83,${da * 0.55})`);
+          g.addColorStop(0.25,`rgba(212,168,83,${da * 0.12})`);
+          g.addColorStop(1,   "rgba(0,0,0,0)");
           ctx.beginPath();
-          ctx.arc(p.x, p.y, p.r * 11, 0, Math.PI * 2);
+          ctx.arc(sx, sy, gr, 0, Math.PI * 2);
           ctx.fillStyle = g;
           ctx.fill();
+          // Core
+          ctx.beginPath();
+          ctx.arc(sx, sy, Math.max(0.6, r), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,225,130,${da})`;
+          ctx.fill();
+
+        } else if (p.kind === "rung") {
+          ctx.beginPath();
+          ctx.arc(sx, sy, Math.max(0.3, r * 0.7), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(180,150,90,${da * 0.38})`;
+          ctx.fill();
+
+        } else {
+          // Background particle
+          if (p.gold) {
+            const gr = r * 7;
+            const g  = ctx.createRadialGradient(sx, sy, 0, sx, sy, gr);
+            g.addColorStop(0, `rgba(212,168,83,${da * 0.45})`);
+            g.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.beginPath();
+            ctx.arc(sx, sy, gr, 0, Math.PI * 2);
+            ctx.fillStyle = g;
+            ctx.fill();
+          }
+          ctx.beginPath();
+          ctx.arc(sx, sy, Math.max(0.3, r), 0, Math.PI * 2);
+          ctx.fillStyle = p.gold
+            ? `rgba(212,168,83,${da * 0.65})`
+            : `rgba(255,240,200,${da * 0.22})`;
+          ctx.fill();
         }
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = p.gold
-          ? `rgba(212,168,83,${p.o})`
-          : `rgba(255,240,200,${p.o * 0.35})`;
-        ctx.fill();
       }
 
-      // ── Deep vignette ────────────────────────────────────────────────────
-      const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.08, W / 2, H / 2, H * 0.9);
+      // ── Deep vignette ─────────────────────────────────────────────────────
+      const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.1, W / 2, H / 2, H * 0.88);
       vg.addColorStop(0, "rgba(0,0,0,0)");
-      vg.addColorStop(1, "rgba(0,0,0,0.88)");
+      vg.addColorStop(1, "rgba(0,0,0,0.91)");
       ctx.fillStyle = vg;
       ctx.fillRect(0, 0, W, H);
 
-      // ── Floating text (behind center logo) ───────────────────────────────
-      if (t % 140 === 0 && floaters.length < 18) spawnFloater();
-      for (let i = floaters.length - 1; i >= 0; i--) {
-        const fl = floaters[i];
-        fl.x += fl.vx; fl.y += fl.vy; fl.life++;
-        const FADE = 90;
-        if (fl.life < FADE)                    fl.o = (fl.life / FADE) * fl.targetO;
-        else if (fl.life > fl.maxLife - FADE)  fl.o = ((fl.maxLife - fl.life) / FADE) * fl.targetO;
-        else                                    fl.o = fl.targetO;
-        if (fl.life >= fl.maxLife) { floaters.splice(i, 1); continue; }
+      // ── CINEFLOW — ghostly, minimal ───────────────────────────────────────
+      if (logoPhase === "idle") {
+        logoCountdown--;
+        if (logoCountdown <= 0) {
+          logoPhase = "fadein"; logoTimer = 0; logoCountdown = LOGO_GAP;
+        }
+      } else if (logoPhase === "fadein") {
+        logoTimer++;
+        logoAlpha = (logoTimer / LOGO_FADEIN) * LOGO_MAX;
+        if (logoTimer >= LOGO_FADEIN) { logoPhase = "hold"; logoTimer = 0; }
+      } else if (logoPhase === "hold") {
+        logoTimer++;
+        logoAlpha = LOGO_MAX;
+        if (logoTimer >= LOGO_HOLD) { logoPhase = "fadeout"; logoTimer = 0; }
+      } else {
+        logoTimer++;
+        logoAlpha = LOGO_MAX * (1 - logoTimer / LOGO_FADEOUT);
+        if (logoTimer >= LOGO_FADEOUT) { logoPhase = "idle"; logoAlpha = 0; }
+      }
+
+      if (logoAlpha > 0.001) {
+        const fs = Math.min(W * 0.055, 66);
         ctx.save();
-        ctx.globalAlpha = fl.o;
-        ctx.font = `100 ${fl.size}px 'SF Pro Display', system-ui, sans-serif`;
-        ctx.fillStyle = "#d4a853";
-        ctx.textAlign = "left";
-        ctx.fillText(fl.text, fl.x, fl.y);
+        ctx.globalAlpha = logoAlpha;
+        ctx.textAlign    = "center";
+        ctx.textBaseline = "middle";
+        ctx.font         = `100 ${fs}px 'SF Pro Display', system-ui, sans-serif`;
+        ctx.fillStyle    = "#d4a853";
+        ctx.fillText("CINEFLOW", W / 2, H / 2);
         ctx.restore();
       }
 
-      // ── Central CINEFLOW wordmark ─────────────────────────────────────────
-      logoPhase += 0.007;
-      const logoO = 0.45 + 0.42 * Math.sin(logoPhase); // breathes 0.03–0.87
-      const fontSize = Math.min(W * 0.075, 88);
-
-      ctx.save();
-      ctx.globalAlpha = logoO;
-      ctx.textAlign    = "center";
-      ctx.textBaseline = "middle";
-
-      // Outer glow pass (larger blur)
-      ctx.shadowColor = "rgba(212,168,83,0.5)";
-      ctx.shadowBlur  = 60 + 25 * Math.sin(logoPhase);
-      ctx.font        = `100 ${fontSize}px 'SF Pro Display', system-ui, sans-serif`;
-      ctx.fillStyle   = "#d4a853";
-      ctx.fillText("CINEFLOW", W / 2, H / 2);
-
-      // Crisp pass on top
-      ctx.shadowBlur  = 8;
-      ctx.shadowColor = "rgba(212,168,83,0.9)";
-      ctx.fillText("CINEFLOW", W / 2, H / 2);
-
-      // Hairline rule below text
-      const measured = ctx.measureText("CINEFLOW").width;
-      ctx.shadowBlur  = 0;
-      ctx.globalAlpha = logoO * 0.35;
-      ctx.strokeStyle = "#d4a853";
-      ctx.lineWidth   = 0.7;
-      const lineY     = H / 2 + fontSize * 0.62;
-      ctx.beginPath();
-      ctx.moveTo(W / 2 - measured / 2, lineY);
-      ctx.lineTo(W / 2 + measured / 2, lineY);
-      ctx.stroke();
-      ctx.restore();
-
       // ── Scanlines ─────────────────────────────────────────────────────────
-      for (let y = 0; y < H; y += 4) {
-        ctx.fillStyle = "rgba(0,0,0,0.022)";
-        ctx.fillRect(0, y, W, 1);
+      for (let sy = 0; sy < H; sy += 4) {
+        ctx.fillStyle = "rgba(0,0,0,0.016)";
+        ctx.fillRect(0, sy, W, 1);
       }
 
       rafRef.current = requestAnimationFrame(draw);
@@ -250,7 +362,7 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
       tabIndex={0}
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-      <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-white/20 pointer-events-none tracking-[0.25em] uppercase animate-fade-out">
+      <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-[10px] text-white/10 pointer-events-none tracking-[0.3em] uppercase animate-fade-out">
         Tap to exit
       </p>
     </div>
