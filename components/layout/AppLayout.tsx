@@ -119,23 +119,12 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     }
   }, [theme]);
 
-  // Global ⌘K / Ctrl+K + Spacebar listener
+  // Global ⌘K / Ctrl+K listener
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setPaletteOpen(true);
-      }
-
-      // Spacebar — toggle any video on the page (skip when typing)
-      if (e.key === " " || e.code === "Space") {
-        const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-        if (tag === "input" || tag === "textarea" || (e.target as HTMLElement)?.isContentEditable) return;
-        const video = document.querySelector<HTMLVideoElement>("video");
-        if (!video) return;
-        e.preventDefault();
-        if (video.paused) video.play();
-        else video.pause();
       }
     };
     document.addEventListener("keydown", down);

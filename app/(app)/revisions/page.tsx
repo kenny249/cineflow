@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSpacebarVideo } from "@/hooks/useSpacebarVideo";
 import {
   Film, Play, Pause, Volume2, VolumeX, Maximize, Download,
   MessageSquare, X, Trash2, Upload, Search, Loader2,
@@ -522,6 +523,7 @@ export default function ReviewPage() {
 
   // Video player
   const videoRef = useRef<HTMLVideoElement>(null);
+  useSpacebarVideo(videoRef);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playerDuration, setPlayerDuration] = useState(0);
