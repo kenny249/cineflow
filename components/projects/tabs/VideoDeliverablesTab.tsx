@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ExternalLink, CheckCircle2, Circle, Link2, X, Film, Youtube, Globe, Mic, Image, ChevronDown } from "lucide-react";
+import { Plus, Trash2, ExternalLink, CheckCircle2, Circle, Link2, X, Film, Youtube, Globe, Mic, Image, ChevronDown, Copy, Check, Eye } from "lucide-react";
 import { toast } from "sonner";
-import { getVideoDeliverables, createVideoDeliverable, updateVideoDeliverable, deleteVideoDeliverable } from "@/lib/supabase/queries";
-import type { VideoDeliverable, VideoDeliverableType } from "@/types";
+import { getVideoDeliverables, createVideoDeliverable, updateVideoDeliverable, deleteVideoDeliverable, getOrCreateClientPortal, getClientPortal } from "@/lib/supabase/queries";
+import type { VideoDeliverable, VideoDeliverableType, ClientPortal } from "@/types";
 
 const TYPE_OPTIONS: { value: VideoDeliverableType; label: string }[] = [
   { value: "short",     label: "Short / Reel" },
@@ -46,9 +46,10 @@ const EMPTY_FORM = { title: "", type: "other" as VideoDeliverableType, url: "", 
 
 interface Props {
   projectId: string;
+  clientName?: string;
 }
 
-export function VideoDeliverablesTab({ projectId }: Props) {
+export function VideoDeliverablesTab({ projectId, clientName }: Props) {
   const [items, setItems] = useState<VideoDeliverable[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -57,12 +58,49 @@ export function VideoDeliverablesTab({ projectId }: Props) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
 
+  // Portal state
+  const [portal, setPortal] = useState<ClientPortal | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     getVideoDeliverables(projectId)
       .then(setItems)
       .catch(() => toast.error("Failed to load deliverables"))
       .finally(() => setLoading(false));
   }, [projectId]);
+
+  useEffect(() => {
+    if (!clientName) return;
+    getClientPortal(clientName).then(setPortal).catch(() => {});
+  }, [clientName]);
+
+  async function handleCreatePortal() {
+    if (!clientName) return;
+    setPortalLoading(true);
+    try {
+      const p = await getOrCreateClientPortal(clientName);
+      setPortal(p);
+      const url = `${window.location.origin}/client/${p.token}`;
+      await navigator.clipboard.writeText(url).catch(() => {});
+      setCopied(true);
+      toast.success("Portal created — link copied!");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to create portal");
+    } finally {
+      setPortalLoading(false);
+    }
+  }
+
+  async function handleCopyLink() {
+    if (!portal) return;
+    const url = `${window.location.origin}/client/${portal.token}`;
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setCopied(true);
+    toast.success("Portal link copied");
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -123,8 +161,63 @@ export function VideoDeliverablesTab({ projectId }: Props) {
   const delivered = items.filter((d) => d.status === "delivered");
   const drafts    = items.filter((d) => d.status === "draft");
 
+  const portalUrl = portal ? `${typeof window !== "undefined" ? window.location.origin : ""}/client/${portal.token}` : null;
+
   return (
     <div className="p-4 sm:p-6 space-y-5">
+      {/* Client Portal Banner */}
+      {clientName && (
+        <div className={`rounded-xl border p-3.5 ${portal ? "border-[#d4a853]/20 bg-[#d4a853]/5" : "border-border bg-card/50"}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-foreground">
+                {portal ? "Client Portal Active" : "No client portal yet"}
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                {portal
+                  ? `Delivered items visible at /client/${portal.token.slice(0, 8)}…`
+                  : `Create a portal link to share with ${clientName}`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {portal ? (
+                <>
+                  <a
+                    href={portalUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/30 px-2.5 py-1.5 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
+                  >
+                    <Eye className="h-3 w-3" />
+                    Preview
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
+                  >
+                    {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                    {copied ? "Copied" : "Copy link"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleCreatePortal}
+                  disabled={portalLoading}
+                  className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-[11px] font-semibold text-black hover:bg-[#c49843] disabled:opacity-60 transition-colors"
+                >
+                  {portalLoading
+                    ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                    : <Link2 className="h-3 w-3" />}
+                  Create portal
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

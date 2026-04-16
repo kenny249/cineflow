@@ -2154,7 +2154,7 @@ export default function ProjectDetailTabs({
 
             {/* ── Final Cuts ── */}
             <TabsContent value="final-cuts" className="m-0">
-              <VideoDeliverablesTab projectId={project.id} />
+              <VideoDeliverablesTab projectId={project.id} clientName={project.client_name} />
             </TabsContent>
 
             {/* ── Notes (hidden standalone — merged into Overview) ── */}
