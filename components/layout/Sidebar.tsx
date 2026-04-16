@@ -20,6 +20,7 @@ import {
   FlaskConical,
   FileSignature,
   Clapperboard,
+  Repeat2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -33,6 +34,7 @@ const NAV_MAIN = [
   { label: "Dashboard",  href: "/dashboard",      icon: LayoutDashboard },
   { label: "Projects",   href: "/projects",       icon: FolderKanban },
   { label: "Clients",    href: "/clients",        icon: Users },
+  { label: "Retainers",  href: "/retainers",      icon: Repeat2 },
   { label: "Calendar",   href: "/calendar",       icon: Calendar },
   { label: "To Do",      href: "/tasks",          icon: CheckSquare },
   { label: "Tasks",      href: "/project-tasks",  icon: ClipboardList },

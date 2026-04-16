@@ -607,3 +607,52 @@ export interface ClientPortal {
   is_active: boolean;
   created_at: string;
 }
+
+// ─── Retainers ────────────────────────────────────────────────────────────────
+
+export interface RetainerTemplateItem {
+  type: string;   // "short" | "photo" | "premium" | "other" | custom string
+  label: string;  // display name e.g. "Short-form Videos"
+  quantity: number;
+}
+
+export interface Retainer {
+  id: string;
+  created_by: string;
+  client_name: string;
+  monthly_rate?: number;
+  template: RetainerTemplateItem[];
+  notes?: string;
+  is_active: boolean;
+  start_date?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RetainerMonthStatus = "planning" | "active" | "wrapped" | "invoiced";
+
+export interface RetainerMonth {
+  id: string;
+  retainer_id: string;
+  created_by: string;
+  month_year: string; // "2026-04"
+  status: RetainerMonthStatus;
+  shoot_date?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RetainerDeliverableStatus = "planned" | "shot" | "delivered";
+
+export interface RetainerDeliverable {
+  id: string;
+  month_id: string;
+  created_by: string;
+  title: string;
+  type: string;
+  status: RetainerDeliverableStatus;
+  notes?: string;
+  sort_order: number;
+  created_at: string;
+}

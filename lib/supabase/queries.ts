@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -1394,4 +1394,159 @@ export async function getClientPortals(): Promise<ClientPortal[]> {
     .order('created_at', { ascending: false });
   if (error) { if (isMissingTableError(error)) return []; throw error; }
   return (data ?? []) as ClientPortal[];
+}
+
+// ─── Retainers ────────────────────────────────────────────────────────────────
+
+export async function getRetainers(): Promise<Retainer[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('retainers')
+    .select('*')
+    .eq('created_by', user.id)
+    .order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as Retainer[];
+}
+
+export async function getRetainer(id: string): Promise<Retainer | null> {
+  const { data, error } = await db()
+    .from('retainers')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) { if (error.code === 'PGRST116') return null; throw error; }
+  return data as Retainer;
+}
+
+export async function createRetainer(payload: {
+  client_name: string;
+  monthly_rate?: number;
+  template: RetainerTemplateItem[];
+  notes?: string;
+  start_date?: string;
+}): Promise<Retainer> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('retainers')
+    .insert({ ...payload, created_by: user.id })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Retainer;
+}
+
+export async function updateRetainer(id: string, updates: Partial<Pick<Retainer, 'client_name' | 'monthly_rate' | 'template' | 'notes' | 'is_active' | 'start_date'>>): Promise<void> {
+  const { error } = await db()
+    .from('retainers')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Retainer Months ─────────────────────────────────────────────────────────
+
+export async function getRetainerMonths(retainerId: string): Promise<RetainerMonth[]> {
+  const { data, error } = await db()
+    .from('retainer_months')
+    .select('*')
+    .eq('retainer_id', retainerId)
+    .order('month_year', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as RetainerMonth[];
+}
+
+export async function createRetainerMonth(payload: {
+  retainer_id: string;
+  month_year: string;
+  shoot_date?: string;
+  template: RetainerTemplateItem[];
+}): Promise<RetainerMonth> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Create the month record
+  const { data: month, error } = await client
+    .from('retainer_months')
+    .insert({ retainer_id: payload.retainer_id, month_year: payload.month_year, created_by: user.id, shoot_date: payload.shoot_date })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  // Auto-populate deliverables from template
+  const deliverables: { month_id: string; created_by: string; title: string; type: string; sort_order: number }[] = [];
+  let sortOrder = 0;
+  for (const item of payload.template) {
+    for (let i = 1; i <= item.quantity; i++) {
+      const suffix = item.quantity > 1 ? ` ${i}` : '';
+      deliverables.push({
+        month_id: month.id,
+        created_by: user.id,
+        title: `${item.label}${suffix}`,
+        type: item.type,
+        sort_order: sortOrder++,
+      });
+    }
+  }
+  if (deliverables.length > 0) {
+    await client.from('retainer_deliverables').insert(deliverables);
+  }
+
+  return month as RetainerMonth;
+}
+
+export async function updateRetainerMonth(id: string, updates: Partial<Pick<RetainerMonth, 'status' | 'shoot_date' | 'notes'>>): Promise<void> {
+  const { error } = await db()
+    .from('retainer_months')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Retainer Deliverables ───────────────────────────────────────────────────
+
+export async function getRetainerDeliverables(monthId: string): Promise<RetainerDeliverable[]> {
+  const { data, error } = await db()
+    .from('retainer_deliverables')
+    .select('*')
+    .eq('month_id', monthId)
+    .order('sort_order', { ascending: true });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as RetainerDeliverable[];
+}
+
+export async function createRetainerDeliverable(payload: {
+  month_id: string;
+  title: string;
+  type: string;
+  sort_order?: number;
+}): Promise<RetainerDeliverable> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('retainer_deliverables')
+    .insert({ ...payload, created_by: user.id })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as RetainerDeliverable;
+}
+
+export async function updateRetainerDeliverable(id: string, updates: { status?: string; title?: string; notes?: string }): Promise<void> {
+  const { error } = await db()
+    .from('retainer_deliverables')
+    .update(updates)
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteRetainerDeliverable(id: string): Promise<void> {
+  const { error } = await db().from('retainer_deliverables').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }

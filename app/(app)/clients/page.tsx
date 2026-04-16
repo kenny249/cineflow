@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2, FileSignature, ExternalLink, Link2, Copy, Check } from "lucide-react";
-import { getProjects, createProject, getClientContacts, upsertClientContact, getClientPortals, getOrCreateClientPortal } from "@/lib/supabase/queries";
+import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2, FileSignature, ExternalLink, Link2, Copy, Check, Repeat2 } from "lucide-react";
+import { getProjects, createProject, getClientContacts, upsertClientContact, getClientPortals, getOrCreateClientPortal, getRetainers } from "@/lib/supabase/queries";
 import type { ClientContact as DBClientContact } from "@/lib/supabase/queries";
-import type { ClientPortal } from "@/types";
+import type { ClientPortal, Retainer } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,9 @@ export default function ClientsPage() {
   const [creatingPortal, setCreatingPortal] = useState<string | null>(null);
   const [copiedPortal, setCopiedPortal] = useState<string | null>(null);
 
+  // Retainers (keyed by client_name)
+  const [retainerMap, setRetainerMap] = useState<Record<string, Retainer>>({});
+
   async function saveContact() {
     if (!editingContact) return;
     setSavingContact(true);
@@ -92,9 +95,10 @@ export default function ClientsPage() {
       getProjects(),
       getClientContacts(),
       getClientPortals(),
+      getRetainers(),
       supabase.from("contracts").select("id, title, status, recipient_name, recipient_email, signing_token, signed_at, sent_at, created_at").order("created_at", { ascending: false }),
     ])
-      .then(([projs, contacts, portalRows, { data: contractRows }]) => {
+      .then(([projs, contacts, portalRows, retainerRows, { data: contractRows }]) => {
         if (!alive) return;
         setProjects(projs);
         setContracts((contractRows as Contract[]) ?? []);
@@ -114,6 +118,11 @@ export default function ClientsPage() {
           portalMap[p.client_name] = p;
         }
         setPortals(portalMap);
+        const rMap: Record<string, Retainer> = {};
+        for (const r of retainerRows as Retainer[]) {
+          if (r.is_active) rMap[r.client_name] = r;
+        }
+        setRetainerMap(rMap);
       })
       .catch(() => toast.error("Failed to load clients"))
       .finally(() => { if (alive) setLoading(false); });
@@ -367,6 +376,7 @@ export default function ClientsPage() {
                     {clientProjects.length} project{clientProjects.length !== 1 ? "s" : ""}
                     {activeCount > 0 && <span className="ml-2 text-emerald-400">· {activeCount} active</span>}
                     {portals[clientName] && <span className="ml-2 text-[#d4a853]/60">· portal active</span>}
+                    {retainerMap[clientName] && <span className="ml-2 text-violet-400/70">· retainer</span>}
                   </p>
                   {/* Contact info quick summary */}
                   {clientContacts[clientName] && (clientContacts[clientName].email || clientContacts[clientName].phone) && (
@@ -449,6 +459,33 @@ export default function ClientsPage() {
                   : [];
                 return (
                 <div className="border-t border-border divide-y divide-border">
+                  {/* Active Retainer widget */}
+                  {retainerMap[clientName] && (
+                    <div className="px-4 py-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Active Retainer</p>
+                        <Link href={`/retainers/${retainerMap[clientName].id}`} className="text-[10px] text-[#d4a853]/60 hover:text-[#d4a853] transition-colors flex items-center gap-1">
+                          View <ChevronRight className="h-2.5 w-2.5" />
+                        </Link>
+                      </div>
+                      <div className="rounded-lg border border-violet-500/10 bg-violet-500/[0.04] px-3 py-2.5 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Repeat2 className="h-3.5 w-3.5 text-violet-400/60 shrink-0" />
+                          <div>
+                            <p className="text-xs text-white/70 font-medium">{retainerMap[clientName].client_name}</p>
+                            <p className="text-[10px] text-white/30 mt-0.5">
+                              {retainerMap[clientName].template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}
+                            </p>
+                          </div>
+                        </div>
+                        {retainerMap[clientName].monthly_rate && (
+                          <span className="text-xs text-[#d4a853]/60 shrink-0">
+                            ${retainerMap[clientName].monthly_rate!.toLocaleString()}/mo
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {clientContracts.length > 0 && (
                     <div className="px-4 py-3 space-y-2">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Contracts</p>
