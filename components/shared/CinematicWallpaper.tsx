@@ -63,8 +63,8 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
       const isWord = text === "CINEFLOW";
       floaters.push({
         text,
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
+        x: Math.random() * canvas!.width,
+        y: Math.random() * canvas!.height,
         vx: (Math.random() - 0.5) * 0.28,
         vy: (Math.random() - 0.5) * 0.12,
         size:    isWord ? 28 + Math.random() * 52 : 14 + Math.random() * 22,
