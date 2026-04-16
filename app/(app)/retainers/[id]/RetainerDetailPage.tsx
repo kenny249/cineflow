@@ -4,12 +4,14 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
-  CalendarDays, X, Pencil, Check, AlertCircle,
+  CalendarDays, X, Pencil, Check, AlertCircle, Trash2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   getRetainer, getRetainerMonths, getRetainerDeliverables,
   createRetainerMonth, updateRetainerMonth, updateRetainer,
   createRetainerDeliverable, updateRetainerDeliverable, deleteRetainerDeliverable,
+  deleteRetainer,
 } from "@/lib/supabase/queries";
 import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -166,6 +168,7 @@ function ProgressPill({ label, done, total, color }: { label: string; done: numb
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function RetainerDetailPage({ id }: { id: string }) {
+  const router = useRouter();
   const [retainer, setRetainer] = useState<Retainer | null>(null);
   const [months, setMonths] = useState<RetainerMonth[]>([]);
   const [activeMonthId, setActiveMonthId] = useState<string | null>(null);
@@ -175,6 +178,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [quickAddTitle, setQuickAddTitle] = useState("");
   const [quickAddType, setQuickAddType] = useState("other");
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const activeMonth = months.find(m => m.id === activeMonthId) ?? null;
 
@@ -203,6 +208,21 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     if (activeMonthId) loadDeliverables(activeMonthId);
     else setDeliverables([]);
   }, [activeMonthId]);
+
+  // ── Delete retainer ──────────────────────────────────────────────────────
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteRetainer(id);
+      toast.success("Retainer deleted");
+      router.push("/retainers");
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to delete");
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  }
 
   // ── Start a new month ────────────────────────────────────────────────────
 
@@ -254,7 +274,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     setDeliverables(prev => prev.map(d => d.id === delivId ? { ...d, status: newStatus } : d));
   }
 
-  async function handleDelete(delivId: string) {
+  async function handleDeleteDeliverable(delivId: string) {
     await deleteRetainerDeliverable(delivId);
     setDeliverables(prev => prev.filter(d => d.id !== delivId));
   }
@@ -359,19 +379,49 @@ export default function RetainerDetailPage({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* Start month button */}
-        <Button
-          onClick={handleStartMonth}
-          disabled={startingMonth}
-          className="bg-[#d4a853] text-black font-medium hover:bg-[#c49843] h-8 text-sm"
-        >
-          {startingMonth ? (
-            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/40 border-t-black mr-1.5" />
+        <div className="flex items-center gap-2">
+          {/* Delete retainer */}
+          {confirmDelete ? (
+            <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5">
+              <span className="text-xs text-red-400">Delete this retainer?</span>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="text-xs font-medium text-red-400 hover:text-red-300 transition-colors"
+              >
+                {deleting ? "Deleting…" : "Yes, delete"}
+              </button>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                className="text-white/30 hover:text-white transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           ) : (
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="p-1.5 rounded-md text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              title="Delete retainer"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           )}
-          Start {formatMonthYear(nextAvailableMonth(months))}
-        </Button>
+
+          {/* Start month button */}
+          <Button
+            onClick={handleStartMonth}
+            disabled={startingMonth}
+            className="bg-[#d4a853] text-black font-medium hover:bg-[#c49843] h-8 text-sm"
+          >
+            {startingMonth ? (
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/40 border-t-black mr-1.5" />
+            ) : (
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            Start {formatMonthYear(nextAvailableMonth(months))}
+          </Button>
+        </div>
       </div>
 
       {/* ── No months yet ── */}
@@ -516,7 +566,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                               key={item.id}
                               item={item}
                               onStatusChange={handleStatusChange}
-                              onDelete={handleDelete}
+                              onDelete={handleDeleteDeliverable}
                               onTitleChange={handleTitleChange}
                             />
                           ))}

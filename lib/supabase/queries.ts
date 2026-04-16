@@ -1448,6 +1448,11 @@ export async function updateRetainer(id: string, updates: Partial<Pick<Retainer,
   if (error) throw new Error(error.message);
 }
 
+export async function deleteRetainer(id: string): Promise<void> {
+  const { error } = await db().from('retainers').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 // ─── Retainer Months ─────────────────────────────────────────────────────────
 
 export async function getRetainerMonths(retainerId: string): Promise<RetainerMonth[]> {
