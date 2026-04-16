@@ -30,6 +30,7 @@ import { FinanceTab } from "@/components/projects/tabs/FinanceTab";
 import { ProductionDocsTab } from "@/components/projects/tabs/ProductionDocsTab";
 import { ScriptsTab } from "@/components/projects/tabs/ScriptsTab";
 import { ProjectTasksTab } from "@/components/projects/tabs/ProjectTasksTab";
+import { VideoDeliverablesTab } from "@/components/projects/tabs/VideoDeliverablesTab";
 import { ShootDaysPanel } from "@/components/projects/tabs/ShootDaysPanel";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
@@ -1340,7 +1341,8 @@ export default function ProjectDetailTabs({
                 { value: "scripts",   label: "Scripts" },
                 { value: "docs",      label: "Files" },
                 { value: "crew",      label: "Crew" },
-                { value: "revisions", label: `Deliverables${revisions.length ? ` (${revisions.length})` : ""}` },
+                { value: "revisions",   label: `Deliverables${revisions.length ? ` (${revisions.length})` : ""}` },
+                { value: "delivery",    label: "Delivery" },
                 ...(isAdmin ? [{ value: "finance", label: "Finance 🔒" }] : []),
               ].map((tab) => (
                 <TabsTrigger
@@ -2110,6 +2112,11 @@ export default function ProjectDetailTabs({
               )}
             </TabsContent>
 
+
+            {/* ── Delivery ── */}
+            <TabsContent value="delivery" className="m-0">
+              <VideoDeliverablesTab projectId={project.id} />
+            </TabsContent>
 
             {/* ── Notes (hidden standalone — merged into Overview) ── */}
             <TabsContent value="notes" className="m-0 p-6">

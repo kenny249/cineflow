@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2, FileSignature, ExternalLink } from "lucide-react";
-import { getProjects, createProject, getClientContacts, upsertClientContact } from "@/lib/supabase/queries";
+import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2, FileSignature, ExternalLink, Link2, Copy, Check } from "lucide-react";
+import { getProjects, createProject, getClientContacts, upsertClientContact, getClientPortals, getOrCreateClientPortal } from "@/lib/supabase/queries";
 import type { ClientContact as DBClientContact } from "@/lib/supabase/queries";
+import type { ClientPortal } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,11 @@ export default function ClientsPage() {
   const [contactForm, setContactForm] = useState<ClientContact>(EMPTY_CONTACT);
   const [savingContact, setSavingContact] = useState(false);
 
+  // Client portals
+  const [portals, setPortals] = useState<Record<string, ClientPortal>>({});
+  const [creatingPortal, setCreatingPortal] = useState<string | null>(null);
+  const [copiedPortal, setCopiedPortal] = useState<string | null>(null);
+
   async function saveContact() {
     if (!editingContact) return;
     setSavingContact(true);
@@ -85,9 +91,10 @@ export default function ClientsPage() {
     Promise.all([
       getProjects(),
       getClientContacts(),
+      getClientPortals(),
       supabase.from("contracts").select("id, title, status, recipient_name, recipient_email, signing_token, signed_at, sent_at, created_at").order("created_at", { ascending: false }),
     ])
-      .then(([projs, contacts, { data: contractRows }]) => {
+      .then(([projs, contacts, portalRows, { data: contractRows }]) => {
         if (!alive) return;
         setProjects(projs);
         setContracts((contractRows as Contract[]) ?? []);
@@ -102,6 +109,11 @@ export default function ClientsPage() {
           };
         }
         setClientContacts(map);
+        const portalMap: Record<string, ClientPortal> = {};
+        for (const p of portalRows as ClientPortal[]) {
+          portalMap[p.client_name] = p;
+        }
+        setPortals(portalMap);
       })
       .catch(() => toast.error("Failed to load clients"))
       .finally(() => { if (alive) setLoading(false); });
@@ -171,6 +183,33 @@ export default function ClientsPage() {
       toast.error(err instanceof Error ? err.message : "Failed to create project");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePortalAction(clientName: string) {
+    if (portals[clientName]) {
+      // Copy link
+      const url = `${window.location.origin}/client/${portals[clientName].token}`;
+      await navigator.clipboard.writeText(url).catch(() => {});
+      setCopiedPortal(clientName);
+      toast.success("Portal link copied");
+      setTimeout(() => setCopiedPortal(null), 2000);
+    } else {
+      // Create portal
+      setCreatingPortal(clientName);
+      try {
+        const portal = await getOrCreateClientPortal(clientName);
+        setPortals((prev) => ({ ...prev, [clientName]: portal }));
+        const url = `${window.location.origin}/client/${portal.token}`;
+        await navigator.clipboard.writeText(url).catch(() => {});
+        setCopiedPortal(clientName);
+        toast.success("Portal created — link copied!");
+        setTimeout(() => setCopiedPortal(null), 2000);
+      } catch {
+        toast.error("Failed to create portal");
+      } finally {
+        setCreatingPortal(null);
+      }
     }
   }
 
@@ -327,6 +366,7 @@ export default function ClientsPage() {
                   <p className="text-[11px] text-muted-foreground">
                     {clientProjects.length} project{clientProjects.length !== 1 ? "s" : ""}
                     {activeCount > 0 && <span className="ml-2 text-emerald-400">· {activeCount} active</span>}
+                    {portals[clientName] && <span className="ml-2 text-[#d4a853]/60">· portal active</span>}
                   </p>
                   {/* Contact info quick summary */}
                   {clientContacts[clientName] && (clientContacts[clientName].email || clientContacts[clientName].phone) && (
@@ -344,6 +384,33 @@ export default function ClientsPage() {
                   </div>
                   <span className="text-xs text-muted-foreground tabular-nums w-8 text-right">{totalProgress}%</span>
                 </div>
+                {/* Client portal button */}
+                {clientName !== "Unassigned" && (
+                  <button
+                    type="button"
+                    title={portals[clientName] ? "Copy client portal link" : "Create client portal"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePortalAction(clientName);
+                    }}
+                    disabled={creatingPortal === clientName}
+                    className={`shrink-0 rounded-lg p-1.5 transition-colors ${
+                      portals[clientName]
+                        ? "text-[#d4a853]/70 hover:bg-[#d4a853]/10 hover:text-[#d4a853]"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {creatingPortal === clientName ? (
+                      <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+                    ) : copiedPortal === clientName ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    ) : portals[clientName] ? (
+                      <Copy className="h-3.5 w-3.5" />
+                    ) : (
+                      <Link2 className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                )}
                 {/* Edit contact */}
                 <button
                   type="button"

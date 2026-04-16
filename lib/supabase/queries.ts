@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -1296,4 +1296,102 @@ export function expandRecurringEvents(events: CalendarEvent[], viewYear: number,
     }
   }
   return result;
+}
+
+// ─── Video Deliverables ───────────────────────────────────────────────────────
+
+export async function getVideoDeliverables(projectId: string): Promise<VideoDeliverable[]> {
+  const { data, error } = await db()
+    .from('video_deliverables')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as VideoDeliverable[];
+}
+
+export async function createVideoDeliverable(deliverable: {
+  project_id: string;
+  title: string;
+  type: string;
+  url: string;
+  notes?: string;
+}): Promise<VideoDeliverable> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('video_deliverables')
+    .insert({ ...deliverable, created_by: user.id, status: 'draft' })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as VideoDeliverable;
+}
+
+export async function updateVideoDeliverable(
+  id: string,
+  updates: Partial<Pick<VideoDeliverable, 'title' | 'type' | 'url' | 'notes' | 'status' | 'delivered_at'>>
+): Promise<void> {
+  const { error } = await db()
+    .from('video_deliverables')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteVideoDeliverable(id: string): Promise<void> {
+  const { error } = await db().from('video_deliverables').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ─── Client Portals ───────────────────────────────────────────────────────────
+
+export async function getClientPortal(clientName: string): Promise<ClientPortal | null> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await client
+    .from('client_portals')
+    .select('*')
+    .eq('created_by', user.id)
+    .eq('client_name', clientName)
+    .single();
+  if (error) { if (error.code === 'PGRST116') return null; throw error; }
+  return data as ClientPortal;
+}
+
+export async function getOrCreateClientPortal(clientName: string): Promise<ClientPortal> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  // Try to get existing portal
+  const { data: existing } = await client
+    .from('client_portals')
+    .select('*')
+    .eq('created_by', user.id)
+    .eq('client_name', clientName)
+    .single();
+  if (existing) return existing as ClientPortal;
+  // Create new portal
+  const { data, error } = await client
+    .from('client_portals')
+    .insert({ created_by: user.id, client_name: clientName })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as ClientPortal;
+}
+
+export async function getClientPortals(): Promise<ClientPortal[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('client_portals')
+    .select('*')
+    .eq('created_by', user.id)
+    .order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as ClientPortal[];
 }

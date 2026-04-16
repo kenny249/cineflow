@@ -579,3 +579,31 @@ export interface FormResponse {
   answers: Record<string, string | string[]>;
   submitted_at: string;
 }
+
+// ─── Video Deliverables (Final Client Delivery) ───────────────────────────────
+
+export type VideoDeliverableType = "short" | "youtube" | "web_video" | "podcast" | "photo" | "other";
+export type VideoDeliverableStatus = "draft" | "delivered";
+
+export interface VideoDeliverable {
+  id: string;
+  project_id: string;
+  created_by: string;
+  title: string;
+  type: VideoDeliverableType;
+  url: string;
+  notes?: string;
+  status: VideoDeliverableStatus;
+  delivered_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientPortal {
+  id: string;
+  created_by: string;
+  client_name: string;
+  token: string;
+  is_active: boolean;
+  created_at: string;
+}
