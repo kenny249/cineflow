@@ -6,19 +6,27 @@ interface CinematicWallpaperProps {
   onExit: () => void;
 }
 
-// 3-D particle — stored in original (un-rotated) coords + current rotated coords
 type P3 = {
-  ox: number; oy: number; oz: number; // original world-space position
-  x:  number; y:  number; z:  number; // current rotated position (updated each frame)
+  ox: number; oy: number; oz: number;
+  x:  number; y:  number; z:  number;
   r:        number;
   gold:     boolean;
   kind:     "bg" | "helix" | "rung";
   pulse:    number;
   pSpeed:   number;
+  strandPos?: number; // 0-1 position along strand for pulse effect
 };
 
-// Strand index + neighbour index for sequential helix line connections
 type StrandLink = { a: number; b: number };
+
+type Streaker = {
+  x: number; y: number; z: number;
+  vx: number; vy: number; vz: number;
+  px: number; py: number; pz: number; // previous position
+  life: number; maxLife: number;
+  r: number;
+  bright: number; // 0.6-1.4
+};
 
 export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,118 +61,160 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
         .catch(() => {});
     }
 
-    // ─── Build particle system ────────────────────────────────────────────
+    // ─── Build particle system ────────────────────────────────────────
 
     const particles: P3[] = [];
 
-    // Background cloud — particles scattered in a sphere around the helix
-    for (let i = 0; i < 130; i++) {
+    // Background cloud — larger volume, more density
+    for (let i = 0; i < 240; i++) {
       const theta  = Math.random() * Math.PI * 2;
       const phi    = Math.acos(2 * Math.random() - 1);
-      const radius = 180 + Math.random() * 340;
+      const radius = 220 + Math.random() * 620;
       const ox = radius * Math.sin(phi) * Math.cos(theta);
       const oy = radius * Math.sin(phi) * Math.sin(theta);
       const oz = radius * Math.cos(phi);
       particles.push({
         ox, oy, oz, x: ox, y: oy, z: oz,
-        r:      0.6 + Math.random() * 1.8,
-        gold:   Math.random() < 0.45,
+        r:      0.5 + Math.random() * 2.4,
+        gold:   Math.random() < 0.42,
         kind:   "bg",
         pulse:  Math.random() * Math.PI * 2,
-        pSpeed: 0.008 + Math.random() * 0.018,
+        pSpeed: 0.006 + Math.random() * 0.02,
       });
     }
 
-    // DNA double helix — 2 strands, 80 points each, 3 full turns
-    const HELIX_R     = 65;    // helix radius
-    const HELIX_H     = 520;   // total height of helix
-    const TURNS       = 3;
-    const PTS         = 80;    // points per strand
-    const RUNG_EVERY  = 5;     // connect strands every N steps
+    // DNA double helix — much larger and more imposing
+    const HELIX_R    = 130;   // bigger radius
+    const HELIX_H    = 760;   // taller
+    const TURNS      = 4;     // more turns
+    const PTS        = 100;   // more points = smoother
+    const RUNG_EVERY = 5;
 
     const strand1Idx: number[] = [];
     const strand2Idx: number[] = [];
     const strandLinks: StrandLink[] = [];
 
     for (let i = 0; i < PTS; i++) {
-      const t = (i / PTS) * Math.PI * 2 * TURNS;
+      const t  = (i / PTS) * Math.PI * 2 * TURNS;
       const oy = (i / (PTS - 1)) * HELIX_H - HELIX_H / 2;
+      const strandPos = i / (PTS - 1);
 
-      // Strand 1
       const ox1 = HELIX_R * Math.cos(t);
       const oz1 = HELIX_R * Math.sin(t);
       strand1Idx.push(particles.length);
       particles.push({
         ox: ox1, oy, oz: oz1, x: ox1, y: oy, z: oz1,
-        r: 2.4, gold: true, kind: "helix",
-        pulse: Math.random() * Math.PI * 2, pSpeed: 0.012 + Math.random() * 0.01,
+        r: 3.2, gold: true, kind: "helix",
+        pulse: Math.random() * Math.PI * 2, pSpeed: 0.01 + Math.random() * 0.008,
+        strandPos,
       });
 
-      // Strand 2 (offset by π)
       const ox2 = HELIX_R * Math.cos(t + Math.PI);
       const oz2 = HELIX_R * Math.sin(t + Math.PI);
       strand2Idx.push(particles.length);
       particles.push({
         ox: ox2, oy, oz: oz2, x: ox2, y: oy, z: oz2,
-        r: 2.4, gold: true, kind: "helix",
-        pulse: Math.random() * Math.PI * 2, pSpeed: 0.012 + Math.random() * 0.01,
+        r: 3.2, gold: true, kind: "helix",
+        pulse: Math.random() * Math.PI * 2, pSpeed: 0.01 + Math.random() * 0.008,
+        strandPos,
       });
 
-      // Rung particles connecting the two strands
       if (i % RUNG_EVERY === 0) {
-        const RUNG_INNER = 3; // intermediate particles along each rung
+        const RUNG_INNER = 4;
         for (let j = 1; j <= RUNG_INNER; j++) {
           const f  = j / (RUNG_INNER + 1);
           const ox = ox1 + (ox2 - ox1) * f;
           const oz = oz1 + (oz2 - oz1) * f;
           particles.push({
             ox, oy, oz, x: ox, y: oy, z: oz,
-            r: 0.9, gold: false, kind: "rung",
-            pulse: 0, pSpeed: 0,
+            r: 1.1, gold: false, kind: "rung",
+            pulse: 0, pSpeed: 0, strandPos,
           });
         }
       }
     }
 
-    // Sequential links along each strand (for efficient line drawing)
     for (let i = 0; i < PTS - 1; i++) {
       strandLinks.push({ a: strand1Idx[i], b: strand1Idx[i + 1] });
       strandLinks.push({ a: strand2Idx[i], b: strand2Idx[i + 1] });
     }
-    // Rung links every RUNG_EVERY steps
     for (let i = 0; i < PTS; i += RUNG_EVERY) {
       strandLinks.push({ a: strand1Idx[i], b: strand2Idx[i] });
     }
 
-    // ─── Rotation state ───────────────────────────────────────────────────
+    // ─── Streaking particles ─────────────────────────────────────────
+    const STREAKER_COUNT = 28;
+    const streakerPool: Streaker[] = [];
 
-    let rotY  = 0;              // primary spin around Y-axis
-    let rotX  = 0.18;           // gentle fixed tilt on X
-    let driftT = 0;             // time for X-axis drift oscillation
-
-    // ─── Logo state ───────────────────────────────────────────────────────
-
-    type LogoPhase = "idle" | "fadein" | "hold" | "fadeout";
-    let logoAlpha: number   = 0;
-    let logoPhase: LogoPhase = "idle";
-    let logoTimer: number   = 0;
-    let logoCountdown: number = 80;  // first appearance after ~80 frames
-
-    const LOGO_MAX    = 0.14;
-    const LOGO_FADEIN = 100;
-    const LOGO_HOLD   = 140;
-    const LOGO_FADEOUT= 100;
-    const LOGO_GAP    = 320; // frames between appearances
-
-    // ─── Helpers ──────────────────────────────────────────────────────────
-
-    const FOV = 520;
-
-    function project(px: number, py: number, pz: number) {
-      const scale = FOV / (FOV + pz + 220);
+    function spawnStreaker(stagger = false): Streaker {
+      // Spawn on a sphere shell, aim roughly toward center
+      const phi   = Math.acos(2 * Math.random() - 1);
+      const theta = Math.random() * Math.PI * 2;
+      const spawnR = 500 + Math.random() * 250;
+      const sx = spawnR * Math.sin(phi) * Math.cos(theta);
+      const sy = spawnR * Math.sin(phi) * Math.sin(theta);
+      const sz = spawnR * Math.cos(phi);
+      const speed = 3.5 + Math.random() * 7;
+      const len   = Math.sqrt(sx * sx + sy * sy + sz * sz);
+      // Aim at center with slight random offset
+      const tx = (Math.random() - 0.5) * 180;
+      const ty = (Math.random() - 0.5) * 180;
+      const tz = (Math.random() - 0.5) * 180;
+      const dx = (tx - sx) / len;
+      const dy = (ty - sy) / len;
+      const dz = (tz - sz) / len;
+      const maxLife = 50 + Math.floor(Math.random() * 90);
       return {
-        sx: canvas!.width  / 2 + px * scale,
-        sy: canvas!.height / 2 + py * scale,
+        x: sx, y: sy, z: sz,
+        px: sx, py: sy, pz: sz,
+        vx: dx * speed, vy: dy * speed, vz: dz * speed,
+        life:    stagger ? Math.floor(Math.random() * maxLife) : maxLife,
+        maxLife,
+        r:       0.7 + Math.random() * 1.6,
+        bright:  0.6 + Math.random() * 0.8,
+      };
+    }
+
+    for (let i = 0; i < STREAKER_COUNT; i++) {
+      streakerPool.push(spawnStreaker(true));
+    }
+
+    // ─── Rotation / camera state ─────────────────────────────────────
+    let rotY   = 0;
+    let rotX   = 0.18;
+    let driftT = 0;
+    let speedT = 0;   // for sinusoidal speed modulation
+
+    // Slow camera drift — gives parallax, deepens 3D feel
+    let camT = 0;
+    const CAM_R = 70;
+
+    // Energy pulse — travels up and down the helix
+    let pulsePos = 0.0;  // 0 = bottom, 1 = top
+    let pulseDir = 1;
+    const PULSE_WIDTH = 0.09;
+
+    // ─── Logo state ───────────────────────────────────────────────────
+    type LogoPhase = "idle" | "fadein" | "hold" | "fadeout";
+    let logoAlpha: number    = 0;
+    let logoPhase: LogoPhase = "idle";
+    let logoTimer: number    = 0;
+    let logoCountdown        = 80;
+
+    const LOGO_MAX     = 0.14;
+    const LOGO_FADEIN  = 100;
+    const LOGO_HOLD    = 150;
+    const LOGO_FADEOUT = 100;
+    const LOGO_GAP     = 340;
+
+    // ─── Helpers ──────────────────────────────────────────────────────
+    const FOV = 560;
+
+    function project(px: number, py: number, pz: number, cx = 0, cy = 0) {
+      const scale = FOV / (FOV + pz + 260);
+      return {
+        sx:    canvas!.width  / 2 + (px - cx) * scale,
+        sy:    canvas!.height / 2 + (py - cy) * scale,
         scale,
       };
     }
@@ -179,7 +229,7 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
       return { x: px, y: py * c - pz * s, z: py * s + pz * c };
     }
 
-    // ─── Draw loop ────────────────────────────────────────────────────────
+    // ─── Draw loop ────────────────────────────────────────────────────
 
     const draw = () => {
       const W = canvas!.width;
@@ -188,12 +238,23 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, W, H);
 
-      // Advance rotation
-      rotY  += 0.0028;
-      driftT += 0.0007;
-      rotX   = 0.18 + 0.06 * Math.sin(driftT); // gentle nodding
+      // Advance state
+      speedT += 0.0038;
+      const rotSpeed = 0.0022 + 0.0022 * Math.sin(speedT); // variable, surges
+      rotY  += rotSpeed;
+      driftT += 0.00055;
+      rotX   = 0.20 + 0.14 * Math.sin(driftT);             // more dramatic nod
 
-      // Transform all particles into current rotated positions
+      camT += 0.00075;
+      const camX = CAM_R * Math.sin(camT);
+      const camY = CAM_R * 0.45 * Math.sin(camT * 0.71);
+
+      // Energy pulse
+      pulsePos += 0.0055 * pulseDir;
+      if (pulsePos > 1.08) { pulsePos = 1.08; pulseDir = -1; }
+      if (pulsePos < -0.08) { pulsePos = -0.08; pulseDir = 1; }
+
+      // Transform all particles
       for (const p of particles) {
         let r = rotY3(p.ox, p.oy, p.oz, rotY);
         r = rotX3(r.x, r.y, r.z, rotX);
@@ -201,12 +262,31 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
         p.pulse += p.pSpeed;
       }
 
-      // Depth-sorted draw order (painter's algorithm: far → near)
+      // Depth sort
       const sorted = [...particles].sort((a, b) => b.z - a.z);
 
-      // ── Background particle connections ──────────────────────────────────
+      // ── Nebula atmosphere (large diffuse glows) ───────────────────────
+      // Positions shift slightly with camera orbit for parallax
+      const nebulae = [
+        { nx: W * 0.18 + camX * 0.8, ny: H * 0.28 + camY * 0.5, nr: W * 0.32, na: 0.022 },
+        { nx: W * 0.78 + camX * 0.6, ny: H * 0.68 + camY * 0.4, nr: W * 0.26, na: 0.018 },
+        { nx: W * 0.50 + camX * 0.3, ny: H * 0.12 + camY * 0.6, nr: W * 0.20, na: 0.014 },
+        { nx: W * 0.30 + camX * 0.5, ny: H * 0.80 + camY * 0.3, nr: W * 0.22, na: 0.013 },
+      ];
+      for (const nb of nebulae) {
+        const g = ctx.createRadialGradient(nb.nx, nb.ny, 0, nb.nx, nb.ny, nb.nr);
+        g.addColorStop(0,   `rgba(212,168,83,${nb.na})`);
+        g.addColorStop(0.5, `rgba(160,110,40,${nb.na * 0.4})`);
+        g.addColorStop(1,   "rgba(0,0,0,0)");
+        ctx.beginPath();
+        ctx.arc(nb.nx, nb.ny, nb.nr, 0, Math.PI * 2);
+        ctx.fillStyle = g;
+        ctx.fill();
+      }
+
+      // ── Background particle connections ───────────────────────────────
       const bgPs = particles.filter(p => p.kind === "bg");
-      const BG_CONNECT = 95;
+      const BG_CONNECT = 100;
       for (let i = 0; i < bgPs.length; i++) {
         for (let j = i + 1; j < bgPs.length; j++) {
           const dx = bgPs[i].x - bgPs[j].x;
@@ -214,73 +294,97 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
           const dz = bgPs[i].z - bgPs[j].z;
           const d  = Math.sqrt(dx * dx + dy * dy + dz * dz);
           if (d >= BG_CONNECT) continue;
-          const pa  = project(bgPs[i].x, bgPs[i].y, bgPs[i].z);
-          const pb  = project(bgPs[j].x, bgPs[j].y, bgPs[j].z);
+          const pa  = project(bgPs[i].x, bgPs[i].y, bgPs[i].z, camX, camY);
+          const pb  = project(bgPs[j].x, bgPs[j].y, bgPs[j].z, camX, camY);
           const avg = (pa.scale + pb.scale) * 0.5;
-          const a   = (1 - d / BG_CONNECT) * 0.045 * avg;
+          const a   = (1 - d / BG_CONNECT) * 0.055 * avg;
           ctx.beginPath();
           ctx.moveTo(pa.sx, pa.sy);
           ctx.lineTo(pb.sx, pb.sy);
           ctx.strokeStyle = (bgPs[i].gold || bgPs[j].gold)
             ? `rgba(212,168,83,${a})`
-            : `rgba(200,175,110,${a * 0.4})`;
-          ctx.lineWidth = 0.35;
+            : `rgba(200,175,110,${a * 0.38})`;
+          ctx.lineWidth = 0.38;
           ctx.stroke();
         }
       }
 
-      // ── Helix strand + rung lines (sequential — O(n)) ────────────────────
+      // ── Helix strand + rung lines ────────────────────────────────────
       for (const lk of strandLinks) {
-        const pa = project(particles[lk.a].x, particles[lk.a].y, particles[lk.a].z);
-        const pb = project(particles[lk.b].x, particles[lk.b].y, particles[lk.b].z);
+        const pA = particles[lk.a];
+        const pB = particles[lk.b];
+        const pa = project(pA.x, pA.y, pA.z, camX, camY);
+        const pb = project(pB.x, pB.y, pB.z, camX, camY);
         const avgScale = (pa.scale + pb.scale) * 0.5;
+
+        // Pulse glow on strands
+        const avgSP     = ((pA.strandPos ?? 0) + (pB.strandPos ?? 0)) * 0.5;
+        const dist      = Math.abs(avgSP - pulsePos);
+        const pulseGlow = dist < PULSE_WIDTH ? Math.pow(1 - dist / PULSE_WIDTH, 2) * 1.1 : 0;
+
         ctx.beginPath();
         ctx.moveTo(pa.sx, pa.sy);
         ctx.lineTo(pb.sx, pb.sy);
-        ctx.strokeStyle = `rgba(212,168,83,${avgScale * 0.35})`;
-        ctx.lineWidth = 0.6 * avgScale;
+        ctx.strokeStyle = `rgba(212,168,83,${avgScale * (0.38 + pulseGlow * 0.9)})`;
+        ctx.lineWidth = (0.7 + pulseGlow * 2.2) * avgScale;
         ctx.stroke();
       }
 
-      // ── Particles (depth-sorted) ──────────────────────────────────────────
+      // ── Particles (depth-sorted) ──────────────────────────────────────
       for (const p of sorted) {
-        const { sx, sy, scale } = project(p.x, p.y, p.z);
-
-        // Clamp scale to avoid massive particles if z is near -FOV
-        const s  = Math.min(scale, 2.0);
-        const pf = 0.85 + 0.15 * Math.sin(p.pulse);
+        const { sx, sy, scale } = project(p.x, p.y, p.z, camX, camY);
+        const s  = Math.min(scale, 2.4);
+        const pf = 0.84 + 0.16 * Math.sin(p.pulse);
         const r  = p.r * s * pf;
-        const da = Math.max(0.04, Math.min(1, s * 1.4)); // depth-based alpha
+        const da = Math.max(0.04, Math.min(1, s * 1.5));
+
+        // Per-particle pulse boost
+        const pDist  = p.strandPos !== undefined ? Math.abs(p.strandPos - pulsePos) : 1;
+        const pBoost = p.kind !== "bg" && pDist < PULSE_WIDTH
+          ? Math.pow(1 - pDist / PULSE_WIDTH, 2) * 1.4
+          : 0;
 
         if (p.kind === "helix") {
-          // Outer glow
-          const gr = r * 9;
+          // Outer mega-glow (much larger radius)
+          const gr = r * (16 + pBoost * 10);
           const g  = ctx.createRadialGradient(sx, sy, 0, sx, sy, gr);
-          g.addColorStop(0,   `rgba(212,168,83,${da * 0.55})`);
-          g.addColorStop(0.25,`rgba(212,168,83,${da * 0.12})`);
-          g.addColorStop(1,   "rgba(0,0,0,0)");
+          g.addColorStop(0,    `rgba(255,220,110,${da * (0.72 + pBoost * 0.5)})`);
+          g.addColorStop(0.15, `rgba(212,168,83,${da * (0.22 + pBoost * 0.35)})`);
+          g.addColorStop(0.5,  `rgba(180,130,60,${da * 0.05})`);
+          g.addColorStop(1,    "rgba(0,0,0,0)");
           ctx.beginPath();
           ctx.arc(sx, sy, gr, 0, Math.PI * 2);
           ctx.fillStyle = g;
           ctx.fill();
           // Core
           ctx.beginPath();
-          ctx.arc(sx, sy, Math.max(0.6, r), 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(255,225,130,${da})`;
+          ctx.arc(sx, sy, Math.max(0.8, r), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,238,160,${Math.min(1, da + pBoost * 0.4)})`;
           ctx.fill();
 
         } else if (p.kind === "rung") {
+          // Slight glow on rung particles near pulse
+          if (pBoost > 0.1) {
+            const gr = r * 5;
+            const g  = ctx.createRadialGradient(sx, sy, 0, sx, sy, gr);
+            g.addColorStop(0, `rgba(212,168,83,${da * pBoost * 0.4})`);
+            g.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.beginPath();
+            ctx.arc(sx, sy, gr, 0, Math.PI * 2);
+            ctx.fillStyle = g;
+            ctx.fill();
+          }
           ctx.beginPath();
-          ctx.arc(sx, sy, Math.max(0.3, r * 0.7), 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(180,150,90,${da * 0.38})`;
+          ctx.arc(sx, sy, Math.max(0.4, r * 0.8), 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(180,150,90,${da * (0.48 + pBoost * 0.3)})`;
           ctx.fill();
 
         } else {
           // Background particle
           if (p.gold) {
-            const gr = r * 7;
+            const gr = r * 10;
             const g  = ctx.createRadialGradient(sx, sy, 0, sx, sy, gr);
-            g.addColorStop(0, `rgba(212,168,83,${da * 0.45})`);
+            g.addColorStop(0, `rgba(212,168,83,${da * 0.52})`);
             g.addColorStop(1, "rgba(0,0,0,0)");
             ctx.beginPath();
             ctx.arc(sx, sy, gr, 0, Math.PI * 2);
@@ -290,20 +394,71 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
           ctx.beginPath();
           ctx.arc(sx, sy, Math.max(0.3, r), 0, Math.PI * 2);
           ctx.fillStyle = p.gold
-            ? `rgba(212,168,83,${da * 0.65})`
-            : `rgba(255,240,200,${da * 0.22})`;
+            ? `rgba(212,168,83,${da * 0.72})`
+            : `rgba(255,240,200,${da * 0.25})`;
           ctx.fill();
         }
       }
 
-      // ── Deep vignette ─────────────────────────────────────────────────────
-      const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.1, W / 2, H / 2, H * 0.88);
+      // ── Streaking particles ───────────────────────────────────────────
+      for (const sk of streakerPool) {
+        sk.life--;
+        if (sk.life <= 0) {
+          const fresh = spawnStreaker(false);
+          Object.assign(sk, fresh);
+          continue;
+        }
+
+        // Save previous projected position before updating
+        const prev = project(sk.x, sk.y, sk.z, camX, camY);
+
+        // Update
+        sk.x += sk.vx;
+        sk.y += sk.vy;
+        sk.z += sk.vz;
+
+        const curr = project(sk.x, sk.y, sk.z, camX, camY);
+
+        const lifeRatio = sk.life / sk.maxLife;
+        // Fade in at birth, fade out at death
+        const fadeAlpha = lifeRatio < 0.15
+          ? lifeRatio / 0.15
+          : lifeRatio > 0.75
+            ? (1 - lifeRatio) / 0.25
+            : 1.0;
+        const alpha = fadeAlpha * sk.bright * Math.min(curr.scale * 2.2, 1.0);
+
+        if (alpha > 0.01) {
+          // Gradient streak tail
+          const grad = ctx.createLinearGradient(prev.sx, prev.sy, curr.sx, curr.sy);
+          grad.addColorStop(0, "rgba(212,168,83,0)");
+          grad.addColorStop(1, `rgba(255,235,140,${alpha * 0.85})`);
+          ctx.beginPath();
+          ctx.moveTo(prev.sx, prev.sy);
+          ctx.lineTo(curr.sx, curr.sy);
+          ctx.strokeStyle = grad;
+          ctx.lineWidth   = sk.r * curr.scale * 1.2;
+          ctx.stroke();
+
+          // Bright tip
+          const tipG = ctx.createRadialGradient(curr.sx, curr.sy, 0, curr.sx, curr.sy, sk.r * curr.scale * 3.5);
+          tipG.addColorStop(0, `rgba(255,245,180,${alpha})`);
+          tipG.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.beginPath();
+          ctx.arc(curr.sx, curr.sy, sk.r * curr.scale * 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = tipG;
+          ctx.fill();
+        }
+      }
+
+      // ── Deep vignette ─────────────────────────────────────────────────
+      const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.08, W / 2, H / 2, H * 0.86);
       vg.addColorStop(0, "rgba(0,0,0,0)");
-      vg.addColorStop(1, "rgba(0,0,0,0.91)");
+      vg.addColorStop(1, "rgba(0,0,0,0.93)");
       ctx.fillStyle = vg;
       ctx.fillRect(0, 0, W, H);
 
-      // ── CINEFLOW — ghostly, minimal ───────────────────────────────────────
+      // ── CINEFLOW — ghostly, whisper-light ─────────────────────────────
       if (logoPhase === "idle") {
         logoCountdown--;
         if (logoCountdown <= 0) {
@@ -324,9 +479,9 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
       }
 
       if (logoAlpha > 0.001) {
-        const fs = Math.min(W * 0.055, 66);
+        const fs = Math.min(W * 0.054, 66);
         ctx.save();
-        ctx.globalAlpha = logoAlpha;
+        ctx.globalAlpha  = logoAlpha;
         ctx.textAlign    = "center";
         ctx.textBaseline = "middle";
         ctx.font         = `100 ${fs}px 'SF Pro Display', system-ui, sans-serif`;
@@ -335,9 +490,9 @@ export function CinematicWallpaper({ onExit }: CinematicWallpaperProps) {
         ctx.restore();
       }
 
-      // ── Scanlines ─────────────────────────────────────────────────────────
+      // ── Scanlines ─────────────────────────────────────────────────────
       for (let sy = 0; sy < H; sy += 4) {
-        ctx.fillStyle = "rgba(0,0,0,0.016)";
+        ctx.fillStyle = "rgba(0,0,0,0.014)";
         ctx.fillRect(0, sy, W, 1);
       }
 
