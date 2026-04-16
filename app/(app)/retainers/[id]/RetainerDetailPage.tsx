@@ -4,8 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
-  CalendarDays, ChevronDown, X, Pencil, Check, MoreHorizontal,
-  Trash2, DollarSign, Sparkles, AlertCircle,
+  CalendarDays, X, Pencil, Check, AlertCircle,
 } from "lucide-react";
 import {
   getRetainer, getRetainerMonths, getRetainerDeliverables,
@@ -90,7 +89,7 @@ function DeliverableRow({
         ? "bg-emerald-500/[0.04] border border-emerald-500/10"
         : "hover:bg-white/[0.03] border border-transparent"
     )}>
-      {/* Status toggle button */}
+      {/* Status toggle */}
       <button
         onClick={() => onStatusChange(item.id, STATUS_CYCLE[item.status as RetainerDeliverableStatus] ?? "planned")}
         className={cn("shrink-0 transition-all duration-150 hover:scale-110", cfg.color)}
@@ -99,43 +98,47 @@ function DeliverableRow({
         {cfg.icon}
       </button>
 
-      {/* Title */}
+      {/* Title — inline edit input or text */}
       {editing ? (
         <input
           autoFocus
           value={title}
           onChange={e => setTitle(e.target.value)}
           onBlur={handleTitleBlur}
-          onKeyDown={e => { if (e.key === "Enter") handleTitleBlur(); if (e.key === "Escape") { setTitle(item.title); setEditing(false); } }}
-          className="flex-1 bg-transparent text-sm text-white outline-none border-b border-[#d4a853]/40"
+          onKeyDown={e => {
+            if (e.key === "Enter") handleTitleBlur();
+            if (e.key === "Escape") { setTitle(item.title); setEditing(false); }
+          }}
+          className="flex-1 bg-white/[0.05] rounded px-2 py-0.5 text-sm text-white outline-none border border-[#d4a853]/30 focus:border-[#d4a853]/60"
         />
       ) : (
-        <span
-          className={cn(
-            "flex-1 text-sm cursor-pointer select-none",
-            item.status === "delivered" ? "text-white/40 line-through" : "text-white/80"
-          )}
-          onDoubleClick={() => setEditing(true)}
-        >
+        <span className={cn(
+          "flex-1 text-sm",
+          item.status === "delivered" ? "text-white/35 line-through" : "text-white/80"
+        )}>
           {item.title}
         </span>
       )}
 
-      {/* Status badge (shown on hover) */}
-      <span className={cn(
-        "text-[10px] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity",
-        cfg.color
-      )}>
-        {cfg.label}
-      </span>
-
-      {/* Delete */}
-      <button
-        onClick={() => onDelete(item.id)}
-        className="shrink-0 text-white/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-150"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
+      {/* Hover actions */}
+      {!editing && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <button
+            onClick={() => setEditing(true)}
+            className="p-1 rounded text-white/30 hover:text-[#d4a853]/70 hover:bg-[#d4a853]/10 transition-colors"
+            title="Rename"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button
+            onClick={() => onDelete(item.id)}
+            className="p-1 rounded text-white/30 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+            title="Delete"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

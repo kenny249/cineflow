@@ -1482,15 +1482,28 @@ export async function createRetainerMonth(payload: {
   const deliverables: { month_id: string; created_by: string; title: string; type: string; sort_order: number }[] = [];
   let sortOrder = 0;
   for (const item of payload.template) {
-    for (let i = 1; i <= item.quantity; i++) {
-      const suffix = item.quantity > 1 ? ` ${i}` : '';
+    const mode = item.mode ?? (item.type === 'photo' || item.type === 'story' ? 'batch' : 'individual');
+    if (mode === 'batch') {
+      // One row for the whole batch — e.g. "Photos · 25"
       deliverables.push({
         month_id: month.id,
         created_by: user.id,
-        title: `${item.label}${suffix}`,
+        title: item.quantity > 1 ? `${item.label} · ${item.quantity}` : item.label,
         type: item.type,
         sort_order: sortOrder++,
       });
+    } else {
+      // One row per individual deliverable
+      for (let i = 1; i <= item.quantity; i++) {
+        const suffix = item.quantity > 1 ? ` ${i}` : '';
+        deliverables.push({
+          month_id: month.id,
+          created_by: user.id,
+          title: `${item.label}${suffix}`,
+          type: item.type,
+          sort_order: sortOrder++,
+        });
+      }
     }
   }
   if (deliverables.length > 0) {

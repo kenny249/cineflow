@@ -614,6 +614,7 @@ export interface RetainerTemplateItem {
   type: string;   // "short" | "photo" | "premium" | "other" | custom string
   label: string;  // display name e.g. "Short-form Videos"
   quantity: number;
+  mode?: "individual" | "batch"; // individual = one row per item; batch = one row for the whole group
 }
 
 export interface Retainer {

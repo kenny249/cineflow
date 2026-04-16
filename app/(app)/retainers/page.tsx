@@ -38,9 +38,9 @@ const TYPE_PRESETS = [
 // ── New retainer form ────────────────────────────────────────────────────────
 
 const EMPTY_TEMPLATE: RetainerTemplateItem[] = [
-  { type: "short",   label: "Short-form Videos", quantity: 12 },
-  { type: "photo",   label: "Photos",            quantity: 20 },
-  { type: "premium", label: "Premium Piece",      quantity: 1  },
+  { type: "short",   label: "Short-form Videos", quantity: 12, mode: "individual" },
+  { type: "photo",   label: "Photos",            quantity: 20, mode: "batch"      },
+  { type: "premium", label: "Premium Piece",      quantity: 1,  mode: "individual" },
 ];
 
 function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => void; onCancel: () => void }) {
@@ -125,26 +125,58 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
             <label className="text-xs text-white/50 mb-1.5 block">Monthly Deliverables</label>
             <div className="space-y-2">
               {template.map((item, idx) => (
-                <div key={idx} className="flex gap-2 items-center">
-                  <Input
-                    value={item.label}
-                    onChange={e => updateTemplate(idx, "label", e.target.value)}
-                    placeholder="Deliverable label"
-                    className="flex-1 bg-white/[0.04] border-white/10 text-white placeholder:text-white/25 text-sm h-9"
-                  />
-                  <Input
-                    type="number"
-                    min={1}
-                    value={item.quantity}
-                    onChange={e => updateTemplate(idx, "quantity", parseInt(e.target.value) || 1)}
-                    className="w-16 bg-white/[0.04] border-white/10 text-white text-center text-sm h-9"
-                  />
-                  <button
-                    onClick={() => removeTemplateRow(idx)}
-                    className="text-white/25 hover:text-red-400 transition-colors shrink-0"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+                <div key={idx} className="space-y-1.5">
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      value={item.label}
+                      onChange={e => updateTemplate(idx, "label", e.target.value)}
+                      placeholder="Deliverable label"
+                      className="flex-1 bg-white/[0.04] border-white/10 text-white placeholder:text-white/25 text-sm h-9"
+                    />
+                    <Input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={e => updateTemplate(idx, "quantity", parseInt(e.target.value) || 1)}
+                      className="w-16 bg-white/[0.04] border-white/10 text-white text-center text-sm h-9"
+                    />
+                    <button
+                      onClick={() => removeTemplateRow(idx)}
+                      className="text-white/25 hover:text-red-400 transition-colors shrink-0"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {/* Individual vs Batch toggle */}
+                  <div className="flex gap-1 ml-0.5">
+                    <button
+                      onClick={() => updateTemplate(idx, "mode", "individual")}
+                      className={cn(
+                        "text-[10px] px-2 py-0.5 rounded-full border transition-colors",
+                        (item.mode ?? "individual") === "individual"
+                          ? "bg-[#d4a853]/15 border-[#d4a853]/30 text-[#d4a853]"
+                          : "border-white/10 text-white/30 hover:text-white/50"
+                      )}
+                    >
+                      Individual
+                    </button>
+                    <button
+                      onClick={() => updateTemplate(idx, "mode", "batch")}
+                      className={cn(
+                        "text-[10px] px-2 py-0.5 rounded-full border transition-colors",
+                        (item.mode ?? "individual") === "batch"
+                          ? "bg-[#d4a853]/15 border-[#d4a853]/30 text-[#d4a853]"
+                          : "border-white/10 text-white/30 hover:text-white/50"
+                      )}
+                    >
+                      Batch
+                    </button>
+                    <span className="text-[10px] text-white/20 self-center ml-1">
+                      {(item.mode ?? "individual") === "batch"
+                        ? "→ 1 row, check off the whole group"
+                        : `→ ${item.quantity} rows, name each one`}
+                    </span>
+                  </div>
                 </div>
               ))}
               <button
