@@ -179,7 +179,11 @@ export default function ProjectDetailTabs({
 }: ProjectDetailTabsProps) {
   // Role helpers
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") ?? "overview";
+  const rawInitialTab = searchParams.get("tab") ?? "overview";
+  // Map legacy/hidden tab values into their new parent tab
+  const initialTab = ["shot-list","scripts","docs","crew"].includes(rawInitialTab) ? "production" : rawInitialTab;
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const PRODUCTION_TABS = ["shot-list", "scripts", "docs", "crew"];
   const isAdmin = userRole === "owner" || userRole === "admin";
   const isClient = userRole === "client";
   const canEdit = !isClient;
@@ -1331,28 +1335,32 @@ export default function ProjectDetailTabs({
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden">
-        <Tabs defaultValue={initialTab} onValueChange={() => tabScrollRef.current?.scrollTo({ top: 0, behavior: "instant" })} className="flex h-full flex-col">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); tabScrollRef.current?.scrollTo({ top: 0, behavior: "instant" }); }} className="flex h-full flex-col">
           <div className="border-b border-border">
             <div className="overflow-x-auto no-scrollbar">
               <TabsList className="flex h-10 w-max min-w-full bg-transparent gap-0 rounded-none border-b-0 p-0 px-4 sm:px-6">
               {[
-                { value: "overview",  label: "Overview" },
-                { value: "shot-list", label: `Shot List${totalShots ? ` (${completedShots}/${totalShots})` : ""}` },
-                { value: "scripts",   label: "Scripts" },
-                { value: "docs",      label: "Files" },
-                { value: "crew",      label: "Crew" },
-                { value: "revisions",   label: `Deliverables${revisions.length ? ` (${revisions.length})` : ""}` },
-                { value: "delivery",    label: "Delivery" },
+                { value: "overview",    label: "Overview" },
+                { value: "production",  label: "Production", alsoActiveFor: PRODUCTION_TABS },
+                { value: "review",      label: `Review${revisions.length ? ` (${revisions.length})` : ""}` },
+                { value: "final-cuts",  label: "Final Cuts" },
                 ...(isAdmin ? [{ value: "finance", label: "Finance 🔒" }] : []),
-              ].map((tab) => (
-                <TabsTrigger
-                  key={tab.value}
-                  value={tab.value}
-                  className="rounded-none border-b-2 border-transparent px-3 py-2 text-xs font-medium text-muted-foreground transition-none data-[state=active]:border-[#d4a853] data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                >
-                  {tab.label}
-                </TabsTrigger>
-              ))}
+              ].map((tab) => {
+                const isActive = activeTab === tab.value || (tab.alsoActiveFor?.includes(activeTab) ?? false);
+                return (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className={`rounded-none border-b-2 px-3 py-2 text-xs font-medium transition-none data-[state=active]:bg-transparent data-[state=active]:shadow-none ${
+                      isActive
+                        ? "border-[#d4a853] text-foreground"
+                        : "border-transparent text-muted-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                );
+              })}
               </TabsList>
             </div>
           </div>
@@ -1650,6 +1658,37 @@ export default function ProjectDetailTabs({
               <div className="mt-6 border-t border-border pt-5">
                 <h3 className="mb-4 font-display text-sm font-semibold text-foreground">Wrap Notes</h3>
                 <WrapNotesTab projectId={project.id} canEdit={canEdit} />
+              </div>
+            </TabsContent>
+
+            {/* ── Production Hub ── */}
+            <TabsContent value="production" className="m-0 p-5 sm:p-6">
+              <div className="mb-5">
+                <h2 className="font-display text-sm font-semibold text-foreground">Production</h2>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Shot planning, scripts, files, and crew — everything for the shoot.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  { value: "shot-list", label: "Shot List",  icon: ListChecks, desc: `${totalShots ? `${completedShots}/${totalShots} shots` : "Plan your shots"}` },
+                  { value: "scripts",   label: "Scripts",    icon: ScrollText, desc: "Scripts & callsheets" },
+                  { value: "docs",      label: "Files",      icon: Package,    desc: "Production documents" },
+                  { value: "crew",      label: "Crew",       icon: Users,      desc: "Crew & contacts" },
+                ].map((section) => (
+                  <button
+                    key={section.value}
+                    type="button"
+                    onClick={() => setActiveTab(section.value)}
+                    className="group flex flex-col items-start gap-3 rounded-xl border border-border bg-card/50 p-4 text-left transition-all hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5"
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted/30 text-muted-foreground group-hover:border-[#d4a853]/30 group-hover:bg-[#d4a853]/10 group-hover:text-[#d4a853] transition-all">
+                      <section.icon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground group-hover:text-[#d4a853] transition-colors">{section.label}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{section.desc}</p>
+                    </div>
+                  </button>
+                ))}
               </div>
             </TabsContent>
 
@@ -1996,7 +2035,7 @@ export default function ProjectDetailTabs({
               </TabsContent>
             )}
 
-            <TabsContent value="revisions" className="m-0 p-4 sm:p-6">
+            <TabsContent value="review" className="m-0 p-4 sm:p-6">
               {/* ── Header ── */}
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -2113,8 +2152,8 @@ export default function ProjectDetailTabs({
             </TabsContent>
 
 
-            {/* ── Delivery ── */}
-            <TabsContent value="delivery" className="m-0">
+            {/* ── Final Cuts ── */}
+            <TabsContent value="final-cuts" className="m-0">
               <VideoDeliverablesTab projectId={project.id} />
             </TabsContent>
 
