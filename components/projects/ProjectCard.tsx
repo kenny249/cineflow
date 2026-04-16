@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { formatDate, PROJECT_TYPE_LABELS, getProgressStyle } from "@/lib/utils";
 import { getCinematicGradient, CINEMATIC_COUNT } from "@/lib/cinematic-images";
 import { PhotoCropModal } from "./PhotoCropModal";
+import { updateProject } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 
 interface ProjectCardProps {
@@ -26,6 +27,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const [thumbOverride, setThumbOverride] = useState<string | null>(null);
   const [thumbPos, setThumbPos] = useState({ x: 50, y: 50, scale: 1 });
   const [imgError, setImgError] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
 
   const storageKey = `cf_thumb_${project.id}`;
   const thumbPosKey = `cf_thumb_pos_${project.id}`;
@@ -74,12 +76,61 @@ export function ProjectCard({ project }: ProjectCardProps) {
     toast.success("Generated new cinematic image");
   };
 
-  const handleCropApply = (url: string, pos: { x: number; y: number; scale: number }) => {
-    setThumbOverride(url);
+  const handleCropApply = async (dataUrl: string, pos: { x: number; y: number; scale: number }) => {
+    // Optimistic preview — show image immediately while upload runs
+    const prevOverride = thumbOverride;
+    const prevPos = thumbPos;
+    setThumbOverride(dataUrl);
     setThumbPos(pos);
-    localStorage.setItem(storageKey, url);
-    localStorage.setItem(thumbPosKey, JSON.stringify(pos));
-    toast.success("Cover photo updated");
+    setImgError(false);
+    setCoverUploading(true);
+
+    try {
+      let publicUrl = dataUrl;
+
+      if (dataUrl.startsWith("data:")) {
+        // Convert data URL → Blob → upload to Supabase Storage
+        const { createClient } = await import("@/lib/supabase/client");
+        const supabase = createClient();
+
+        const mimeMatch = dataUrl.match(/data:(.*?);base64,/);
+        const mime = mimeMatch?.[1] ?? "image/jpeg";
+        const ext = mime.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+        const base64 = dataUrl.split(",")[1];
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: mime });
+
+        const path = `${project.id}/cover/cover.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("project-files")
+          .upload(path, blob, { upsert: true, contentType: mime });
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl: url } } = supabase.storage
+          .from("project-files")
+          .getPublicUrl(path);
+        publicUrl = url;
+      }
+
+      // Save real public URL to DB so project detail + list view pick it up
+      await updateProject(project.id, { thumbnail_url: publicUrl });
+
+      // Update state + localStorage with the stable public URL (not data URL)
+      setThumbOverride(publicUrl);
+      localStorage.setItem(storageKey, publicUrl);
+      localStorage.setItem(thumbPosKey, JSON.stringify(pos));
+      toast.success("Cover photo saved");
+    } catch (err) {
+      // Revert optimistic update on failure
+      setThumbOverride(prevOverride);
+      setThumbPos(prevPos);
+      console.error("Cover upload failed:", err);
+      toast.error("Couldn't save cover photo. Please try again.");
+    } finally {
+      setCoverUploading(false);
+    }
   };
 
   const handleCopyLink = async () => {
@@ -133,6 +184,16 @@ export function ProjectCard({ project }: ProjectCardProps) {
 
             {/* Overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+
+            {/* Upload progress overlay */}
+            {coverUploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5">
+                  <RefreshCw className="h-3 w-3 text-[#d4a853] animate-spin" />
+                  <span className="text-[10px] text-white/80">Saving…</span>
+                </div>
+              </div>
+            )}
 
             {/* Type badge */}
             <div className="absolute left-3 top-3">
