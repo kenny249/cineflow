@@ -199,7 +199,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         {/* ── Logo + toggle ── */}
         <div
           className={cn(
-            "relative flex h-14 items-center border-b border-border/60 px-3",
+            "relative flex min-h-14 items-center border-b border-border/60 px-3 pt-[env(safe-area-inset-top)]",
             collapsed ? "justify-center" : "justify-between"
           )}
         >
