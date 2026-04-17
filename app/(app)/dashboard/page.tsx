@@ -15,7 +15,6 @@ import {
   Camera,
 } from "lucide-react";
 import { ProjectCard } from "@/components/projects/ProjectCard";
-import { getOrCreateDisplayName } from "@/lib/random-name";
 
 const COMPLIMENTS = [
   "The lens never lies, and today you're looking sharp.",

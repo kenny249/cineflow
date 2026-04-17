@@ -174,10 +174,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           if (data?.first_name || data?.last_name) {
             setDisplayName(`${data.first_name ?? ""} ${data.last_name ?? ""}`.trim());
           } else {
-            // Fall back to auth metadata name, then random name
-            const meta = user.user_metadata;
-            const metaName = meta?.full_name || meta?.name || "";
-            setDisplayName(metaName || getOrCreateDisplayName());
+            // Fall back to auth metadata → email prefix → never random
+            const meta = user.user_metadata ?? {};
+            const metaName = [meta.first_name || meta.given_name, meta.last_name || meta.family_name]
+              .filter(Boolean).join(" ").trim()
+              || meta.full_name || meta.name || "";
+            const emailPrefix = user.email?.split("@")[0] ?? "";
+            setDisplayName(metaName || emailPrefix || "User");
           }
         });
     });

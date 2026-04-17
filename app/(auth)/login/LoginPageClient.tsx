@@ -81,17 +81,34 @@ export function LoginPageClient() {
         setIsVerifying(false);
         return;
       }
-      // Upsert profile with plan
+      // Upsert profile with plan (no email — profiles table has no email column)
       try {
         await supabase.from("profiles").upsert(
-          { id: data.user.id, email: data.user.email, plan: planValue, updated_at: new Date().toISOString() },
+          { id: data.user.id, plan: planValue, updated_at: new Date().toISOString() },
           { onConflict: "id" }
         );
         sessionStorage.setItem("cf_plan", planValue);
+
+        // Fetch current profile names
         const { data: profile } = await supabase
           .from("profiles").select("first_name, last_name").eq("id", data.user.id).single();
+
         if (profile?.first_name || profile?.last_name) {
+          // Profile already has a real name — cache it
           localStorage.setItem("cf_display_name", [profile.first_name, profile.last_name].filter(Boolean).join(" "));
+        } else {
+          // No name in profile — backfill from auth metadata (set during signup)
+          const meta = data.user.user_metadata ?? {};
+          const firstName = (meta.first_name || meta.given_name || "").trim();
+          const lastName  = (meta.last_name  || meta.family_name || "").trim();
+          if (firstName || lastName) {
+            await supabase.from("profiles").update({
+              first_name: firstName || null,
+              last_name:  lastName  || null,
+            }).eq("id", data.user.id);
+            localStorage.setItem("cf_display_name", [firstName, lastName].filter(Boolean).join(" "));
+          }
+          // If still no name, sidebar/dashboard will fall back to email prefix — never random
         }
       } catch { /* non-fatal */ }
       window.location.replace("/welcome");
