@@ -162,16 +162,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   );
 
   useEffect(() => {
-    setDisplayName(getOrCreateDisplayName());
-    // Confirm plan from Supabase and keep sessionStorage in sync
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("profiles").select("plan").eq("id", user.id).single()
+      supabase.from("profiles").select("first_name, last_name, plan").eq("id", user.id).single()
         .then(({ data }) => {
           if (data?.plan) {
             setPlan(data.plan);
             sessionStorage.setItem("cf_plan", data.plan);
+          }
+          if (data?.first_name || data?.last_name) {
+            setDisplayName(`${data.first_name ?? ""} ${data.last_name ?? ""}`.trim());
+          } else {
+            // Fall back to auth metadata name, then random name
+            const meta = user.user_metadata;
+            const metaName = meta?.full_name || meta?.name || "";
+            setDisplayName(metaName || getOrCreateDisplayName());
           }
         });
     });
