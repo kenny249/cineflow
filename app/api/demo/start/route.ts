@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+// ─── IP-based rate limiter — max 3 demo sessions per IP per hour ──────────────
+const ipLog = new Map<string, number[]>();
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const windowMs = 60 * 60 * 1000;
+  const hits = (ipLog.get(ip) ?? []).filter((t) => now - t < windowMs);
+  if (hits.length >= 3) return true;
+  ipLog.set(ip, [...hits, now]);
+  return false;
+}
+
 // ─── Admin client (service role — never sent to browser) ─────────────────────
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -209,6 +220,11 @@ async function seedDemoAccount(supabase: AnyClient, userId: string, plan: string
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  if (isRateLimited(ip)) {
+    return NextResponse.json({ error: "Too many demo requests. Try again in an hour." }, { status: 429 });
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
     const VALID_PLANS = ["solo_beta", "studio_beta"];
