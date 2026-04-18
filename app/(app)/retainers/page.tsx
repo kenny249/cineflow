@@ -85,10 +85,10 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-xl border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">
+      <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-white">New Retainer</h2>
-          <button onClick={onCancel} className="text-white/40 hover:text-white transition-colors">
+          <h2 className="text-base font-semibold text-foreground">New Retainer</h2>
+          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -96,34 +96,33 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
         <div className="space-y-4">
           {/* Client name */}
           <div>
-            <label className="text-xs text-white/50 mb-1.5 block">Client Name</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Client Name</label>
             <Input
               value={clientName}
               onChange={e => setClientName(e.target.value)}
               placeholder="e.g. Nike"
-              className="bg-white/[0.04] border-white/10 text-white placeholder:text-white/25"
             />
           </div>
 
           {/* Monthly rate */}
           <div>
-            <label className="text-xs text-white/50 mb-1.5 block">Monthly Rate (optional)</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Monthly Rate (optional)</label>
             <div className="relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30" />
+              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
               <Input
                 type="text"
                 inputMode="numeric"
                 value={monthlyRate}
                 onChange={e => setMonthlyRate(e.target.value.replace(/[^0-9.]/g, ""))}
                 placeholder="5000"
-                className="pl-8 bg-white/[0.04] border-white/10 text-white placeholder:text-white/25 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="pl-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
           </div>
 
           {/* Deliverable template */}
           <div>
-            <label className="text-xs text-white/50 mb-1.5 block">Monthly Deliverables</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Monthly Deliverables</label>
             <div className="space-y-2">
               {template.map((item, idx) => (
                 <div key={idx} className="space-y-1.5">
@@ -132,7 +131,7 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
                       value={item.label}
                       onChange={e => updateTemplate(idx, "label", e.target.value)}
                       placeholder="Deliverable label"
-                      className="flex-1 bg-white/[0.04] border-white/10 text-white placeholder:text-white/25 text-sm h-9"
+                      className="flex-1 text-sm h-9"
                     />
                     <input
                       type="text"
@@ -145,11 +144,11 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
                       onBlur={() => {
                         if (!item.quantity || item.quantity < 1) updateTemplate(idx, "quantity", 1);
                       }}
-                      className="w-16 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 text-center text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-16 rounded-md border border-border bg-background px-2 py-1.5 text-center text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <button
                       onClick={() => removeTemplateRow(idx)}
-                      className="text-white/25 hover:text-red-400 transition-colors shrink-0"
+                      className="text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -162,7 +161,7 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
                         "text-[10px] px-2 py-0.5 rounded-full border transition-colors",
                         (item.mode ?? "individual") === "individual"
                           ? "bg-[#d4a853]/15 border-[#d4a853]/30 text-[#d4a853]"
-                          : "border-white/10 text-white/30 hover:text-white/50"
+                          : "border-border text-muted-foreground/50 hover:text-muted-foreground"
                       )}
                     >
                       Individual
@@ -173,12 +172,12 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
                         "text-[10px] px-2 py-0.5 rounded-full border transition-colors",
                         (item.mode ?? "individual") === "batch"
                           ? "bg-[#d4a853]/15 border-[#d4a853]/30 text-[#d4a853]"
-                          : "border-white/10 text-white/30 hover:text-white/50"
+                          : "border-border text-muted-foreground/50 hover:text-muted-foreground"
                       )}
                     >
                       Batch
                     </button>
-                    <span className="text-[10px] text-white/20 self-center ml-1">
+                    <span className="text-[10px] text-muted-foreground/40 self-center ml-1">
                       {(item.mode ?? "individual") === "batch"
                         ? "→ 1 row, check off the whole group"
                         : `→ ${item.quantity} rows, name each one`}
@@ -197,19 +196,19 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
 
           {/* Notes */}
           <div>
-            <label className="text-xs text-white/50 mb-1.5 block">Notes (optional)</label>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Notes (optional)</label>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
               rows={2}
               placeholder="Scope notes, special requirements..."
-              className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white placeholder:text-white/25 resize-none focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
             />
           </div>
         </div>
 
         <div className="flex gap-2 mt-5">
-          <Button variant="outline" onClick={onCancel} className="flex-1 border-white/10 text-white/60 hover:text-white hover:bg-white/[0.06]">
+          <Button variant="outline" onClick={onCancel} className="flex-1">
             Cancel
           </Button>
           <Button
@@ -233,12 +232,12 @@ function RetainerCard({ retainer, latestMonth }: { retainer: Retainer; latestMon
   return (
     <Link
       href={`/retainers/${retainer.id}`}
-      className="group flex flex-col gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-5 hover:border-[#d4a853]/20 hover:bg-white/[0.04] transition-all duration-200"
+      className="group flex flex-col gap-3 rounded-xl border border-border bg-card p-5 hover:border-[#d4a853]/30 hover:shadow-sm transition-all duration-200"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-white truncate">{retainer.client_name}</h3>
+          <h3 className="font-semibold text-foreground truncate">{retainer.client_name}</h3>
           {retainer.monthly_rate && (
             <p className="text-xs text-[#d4a853]/70 mt-0.5">
               ${retainer.monthly_rate.toLocaleString()}/mo
@@ -256,14 +255,14 @@ function RetainerCard({ retainer, latestMonth }: { retainer: Retainer; latestMon
           >
             {retainer.is_active ? "Active" : "Inactive"}
           </Badge>
-          <ChevronRight className="h-3.5 w-3.5 text-white/20 group-hover:text-[#d4a853]/50 transition-colors" />
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-[#d4a853]/50 transition-colors" />
         </div>
       </div>
 
       {/* Template summary */}
       <div className="flex flex-wrap gap-1.5">
         {retainer.template.map((item, i) => (
-          <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.05] text-white/50 border border-white/[0.06]">
+          <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
             {item.quantity}× {item.label}
           </span>
         ))}
@@ -271,7 +270,7 @@ function RetainerCard({ retainer, latestMonth }: { retainer: Retainer; latestMon
 
       {/* Current month status */}
       {latestMonth ? (
-        <div className="flex items-center justify-between pt-2 border-t border-white/[0.05]">
+        <div className="flex items-center justify-between pt-2 border-t border-border">
           <div className="flex items-center gap-1.5">
             <div className={cn(
               "h-1.5 w-1.5 rounded-full",
@@ -280,20 +279,20 @@ function RetainerCard({ retainer, latestMonth }: { retainer: Retainer; latestMon
               latestMonth.status === "invoiced" ? "bg-violet-400" :
               "bg-white/30"
             )} />
-            <span className="text-[11px] text-white/40">
+            <span className="text-[11px] text-muted-foreground/70">
               {formatMonthYear(latestMonth.month_year)} · {latestMonth.status}
             </span>
           </div>
           {latestMonth.shoot_date && (
-            <span className="text-[11px] text-white/30">
+            <span className="text-[11px] text-muted-foreground/50">
               Shoot {new Date(latestMonth.shoot_date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             </span>
           )}
         </div>
       ) : (
-        <div className="flex items-center gap-1.5 pt-2 border-t border-white/[0.05]">
-          <AlertCircle className="h-3 w-3 text-white/20" />
-          <span className="text-[11px] text-white/30">No months started yet</span>
+        <div className="flex items-center gap-1.5 pt-2 border-t border-border">
+          <AlertCircle className="h-3 w-3 text-muted-foreground/30" />
+          <span className="text-[11px] text-muted-foreground/50">No months started yet</span>
         </div>
       )}
     </Link>
@@ -344,8 +343,8 @@ export default function RetainersPage() {
             <Repeat2 className="h-4 w-4 text-[#d4a853]" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-white">Retainers</h1>
-            <p className="text-xs text-white/40">Monthly client workflows</p>
+            <h1 className="text-lg font-semibold text-foreground">Retainers</h1>
+            <p className="text-xs text-muted-foreground/70">Monthly client workflows</p>
           </div>
         </div>
         <Button
@@ -367,8 +366,8 @@ export default function RetainersPage() {
       {/* Empty */}
       {!loading && retainers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
-            <Repeat2 className="h-6 w-6 text-white/20" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-muted/30">
+            <Repeat2 className="h-6 w-6 text-muted-foreground/30" />
           </div>
           <div>
             <p className="text-white/60 text-sm font-medium">No retainers yet</p>
@@ -387,7 +386,7 @@ export default function RetainersPage() {
       {/* Active retainers */}
       {!loading && active.length > 0 && (
         <div className="space-y-3">
-          <p className="text-[11px] font-medium uppercase tracking-widest text-white/30">Active</p>
+          <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/50">Active</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {active.map(r => (
               <RetainerCard key={r.id} retainer={r} latestMonth={latestMonths[r.id]} />
@@ -399,7 +398,7 @@ export default function RetainersPage() {
       {/* Inactive retainers */}
       {!loading && inactive.length > 0 && (
         <div className="space-y-3">
-          <p className="text-[11px] font-medium uppercase tracking-widest text-white/30">Inactive</p>
+          <p className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground/50">Inactive</p>
           <div className="grid gap-3 sm:grid-cols-2">
             {inactive.map(r => (
               <RetainerCard key={r.id} retainer={r} latestMonth={latestMonths[r.id]} />
