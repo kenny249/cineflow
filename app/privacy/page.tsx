@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 const EFFECTIVE_DATE = "April 17, 2025";
-const CONTACT_EMAIL = "kenny@maltavmedia.com";
+const CONTACT_EMAIL = "admin@usecineflow.com";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
