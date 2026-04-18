@@ -363,10 +363,7 @@ function RevisionCard({
   updatingStatusId: string | null;
 }) {
   const thumbRef = useRef<HTMLVideoElement>(null);
-  const rafRef = useRef<number | null>(null);
   const [thumbDuration, setThumbDuration] = useState(0);
-  const [scrubPct, setScrubPct] = useState(0);
-  const [isHovering, setIsHovering] = useState(false);
   const cfg = STATUS_CONFIG[revision.status as RevisionStatus] ?? STATUS_CONFIG.draft;
   const commentCount = revision.comments?.length ?? 0;
 
@@ -374,36 +371,8 @@ function RevisionCard({
     <div className={`group relative flex flex-col rounded-xl overflow-hidden border transition-all cursor-pointer ${
       isActive ? "border-[#d4a853]/60 shadow-[0_0_0_1px_rgba(212,168,83,0.2)]" : "border-border hover:border-border/80"
     }`}>
-      {/* Thumbnail / scrub zone */}
-      <div
-        className="relative aspect-video overflow-hidden bg-zinc-900/80 select-none"
-        style={{ cursor: isHovering && thumbDuration ? "none" : "pointer" }}
-        onClick={onSelect}
-        onMouseEnter={() => {
-          setIsHovering(true);
-          const el = thumbRef.current;
-          if (el && el.preload !== "auto") {
-            el.preload = "auto";
-            el.load();
-          }
-        }}
-        onMouseMove={(e) => {
-          const el = thumbRef.current;
-          if (!el || !thumbDuration) return;
-          const rect = e.currentTarget.getBoundingClientRect();
-          const pct = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
-          setScrubPct(pct);
-          // Throttle seeks with rAF to prevent glitching
-          if (rafRef.current) cancelAnimationFrame(rafRef.current);
-          rafRef.current = requestAnimationFrame(() => { el.currentTime = pct * thumbDuration; });
-        }}
-        onMouseLeave={() => {
-          setIsHovering(false);
-          setScrubPct(0);
-          if (rafRef.current) cancelAnimationFrame(rafRef.current);
-          if (thumbRef.current && thumbDuration) thumbRef.current.currentTime = thumbDuration * 0.1;
-        }}
-      >
+      {/* Thumbnail */}
+      <div className="relative aspect-video overflow-hidden bg-zinc-900/80" onClick={onSelect}>
         {revision.file_url ? (
           <video
             ref={thumbRef}
@@ -411,7 +380,7 @@ function RevisionCard({
             muted
             preload="metadata"
             playsInline
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-[filter] duration-300 group-hover:brightness-125"
             onLoadedMetadata={(e) => {
               const v = e.currentTarget;
               setThumbDuration(v.duration);
@@ -424,30 +393,8 @@ function RevisionCard({
           </div>
         )}
 
-        {/* Vertical scrub playhead line + time label */}
-        {isHovering && thumbDuration > 0 && scrubPct > 0 && (
-          <div
-            className="pointer-events-none absolute inset-y-0 z-10 flex flex-col items-center"
-            style={{ left: `${scrubPct * 100}%`, transform: "translateX(-50%)" }}
-          >
-            <div className="h-full w-px bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.6)]" />
-            <div className="absolute bottom-2 rounded bg-black/80 px-1.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-sm whitespace-nowrap">
-              {formatTime(scrubPct * thumbDuration)}
-            </div>
-          </div>
-        )}
-
-        {/* Scrub hint */}
-        {isHovering && thumbDuration > 0 && scrubPct === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-medium text-white/80 backdrop-blur-sm">
-              ← drag to scrub →
-            </div>
-          </div>
-        )}
-
-        {/* Duration badge — hidden while scrubbing (time shown on playhead) */}
-        {thumbDuration > 0 && (!isHovering || scrubPct === 0) && (
+        {/* Duration badge */}
+        {thumbDuration > 0 && (
           <div className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[11px] text-white backdrop-blur-sm">
             {formatTime(thumbDuration)}
           </div>
