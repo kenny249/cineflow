@@ -26,9 +26,14 @@ function CallbackInner() {
     const supabase = createClient();
 
     async function exchange() {
+      const isInvite = type === "invite";
+
       // Try the type from the URL first, then the other one as fallback
-      const types: Array<"email" | "magiclink"> =
-        type === "email" ? ["email", "magiclink"] : ["magiclink", "email"];
+      const types: Array<"email" | "magiclink" | "invite"> = isInvite
+        ? ["invite"]
+        : type === "email"
+          ? ["email", "magiclink"]
+          : ["magiclink", "email"];
 
       let user = null;
       let lastMsg = "Authentication failed.";
@@ -46,30 +51,59 @@ function CallbackInner() {
       }
 
       if (!user) {
-        // Common on iOS Chrome — link opened in Gmail in-app browser whose
-        // session doesn't carry over. Prompt them to open the email in Safari/Mail.
         setErrorMsg(`${lastMsg} Try opening the magic link from your iPhone's Mail app or Safari instead of Gmail or Chrome.`);
         return;
       }
 
       // Upsert profile — persist plan from user_metadata (non-fatal if it fails)
       try {
-        const plan = (user.user_metadata?.plan as string) ?? "studio_beta";
-        await supabase.from("profiles").upsert(
-          { id: user.id, email: user.email, plan, updated_at: new Date().toISOString() },
-          { onConflict: "id" }
-        );
-        sessionStorage.setItem("cf_plan", plan);
+        const meta = user.user_metadata ?? {};
+        const plan = (meta.plan as string) ?? "studio_beta";
 
-        // Seed localStorage display name from real profile so nav shows correct name
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("first_name, last_name")
-          .eq("id", user.id)
-          .single();
-        if (profile?.first_name || profile?.last_name) {
-          const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
-          localStorage.setItem("cf_display_name", fullName);
+        if (isInvite && meta.workspace_id) {
+          // Invited member: set workspace_id and mark team_members row active
+          await supabase.from("profiles").upsert(
+            {
+              id: user.id,
+              plan,
+              workspace_id: meta.workspace_id,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id" }
+          );
+          // Link team_members row to the real user_id and activate it
+          await supabase
+            .from("team_members")
+            .update({ user_id: user.id, status: "active" })
+            .eq("invited_by", meta.workspace_id)
+            .eq("email", user.email ?? "")
+            .eq("status", "pending");
+
+          if (meta.invited_as) {
+            const parts = (meta.invited_as as string).split(" ");
+            await supabase.from("profiles").update({
+              first_name: parts[0] ?? null,
+              last_name: parts.slice(1).join(" ") || null,
+            }).eq("id", user.id);
+            localStorage.setItem("cf_display_name", meta.invited_as as string);
+          }
+        } else {
+          await supabase.from("profiles").upsert(
+            { id: user.id, email: user.email, plan, updated_at: new Date().toISOString() },
+            { onConflict: "id" }
+          );
+          sessionStorage.setItem("cf_plan", plan);
+
+          // Seed localStorage display name from real profile so nav shows correct name
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("id", user.id)
+            .single();
+          if (profile?.first_name || profile?.last_name) {
+            const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
+            localStorage.setItem("cf_display_name", fullName);
+          }
         }
       } catch { /* non-fatal */ }
 

@@ -13,8 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { getProjects } from "@/lib/supabase/queries";
-import type { Project, ProjectTask, ProjectTaskType, TaskPriority, ProjectTaskStatus } from "@/types";
+import { getProjects, getTeamMembers } from "@/lib/supabase/queries";
+import type { Project, ProjectTask, ProjectTaskType, TaskPriority, ProjectTaskStatus, TeamMember } from "@/types";
 import { formatDate } from "@/lib/utils";
 
 const TASK_TYPES: { value: ProjectTaskType; label: string }[] = [
@@ -46,6 +46,7 @@ export default function ProjectTasksPage() {
   const supabase = createClient();
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filters
@@ -72,11 +73,13 @@ export default function ProjectTasksPage() {
     async function load() {
       setLoading(true);
       try {
-        const [projs, { data: { user } }] = await Promise.all([
+        const [projs, members, { data: { user } }] = await Promise.all([
           getProjects(),
+          getTeamMembers(),
           supabase.auth.getUser(),
         ]);
         setProjects(projs || []);
+        setTeamMembers(members);
         if (!user) return;
         const { data } = await supabase
           .from("project_tasks")
@@ -436,7 +439,22 @@ export default function ProjectTasksPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Assignee</Label>
-                <Input value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} placeholder="Name or team member" />
+                {teamMembers.length > 0 ? (
+                  <select
+                    value={fAssignee}
+                    onChange={(e) => setFAssignee(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
+                  >
+                    <option value="">Unassigned</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.id} value={m.name ?? m.email}>
+                        {m.name ?? m.email}{m.status === "pending" ? " (pending)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} placeholder="Name or team member" />
+                )}
               </div>
             </div>
           </div>

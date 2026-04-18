@@ -451,21 +451,46 @@ export async function reorderStoryboardFrames(frames: { id: string; frame_number
 // ─── Team ─────────────────────────────────────────────────────────────────────
 
 export async function getTeamMembers(): Promise<TeamMember[]> {
-  const { data, error } = await db().from('team_members').select('*').order('invited_at', { ascending: true });
+  const client = db();
+  const { data, error } = await client
+    .from('team_members')
+    .select('*')
+    .order('invited_at', { ascending: true });
   if (error) { if (isMissingTableError(error)) return []; throw error; }
-  return data as TeamMember[];
+  const members = data as TeamMember[];
+
+  // Fetch profiles for active members to hydrate name/avatar
+  const userIds = members.filter((m) => m.user_id && m.status === 'active').map((m) => m.user_id!);
+  if (userIds.length === 0) return members;
+
+  const { data: profiles } = await client
+    .from('profiles')
+    .select('id, full_name, avatar_url, first_name, last_name')
+    .in('id', userIds);
+
+  const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+  return members.map((m) => {
+    if (!m.user_id) return m;
+    const p = profileMap.get(m.user_id) as any;
+    if (!p) return m;
+    const profileName = p.full_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || null;
+    return {
+      ...m,
+      name: m.name || profileName || m.name,
+      avatar_url: m.avatar_url || p.avatar_url || null,
+    };
+  });
 }
 
 export async function inviteTeamMember(email: string, name: string, role: TeamMember['role'] = 'member'): Promise<TeamMember> {
-  const client = db();
-  const { data: { user } } = await client.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const { data, error } = await client
-    .from('team_members')
-    .insert({ email, name, role, status: 'pending', invited_by: user.id })
-    .select().single();
-  if (error) throw error;
-  return data as TeamMember;
+  const res = await fetch('/api/team/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, name, role }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? 'Failed to send invite');
+  return json as TeamMember;
 }
 
 export async function removeTeamMember(id: string): Promise<void> {
