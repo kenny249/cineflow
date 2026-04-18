@@ -448,10 +448,8 @@ function Toggle({
         )}
       >
         <span
-          className={cn(
-            "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200",
-            value ? "translate-x-6" : "translate-x-1"
-          )}
+          className="absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-all duration-200"
+          style={{ left: value ? "26px" : "4px" }}
         />
       </button>
     </div>
