@@ -36,6 +36,7 @@ function getDailyCompliment(): string {
   return COMPLIMENTS[day % COMPLIMENTS.length];
 }
 import { QuickActions } from "@/components/dashboard/QuickActions";
+import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardParticles } from "@/components/dashboard/DashboardParticles";
@@ -306,6 +307,15 @@ export default function DashboardPage() {
 
             {/* Right column */}
             <div className="space-y-5">
+              {/* Onboarding checklist — shown once to new users */}
+              {!loading && (
+                <OnboardingChecklist
+                  hasProjects={projects.length > 0}
+                  isSolo={solo}
+                  onCreateProject={() => setModalOpen(true)}
+                />
+              )}
+
               {/* Quick Actions */}
               <section>
                 <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
