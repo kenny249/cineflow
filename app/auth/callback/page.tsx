@@ -15,10 +15,11 @@ function CallbackInner() {
     ran.current = true;
 
     const tokenHash = searchParams.get("token_hash");
+    const code      = searchParams.get("code");
     const type      = searchParams.get("type") ?? "email";
     const next      = searchParams.get("next") ?? "/welcome";
 
-    if (!tokenHash) {
+    if (!tokenHash && !code) {
       setErrorMsg("No authentication token found. Please request a new magic link.");
       return;
     }
@@ -28,26 +29,36 @@ function CallbackInner() {
     async function exchange() {
       const isInvite = type === "invite";
 
-      // Try the type from the URL first, then the other one as fallback
-      const types: Array<"email" | "magiclink" | "invite"> = isInvite
-        ? ["invite"]
-        : type === "email"
-          ? ["email", "magiclink"]
-          : ["magiclink", "email"];
-
       let user = null;
       let lastMsg = "Authentication failed.";
 
-      for (const t of types) {
-        const { data, error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash!,
-          type: t,
-        });
+      if (code) {
+        // PKCE flow — invite links and some magic links use this path
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error && data.user) {
           user = data.user;
-          break;
+        } else if (error) {
+          lastMsg = error.message;
         }
-        if (error) lastMsg = error.message;
+      } else {
+        // token_hash flow — OTP / magic link
+        const types: Array<"email" | "magiclink" | "invite"> = isInvite
+          ? ["invite"]
+          : type === "email"
+            ? ["email", "magiclink"]
+            : ["magiclink", "email"];
+
+        for (const t of types) {
+          const { data, error } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash!,
+            type: t,
+          });
+          if (!error && data.user) {
+            user = data.user;
+            break;
+          }
+          if (error) lastMsg = error.message;
+        }
       }
 
       if (!user) {
