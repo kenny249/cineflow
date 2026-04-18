@@ -111,11 +111,12 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
             <div className="relative">
               <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30" />
               <Input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={monthlyRate}
-                onChange={e => setMonthlyRate(e.target.value)}
+                onChange={e => setMonthlyRate(e.target.value.replace(/[^0-9.]/g, ""))}
                 placeholder="5000"
-                className="pl-8 bg-white/[0.04] border-white/10 text-white placeholder:text-white/25"
+                className="pl-8 bg-white/[0.04] border-white/10 text-white placeholder:text-white/25 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
             </div>
           </div>
@@ -133,12 +134,18 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
                       placeholder="Deliverable label"
                       className="flex-1 bg-white/[0.04] border-white/10 text-white placeholder:text-white/25 text-sm h-9"
                     />
-                    <Input
-                      type="number"
-                      min={1}
-                      value={item.quantity}
-                      onChange={e => updateTemplate(idx, "quantity", parseInt(e.target.value) || 1)}
-                      className="w-16 bg-white/[0.04] border-white/10 text-white text-center text-sm h-9"
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={item.quantity === 0 ? "" : String(item.quantity)}
+                      onChange={e => {
+                        const raw = e.target.value.replace(/[^0-9]/g, "");
+                        updateTemplate(idx, "quantity", raw === "" ? 0 : Number(raw));
+                      }}
+                      onBlur={() => {
+                        if (!item.quantity || item.quantity < 1) updateTemplate(idx, "quantity", 1);
+                      }}
+                      className="w-16 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1.5 text-center text-sm text-white focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <button
                       onClick={() => removeTemplateRow(idx)}

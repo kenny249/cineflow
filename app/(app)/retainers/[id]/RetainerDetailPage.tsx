@@ -180,6 +180,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingRate, setEditingRate] = useState(false);
+  const [rateInput, setRateInput] = useState("");
 
   const activeMonth = months.find(m => m.id === activeMonthId) ?? null;
 
@@ -210,6 +212,20 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   }, [activeMonthId]);
 
   // ── Delete retainer ──────────────────────────────────────────────────────
+
+  async function handleSaveRate() {
+    if (!retainer) return;
+    const rate = rateInput === "" ? null : Number(rateInput);
+    try {
+      await updateRetainer(id, { monthly_rate: rate ?? undefined });
+      setRetainer(prev => prev ? { ...prev, monthly_rate: rate ?? undefined } : prev);
+      toast.success("Rate updated");
+    } catch {
+      toast.error("Failed to update rate");
+    } finally {
+      setEditingRate(false);
+    }
+  }
 
   async function handleDelete() {
     setDeleting(true);
@@ -369,13 +385,43 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 {retainer.is_active ? "Active" : "Inactive"}
               </Badge>
             </div>
-            <p className="text-xs text-white/40 mt-0.5 flex items-center gap-2">
-              {retainer.monthly_rate && (
-                <span className="text-[#d4a853]/60">${retainer.monthly_rate.toLocaleString()}/mo</span>
+            <div className="flex items-center gap-2 mt-0.5">
+              {editingRate ? (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-[#d4a853]/60">$</span>
+                  <input
+                    autoFocus
+                    type="text"
+                    inputMode="numeric"
+                    value={rateInput}
+                    onChange={e => setRateInput(e.target.value.replace(/[^0-9]/g, ""))}
+                    onKeyDown={e => { if (e.key === "Enter") handleSaveRate(); if (e.key === "Escape") setEditingRate(false); }}
+                    placeholder="0"
+                    className="w-20 rounded border border-[#d4a853]/30 bg-white/[0.06] px-1.5 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <span className="text-xs text-white/30">/mo</span>
+                  <button onClick={handleSaveRate} className="text-emerald-400 hover:text-emerald-300 transition-colors">
+                    <Check className="h-3 w-3" />
+                  </button>
+                  <button onClick={() => setEditingRate(false)} className="text-white/30 hover:text-white transition-colors">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setRateInput(retainer.monthly_rate ? String(retainer.monthly_rate) : ""); setEditingRate(true); }}
+                  className="group flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+                >
+                  {retainer.monthly_rate
+                    ? <span className="text-[#d4a853]/60">${retainer.monthly_rate.toLocaleString()}/mo</span>
+                    : <span className="text-white/25 italic">Set rate…</span>
+                  }
+                  <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
               )}
-              <span>·</span>
-              <span>{retainer.template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}</span>
-            </p>
+              <span className="text-xs text-white/20">·</span>
+              <span className="text-xs text-white/40">{retainer.template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}</span>
+            </div>
           </div>
         </div>
 
