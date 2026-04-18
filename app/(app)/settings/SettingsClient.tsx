@@ -753,6 +753,27 @@ export default function SettingsClient() {
             </div>
           </section>
 
+          {/* ── Legal ──────────────────────────────────────────── */}
+          <section>
+            <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Legal</h2>
+            <div className="rounded-xl border border-border bg-card p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Privacy Policy</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">How we collect, use, and protect your data.</p>
+                </div>
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[#d4a853] hover:underline"
+                >
+                  View →
+                </a>
+              </div>
+            </div>
+          </section>
+
         </div>
       </div>
     </div>

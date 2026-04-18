@@ -414,6 +414,12 @@ export function LoginPageClient() {
           <p className="mt-5 text-center text-[11px] text-zinc-600">
             Both plans are free during beta. Your workspace and projects are saved privately.
           </p>
+          <p className="mt-3 text-center text-[10px] text-zinc-700">
+            By signing in you agree to our{" "}
+            <a href="/privacy" className="underline underline-offset-2 hover:text-zinc-400 transition-colors">
+              Privacy Policy
+            </a>
+          </p>
         </div>
       </div>
 
