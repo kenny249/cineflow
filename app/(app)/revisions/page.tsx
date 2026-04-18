@@ -363,6 +363,7 @@ function RevisionCard({
   updatingStatusId: string | null;
 }) {
   const thumbRef = useRef<HTMLVideoElement>(null);
+  const rafRef = useRef<number | null>(null);
   const [thumbDuration, setThumbDuration] = useState(0);
   const [scrubPct, setScrubPct] = useState(0);
   const [isHovering, setIsHovering] = useState(false);
@@ -376,11 +377,10 @@ function RevisionCard({
       {/* Thumbnail / scrub zone */}
       <div
         className="relative aspect-video overflow-hidden bg-zinc-900/80 select-none"
-        style={{ cursor: isHovering && thumbDuration ? "ew-resize" : "pointer" }}
+        style={{ cursor: isHovering && thumbDuration ? "none" : "pointer" }}
         onClick={onSelect}
         onMouseEnter={() => {
           setIsHovering(true);
-          // Trigger full video load so frame-seeking works
           const el = thumbRef.current;
           if (el && el.preload !== "auto") {
             el.preload = "auto";
@@ -393,11 +393,14 @@ function RevisionCard({
           const rect = e.currentTarget.getBoundingClientRect();
           const pct = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
           setScrubPct(pct);
-          el.currentTime = pct * thumbDuration;
+          // Throttle seeks with rAF to prevent glitching
+          if (rafRef.current) cancelAnimationFrame(rafRef.current);
+          rafRef.current = requestAnimationFrame(() => { el.currentTime = pct * thumbDuration; });
         }}
         onMouseLeave={() => {
           setIsHovering(false);
           setScrubPct(0);
+          if (rafRef.current) cancelAnimationFrame(rafRef.current);
           if (thumbRef.current && thumbDuration) thumbRef.current.currentTime = thumbDuration * 0.1;
         }}
       >
@@ -421,17 +424,20 @@ function RevisionCard({
           </div>
         )}
 
-        {/* Scrub progress bar */}
-        {isHovering && thumbDuration > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10">
-            <div
-              className="h-full bg-[#d4a853] transition-none"
-              style={{ width: `${scrubPct * 100}%` }}
-            />
+        {/* Vertical scrub playhead line + time label */}
+        {isHovering && thumbDuration > 0 && scrubPct > 0 && (
+          <div
+            className="pointer-events-none absolute inset-y-0 z-10 flex flex-col items-center"
+            style={{ left: `${scrubPct * 100}%`, transform: "translateX(-50%)" }}
+          >
+            <div className="h-full w-px bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.6)]" />
+            <div className="absolute bottom-2 rounded bg-black/80 px-1.5 py-0.5 font-mono text-[10px] text-white backdrop-blur-sm whitespace-nowrap">
+              {formatTime(scrubPct * thumbDuration)}
+            </div>
           </div>
         )}
 
-        {/* Scrub hint — fades in on hover before they move */}
+        {/* Scrub hint */}
         {isHovering && thumbDuration > 0 && scrubPct === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-medium text-white/80 backdrop-blur-sm">
@@ -440,10 +446,10 @@ function RevisionCard({
           </div>
         )}
 
-        {/* Duration badge */}
-        {thumbDuration > 0 && (
+        {/* Duration badge — hidden while scrubbing (time shown on playhead) */}
+        {thumbDuration > 0 && (!isHovering || scrubPct === 0) && (
           <div className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[11px] text-white backdrop-blur-sm">
-            {isHovering && scrubPct > 0 ? formatTime(scrubPct * thumbDuration) : formatTime(thumbDuration)}
+            {formatTime(thumbDuration)}
           </div>
         )}
 

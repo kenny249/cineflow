@@ -443,14 +443,14 @@ function Toggle({
       <button
         onClick={() => onChange(!value)}
         className={cn(
-          "relative h-5 w-9 rounded-full transition-colors duration-200",
-          value ? "bg-[#d4a853]" : "bg-muted"
+          "relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200",
+          value ? "bg-[#d4a853]" : "bg-muted/60 border border-border"
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200",
-            value ? "translate-x-4" : "translate-x-0.5"
+            "absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200",
+            value ? "translate-x-6" : "translate-x-1"
           )}
         />
       </button>
