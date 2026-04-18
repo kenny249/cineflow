@@ -415,9 +415,9 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
   const thumbSize = density === "compact" ? "h-7 w-11" : density === "comfortable" ? "h-12 w-[4.5rem]" : "h-9 w-14";
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
+    <div className="rounded-xl border border-border">
       {/* Header */}
-      <div className="grid grid-cols-[2fr_auto] sm:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 border-b border-border bg-muted/50 px-4 py-2.5">
+      <div className="grid grid-cols-[2fr_auto] sm:grid-cols-[2fr_1fr_1fr_1fr_auto] gap-4 border-b border-border bg-muted/50 px-4 py-2.5 rounded-t-xl">
         {["Project", "Type", "Status", "Progress", ""].map((h) => (
           <div
             key={h}
@@ -434,7 +434,7 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
         <Link
           key={project.id}
           href={`/projects/${project.id}`}
-          className={`group grid grid-cols-[2fr_auto] sm:grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-4 border-b border-border bg-card px-4 transition-colors last:border-0 hover:bg-accent/40 ${rowPadding}`}
+          className={`group grid grid-cols-[2fr_auto] sm:grid-cols-[2fr_1fr_1fr_1fr_auto] items-center gap-4 border-b border-border bg-card px-4 transition-colors last:border-0 last:rounded-b-xl hover:bg-accent/40 ${rowPadding}`}
         >
           {/* Project */}
           <div className="flex items-center gap-3 min-w-0">
@@ -509,7 +509,7 @@ function ListView({ projects, density = "default", onDelete }: { projects: Proje
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
             {openMenuId === project.id && (
-              <div className="absolute right-0 top-8 z-10 w-36 rounded-2xl border border-border bg-card p-2 shadow-lg">
+              <div className="absolute right-0 top-8 z-50 w-36 rounded-2xl border border-border bg-card p-2 shadow-lg">
                 <button
                   type="button"
                   onClick={(e) => {
