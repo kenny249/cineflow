@@ -1,38 +1,31 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_FILE = /\.(.*)$/;
-
-// Routes that are always public (no auth required)
-const PUBLIC_PATHS = [
+const PUBLIC_PREFIXES = [
   "/login",
   "/signup",
-  "/welcome",
-  "/auth",          // /auth/callback
-  "/board",         // public storyboard share
-  "/review",        // public client review portal
-  "/pay",           // public invoice pay page
-  "/forms",         // public client intake forms
-  "/sign",          // public contract signing
-  "/opengraph-image",
+  "/privacy",
+  "/review",
+  "/forms",
+  "/sign",
+  "/pay",
+  "/board",
+  "/client",
+  "/auth",
+  "/api",
+  "/_next",
+  "/favicon",
 ];
 
-function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+function isPublic(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
 export async function proxy(request: NextRequest) {
-  const { pathname, origin } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
-  // Always skip Next.js internals, static assets and API routes
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/static") ||
-    pathname.startsWith("/favicon.ico") ||
-    pathname.startsWith("/api") ||
-    PUBLIC_FILE.test(pathname)
-  ) {
+  // Always allow public routes and static assets
+  if (isPublic(pathname) || pathname === "/") {
     return NextResponse.next();
   }
 
@@ -44,52 +37,40 @@ export async function proxy(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll().map((cookie) => ({
-            name: cookie.name,
-            value: cookie.value,
-          }));
+          return request.cookies.getAll();
         },
-        setAll(
-          cookiesToSet: Array<{
-            name: string;
-            value: string;
-            options?: Record<string, unknown>;
-          }>
-        ) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2]);
-          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
         },
       },
     }
   );
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const isLoggedIn = Boolean(session);
-
-  // If the path is public, let it through (but redirect logged-in users away from login/signup)
-  if (isPublicPath(pathname)) {
-    if (isLoggedIn && (pathname === "/login" || pathname === "/signup")) {
-      return NextResponse.redirect(new URL("/dashboard", origin));
-    }
-    return response;
+  // Logged-in user hitting /login → send to dashboard
+  if (user && pathname.startsWith("/login")) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // Protected: redirect unauthenticated users to login
-  if (!isLoggedIn) {
-    const loginUrl = new URL("/login", origin);
-    loginUrl.searchParams.set("redirectedFrom", pathname);
-    return NextResponse.redirect(loginUrl);
+  // Unauthenticated user hitting a protected route → send to login
+  if (!user) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
   return response;
 }
 
-export const proxyConfig = {
-  matcher: ["/((?!_next|static|api|.*\\..*).*)"],
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|otf)).*)",
+  ],
 };
