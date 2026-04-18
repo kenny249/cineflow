@@ -364,6 +364,8 @@ function RevisionCard({
 }) {
   const thumbRef = useRef<HTMLVideoElement>(null);
   const [thumbDuration, setThumbDuration] = useState(0);
+  const [scrubPct, setScrubPct] = useState(0);
+  const [isHovering, setIsHovering] = useState(false);
   const cfg = STATUS_CONFIG[revision.status as RevisionStatus] ?? STATUS_CONFIG.draft;
   const commentCount = revision.comments?.length ?? 0;
 
@@ -374,15 +376,28 @@ function RevisionCard({
       {/* Thumbnail / scrub zone */}
       <div
         className="relative aspect-video overflow-hidden bg-zinc-900/80 select-none"
+        style={{ cursor: isHovering && thumbDuration ? "ew-resize" : "pointer" }}
         onClick={onSelect}
+        onMouseEnter={() => {
+          setIsHovering(true);
+          // Trigger full video load so frame-seeking works
+          const el = thumbRef.current;
+          if (el && el.preload !== "auto") {
+            el.preload = "auto";
+            el.load();
+          }
+        }}
         onMouseMove={(e) => {
           const el = thumbRef.current;
           if (!el || !thumbDuration) return;
           const rect = e.currentTarget.getBoundingClientRect();
-          const pct = (e.clientX - rect.left) / rect.width;
-          el.currentTime = Math.max(0, Math.min(pct * thumbDuration, thumbDuration - 0.1));
+          const pct = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
+          setScrubPct(pct);
+          el.currentTime = pct * thumbDuration;
         }}
         onMouseLeave={() => {
+          setIsHovering(false);
+          setScrubPct(0);
           if (thumbRef.current && thumbDuration) thumbRef.current.currentTime = thumbDuration * 0.1;
         }}
       >
@@ -406,10 +421,29 @@ function RevisionCard({
           </div>
         )}
 
+        {/* Scrub progress bar */}
+        {isHovering && thumbDuration > 0 && (
+          <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/10">
+            <div
+              className="h-full bg-[#d4a853] transition-none"
+              style={{ width: `${scrubPct * 100}%` }}
+            />
+          </div>
+        )}
+
+        {/* Scrub hint — fades in on hover before they move */}
+        {isHovering && thumbDuration > 0 && scrubPct === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-medium text-white/80 backdrop-blur-sm">
+              ← drag to scrub →
+            </div>
+          </div>
+        )}
+
         {/* Duration badge */}
         {thumbDuration > 0 && (
           <div className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[11px] text-white backdrop-blur-sm">
-            {formatTime(thumbDuration)}
+            {isHovering && scrubPct > 0 ? formatTime(scrubPct * thumbDuration) : formatTime(thumbDuration)}
           </div>
         )}
 
