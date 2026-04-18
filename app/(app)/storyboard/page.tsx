@@ -575,119 +575,46 @@ export default function StoryboardPage() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* ── Left sidebar ─────────────────────────────────────────── */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card/50 p-4 sm:flex overflow-y-auto custom-scrollbar">
-        <div className="mb-5">
-          <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            Project
-          </label>
-          <div className="relative">
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="w-full appearance-none rounded-lg border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:border-[#d4a853]/50 focus:outline-none"
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-            <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
-          </div>
-        </div>
-
-        {/* Stats */}
-        {frames.length > 0 && (
-          <div className="mb-5 grid grid-cols-3 gap-2">
-            <div className="rounded-xl border border-border bg-background/50 p-3 text-center">
-              <p className="text-lg font-bold text-[#d4a853]">{frames.length}</p>
-              <p className="text-[10px] text-muted-foreground">Frames</p>
-            </div>
-            <div className="rounded-xl border border-border bg-background/50 p-3 text-center">
-              <p className="text-lg font-bold text-foreground">{frames.filter((f) => f.image_url).length}</p>
-              <p className="text-[10px] text-muted-foreground">Images</p>
-            </div>
-            <div className="rounded-xl border border-border bg-background/50 p-3 text-center">
-              <p className="text-base font-bold text-foreground">{totalRuntime(frames)}</p>
-              <p className="text-[10px] text-muted-foreground">Runtime</p>
-            </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="space-y-2">
-          <button
-            onClick={() => setAddOpen(true)}
-            className="flex w-full items-center gap-2 rounded-xl border border-border bg-background/50 px-3 py-2.5 text-sm text-foreground transition-colors hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5"
-          >
-            <Plus className="h-4 w-4 text-[#d4a853]" />
-            Add frame
-          </button>
-          <button
-            onClick={() => setAiOpen(true)}
-            className="flex w-full items-center gap-2 rounded-xl border border-[#d4a853]/30 bg-[#d4a853]/[0.06] px-3 py-2.5 text-sm text-[#d4a853] transition-colors hover:bg-[#d4a853]/[0.12]"
-          >
-            <Sparkles className="h-4 w-4" />
-            AI Assistant
-          </button>
-          <button
-            onClick={handleShare}
-            disabled={sharing || frames.length === 0}
-            className="flex w-full items-center gap-2 rounded-xl border border-border bg-background/50 px-3 py-2.5 text-sm text-foreground transition-colors hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5 disabled:opacity-40"
-          >
-            {sharing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Share2 className="h-4 w-4 text-muted-foreground" />
-            )}
-            Share with client
-          </button>
-          <button
-            onClick={() => setExportOpen(true)}
-            disabled={frames.length === 0}
-            className="flex w-full items-center gap-2 rounded-xl border border-border bg-background/50 px-3 py-2.5 text-sm text-foreground transition-colors hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5 disabled:opacity-40"
-          >
-            <FileDown className="h-4 w-4 text-muted-foreground" />
-            Export PDF
-          </button>
-        </div>
-
-        {/* Share URL */}
-        {shareUrl && (
-          <div className="mt-4 rounded-xl border border-[#d4a853]/30 bg-[#d4a853]/[0.06] p-3">
-            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-[#d4a853]">Client link</p>
-            <p className="mb-2 break-all text-[11px] text-zinc-400">{shareUrl}</p>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(shareUrl);
-                toast.success("Copied!");
-              }}
-              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853]/20 px-2.5 py-1.5 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/30"
-            >
-              <Copy className="h-3 w-3" /> Copy link
-            </button>
-          </div>
-        )}
-      </aside>
-
       {/* ── Main frame grid ───────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         <div className="shrink-0 border-b border-border">
-          <div className="flex items-center justify-between px-4 py-3 sm:px-5">
-            <div>
-              <h1 className="text-base font-bold text-foreground">Storyboard</h1>
-              <p className="hidden text-xs text-muted-foreground sm:block">
-                {frames.length > 0
-                  ? `${frames.length} frame${frames.length !== 1 ? "s" : ""} in "${selectedProject?.title ?? ""}"`
-                  : "Build visual frames for your production"}
-              </p>
+          <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+            {/* Left: title + project selector */}
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="min-w-0">
+                <h1 className="text-base font-bold text-foreground">Storyboard</h1>
+                <p className="hidden text-xs text-muted-foreground sm:block">
+                  {frames.length > 0
+                    ? `${frames.length} frame${frames.length !== 1 ? "s" : ""} · ${totalRuntime(frames)} runtime`
+                    : "Build visual frames for your production"}
+                </p>
+              </div>
+              {/* Project selector — desktop */}
+              <div className="relative hidden sm:block">
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="appearance-none rounded-lg border border-border bg-input py-1.5 pl-3 pr-7 text-sm text-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.title}</option>
+                  ))}
+                </select>
+                <ChevronRight className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
+
+            {/* Right: action buttons */}
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
-                onClick={() => setAiOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-[#d4a853]/40 bg-[#d4a853]/10 px-2.5 py-1.5 text-xs font-semibold text-[#d4a853] transition-all hover:bg-[#d4a853]/20 sm:px-3"
+                onClick={() => setAiOpen((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-all sm:px-3",
+                  aiOpen
+                    ? "border-[#d4a853]/60 bg-[#d4a853]/20 text-[#d4a853]"
+                    : "border-[#d4a853]/40 bg-[#d4a853]/10 text-[#d4a853] hover:bg-[#d4a853]/20"
+                )}
               >
                 <Bot className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">AI Director</span>
@@ -737,6 +664,25 @@ export default function StoryboardPage() {
             )}
           </div>
         </div>
+
+        {/* Share URL banner */}
+        {shareUrl && (
+          <div className="shrink-0 border-b border-[#d4a853]/20 bg-[#d4a853]/5 px-5 py-2">
+            <div className="flex items-center gap-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#d4a853]">Client link ready</p>
+              <p className="flex-1 truncate text-[11px] text-muted-foreground">{shareUrl}</p>
+              <button
+                onClick={() => { navigator.clipboard.writeText(shareUrl); toast.success("Copied!"); }}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#d4a853]/20 px-2.5 py-1 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/30"
+              >
+                <Copy className="h-3 w-3" /> Copy
+              </button>
+              <button onClick={() => setShareUrl(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Frame grid */}
         <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
@@ -817,12 +763,11 @@ export default function StoryboardPage() {
         />
       )}
 
-      {/* ── AI Assistant panel ────────────────────────────────────── */}
-      {/* Desktop: always inline (lg:flex), Mobile: fixed overlay when aiOpen */}
+      {/* ── AI Assistant panel — slides in when aiOpen ───────────── */}
       <div className={cn(
         "flex-col border-l border-border bg-card/80 backdrop-blur-sm",
-        "hidden lg:flex lg:w-72 lg:shrink-0",
-        aiOpen && "fixed inset-y-0 right-0 z-40 flex w-80 shadow-2xl lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shadow-none"
+        !aiOpen && "hidden",
+        aiOpen && "fixed inset-y-0 right-0 z-40 flex w-80 shadow-2xl lg:relative lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:shadow-none"
       )}>
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
@@ -837,7 +782,7 @@ export default function StoryboardPage() {
             </div>
             <button
               onClick={() => setAiOpen(false)}
-              className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground lg:hidden"
+              className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
