@@ -58,7 +58,6 @@ async function seedDemoAccount(supabase: AnyClient, userId: string, plan: string
     .single();
 
   if (projErr || !project) {
-    console.error("[demo/seed] project insert failed:", projErr?.message);
     return;
   }
 
@@ -228,7 +227,6 @@ export async function POST(req: NextRequest) {
     });
 
     if (createError || !createData.user) {
-      console.error("[demo/start] createUser failed:", createError?.message);
       return NextResponse.json({ error: "Could not create demo session", detail: createError?.message }, { status: 500 });
     }
 
@@ -242,7 +240,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ email: tempEmail, password: tempPassword });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[demo/start] unexpected error:", msg);
     return NextResponse.json({ error: "Internal server error", detail: msg }, { status: 500 });
   }
 }

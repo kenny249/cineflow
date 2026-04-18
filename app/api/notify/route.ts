@@ -65,7 +65,6 @@ export async function POST(req: NextRequest) {
   }
 
   if (!resend) {
-    console.warn("[notify] RESEND_API_KEY not set — email skipped");
     return NextResponse.json({ ok: true, skipped: true });
   }
 
@@ -158,13 +157,11 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
-      console.error("[notify] Resend error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[notify] Unexpected error:", err);
     return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
   }
 }

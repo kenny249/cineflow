@@ -41,7 +41,6 @@ export async function GET(req: NextRequest) {
     for (const user of toDelete) {
       const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
       if (!delErr) deleted++;
-      else console.error(`[cleanup-demo] failed to delete ${user.id}:`, delErr);
     }
 
     // Supabase listUsers doesn't return a hasNextPage — stop when a page returns fewer than perPage
@@ -49,6 +48,5 @@ export async function GET(req: NextRequest) {
     page++;
   }
 
-  console.log(`[cleanup-demo] deleted ${deleted} expired demo accounts`);
   return NextResponse.json({ deleted });
 }

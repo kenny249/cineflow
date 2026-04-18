@@ -119,7 +119,6 @@ export async function POST(
     .single();
 
   if (commentError) {
-    console.error("[review comment]", commentError);
     return NextResponse.json({ error: "Failed to save comment" }, { status: 500 });
   }
 

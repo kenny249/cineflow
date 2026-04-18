@@ -103,7 +103,6 @@ export async function POST(req: NextRequest) {
           color: rgb(0.4, 0.4, 0.4),
         });
       } catch (e) {
-        console.error("Failed to embed sender signature", e);
       }
     }
 
@@ -118,7 +117,6 @@ export async function POST(req: NextRequest) {
           color: rgb(0.1, 0.1, 0.1),
         });
       } catch (e) {
-        console.error("Failed to stamp text field", e);
       }
       continue;
     }
@@ -146,7 +144,6 @@ export async function POST(req: NextRequest) {
           color: rgb(0.4, 0.4, 0.4),
         });
       } catch (e) {
-        console.error("Failed to embed recipient signature", e);
       }
     }
   }

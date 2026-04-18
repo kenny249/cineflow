@@ -47,7 +47,6 @@ For general chat, be concise, creative, and cinematically focused. Reference rea
 
     return NextResponse.json({ text: content.text });
   } catch (err: any) {
-    console.error("Claude API error:", err);
     return NextResponse.json({ error: err.message ?? "Claude error" }, { status: 500 });
   }
 }

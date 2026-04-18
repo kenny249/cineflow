@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
     return NextResponse.json({ token: data.token });
   } catch (err: any) {
-    console.error("Share error:", err);
     return NextResponse.json({ error: err.message ?? "Failed to create share" }, { status: 500 });
   }
 }

@@ -304,8 +304,6 @@ export async function POST(req: NextRequest) {
 
     const resend = new Resend(resendKey);
 
-    console.log(`[invoices/send] Sending invoice ${inv.invoice_number} to ${inv.client_email} from ${fromEmail}`);
-
     const { error: emailError } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       to: [inv.client_email as string],
@@ -314,11 +312,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (emailError) {
-      console.error(`[invoices/send] Resend error for invoice ${inv.invoice_number}:`, emailError);
       return NextResponse.json({ error: emailError.message }, { status: 400 });
     }
-
-    console.log(`[invoices/send] Email sent successfully for invoice ${inv.invoice_number}`);
 
     // Mark as sent (only auto-advance from draft)
     await supabase
@@ -330,7 +325,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, payUrl });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Failed to send invoice";
-    console.error("[invoices/send] Unhandled error:", e);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
