@@ -738,6 +738,15 @@ export async function getInvoicesByProject(projectId: string): Promise<Invoice[]
   return (data ?? []) as Invoice[];
 }
 
+export async function getAllInvoices(): Promise<Invoice[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client.from('invoices').select('*').eq('created_by', user.id).order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Invoice[];
+}
+
 export async function createInvoice(invoice: Omit<Invoice, 'id' | 'created_at' | 'updated_at'>): Promise<Invoice> {
   const client = db();
   const { data: { user } } = await client.auth.getUser();

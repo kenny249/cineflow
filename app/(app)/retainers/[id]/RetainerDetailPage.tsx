@@ -11,7 +11,7 @@ import {
   getRetainer, getRetainerMonths, getRetainerDeliverables,
   createRetainerMonth, updateRetainerMonth, updateRetainer,
   createRetainerDeliverable, updateRetainerDeliverable, deleteRetainerDeliverable,
-  deleteRetainer,
+  deleteRetainer, createInvoice,
 } from "@/lib/supabase/queries";
 import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -273,6 +273,31 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     await updateRetainerMonth(activeMonth.id, { status: next });
     setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, status: next } : m));
     toast.success(`Month marked as ${MONTH_STATUS_CONFIG[next].label}`);
+  }
+
+  // ── Create invoice from wrapped month ───────────────────────────────────
+
+  async function handleCreateInvoice() {
+    if (!retainer || !activeMonth) return;
+    try {
+      const monthLabel = formatMonthYear(activeMonth.month_year);
+      const invoiceNum = `RET-${activeMonth.month_year.replace("-", "")}`;
+      await createInvoice({
+        client_name: retainer.client_name,
+        invoice_number: invoiceNum,
+        description: `Retainer — ${monthLabel}`,
+        amount: retainer.monthly_rate ?? 0,
+        status: "draft",
+        amount_paid: 0,
+        line_items: [{ id: "1", description: `Monthly retainer — ${monthLabel}`, quantity: 1, rate: retainer.monthly_rate ?? 0 }],
+        currency: "USD",
+        created_by: "",
+      });
+      toast.success("Draft invoice created", { description: "Open Finance to review and send." });
+      router.push("/finance");
+    } catch {
+      toast.error("Failed to create invoice");
+    }
   }
 
   // ── Shoot date ───────────────────────────────────────────────────────────
@@ -557,6 +582,17 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                         className="h-7 text-xs border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
                       >
                         Mark {MONTH_STATUS_CONFIG[nextStatus]?.label}
+                      </Button>
+                    )}
+
+                    {/* Create invoice — only on wrapped months */}
+                    {activeMonth.status === "wrapped" && (
+                      <Button
+                        onClick={handleCreateInvoice}
+                        variant="outline"
+                        className="h-7 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10 hover:border-[#d4a853]/50"
+                      >
+                        Create Invoice
                       </Button>
                     )}
                   </div>

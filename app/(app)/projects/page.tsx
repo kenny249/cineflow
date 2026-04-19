@@ -17,6 +17,7 @@ import {
   AlertCircle,
   RotateCcw,
   X,
+  Kanban,
 } from "lucide-react";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Progress } from "@/components/ui/progress";
@@ -35,7 +36,7 @@ import {
 } from "@/lib/utils";
 import type { ProjectStatus } from "@/types";
 
-type ViewMode = "grid" | "list";
+type ViewMode = "grid" | "list" | "pipeline";
 type Density = "compact" | "default" | "comfortable";
 
 const STATUS_FILTERS: { value: "all" | ProjectStatus; label: string }[] = [
@@ -256,21 +257,20 @@ function ProjectsPageInner() {
               </div>
             )}
             <div className="flex overflow-hidden rounded-md border border-border">
-              {(["grid", "list"] as ViewMode[]).map((m) => (
+              {(["grid", "list", "pipeline"] as ViewMode[]).map((m) => (
                 <button
                   key={m}
                   onClick={() => setViewMode(m)}
+                  title={m.charAt(0).toUpperCase() + m.slice(1)}
                   className={`flex h-8 w-8 items-center justify-center transition-colors ${
                     viewMode === m
                       ? "bg-foreground text-background"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {m === "grid" ? (
-                    <LayoutGrid className="h-3.5 w-3.5" />
-                  ) : (
-                    <List className="h-3.5 w-3.5" />
-                  )}
+                  {m === "grid" ? <LayoutGrid className="h-3.5 w-3.5" />
+                    : m === "list" ? <List className="h-3.5 w-3.5" />
+                    : <Kanban className="h-3.5 w-3.5" />}
                 </button>
               ))}
             </div>
@@ -318,13 +318,18 @@ function ProjectsPageInner() {
               </p>
             </div>
           ) : viewMode === "grid" ? (
-            <GridView 
-              projects={filtered} 
+            <GridView
+              projects={filtered}
               onNew={() => setModalOpen(true)}
               onDelete={(id, title) => setDeleteConfirm({ id, title })}
             />
+          ) : viewMode === "pipeline" ? (
+            <PipelineView
+              projects={filtered}
+              onNew={() => setModalOpen(true)}
+            />
           ) : (
-            <ListView 
+            <ListView
               projects={filtered}
               density={density}
               onDelete={(id, title) => setDeleteConfirm({ id, title })}
@@ -401,6 +406,105 @@ function GridView({
       {projects.map((project) => (
         <ProjectCard key={project.id} project={project} />
       ))}
+    </div>
+  );
+}
+
+// ── Pipeline view ─────────────────────────────────────────────────────────────
+
+const PIPELINE_COLUMNS: { status: ProjectStatus; label: string }[] = [
+  { status: "draft", label: "Draft" },
+  { status: "active", label: "In Production" },
+  { status: "review", label: "In Review" },
+  { status: "delivered", label: "Delivered" },
+];
+
+function PipelineView({ projects, onNew }: { projects: Project[]; onNew: () => void }) {
+  const byStatus = (status: ProjectStatus) => projects.filter((p) => p.status === status);
+
+  return (
+    <div className="flex gap-3 overflow-x-auto no-scrollbar pb-4 h-full min-h-0">
+      {PIPELINE_COLUMNS.map(({ status, label }) => {
+        const col = byStatus(status);
+        return (
+          <div key={status} className="flex w-64 shrink-0 flex-col gap-2">
+            {/* Column header */}
+            <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{col.length}</span>
+            </div>
+
+            {/* Cards */}
+            <div className="flex flex-col gap-2 flex-1">
+              {col.map((project) => {
+                const seed = project.id || project.title;
+                const realThumb =
+                  project.thumbnail_url &&
+                  !project.thumbnail_url.includes("unsplash.com") &&
+                  !project.thumbnail_url.includes("picsum.photos")
+                    ? project.thumbnail_url
+                    : null;
+                return (
+                  <Link
+                    key={project.id}
+                    href={`/projects/${project.id}`}
+                    className="group flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3 transition-all hover:border-[#d4a853]/30 hover:shadow-sm"
+                  >
+                    {/* Thumbnail */}
+                    <div
+                      className="relative h-28 w-full overflow-hidden rounded-lg"
+                      style={{ background: realThumb ? undefined : getCinematicGradient(seed) }}
+                    >
+                      {realThumb && (
+                        <Image
+                          src={realThumb}
+                          alt={project.title}
+                          fill
+                          className="object-cover"
+                          sizes="256px"
+                          unoptimized
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-[#d4a853]">
+                        {project.title}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">{project.client_name || "—"}</p>
+                    </div>
+
+                    {/* Progress bar */}
+                    {project.progress != null && (
+                      <div className="flex items-center gap-2">
+                        <Progress
+                          value={project.progress}
+                          className="h-1 flex-1"
+                          indicatorStyle={getProgressStyle(project.progress)}
+                        />
+                        <span className="shrink-0 text-[10px] text-muted-foreground">{project.progress}%</span>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+
+              {/* Add placeholder in Draft column */}
+              {status === "draft" && (
+                <button
+                  onClick={onNew}
+                  className="group flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-4 text-xs text-muted-foreground transition-all hover:border-[#d4a853]/30 hover:text-[#d4a853]"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New project
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

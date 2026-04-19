@@ -13,6 +13,7 @@ import {
   Sparkles,
   Film,
   Camera,
+  Repeat2,
 } from "lucide-react";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 
@@ -41,9 +42,9 @@ import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardParticles } from "@/components/dashboard/DashboardParticles";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
-import { getProjects, getActivityLog, getCalendarEvents } from "@/lib/supabase/queries";
+import { getProjects, getActivityLog, getCalendarEvents, getRetainers } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
-import type { Project, ActivityItem, CalendarEvent } from "@/types";
+import type { Project, ActivityItem, CalendarEvent, Retainer } from "@/types";
 import { isSoloPlan } from "@/types";
 
 export default function DashboardPage() {
@@ -53,6 +54,7 @@ export default function DashboardPage() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [retainers, setRetainers] = useState<Retainer[]>([]);
   const [displayName, setDisplayName] = useState("Early Tester");
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
@@ -87,6 +89,12 @@ export default function DashboardPage() {
 
       const projectsData = await getProjects();
       setProjects(projectsData);
+      try {
+        const retainersData = await getRetainers();
+        setRetainers(retainersData);
+      } catch {
+        // retainers table may not exist yet
+      }
       const activityData = await getActivityLog(10);
       setActivity(activityData);
       try {
@@ -329,6 +337,49 @@ export default function DashboardPage() {
                   isSolo={solo}
                 />
               </section>
+
+              {/* Retainers widget */}
+              {retainers.length > 0 && (
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
+                      <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                      Retainers
+                    </h2>
+                    <Link
+                      href="/retainers"
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      View all
+                      <ArrowUpRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+                  <div className="rounded-xl border border-border bg-card divide-y divide-border">
+                    {retainers.filter((r) => r.is_active).slice(0, 4).map((r) => (
+                      <Link
+                        key={r.id}
+                        href={`/retainers/${r.id}`}
+                        className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10">
+                          <Repeat2 className="h-3.5 w-3.5 text-[#d4a853]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium text-foreground group-hover:text-[#d4a853] transition-colors">
+                            {r.client_name}
+                          </p>
+                          {r.monthly_rate != null && (
+                            <p className="text-[10px] text-muted-foreground">
+                              ${r.monthly_rate.toLocaleString()}/mo
+                            </p>
+                          )}
+                        </div>
+                        <ArrowUpRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* Activity feed — studio only */}
               {!solo && (

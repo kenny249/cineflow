@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Search, LayoutDashboard, FolderKanban, Calendar, CheckSquare,
   ClipboardList, FileSignature, ScrollText, DollarSign, UsersRound,
-  Settings, Users, ArrowRight, Film, Plus,
+  Settings, Users, ArrowRight, Film, Plus, Repeat2,
 } from "lucide-react";
 import { getProjects } from "@/lib/supabase/queries";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ const NAV_ITEMS = [
   { label: "Tasks",      href: "/project-tasks",  icon: ClipboardList,   category: "Go to" },
   { label: "Contracts",  href: "/contracts",      icon: FileSignature,   category: "Go to" },
   { label: "Scripts",    href: "/scripts",        icon: ScrollText,      category: "Go to" },
+  { label: "Retainers",  href: "/retainers",      icon: Repeat2,         category: "Go to" },
   { label: "Review",     href: "/revisions",      icon: Film,            category: "Go to" },
   { label: "Finance",    href: "/finance",        icon: DollarSign,      category: "Go to" },
   { label: "Team",       href: "/team",           icon: UsersRound,      category: "Go to" },
@@ -72,9 +73,11 @@ export function CommandPalette({ open, onClose, onNewProject }: CommandPalettePr
     subtitle: p.client_name ?? undefined,
   }));
 
-  const actionItems: CommandItem[] = onNewProject
-    ? [{ key: "new-project", label: "New Project", icon: Plus, category: "Actions", action: () => { onNewProject(); onClose(); } }]
-    : [];
+  const actionItems: CommandItem[] = [
+    ...(onNewProject ? [{ key: "new-project", label: "New Project", icon: Plus, category: "Actions", action: () => { onNewProject(); onClose(); } }] : []),
+    { key: "new-contract", label: "New Contract", icon: FileSignature, category: "Actions", action: () => { router.push("/contracts"); onClose(); } },
+    { key: "new-retainer", label: "New Retainer", icon: Repeat2, category: "Actions", action: () => { router.push("/retainers"); onClose(); } },
+  ];
 
   const base: CommandItem[] = [
     ...NAV_ITEMS.map((n) => ({ ...n, key: `nav-${n.href}` })),
