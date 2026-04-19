@@ -395,22 +395,22 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     <div className="flex flex-col gap-0 h-full overflow-hidden">
 
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-3">
-          <Link href="/retainers" className="text-muted-foreground/60 hover:text-foreground transition-colors">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 border-b border-border shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link href="/retainers" className="shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold text-foreground">{retainer.client_name}</h1>
-              <Badge className={cn("text-[10px] border", retainer.is_active
+              <h1 className="text-base font-semibold text-foreground truncate">{retainer.client_name}</h1>
+              <Badge className={cn("shrink-0 text-[10px] border", retainer.is_active
                 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                 : "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
               )}>
                 {retainer.is_active ? "Active" : "Inactive"}
               </Badge>
             </div>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {editingRate ? (
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-[#d4a853]/60">$</span>
@@ -444,28 +444,21 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                   <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               )}
-              <span className="text-xs text-muted-foreground/30">·</span>
-              <span className="text-xs text-muted-foreground">{retainer.template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}</span>
+              <span className="hidden sm:inline text-xs text-muted-foreground/30">·</span>
+              <span className="hidden sm:inline text-xs text-muted-foreground truncate">{retainer.template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Delete retainer */}
           {confirmDelete ? (
             <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5">
-              <span className="text-xs text-red-400">Delete this retainer?</span>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="text-xs font-medium text-red-400 hover:text-red-300 transition-colors"
-              >
-                {deleting ? "Deleting…" : "Yes, delete"}
+              <span className="text-xs text-red-400 hidden sm:inline">Delete?</span>
+              <button onClick={handleDelete} disabled={deleting} className="text-xs font-medium text-red-400 hover:text-red-300 transition-colors">
+                {deleting ? "…" : "Yes"}
               </button>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="text-muted-foreground/50 hover:text-foreground transition-colors"
-              >
+              <button onClick={() => setConfirmDelete(false)} className="text-muted-foreground/50 hover:text-foreground transition-colors">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -483,14 +476,15 @@ export default function RetainerDetailPage({ id }: { id: string }) {
           <Button
             onClick={handleStartMonth}
             disabled={startingMonth}
-            className="bg-[#d4a853] text-black font-medium hover:bg-[#c49843] h-8 text-sm"
+            className="bg-[#d4a853] text-black font-medium hover:bg-[#c49843] h-8 text-xs sm:text-sm px-3 sm:px-4"
           >
             {startingMonth ? (
               <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/40 border-t-black mr-1.5" />
             ) : (
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              <Plus className="h-3.5 w-3.5 mr-1" />
             )}
-            Start {formatMonthYear(nextAvailableMonth(months))}
+            <span className="hidden sm:inline">Start {formatMonthYear(nextAvailableMonth(months))}</span>
+            <span className="sm:hidden">{formatMonthYear(nextAvailableMonth(months)).split(" ")[0]}</span>
           </Button>
         </div>
       </div>
@@ -510,10 +504,34 @@ export default function RetainerDetailPage({ id }: { id: string }) {
 
       {/* ── Month tabs + content ── */}
       {months.length > 0 && (
-        <div className="flex flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-hidden">
 
-          {/* Month tab list (left sidebar) */}
-          <div className="w-44 shrink-0 border-r border-border flex flex-col gap-0.5 p-2 overflow-y-auto">
+          {/* Mobile: horizontal pill tabs */}
+          <div className="sm:hidden flex overflow-x-auto no-scrollbar gap-2 px-4 py-2.5 border-b border-border shrink-0">
+            {months.map(m => (
+              <button
+                key={m.id}
+                onClick={() => setActiveMonthId(m.id)}
+                className={cn(
+                  "shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs transition-all",
+                  m.id === activeMonthId
+                    ? "bg-[#d4a853]/15 text-foreground font-medium ring-[0.5px] ring-[#d4a853]/25"
+                    : "bg-muted/40 text-muted-foreground/60"
+                )}
+              >
+                <div className={cn("h-1.5 w-1.5 rounded-full shrink-0",
+                  m.status === "active"   ? "bg-emerald-400" :
+                  m.status === "wrapped"  ? "bg-blue-400" :
+                  m.status === "invoiced" ? "bg-violet-400" :
+                  "bg-muted-foreground/30"
+                )} />
+                {formatMonthYear(m.month_year)}
+              </button>
+            ))}
+          </div>
+
+          {/* Desktop: left sidebar */}
+          <div className="hidden sm:flex w-44 shrink-0 border-r border-border flex-col gap-0.5 p-2 overflow-y-auto">
             {months.map(m => (
               <button
                 key={m.id}
@@ -542,28 +560,28 @@ export default function RetainerDetailPage({ id }: { id: string }) {
 
           {/* Month detail */}
           {activeMonth && (
-            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-              <div className="max-w-2xl mx-auto space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+              <div className="max-w-2xl mx-auto space-y-5 sm:space-y-6">
 
                 {/* Month header */}
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">{formatMonthYear(activeMonth.month_year)}</h2>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge className={cn("text-[10px] border", MONTH_STATUS_CONFIG[activeMonth.status]?.color ?? "")}>
-                        {MONTH_STATUS_CONFIG[activeMonth.status]?.label ?? activeMonth.status}
-                      </Badge>
-                      {activeMonth.shoot_date && (
-                        <span className="text-xs text-muted-foreground">
-                          Shoot: {new Date(activeMonth.shoot_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                        </span>
-                      )}
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">{formatMonthYear(activeMonth.month_year)}</h2>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <Badge className={cn("text-[10px] border", MONTH_STATUS_CONFIG[activeMonth.status]?.color ?? "")}>
+                          {MONTH_STATUS_CONFIG[activeMonth.status]?.label ?? activeMonth.status}
+                        </Badge>
+                        {activeMonth.shoot_date && (
+                          <span className="text-xs text-muted-foreground">
+                            Shoot: {new Date(activeMonth.shoot_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
                     {/* Shoot date input */}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
                       <input
                         type="date"
@@ -573,29 +591,31 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                         title="Set shoot date"
                       />
                     </div>
-
-                    {/* Advance status */}
-                    {nextStatus && (
-                      <Button
-                        onClick={handleAdvanceStatus}
-                        variant="outline"
-                        className="h-7 text-xs border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                      >
-                        Mark {MONTH_STATUS_CONFIG[nextStatus]?.label}
-                      </Button>
-                    )}
-
-                    {/* Create invoice — only on wrapped months */}
-                    {activeMonth.status === "wrapped" && (
-                      <Button
-                        onClick={handleCreateInvoice}
-                        variant="outline"
-                        className="h-7 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10 hover:border-[#d4a853]/50"
-                      >
-                        Create Invoice
-                      </Button>
-                    )}
                   </div>
+
+                  {/* Action buttons row */}
+                  {(nextStatus || activeMonth.status === "wrapped") && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {nextStatus && (
+                        <Button
+                          onClick={handleAdvanceStatus}
+                          variant="outline"
+                          className="h-8 text-xs border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                        >
+                          Mark {MONTH_STATUS_CONFIG[nextStatus]?.label}
+                        </Button>
+                      )}
+                      {activeMonth.status === "wrapped" && (
+                        <Button
+                          onClick={handleCreateInvoice}
+                          variant="outline"
+                          className="h-8 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10 hover:border-[#d4a853]/50"
+                        >
+                          Create Invoice
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Progress summary */}
