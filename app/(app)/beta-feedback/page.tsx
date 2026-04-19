@@ -75,7 +75,7 @@ function OptionButton({
         "rounded-lg border px-4 py-2.5 text-sm transition-all duration-150 text-left active:scale-95",
         selected
           ? "border-[#d4a853]/60 bg-[#d4a853]/10 text-[#d4a853] ring-[0.5px] ring-[#d4a853]/30"
-          : "border-white/8 bg-white/[0.03] text-muted-foreground hover:border-white/15 hover:text-foreground"
+          : "border-border bg-muted/20 text-muted-foreground hover:border-border/80 hover:text-foreground"
       )}
     >
       {label}
@@ -278,7 +278,7 @@ export default function BetaFeedbackPage() {
           </div>
 
           {/* Divider */}
-          <div className="border-t border-white/6 pt-2">
+          <div className="border-t border-border pt-2">
             <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground/50">Pricing</p>
           </div>
 
@@ -334,7 +334,7 @@ export default function BetaFeedbackPage() {
           </div>
 
           {/* Divider */}
-          <div className="border-t border-white/6 pt-2">
+          <div className="border-t border-border pt-2">
             <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground/50">Optional</p>
           </div>
 
@@ -347,7 +347,7 @@ export default function BetaFeedbackPage() {
               value={missingFeature}
               onChange={(e) => setMissingFeature(e.target.value)}
               placeholder="Type anything..."
-              className="resize-none bg-white/[0.03] border-white/8 text-sm"
+              className="resize-none text-sm"
               rows={3}
             />
           </div>
@@ -383,7 +383,7 @@ export default function BetaFeedbackPage() {
                 "relative h-11 gap-2 rounded-lg px-6 text-sm font-medium transition-all duration-200",
                 canSubmit
                   ? "bg-[#d4a853] text-black hover:bg-[#c89940] shadow-[0_0_24px_rgba(212,168,83,0.35)] active:scale-95"
-                  : "bg-white/6 text-muted-foreground cursor-not-allowed"
+                  : "bg-muted text-muted-foreground cursor-not-allowed"
               )}
             >
               {submitting ? "Submitting…" : "Submit Feedback"}

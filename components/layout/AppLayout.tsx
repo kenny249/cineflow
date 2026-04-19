@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical, Film, Clapperboard, Camera } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical, Film, Clapperboard, Camera, Repeat2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { SidebarDivider } from "./SidebarDivider";
@@ -30,6 +30,7 @@ const MOBILE_SOLO_PRIMARY: MobileNavItem[] = [
   { label: "Calendar",  href: "/calendar",   icon: Calendar },
 ];
 const MOBILE_SOLO_MORE: MobileNavItem[] = [
+  { label: "Retainers",     href: "/retainers",     icon: Repeat2 },
   { label: "Storyboard",    href: "/storyboard",    icon: Clapperboard },
   { label: "Shot Lists",    href: "/shot-lists",    icon: Camera },
   { label: "Clients",       href: "/clients",       icon: Users },
@@ -51,6 +52,7 @@ const MOBILE_STUDIO_PRIMARY: MobileNavItem[] = [
 ];
 const MOBILE_STUDIO_MORE: MobileNavItem[] = [
   { label: "To Do",         href: "/tasks",         icon: CheckSquare },
+  { label: "Retainers",     href: "/retainers",     icon: Repeat2 },
   { label: "Storyboard",    href: "/storyboard",    icon: Clapperboard },
   { label: "Shot Lists",    href: "/shot-lists",    icon: Camera },
   { label: "Clients",       href: "/clients",       icon: Users },

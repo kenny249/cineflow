@@ -389,7 +389,7 @@ function RevisionCard({
           />
         ) : (
           <div className="flex h-full items-center justify-center">
-            <Film className="h-10 w-10 text-white/20" />
+            <Film className="h-10 w-10 text-muted-foreground/30" />
           </div>
         )}
 
