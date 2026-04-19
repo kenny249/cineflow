@@ -164,17 +164,17 @@ function DeployModal({
   if (sent) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#111] p-8 text-center">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#d4a853]/10 ring-1 ring-[#d4a853]/30 shadow-[0_0_30px_rgba(212,168,83,0.15)]">
             <Rocket className="h-7 w-7 text-[#d4a853]" />
           </div>
-          <p className="text-lg font-bold text-white">Deployed to client</p>
-          <p className="mt-2 text-sm text-zinc-400">
-            <span className="text-white font-medium">{portalToken?.client_name ?? clientName}</span> has been notified by email.
+          <p className="text-lg font-bold text-foreground">Deployed to client</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            <span className="text-foreground font-medium">{portalToken?.client_name ?? clientName}</span> has been notified by email.
           </p>
           <button
             onClick={onClose}
-            className="mt-6 w-full rounded-xl bg-white/[0.07] py-2.5 text-sm font-semibold text-zinc-300 hover:bg-white/[0.1] transition-colors"
+            className="mt-6 w-full rounded-xl bg-muted py-2.5 text-sm font-semibold text-foreground hover:bg-muted/70 transition-colors"
           >
             Done
           </button>
@@ -185,21 +185,21 @@ function DeployModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#111111] shadow-2xl overflow-hidden">
+      <div className="w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#d4a853]/10 border border-[#d4a853]/20">
               <Rocket className="h-4 w-4 text-[#d4a853]" />
             </div>
             <div>
-              <p className="font-semibold text-white">Deploy to Client</p>
-              <p className="text-[11px] text-zinc-500">
+              <p className="font-semibold text-foreground">Deploy to Client</p>
+              <p className="text-[11px] text-muted-foreground">
                 v{revision.version_number} · {revision.title}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-zinc-500 hover:text-white hover:bg-white/10 transition-colors">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -208,20 +208,20 @@ function DeployModal({
           {/* Client info */}
           {step === "setup" ? (
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">Client details</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Client details</p>
               <input
                 type="text"
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Client name"
-                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-[#d4a853]/40 focus:outline-none"
+                className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/40 focus:outline-none"
               />
               <input
                 type="email"
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="Client email"
-                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-[#d4a853]/40 focus:outline-none"
+                className="w-full rounded-xl border border-border bg-muted/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/40 focus:outline-none"
               />
               {crmAutoFilled && (
                 <p className="flex items-center gap-1.5 text-[11px] text-emerald-400/80">
@@ -231,14 +231,14 @@ function DeployModal({
               )}
               {!crmAutoFilled && clients.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600">Quick select from CRM</p>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/50">Quick select from CRM</p>
                   <div className="flex flex-wrap gap-1.5">
                     {clients.slice(0, 5).map((c) => (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => { setClientName(c.client_name); if (c.email) setClientEmail(c.email); }}
-                        className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-zinc-400 hover:border-[#d4a853]/30 hover:text-[#d4a853] transition-colors"
+                        className="rounded-lg border border-border bg-muted/20 px-2.5 py-1 text-[11px] text-muted-foreground hover:border-[#d4a853]/30 hover:text-[#d4a853] transition-colors"
                       >
                         {c.client_name}
                       </button>
@@ -257,48 +257,48 @@ function DeployModal({
           ) : (
             <>
               {/* Client confirmation */}
-              <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.02] px-4 py-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-xs font-bold text-zinc-400">
+              <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/10 px-4 py-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
                   {(portalToken?.client_name ?? clientName)[0]?.toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-white">{portalToken?.client_name ?? clientName}</p>
-                  <p className="text-xs text-zinc-500">{portalToken?.client_email ?? clientEmail}</p>
+                  <p className="text-sm font-semibold text-foreground">{portalToken?.client_name ?? clientName}</p>
+                  <p className="text-xs text-muted-foreground">{portalToken?.client_email ?? clientEmail}</p>
                 </div>
                 <Check className="h-4 w-4 shrink-0 text-emerald-400" />
               </div>
 
               {/* Personal note */}
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                  Add a personal note <span className="normal-case font-normal text-zinc-700">(optional)</span>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Add a personal note <span className="normal-case font-normal text-muted-foreground/50">(optional)</span>
                 </label>
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder={`Hi ${(portalToken?.client_name ?? clientName).split(" ")[0]}, here's the latest cut — would love your thoughts on the pacing in the second half.`}
                   rows={3}
-                  className="w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-zinc-700 focus:border-[#d4a853]/30 focus:outline-none leading-relaxed"
+                  className="w-full resize-none rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/40 focus:border-[#d4a853]/30 focus:outline-none leading-relaxed"
                 />
               </div>
 
               {/* Email preview card */}
-              <div className="rounded-xl border border-white/[0.07] bg-[#0a0a0a] overflow-hidden">
-                <div className="border-b border-white/[0.05] px-4 py-2.5 flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-zinc-700" />
-                  <p className="text-[11px] text-zinc-600">Email preview</p>
+              <div className="rounded-xl border border-border bg-muted/10 overflow-hidden">
+                <div className="border-b border-border px-4 py-2.5 flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                  <p className="text-[11px] text-muted-foreground/50">Email preview</p>
                 </div>
                 <div className="px-4 py-3.5 space-y-1.5">
-                  <p className="text-[11px] text-zinc-600">
-                    <span className="text-zinc-500 font-medium">To:</span> {portalToken?.client_email ?? clientEmail}
+                  <p className="text-[11px] text-muted-foreground/50">
+                    <span className="text-muted-foreground font-medium">To:</span> {portalToken?.client_email ?? clientEmail}
                   </p>
-                  <p className="text-[11px] text-zinc-600">
-                    <span className="text-zinc-500 font-medium">Subject:</span>{" "}
-                    <span className="text-zinc-400">{project.title} — Your cut is ready to review</span>
+                  <p className="text-[11px] text-muted-foreground/50">
+                    <span className="text-muted-foreground font-medium">Subject:</span>{" "}
+                    <span className="text-muted-foreground">{project.title} — Your cut is ready to review</span>
                   </p>
-                  <div className="mt-2 pt-2 border-t border-white/[0.05]">
-                    <p className="text-xs text-zinc-500 leading-relaxed">
-                      Hi {(portalToken?.client_name ?? clientName).split(" ")[0]}, a new revision of <span className="text-zinc-300 font-medium">{project.title}</span> is ready for your feedback
+                  <div className="mt-2 pt-2 border-t border-border">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Hi {(portalToken?.client_name ?? clientName).split(" ")[0]}, a new revision of <span className="text-foreground font-medium">{project.title}</span> is ready for your feedback
                       {note.trim() ? ` — ${note.slice(0, 60)}${note.length > 60 ? "…" : ""}` : "."}
                     </p>
                   </div>
@@ -321,10 +321,10 @@ function DeployModal({
 
         {/* Footer */}
         {step === "compose" && (
-          <div className="flex gap-2.5 border-t border-white/[0.07] px-5 py-4">
+          <div className="flex gap-2.5 border-t border-border px-5 py-4">
             <button
               onClick={onClose}
-              className="flex-1 rounded-xl border border-white/10 py-2.5 text-sm font-medium text-zinc-500 hover:text-white hover:bg-white/[0.05] transition-colors"
+              className="flex-1 rounded-xl border border-border py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             >
               Cancel
             </button>

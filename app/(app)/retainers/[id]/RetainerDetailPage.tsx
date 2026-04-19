@@ -48,14 +48,14 @@ const STATUS_CYCLE: Record<RetainerDeliverableStatus, RetainerDeliverableStatus>
 };
 
 const STATUS_CONFIG: Record<RetainerDeliverableStatus, { icon: React.ReactNode; color: string; label: string }> = {
-  planned:   { icon: <Circle className="h-4 w-4" />,       color: "text-white/25",    label: "Planned" },
-  shot:      { icon: <Camera className="h-4 w-4" />,       color: "text-amber-400",   label: "Shot" },
-  delivered: { icon: <CheckCircle2 className="h-4 w-4" />, color: "text-emerald-400", label: "Delivered" },
+  planned:   { icon: <Circle className="h-4 w-4" />,       color: "text-muted-foreground/30",  label: "Planned" },
+  shot:      { icon: <Camera className="h-4 w-4" />,       color: "text-amber-400",            label: "Shot" },
+  delivered: { icon: <CheckCircle2 className="h-4 w-4" />, color: "text-emerald-400",          label: "Delivered" },
 };
 
 const MONTH_STATUS_ORDER = ["planning", "active", "wrapped", "invoiced"] as const;
 const MONTH_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  planning:  { label: "Planning",  color: "bg-white/10 text-white/50 border-white/10" },
+  planning:  { label: "Planning",  color: "bg-muted text-muted-foreground border-border" },
   active:    { label: "Active",    color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
   wrapped:   { label: "Wrapped",   color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
   invoiced:  { label: "Invoiced",  color: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
@@ -89,7 +89,7 @@ function DeliverableRow({
       "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-150",
       item.status === "delivered"
         ? "bg-emerald-500/[0.04] border border-emerald-500/10"
-        : "hover:bg-white/[0.03] border border-transparent"
+        : "hover:bg-muted/30 border border-transparent"
     )}>
       {/* Status toggle */}
       <button
@@ -111,12 +111,12 @@ function DeliverableRow({
             if (e.key === "Enter") handleTitleBlur();
             if (e.key === "Escape") { setTitle(item.title); setEditing(false); }
           }}
-          className="flex-1 bg-white/[0.05] rounded px-2 py-0.5 text-sm text-white outline-none border border-[#d4a853]/30 focus:border-[#d4a853]/60"
+          className="flex-1 bg-muted rounded px-2 py-0.5 text-sm text-foreground outline-none border border-[#d4a853]/30 focus:border-[#d4a853]/60"
         />
       ) : (
         <span className={cn(
           "flex-1 text-sm",
-          item.status === "delivered" ? "text-white/35 line-through" : "text-white/80"
+          item.status === "delivered" ? "text-muted-foreground/40 line-through" : "text-foreground"
         )}>
           {item.title}
         </span>
@@ -127,14 +127,14 @@ function DeliverableRow({
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
           <button
             onClick={() => setEditing(true)}
-            className="p-1 rounded text-white/30 hover:text-[#d4a853]/70 hover:bg-[#d4a853]/10 transition-colors"
+            className="p-1 rounded text-muted-foreground/50 hover:text-[#d4a853]/70 hover:bg-[#d4a853]/10 transition-colors"
             title="Rename"
           >
             <Pencil className="h-3 w-3" />
           </button>
           <button
             onClick={() => onDelete(item.id)}
-            className="p-1 rounded text-white/30 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+            className="p-1 rounded text-muted-foreground/50 hover:text-red-400 hover:bg-red-400/10 transition-colors"
             title="Delete"
           >
             <X className="h-3 w-3" />
@@ -152,10 +152,10 @@ function ProgressPill({ label, done, total, color }: { label: string; done: numb
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] text-white/50">{label}</span>
-        <span className="text-[11px] text-white/40">{done}/{total}</span>
+        <span className="text-[11px] text-muted-foreground/60">{label}</span>
+        <span className="text-[11px] text-muted-foreground/50">{done}/{total}</span>
       </div>
-      <div className="h-1 w-full rounded-full bg-white/[0.06]">
+      <div className="h-1 w-full rounded-full bg-muted">
         <div
           className={cn("h-full rounded-full transition-all duration-500", color)}
           style={{ width: `${pct}%` }}
@@ -355,8 +355,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   if (!retainer) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <AlertCircle className="h-8 w-8 text-white/20" />
-        <p className="text-white/40 text-sm">Retainer not found</p>
+        <AlertCircle className="h-8 w-8 text-muted-foreground/30" />
+        <p className="text-muted-foreground text-sm">Retainer not found</p>
         <Link href="/retainers" className="text-[#d4a853] text-sm hover:underline">Back to Retainers</Link>
       </div>
     );
@@ -370,14 +370,14 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     <div className="flex flex-col gap-0 h-full overflow-hidden">
 
       {/* ── Top bar ── */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] shrink-0">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
         <div className="flex items-center gap-3">
-          <Link href="/retainers" className="text-white/40 hover:text-white transition-colors">
+          <Link href="/retainers" className="text-muted-foreground/60 hover:text-foreground transition-colors">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-semibold text-white">{retainer.client_name}</h1>
+              <h1 className="text-base font-semibold text-foreground">{retainer.client_name}</h1>
               <Badge className={cn("text-[10px] border", retainer.is_active
                 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                 : "bg-zinc-500/10 text-zinc-500 border-zinc-500/20"
@@ -397,30 +397,30 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                     onChange={e => setRateInput(e.target.value.replace(/[^0-9]/g, ""))}
                     onKeyDown={e => { if (e.key === "Enter") handleSaveRate(); if (e.key === "Escape") setEditingRate(false); }}
                     placeholder="0"
-                    className="w-20 rounded border border-[#d4a853]/30 bg-white/[0.06] px-1.5 py-0.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-20 rounded border border-[#d4a853]/30 bg-muted px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
-                  <span className="text-xs text-white/30">/mo</span>
+                  <span className="text-xs text-muted-foreground/50">/mo</span>
                   <button onClick={handleSaveRate} className="text-emerald-400 hover:text-emerald-300 transition-colors">
                     <Check className="h-3 w-3" />
                   </button>
-                  <button onClick={() => setEditingRate(false)} className="text-white/30 hover:text-white transition-colors">
+                  <button onClick={() => setEditingRate(false)} className="text-muted-foreground/50 hover:text-foreground transition-colors">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={() => { setRateInput(retainer.monthly_rate ? String(retainer.monthly_rate) : ""); setEditingRate(true); }}
-                  className="group flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+                  className="group flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors"
                 >
                   {retainer.monthly_rate
                     ? <span className="text-[#d4a853]/60">${retainer.monthly_rate.toLocaleString()}/mo</span>
-                    : <span className="text-white/25 italic">Set rate…</span>
+                    : <span className="text-muted-foreground/40 italic">Set rate…</span>
                   }
                   <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </button>
               )}
-              <span className="text-xs text-white/20">·</span>
-              <span className="text-xs text-white/40">{retainer.template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}</span>
+              <span className="text-xs text-muted-foreground/30">·</span>
+              <span className="text-xs text-muted-foreground">{retainer.template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}</span>
             </div>
           </div>
         </div>
@@ -439,7 +439,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="text-white/30 hover:text-white transition-colors"
+                className="text-muted-foreground/50 hover:text-foreground transition-colors"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -447,7 +447,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
           ) : (
             <button
               onClick={() => setConfirmDelete(true)}
-              className="p-1.5 rounded-md text-white/25 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+              className="p-1.5 rounded-md text-muted-foreground/40 hover:text-red-400 hover:bg-red-400/10 transition-colors"
               title="Delete retainer"
             >
               <Trash2 className="h-4 w-4" />
@@ -473,12 +473,12 @@ export default function RetainerDetailPage({ id }: { id: string }) {
       {/* ── No months yet ── */}
       {months.length === 0 && (
         <div className="flex flex-col items-center justify-center flex-1 gap-4 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.03]">
-            <CalendarDays className="h-6 w-6 text-white/20" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-muted/20">
+            <CalendarDays className="h-6 w-6 text-muted-foreground/30" />
           </div>
           <div>
-            <p className="text-white/60 text-sm font-medium">No months started</p>
-            <p className="text-white/30 text-xs mt-1">Start the first month to build out your deliverables checklist</p>
+            <p className="text-muted-foreground text-sm font-medium">No months started</p>
+            <p className="text-muted-foreground/60 text-xs mt-1">Start the first month to build out your deliverables checklist</p>
           </div>
         </div>
       )}
@@ -488,7 +488,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
         <div className="flex flex-1 min-h-0 overflow-hidden">
 
           {/* Month tab list (left sidebar) */}
-          <div className="w-44 shrink-0 border-r border-white/[0.06] flex flex-col gap-0.5 p-2 overflow-y-auto">
+          <div className="w-44 shrink-0 border-r border-border flex flex-col gap-0.5 p-2 overflow-y-auto">
             {months.map(m => (
               <button
                 key={m.id}
@@ -496,8 +496,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 className={cn(
                   "w-full text-left rounded-lg px-3 py-2.5 transition-all duration-150 text-xs",
                   m.id === activeMonthId
-                    ? "bg-[#d4a853]/10 text-white font-medium ring-[0.5px] ring-inset ring-[#d4a853]/20"
-                    : "text-white/40 hover:bg-white/[0.04] hover:text-white"
+                    ? "bg-[#d4a853]/10 text-foreground font-medium ring-[0.5px] ring-inset ring-[#d4a853]/20"
+                    : "text-muted-foreground/60 hover:bg-muted/50 hover:text-foreground"
                 )}
               >
                 <div className="flex items-center gap-1.5 mb-0.5">
@@ -506,9 +506,9 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                     m.status === "active"   ? "bg-emerald-400" :
                     m.status === "wrapped"  ? "bg-blue-400" :
                     m.status === "invoiced" ? "bg-violet-400" :
-                    "bg-white/25"
+                    "bg-muted-foreground/30"
                   )} />
-                  <span className="capitalize text-[10px] text-white/30">{m.status}</span>
+                  <span className="capitalize text-[10px] text-muted-foreground/40">{m.status}</span>
                 </div>
                 <span className="leading-tight block">{formatMonthYear(m.month_year)}</span>
               </button>
@@ -523,13 +523,13 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 {/* Month header */}
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <h2 className="text-lg font-semibold text-white">{formatMonthYear(activeMonth.month_year)}</h2>
+                    <h2 className="text-lg font-semibold text-foreground">{formatMonthYear(activeMonth.month_year)}</h2>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge className={cn("text-[10px] border", MONTH_STATUS_CONFIG[activeMonth.status]?.color ?? "")}>
                         {MONTH_STATUS_CONFIG[activeMonth.status]?.label ?? activeMonth.status}
                       </Badge>
                       {activeMonth.shoot_date && (
-                        <span className="text-xs text-white/40">
+                        <span className="text-xs text-muted-foreground">
                           Shoot: {new Date(activeMonth.shoot_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                         </span>
                       )}
@@ -539,12 +539,12 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                   <div className="flex items-center gap-2 shrink-0">
                     {/* Shoot date input */}
                     <div className="flex items-center gap-1.5">
-                      <CalendarDays className="h-3.5 w-3.5 text-white/30" />
+                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
                       <input
                         type="date"
                         value={activeMonth.shoot_date ?? ""}
                         onChange={e => handleShootDateChange(e.target.value)}
-                        className="bg-transparent text-xs text-white/50 outline-none cursor-pointer [color-scheme:dark]"
+                        className="bg-transparent text-xs text-muted-foreground/60 outline-none cursor-pointer [color-scheme:light_dark]"
                         title="Set shoot date"
                       />
                     </div>
@@ -554,7 +554,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                       <Button
                         onClick={handleAdvanceStatus}
                         variant="outline"
-                        className="h-7 text-xs border-white/10 text-white/50 hover:text-white hover:bg-white/[0.06]"
+                        className="h-7 text-xs border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
                       >
                         Mark {MONTH_STATUS_CONFIG[nextStatus]?.label}
                       </Button>
@@ -564,10 +564,10 @@ export default function RetainerDetailPage({ id }: { id: string }) {
 
                 {/* Progress summary */}
                 {totalItems > 0 && (
-                  <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-4 space-y-3">
+                  <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-white/50 font-medium">Overall Progress</span>
-                      <span className="text-xs text-white/40">{totalDelivered}/{totalItems} delivered</span>
+                      <span className="text-xs text-muted-foreground/60 font-medium">Overall Progress</span>
+                      <span className="text-xs text-muted-foreground/50">{totalDelivered}/{totalItems} delivered</span>
                     </div>
                     {grouped.map(g => (
                       <ProgressPill
@@ -589,7 +589,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 {/* Deliverables grouped by type */}
                 {grouped.length === 0 ? (
                   <div className="text-center py-10">
-                    <p className="text-white/30 text-sm">No deliverables yet</p>
+                    <p className="text-muted-foreground text-sm">No deliverables yet</p>
                   </div>
                 ) : (
                   <div className="space-y-5">
@@ -598,8 +598,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                         {/* Group header */}
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-white/70">{g.label}</span>
-                            <span className="text-[10px] text-white/30">
+                            <span className="text-xs font-medium text-foreground">{g.label}</span>
+                            <span className="text-[10px] text-muted-foreground/50">
                               {g.shot + g.done}/{g.target}
                               {g.done > 0 && <span className="text-emerald-400/70 ml-1">· {g.done} delivered</span>}
                             </span>
@@ -631,29 +631,29 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                       onChange={e => setQuickAddTitle(e.target.value)}
                       onKeyDown={e => { if (e.key === "Enter") handleQuickAdd(); if (e.key === "Escape") { setShowQuickAdd(false); setQuickAddTitle(""); } }}
                       placeholder="Quick add deliverable…"
-                      className="flex-1 bg-transparent text-sm text-white placeholder:text-white/25 outline-none"
+                      className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
                     />
                     <select
                       value={quickAddType}
                       onChange={e => setQuickAddType(e.target.value)}
-                      className="bg-transparent text-xs text-white/40 outline-none cursor-pointer"
+                      className="bg-transparent text-xs text-muted-foreground/60 outline-none cursor-pointer"
                     >
                       {(retainer?.template ?? []).map(t => (
-                        <option key={t.type} value={t.type} className="bg-[#111]">{t.label}</option>
+                        <option key={t.type} value={t.type}>{t.label}</option>
                       ))}
-                      <option value="other" className="bg-[#111]">Other</option>
+                      <option value="other">Other</option>
                     </select>
-                    <button onClick={handleQuickAdd} disabled={!quickAddTitle.trim()} className="text-[#d4a853] disabled:text-white/20 transition-colors">
+                    <button onClick={handleQuickAdd} disabled={!quickAddTitle.trim()} className="text-[#d4a853] disabled:text-muted-foreground/30 transition-colors">
                       <Check className="h-4 w-4" />
                     </button>
-                    <button onClick={() => { setShowQuickAdd(false); setQuickAddTitle(""); }} className="text-white/25 hover:text-white/60 transition-colors">
+                    <button onClick={() => { setShowQuickAdd(false); setQuickAddTitle(""); }} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setShowQuickAdd(true)}
-                    className="flex items-center gap-1.5 text-xs text-white/30 hover:text-[#d4a853]/70 transition-colors"
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-[#d4a853]/70 transition-colors"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Quick add
