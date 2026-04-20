@@ -371,7 +371,19 @@ export default function ClientsPage() {
                   <Briefcase className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-foreground">{clientName}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">{clientName}</p>
+                    {clientName !== "Unassigned" && (
+                      <a
+                        href={`/clients/${encodeURIComponent(clientName)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="hidden sm:flex items-center gap-0.5 text-[10px] text-muted-foreground/50 hover:text-[#d4a853] transition-colors"
+                      >
+                        <ExternalLink className="h-2.5 w-2.5" />
+                        View
+                      </a>
+                    )}
+                  </div>
                   <p className="text-[11px] text-muted-foreground">
                     {clientProjects.length} project{clientProjects.length !== 1 ? "s" : ""}
                     {activeCount > 0 && <span className="ml-2 text-emerald-400">· {activeCount} active</span>}

@@ -19,20 +19,34 @@ const STEPS = (isSolo: boolean) => [
     href: "/clients",
   },
   {
+    id: "form",
+    label: "Send a client form",
+    sub: "Collect info before quoting a project",
+    href: "/forms",
+  },
+  {
     id: "revision",
-    label: "Send a revision for review",
+    label: "Send a cut for review",
     sub: "Get client feedback with timestamps",
     href: "/revisions",
+  },
+  {
+    id: "invoice",
+    label: "Create an invoice",
+    sub: "Get paid directly from Cineflow",
+    href: "/finance",
   },
 ];
 
 interface Props {
   hasProjects: boolean;
+  hasClients?: boolean;
+  hasInvoices?: boolean;
   isSolo: boolean;
   onCreateProject: () => void;
 }
 
-export function OnboardingChecklist({ hasProjects, isSolo, onCreateProject }: Props) {
+export function OnboardingChecklist({ hasProjects, hasClients, hasInvoices, isSolo, onCreateProject }: Props) {
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [visible, setVisible] = useState(false);
 
@@ -42,9 +56,11 @@ export function OnboardingChecklist({ hasProjects, isSolo, onCreateProject }: Pr
       localStorage.getItem("cf_onboard_done") ?? "{}"
     );
     if (hasProjects) saved.project = true;
+    if (hasClients) saved.client = true;
+    if (hasInvoices) saved.invoice = true;
     setDone(saved);
     setVisible(true);
-  }, [hasProjects]);
+  }, [hasProjects, hasClients, hasInvoices]);
 
   if (!visible) return null;
 
@@ -63,6 +79,7 @@ export function OnboardingChecklist({ hasProjects, isSolo, onCreateProject }: Pr
   };
 
   const completedCount = steps.filter((s) => done[s.id]).length;
+  const progressPct = Math.round((completedCount / steps.length) * 100);
 
   return (
     <div className="rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/5 p-4">
@@ -84,7 +101,15 @@ export function OnboardingChecklist({ hasProjects, isSolo, onCreateProject }: Pr
         </button>
       </div>
 
-      <div className="space-y-2">
+      {/* Progress bar */}
+      <div className="mb-3 h-1 w-full rounded-full bg-border overflow-hidden">
+        <div
+          className="h-full rounded-full bg-[#d4a853] transition-all duration-500"
+          style={{ width: `${progressPct}%` }}
+        />
+      </div>
+
+      <div className="space-y-1.5">
         {steps.map((step) => {
           const isComplete = !!done[step.id];
           const baseClass = `group flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-all ${

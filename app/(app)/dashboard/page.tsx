@@ -340,6 +340,8 @@ export default function DashboardPage() {
               {!loading && (
                 <OnboardingChecklist
                   hasProjects={projects.length > 0}
+                  hasClients={projects.some((p) => !!p.client_name)}
+                  hasInvoices={invoices.length > 0}
                   isSolo={solo}
                   onCreateProject={() => setModalOpen(true)}
                 />

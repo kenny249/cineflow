@@ -224,7 +224,7 @@ export function InvoiceDocument({
             >
               <Copy className="h-3.5 w-3.5" /> Copy Link
             </button>
-            {/* Send email */}
+            {/* Send / Remind */}
             {invoice.status !== "paid" && (
               <button
                 type="button"
@@ -233,7 +233,7 @@ export function InvoiceDocument({
                 className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/40 bg-[#d4a853]/20 px-3 py-1.5 text-xs font-semibold text-[#d4a853] hover:bg-[#d4a853]/30 transition-colors disabled:opacity-60"
               >
                 {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                {sending ? "Sending…" : "Send to Client"}
+                {sending ? "Sending…" : invoice.status === "draft" ? "Send to Client" : "Send Reminder"}
               </button>
             )}
             <button
