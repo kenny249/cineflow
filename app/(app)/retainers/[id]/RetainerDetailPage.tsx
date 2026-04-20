@@ -282,6 +282,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     try {
       const monthLabel = formatMonthYear(activeMonth.month_year);
       const invoiceNum = `RET-${activeMonth.month_year.replace("-", "")}`;
+      const today = new Date().toISOString().split("T")[0];
       await createInvoice({
         client_name: retainer.client_name,
         invoice_number: invoiceNum,
@@ -289,9 +290,10 @@ export default function RetainerDetailPage({ id }: { id: string }) {
         amount: retainer.monthly_rate ?? 0,
         status: "draft",
         amount_paid: 0,
+        tax_rate: 0,
+        payment_terms: "net30",
+        invoice_date: today,
         line_items: [{ id: "1", description: `Monthly retainer — ${monthLabel}`, quantity: 1, rate: retainer.monthly_rate ?? 0 }],
-        currency: "USD",
-        created_by: "",
       });
       toast.success("Draft invoice created", { description: "Open Finance to review and send." });
       router.push("/finance");

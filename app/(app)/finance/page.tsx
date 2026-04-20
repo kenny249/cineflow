@@ -574,21 +574,43 @@ export default function FinancePage() {
                     {projectSummaries.sort((a, b) => b.profit - a.profit).map((p) => (
                       <Link
                         key={p.id} href={`/projects/${p.id}`}
-                        className="group flex flex-col gap-1 rounded-xl border border-border bg-card p-4 transition-colors hover:bg-card/80 sm:grid sm:grid-cols-6 sm:items-center sm:gap-2"
+                        className="group rounded-xl border border-border bg-card p-4 transition-colors hover:bg-card/80 block sm:grid sm:grid-cols-6 sm:items-center sm:gap-2"
                       >
-                        <div className="col-span-2 min-w-0">
+                        {/* Name row */}
+                        <div className="col-span-2 min-w-0 mb-3 sm:mb-0">
                           <div className="flex items-center gap-1.5">
                             <p className="truncate font-medium text-sm text-foreground">{p.title}</p>
                             <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                           {p.client_name && <p className="text-xs text-muted-foreground truncate">{p.client_name}</p>}
                         </div>
-                        <p className="text-right text-sm text-foreground">{fmt(p.invoiced)}</p>
-                        <p className="text-right text-sm text-foreground">{fmt(p.actual)}</p>
-                        <p className={`text-right text-sm font-medium ${p.profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fmt(p.profit)}</p>
-                        <p className={`text-right text-sm font-medium ${p.margin == null ? "text-muted-foreground" : p.margin >= 40 ? "text-emerald-400" : p.margin >= 20 ? "text-amber-400" : "text-red-400"}`}>
-                          {p.margin != null ? `${p.margin}%` : "—"}
-                        </p>
+                        {/* Mobile: 2×2 metric grid */}
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:contents">
+                          <div className="sm:contents">
+                            <p className="text-[10px] text-muted-foreground/50 sm:hidden">Invoiced</p>
+                            <p className="sm:hidden text-sm font-medium text-foreground">{fmt(p.invoiced)}</p>
+                            <p className="hidden sm:block text-right text-sm text-foreground">{fmt(p.invoiced)}</p>
+                          </div>
+                          <div className="sm:contents">
+                            <p className="text-[10px] text-muted-foreground/50 sm:hidden">Expenses</p>
+                            <p className="sm:hidden text-sm font-medium text-foreground">{fmt(p.actual)}</p>
+                            <p className="hidden sm:block text-right text-sm text-foreground">{fmt(p.actual)}</p>
+                          </div>
+                          <div className="sm:contents">
+                            <p className="text-[10px] text-muted-foreground/50 sm:hidden">Profit</p>
+                            <p className={`sm:hidden text-sm font-medium ${p.profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fmt(p.profit)}</p>
+                            <p className={`hidden sm:block text-right text-sm font-medium ${p.profit >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fmt(p.profit)}</p>
+                          </div>
+                          <div className="sm:contents">
+                            <p className="text-[10px] text-muted-foreground/50 sm:hidden">Margin</p>
+                            <p className={`sm:hidden text-sm font-medium ${p.margin == null ? "text-muted-foreground" : p.margin >= 40 ? "text-emerald-400" : p.margin >= 20 ? "text-amber-400" : "text-red-400"}`}>
+                              {p.margin != null ? `${p.margin}%` : "—"}
+                            </p>
+                            <p className={`hidden sm:block text-right text-sm font-medium ${p.margin == null ? "text-muted-foreground" : p.margin >= 40 ? "text-emerald-400" : p.margin >= 20 ? "text-amber-400" : "text-red-400"}`}>
+                              {p.margin != null ? `${p.margin}%` : "—"}
+                            </p>
+                          </div>
+                        </div>
                       </Link>
                     ))}
                   </>

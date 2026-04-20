@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  X, Printer, Copy, ExternalLink, Loader2, CheckCircle2, Send,
+  X, Printer, Copy, ExternalLink, Loader2, CheckCircle2, Send, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Invoice, Profile } from "@/types";
@@ -49,6 +49,7 @@ export function InvoiceDocument({
 }: InvoiceDocumentProps) {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [sending, setSending] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const appUrl = typeof window !== "undefined"
     ? window.location.origin
@@ -155,6 +156,25 @@ export function InvoiceDocument({
     }
   };
 
+  const handleDownloadPdf = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/invoices/pdf?id=${invoice.id}`);
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${invoice.invoice_number.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Failed to download PDF");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleCopyPayUrl = async () => {
     try {
       await navigator.clipboard.writeText(payUrl);
@@ -184,6 +204,17 @@ export function InvoiceDocument({
             Invoice Preview
           </span>
           <div className="flex items-center gap-2">
+            {/* Download PDF */}
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={downloading}
+              className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors disabled:opacity-60"
+              title="Download PDF"
+            >
+              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {downloading ? "Generating…" : "Download PDF"}
+            </button>
             {/* Copy pay link */}
             <button
               type="button"
