@@ -58,7 +58,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [retainers, setRetainers] = useState<Retainer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [displayName, setDisplayName] = useState("Early Tester");
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
   );
@@ -195,7 +195,12 @@ export default function DashboardPage() {
               </p>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                  {greeting}, {displayName}
+                  {greeting},{" "}
+                  {displayName === null ? (
+                    <span className="shimmer-gold inline-block h-[0.9em] w-36 translate-y-[0.05em] rounded-full align-middle" />
+                  ) : (
+                    <span className="animate-fade-in-name">{displayName}</span>
+                  )}
                 </h1>
                 <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/25 bg-[#d4a853]/10 px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-[#d4a853] uppercase">
                   <Sparkles className="h-2.5 w-2.5" />
