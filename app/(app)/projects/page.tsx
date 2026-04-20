@@ -23,7 +23,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Progress } from "@/components/ui/progress";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
 import { ProjectCard } from "@/components/projects/ProjectCard";
-import { getProjects, softDeleteProject, getTrashedProjects, restoreProject, permanentlyDeleteProject } from "@/lib/supabase/queries";
+import { getProjects, softDeleteProject, getTrashedProjects, restoreProject, permanentlyDeleteProject, updateProject } from "@/lib/supabase/queries";
 import { getCinematicGradient } from "@/lib/cinematic-images";
 import { toast } from "sonner";
 import type { Project } from "@/types";
@@ -419,23 +419,67 @@ const PIPELINE_COLUMNS: { status: ProjectStatus; label: string }[] = [
   { status: "delivered", label: "Delivered" },
 ];
 
-function PipelineView({ projects, onNew }: { projects: Project[]; onNew: () => void }) {
+function PipelineView({ projects: initialProjects, onNew }: { projects: Project[]; onNew: () => void }) {
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overStatus, setOverStatus] = useState<ProjectStatus | null>(null);
+
+  // Sync when parent projects change (e.g. search/filter)
+  useEffect(() => { setProjects(initialProjects); }, [initialProjects]);
+
   const byStatus = (status: ProjectStatus) => projects.filter((p) => p.status === status);
+
+  function handleDragStart(e: React.DragEvent, id: string) {
+    setDraggingId(id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleDragOver(e: React.DragEvent, status: ProjectStatus) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setOverStatus(status);
+  }
+
+  async function handleDrop(e: React.DragEvent, status: ProjectStatus) {
+    e.preventDefault();
+    setOverStatus(null);
+    if (!draggingId) return;
+    const project = projects.find((p) => p.id === draggingId);
+    if (!project || project.status === status) { setDraggingId(null); return; }
+    // Optimistic update
+    setProjects((prev) => prev.map((p) => p.id === draggingId ? { ...p, status } : p));
+    setDraggingId(null);
+    try {
+      await updateProject(draggingId, { status });
+      toast.success(`Moved to ${PIPELINE_COLUMNS.find((c) => c.status === status)?.label}`);
+    } catch {
+      // Rollback
+      setProjects((prev) => prev.map((p) => p.id === draggingId ? { ...p, status: project.status } : p));
+      toast.error("Failed to update status");
+    }
+  }
 
   return (
     <div className="flex gap-3 overflow-x-auto no-scrollbar pb-4 h-full min-h-0">
       {PIPELINE_COLUMNS.map(({ status, label }) => {
         const col = byStatus(status);
+        const isOver = overStatus === status;
         return (
-          <div key={status} className="flex w-64 shrink-0 flex-col gap-2">
+          <div
+            key={status}
+            className="flex w-64 shrink-0 flex-col gap-2"
+            onDragOver={(e) => handleDragOver(e, status)}
+            onDragLeave={() => setOverStatus(null)}
+            onDrop={(e) => handleDrop(e, status)}
+          >
             {/* Column header */}
-            <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+            <div className={`flex items-center justify-between rounded-lg px-3 py-2 transition-colors ${isOver ? "bg-[#d4a853]/10 border border-[#d4a853]/20" : "bg-muted/50"}`}>
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{col.length}</span>
             </div>
 
-            {/* Cards */}
-            <div className="flex flex-col gap-2 flex-1">
+            {/* Drop zone */}
+            <div className={`flex flex-col gap-2 flex-1 rounded-xl transition-all min-h-[80px] ${isOver ? "bg-[#d4a853]/[0.03] outline-dashed outline-1 outline-[#d4a853]/20" : ""}`}>
               {col.map((project) => {
                 const seed = project.id || project.title;
                 const realThumb =
@@ -444,61 +488,47 @@ function PipelineView({ projects, onNew }: { projects: Project[]; onNew: () => v
                   !project.thumbnail_url.includes("picsum.photos")
                     ? project.thumbnail_url
                     : null;
+                const isDragging = draggingId === project.id;
                 return (
-                  <Link
+                  <div
                     key={project.id}
-                    href={`/projects/${project.id}`}
-                    className="group flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3 transition-all hover:border-[#d4a853]/30 hover:shadow-sm"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, project.id)}
+                    onDragEnd={() => { setDraggingId(null); setOverStatus(null); }}
+                    className={`transition-all duration-150 ${isDragging ? "opacity-40 scale-[0.97]" : ""}`}
                   >
-                    {/* Thumbnail */}
-                    <div
-                      className="relative h-28 w-full overflow-hidden rounded-lg"
-                      style={{ background: realThumb ? undefined : getCinematicGradient(seed) }}
+                    <Link
+                      href={`/projects/${project.id}`}
+                      className="group flex flex-col gap-2.5 rounded-xl border border-border bg-card p-3 transition-all hover:border-[#d4a853]/30 hover:shadow-sm cursor-grab active:cursor-grabbing"
+                      onClick={(e) => { if (isDragging) e.preventDefault(); }}
                     >
-                      {realThumb && (
-                        <Image
-                          src={realThumb}
-                          alt={project.title}
-                          fill
-                          className="object-cover"
-                          sizes="256px"
-                          unoptimized
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                        />
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-[#d4a853]">
-                        {project.title}
-                      </p>
-                      <p className="truncate text-[11px] text-muted-foreground">{project.client_name || "—"}</p>
-                    </div>
-
-                    {/* Progress bar */}
-                    {project.progress != null && (
-                      <div className="flex items-center gap-2">
-                        <Progress
-                          value={project.progress}
-                          className="h-1 flex-1"
-                          indicatorStyle={getProgressStyle(project.progress)}
-                        />
-                        <span className="shrink-0 text-[10px] text-muted-foreground">{project.progress}%</span>
+                      <div
+                        className="relative h-28 w-full overflow-hidden rounded-lg"
+                        style={{ background: realThumb ? undefined : getCinematicGradient(seed) }}
+                      >
+                        {realThumb && (
+                          <Image src={realThumb} alt={project.title} fill className="object-cover" sizes="256px" unoptimized
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                        )}
                       </div>
-                    )}
-                  </Link>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground transition-colors group-hover:text-[#d4a853]">{project.title}</p>
+                        <p className="truncate text-[11px] text-muted-foreground">{project.client_name || "—"}</p>
+                      </div>
+                      {project.progress != null && (
+                        <div className="flex items-center gap-2">
+                          <Progress value={project.progress} className="h-1 flex-1" indicatorStyle={getProgressStyle(project.progress)} />
+                          <span className="shrink-0 text-[10px] text-muted-foreground">{project.progress}%</span>
+                        </div>
+                      )}
+                    </Link>
+                  </div>
                 );
               })}
 
-              {/* Add placeholder in Draft column */}
               {status === "draft" && (
-                <button
-                  onClick={onNew}
-                  className="group flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-4 text-xs text-muted-foreground transition-all hover:border-[#d4a853]/30 hover:text-[#d4a853]"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  New project
+                <button onClick={onNew} className="group flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-4 text-xs text-muted-foreground transition-all hover:border-[#d4a853]/30 hover:text-[#d4a853]">
+                  <Plus className="h-3.5 w-3.5" /> New project
                 </button>
               )}
             </div>

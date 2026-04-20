@@ -14,9 +14,15 @@ import {
   Flame,
   Volume2,
   VolumeX,
+  FolderKanban,
+  CalendarDays,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import { getTasks, createTask as dbCreateTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask, type DbTask } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
+import type { ProjectTask, Project, TaskPriority } from "@/types";
 
 type Task = DbTask;
 
@@ -308,6 +314,10 @@ function CheckButton({
 }
 
 export default function TasksPage() {
+  const [activeTab, setActiveTab] = useState<"daily" | "projects">("daily");
+  const [projectTasks, setProjectTasks] = useState<(ProjectTask & { project?: Pick<Project, "id" | "title" | "client_name" | "status"> })[]>([]);
+  const [loadingPT, setLoadingPT] = useState(false);
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [viewDate, setViewDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [newTitle, setNewTitle] = useState("");
@@ -335,6 +345,20 @@ export default function TasksPage() {
     setSoundEnabled(rawSound !== "false");
     setDailyQuote(getDailyQuote(format(new Date(), "yyyy-MM-dd")));
   }, []);
+
+  // Load project tasks when tab becomes active
+  useEffect(() => {
+    if (activeTab !== "projects") return;
+    setLoadingPT(true);
+    const supabase = createClient();
+    Promise.all([
+      supabase.from("project_tasks").select("*").order("created_at", { ascending: false }),
+      supabase.from("projects").select("id, title, client_name, status"),
+    ]).then(([{ data: pts }, { data: projs }]) => {
+      const projMap = new Map((projs ?? []).map((p: Pick<Project, "id" | "title" | "client_name" | "status">) => [p.id, p]));
+      setProjectTasks((pts ?? []).map((t: ProjectTask) => ({ ...t, project: projMap.get(t.project_id ?? "") })));
+    }).catch(() => {}).finally(() => setLoadingPT(false));
+  }, [activeTab]);
 
   useEffect(() => {
     localStorage.setItem(SOUND_KEY, String(soundEnabled));
@@ -525,6 +549,21 @@ export default function TasksPage() {
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="h-4 w-4 text-[#d4a853]" />
             <h1 className="font-display text-xl font-bold tracking-tight text-foreground">Tasks</h1>
+            {/* Tab switcher */}
+            <div className="flex items-center rounded-lg border border-border bg-muted/50 p-0.5 ml-1">
+              <button
+                onClick={() => setActiveTab("daily")}
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeTab === "daily" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <CalendarDays className="h-3 w-3" /> Daily
+              </button>
+              <button
+                onClick={() => setActiveTab("projects")}
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeTab === "projects" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                <FolderKanban className="h-3 w-3" /> Projects
+              </button>
+            </div>
             <AnimatePresence>
               {streak >= 2 && (
                 <motion.div
@@ -577,8 +616,8 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* Date nav + progress */}
-        <div className="shrink-0 border-b border-border px-5 py-4 space-y-3">
+        {/* Date nav + progress — Daily only */}
+        {activeTab === "daily" && <div className="shrink-0 border-b border-border px-5 py-4 space-y-3">
           <div className="flex items-center gap-3">
             <button
               onClick={prevDay}
@@ -682,10 +721,89 @@ export default function TasksPage() {
               </AnimatePresence>
             </div>
           )}
-        </div>
+        </div>}
 
-        {/* Task list */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        {/* Projects tab */}
+        {activeTab === "projects" && (
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            {loadingPT ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#d4a853] border-t-transparent" />
+              </div>
+            ) : projectTasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border">
+                  <FolderKanban className="h-7 w-7 text-muted-foreground/25" />
+                </div>
+                <p className="font-semibold text-foreground">No project tasks yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">Open a project and add tasks to see them here.</p>
+                <Link
+                  href="/projects"
+                  className="mt-4 flex items-center gap-1.5 rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/10 px-4 py-2 text-sm font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-all"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" /> Go to Projects
+                </Link>
+              </div>
+            ) : (() => {
+              const grouped = new Map<string, typeof projectTasks>();
+              for (const t of projectTasks) {
+                const key = t.project_id ?? "__none__";
+                if (!grouped.has(key)) grouped.set(key, []);
+                grouped.get(key)!.push(t);
+              }
+              return (
+                <div className="space-y-6">
+                  {Array.from(grouped.entries()).map(([pid, tasks]) => {
+                    const proj = tasks[0]?.project;
+                    return (
+                      <div key={pid}>
+                        <div className="mb-2 flex items-center gap-2">
+                          <Link
+                            href={proj ? `/projects/${proj.id}` : "/projects"}
+                            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-[#d4a853] transition-colors"
+                          >
+                            {proj?.title ?? "Unknown Project"}
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </Link>
+                          <span className="text-[10px] text-muted-foreground/50">{tasks.length} task{tasks.length !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {tasks.map((task) => (
+                            <div
+                              key={task.id}
+                              className="flex items-center gap-3 rounded-xl border border-border bg-card/75 px-4 py-3"
+                            >
+                              {task.status === "done" ? (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-[#d4a853]" />
+                              ) : (
+                                <Circle className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+                              )}
+                              <p className={`flex-1 min-w-0 text-sm truncate ${task.status === "done" ? "line-through text-muted-foreground/50" : "text-foreground"}`}>
+                                {task.title}
+                              </p>
+                              {task.due_date && (
+                                <span className="shrink-0 text-[10px] text-muted-foreground">
+                                  {format(new Date(task.due_date + "T12:00:00"), "MMM d")}
+                                </span>
+                              )}
+                              <span
+                                className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG]?.dot ?? "bg-muted"}`}
+                                title={task.priority}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Task list — Daily only */}
+        {activeTab === "daily" && <div className="flex-1 overflow-y-auto px-5 py-4">
 
           {/* Wrap banner */}
           <AnimatePresence>
@@ -874,7 +992,7 @@ export default function TasksPage() {
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </div>}
       </div>
 
       <BurstRenderer particles={particles} />

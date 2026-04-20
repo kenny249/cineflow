@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
-  CalendarDays, X, Pencil, Check, AlertCircle, Trash2,
+  CalendarDays, X, Pencil, Check, AlertCircle, Trash2, Settings2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -13,7 +13,7 @@ import {
   createRetainerDeliverable, updateRetainerDeliverable, deleteRetainerDeliverable,
   deleteRetainer, createInvoice,
 } from "@/lib/supabase/queries";
-import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus } from "@/types";
+import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus, RetainerTemplateItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -182,6 +182,13 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [deleting, setDeleting] = useState(false);
   const [editingRate, setEditingRate] = useState(false);
   const [rateInput, setRateInput] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editClientName, setEditClientName] = useState("");
+  const [editRate, setEditRate] = useState("");
+  const [editTemplate, setEditTemplate] = useState<RetainerTemplateItem[]>([]);
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [togglingActive, setTogglingActive] = useState(false);
 
   const activeMonth = months.find(m => m.id === activeMonthId) ?? null;
 
@@ -224,6 +231,56 @@ export default function RetainerDetailPage({ id }: { id: string }) {
       toast.error("Failed to update rate");
     } finally {
       setEditingRate(false);
+    }
+  }
+
+  function openEdit() {
+    if (!retainer) return;
+    setEditClientName(retainer.client_name);
+    setEditRate(retainer.monthly_rate ? String(retainer.monthly_rate) : "");
+    setEditTemplate(retainer.template.map((t) => ({ ...t })));
+    setEditNotes(retainer.notes ?? "");
+    setEditOpen(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!retainer || !editClientName.trim()) { toast.error("Client name is required"); return; }
+    if (editTemplate.some((t) => !t.label.trim())) { toast.error("All deliverables need a label"); return; }
+    setSavingEdit(true);
+    try {
+      await updateRetainer(id, {
+        client_name: editClientName.trim(),
+        monthly_rate: editRate ? Number(editRate) : undefined,
+        template: editTemplate.filter((t) => t.quantity > 0),
+        notes: editNotes.trim() || undefined,
+      });
+      setRetainer((prev) => prev ? {
+        ...prev,
+        client_name: editClientName.trim(),
+        monthly_rate: editRate ? Number(editRate) : undefined,
+        template: editTemplate.filter((t) => t.quantity > 0),
+        notes: editNotes.trim() || undefined,
+      } : prev);
+      setEditOpen(false);
+      toast.success("Retainer updated");
+    } catch {
+      toast.error("Failed to update retainer");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleToggleActive() {
+    if (!retainer) return;
+    setTogglingActive(true);
+    try {
+      await updateRetainer(id, { is_active: !retainer.is_active });
+      setRetainer((prev) => prev ? { ...prev, is_active: !prev.is_active } : prev);
+      toast.success(retainer.is_active ? "Retainer paused" : "Retainer activated");
+    } catch {
+      toast.error("Failed to update");
+    } finally {
+      setTogglingActive(false);
     }
   }
 
@@ -453,6 +510,30 @@ export default function RetainerDetailPage({ id }: { id: string }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {/* Active/Inactive toggle */}
+          <button
+            onClick={handleToggleActive}
+            disabled={togglingActive}
+            className={`hidden sm:flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+              retainer.is_active
+                ? "border-border text-muted-foreground hover:border-red-400/30 hover:text-red-400"
+                : "border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:bg-emerald-500/10"
+            }`}
+            title={retainer.is_active ? "Pause retainer" : "Activate retainer"}
+          >
+            {retainer.is_active ? "Pause" : "Activate"}
+          </button>
+
+          {/* Edit retainer */}
+          <button
+            onClick={openEdit}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title="Edit retainer"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Edit</span>
+          </button>
+
           {/* Delete retainer */}
           {confirmDelete ? (
             <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5">
@@ -720,6 +801,64 @@ export default function RetainerDetailPage({ id }: { id: string }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Edit retainer modal ── */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-base font-semibold text-foreground">Edit Retainer</h2>
+              <button onClick={() => setEditOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Client Name</label>
+                <Input value={editClientName} onChange={(e) => setEditClientName(e.target.value)} placeholder="e.g. Nike" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Monthly Rate (optional)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/50">$</span>
+                  <Input type="text" inputMode="numeric" value={editRate} onChange={(e) => setEditRate(e.target.value.replace(/[^0-9.]/g, ""))} placeholder="5000" className="pl-6" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Monthly Deliverables</label>
+                <div className="space-y-2">
+                  {editTemplate.map((item, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <Input value={item.label} onChange={(e) => setEditTemplate((prev) => prev.map((t, i) => i === idx ? { ...t, label: e.target.value } : t))} placeholder="Deliverable label" className="flex-1 text-sm h-9" />
+                      <input type="text" inputMode="numeric" value={item.quantity === 0 ? "" : String(item.quantity)}
+                        onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ""); setEditTemplate((prev) => prev.map((t, i) => i === idx ? { ...t, quantity: raw === "" ? 0 : Number(raw) } : t)); }}
+                        className="w-16 rounded-md border border-border bg-background px-2 py-1.5 text-center text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                      />
+                      <button onClick={() => setEditTemplate((prev) => prev.filter((_, i) => i !== idx))} className="text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button onClick={() => setEditTemplate((prev) => [...prev, { type: "other", label: "", quantity: 1 }])} className="text-xs text-[#d4a853]/70 hover:text-[#d4a853] transition-colors flex items-center gap-1 mt-1">
+                    <Plus className="h-3 w-3" /> Add deliverable type
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Notes (optional)</label>
+                <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} placeholder="Scope notes, special requirements..."
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <Button variant="outline" onClick={() => setEditOpen(false)} className="flex-1">Cancel</Button>
+              <Button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 bg-[#d4a853] text-black font-medium hover:bg-[#c49843]">
+                {savingEdit ? "Saving…" : "Save Changes"}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
