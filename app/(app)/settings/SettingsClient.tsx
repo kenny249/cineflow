@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, ChevronDown, Tv2 } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, Tv2, Sparkles, Check } from "lucide-react";
 import { CinematicWallpaper } from "@/components/shared/CinematicWallpaper";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -88,8 +88,15 @@ export default function SettingsClient() {
   const [isSavingPayment, setIsSavingPayment] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState<PaymentTab | null>("stripe");
 
+  // Plan
+  const [plan, setPlan] = useState<string>("studio_beta");
+
   // Wallpaper mode
   const [wallpaperOpen, setWallpaperOpen] = useState(false);
+
+  // Delete account confirmation
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
 
   // Password
   const [currentPassword, setCurrentPassword] = useState("");
@@ -119,6 +126,7 @@ export default function SettingsClient() {
           setBusinessPhone(profile.business_phone ?? "");
           setBusinessWebsite(profile.business_website ?? "");
           setPaySettings((profile.payment_settings as PaymentSettings) ?? {});
+          if (profile.plan) setPlan(profile.plan);
         }
       } catch {
         toast.error("Failed to load profile");
@@ -235,9 +243,16 @@ export default function SettingsClient() {
   };
 
   const handleDeleteAccount = () => {
-    if (window.confirm("Are you sure you want to delete your account? This cannot be undone.")) {
-      toast.error("Account deletion requires contacting support for now.");
-    }
+    setDeleteConfirmOpen(true);
+    setDeleteInput("");
+  };
+
+  const handleDeleteConfirm = () => {
+    const subject = encodeURIComponent("Account Deletion Request");
+    const body = encodeURIComponent(`Hi,\n\nI'd like to permanently delete my Cineflow account and all associated data.\n\nEmail: ${email}\n\nPlease confirm once complete.\n\nThank you.`);
+    window.open(`mailto:support@usecineflow.com?subject=${subject}&body=${body}`, "_blank");
+    setDeleteConfirmOpen(false);
+    toast.success("Deletion request opened in your mail app.");
   };
 
   return (
@@ -730,6 +745,55 @@ export default function SettingsClient() {
             </div>
           </section>
 
+          {/* ── Plan ─────────────────────────────────────────────── */}
+          <section>
+            <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Plan</h2>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#d4a853]/10">
+                    <Sparkles className="h-4 w-4 text-[#d4a853]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground">
+                        {plan === "solo" || plan === "solo_beta" ? "Solo Creator" : "Film Studio"}
+                      </p>
+                      <span className="rounded-full bg-[#d4a853]/15 px-2 py-0.5 text-[10px] font-bold text-[#d4a853]">
+                        Beta
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Early access — all features included</p>
+                  </div>
+                </div>
+                <a
+                  href="mailto:support@usecineflow.com?subject=Plan Question"
+                  className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-[#d4a853]/40 transition-colors"
+                >
+                  Contact us
+                </a>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {[
+                  "Unlimited projects",
+                  "Invoice & finance",
+                  "Client portals",
+                  "Storyboards & shot lists",
+                  "Retainers",
+                  "Team collaboration",
+                  "Contracts & forms",
+                  "Calendar & scheduling",
+                  "Revision review",
+                ].map((feat) => (
+                  <div key={feat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Check className="h-3 w-3 shrink-0 text-[#d4a853]" />
+                    {feat}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
           {/* ── Danger Zone ──────────────────────────────────────── */}
           <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-red-400">Danger Zone</h2>
@@ -750,6 +814,37 @@ export default function SettingsClient() {
                   Delete account
                 </Button>
               </div>
+              {deleteConfirmOpen && (
+                <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-4 space-y-3">
+                  <p className="text-xs text-red-400">
+                    This will open a deletion request email. Type <span className="font-mono font-bold">DELETE</span> to confirm.
+                  </p>
+                  <input
+                    value={deleteInput}
+                    onChange={(e) => setDeleteInput(e.target.value)}
+                    placeholder="Type DELETE"
+                    className="w-full rounded-lg border border-red-500/30 bg-background px-3 py-2 text-sm text-foreground font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:border-red-500/60"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/30 text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+                      disabled={deleteInput !== "DELETE"}
+                      onClick={handleDeleteConfirm}
+                    >
+                      Send deletion request
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setDeleteConfirmOpen(false); setDeleteInput(""); }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
