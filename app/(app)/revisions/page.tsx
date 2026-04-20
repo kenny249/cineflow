@@ -1158,6 +1158,21 @@ export default function ReviewPage() {
                         </button>
                       </div>
                     )}
+                    {/* Mobile floating notes button — always visible on video */}
+                    <button
+                      className="md:hidden absolute top-3 right-3 z-10 flex items-center gap-2 rounded-full bg-black/60 border border-white/10 backdrop-blur-sm px-3.5 py-2 active:scale-95 transition-transform"
+                      onClick={() => {
+                        if (videoRef.current && isPlaying) videoRef.current.pause();
+                        setNotesSheetOpen(true);
+                      }}
+                    >
+                      <MessageSquare className="h-4 w-4 text-[#d4a853]" />
+                      <span className="text-xs font-semibold text-white">
+                        {(activeRevision.comments?.length ?? 0) > 0
+                          ? `Notes (${activeRevision.comments!.length})`
+                          : "Add Note"}
+                      </span>
+                    </button>
                   </div>
                   {/* Controls */}
                   <div className="shrink-0 space-y-2 bg-black px-4 pb-4 pt-3">
@@ -1259,19 +1274,6 @@ export default function ReviewPage() {
                       </div>
                       <button onClick={() => { const v = videoRef.current; if (!v) return; if ((v as any).webkitEnterFullscreen) (v as any).webkitEnterFullscreen(); else v.requestFullscreen?.().catch(() => {}); }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
                         <Maximize className="h-4 w-4" />
-                      </button>
-                      {/* Mobile notes FAB */}
-                      <button
-                        className="md:hidden flex items-center gap-1.5 rounded-full bg-[#d4a853] px-3.5 py-1.5 text-xs font-bold text-black active:scale-95 transition-transform ml-1"
-                        onClick={() => {
-                          if (videoRef.current && isPlaying) videoRef.current.pause();
-                          setNotesSheetOpen(true);
-                        }}
-                      >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        {(activeRevision.comments?.length ?? 0) > 0
-                          ? `Notes (${activeRevision.comments!.length})`
-                          : "Add Note"}
                       </button>
                     </div>
                   </div>
