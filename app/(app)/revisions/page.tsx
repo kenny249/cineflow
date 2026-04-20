@@ -508,6 +508,9 @@ export default function ReviewPage() {
   // Deploy modal
   const [deployTarget, setDeployTarget] = useState<Revision | null>(null);
 
+  // Mobile notes sheet
+  const [notesSheetOpen, setNotesSheetOpen] = useState(false);
+
   // Video player
   const videoRef = useRef<HTMLVideoElement>(null);
   useSpacebarVideo(videoRef);
@@ -701,6 +704,7 @@ export default function ReviewPage() {
         )
       );
       setCommentDraft("");
+      setNotesSheetOpen(false);
       // Auto-resume playback after posting
       if (videoRef.current) videoRef.current.play();
     } catch { toast.error("Failed to save comment"); }
@@ -1059,10 +1063,10 @@ export default function ReviewPage() {
     {/* ── Player lightbox modal ── */}
     {activeRevision && (
       <div
-        className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+        className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 sm:p-4 backdrop-blur-sm"
         onClick={(e) => { if (e.target === e.currentTarget) setActiveRevisionId(null); }}
       >
-        <div className="flex h-full max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+        <div className="flex h-full max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-6xl flex-col overflow-hidden sm:rounded-2xl border-0 sm:border border-border bg-background shadow-2xl">
 
           {/* Modal header */}
           <div className="flex shrink-0 flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-3.5">
@@ -1119,7 +1123,7 @@ export default function ReviewPage() {
           <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
 
             {/* Video player */}
-            <div className="flex h-[44vw] shrink-0 flex-col overflow-hidden bg-black md:h-auto md:flex-[3]">
+            <div className="relative flex flex-1 flex-col overflow-hidden bg-black md:flex-none md:flex-[3]">
               {activeRevision.file_url ? (
                 <>
                   <div className="relative flex-1 overflow-hidden">
@@ -1159,7 +1163,7 @@ export default function ReviewPage() {
                   <div className="shrink-0 space-y-2 bg-black px-4 pb-4 pt-3">
                     {/* Frame.io-style timeline with comment ticks */}
                     <div
-                      className="group relative flex h-5 w-full cursor-pointer items-center"
+                      className="group relative flex h-5 w-full cursor-pointer items-center touch-none"
                       onClick={(e) => {
                         if (!playerDuration) return;
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -1172,6 +1176,24 @@ export default function ReviewPage() {
                         if (e.buttons !== 1 || !playerDuration) return;
                         const rect = e.currentTarget.getBoundingClientRect();
                         const pct = Math.max(0, Math.min((e.clientX - rect.left) / rect.width, 1));
+                        const t = pct * playerDuration;
+                        setCurrentTime(t);
+                        if (videoRef.current) videoRef.current.currentTime = t;
+                      }}
+                      onTouchStart={(e) => {
+                        if (!playerDuration) return;
+                        const touch = e.touches[0];
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const pct = Math.max(0, Math.min((touch.clientX - rect.left) / rect.width, 1));
+                        const t = pct * playerDuration;
+                        setCurrentTime(t);
+                        if (videoRef.current) videoRef.current.currentTime = t;
+                      }}
+                      onTouchMove={(e) => {
+                        if (!playerDuration) return;
+                        const touch = e.touches[0];
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const pct = Math.max(0, Math.min((touch.clientX - rect.left) / rect.width, 1));
                         const t = pct * playerDuration;
                         setCurrentTime(t);
                         if (videoRef.current) videoRef.current.currentTime = t;
@@ -1238,6 +1260,19 @@ export default function ReviewPage() {
                       <button onClick={() => { const v = videoRef.current; if (!v) return; if ((v as any).webkitEnterFullscreen) (v as any).webkitEnterFullscreen(); else v.requestFullscreen?.().catch(() => {}); }} className="rounded-lg p-1.5 text-white/80 hover:bg-white/10">
                         <Maximize className="h-4 w-4" />
                       </button>
+                      {/* Mobile notes FAB */}
+                      <button
+                        className="md:hidden flex items-center gap-1.5 rounded-full bg-[#d4a853] px-3.5 py-1.5 text-xs font-bold text-black active:scale-95 transition-transform ml-1"
+                        onClick={() => {
+                          if (videoRef.current && isPlaying) videoRef.current.pause();
+                          setNotesSheetOpen(true);
+                        }}
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {(activeRevision.comments?.length ?? 0) > 0
+                          ? `Notes (${activeRevision.comments!.length})`
+                          : "Add Note"}
+                      </button>
                     </div>
                   </div>
                 </>
@@ -1248,8 +1283,8 @@ export default function ReviewPage() {
               )}
             </div>
 
-            {/* Notes panel */}
-            <div className="flex flex-1 flex-col overflow-hidden border-t border-border md:w-[300px] md:flex-none md:border-l md:border-t-0">
+            {/* Notes panel — desktop only */}
+            <div className="hidden md:flex md:w-[300px] md:flex-none md:flex-col md:overflow-hidden md:border-l md:border-border">
               <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-5">
                 {(activeRevision.comments?.length ?? 0) > 0 ? (() => {
                   const clientName = portalToken?.client_name;
@@ -1358,6 +1393,119 @@ export default function ReviewPage() {
         </div>
       </div>
     )}
+
+      {/* ── Mobile notes sheet ── */}
+      {activeRevision && notesSheetOpen && (
+        <div
+          className="fixed inset-0 z-50 md:hidden"
+          onClick={() => setNotesSheetOpen(false)}
+        >
+          {/* Dim overlay */}
+          <div className="absolute inset-0 bg-black/50" />
+          {/* Sheet */}
+          <div
+            className="absolute bottom-0 left-0 right-0 flex max-h-[75vh] flex-col rounded-t-2xl border-t border-border bg-background"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <div className="flex shrink-0 items-center justify-center pt-3 pb-1">
+              <div className="h-1 w-10 rounded-full bg-muted-foreground/25" />
+            </div>
+
+            {/* Sheet header */}
+            <div className="flex shrink-0 items-center justify-between px-4 pb-3 pt-1">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Notes
+                  {(activeRevision.comments?.length ?? 0) > 0 && (
+                    <span className="ml-1.5 font-normal text-muted-foreground/60">({activeRevision.comments!.length})</span>
+                  )}
+                </p>
+                <p className="text-[11px] text-muted-foreground/60 font-mono">Pinned at {formatTime(currentTime)}</p>
+              </div>
+              <button
+                onClick={() => setNotesSheetOpen(false)}
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Notes list */}
+            <div className="flex-1 overflow-y-auto px-4 pb-2 space-y-2.5">
+              {(activeRevision.comments?.length ?? 0) === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <MessageSquare className="h-8 w-8 text-muted-foreground/20 mb-2" />
+                  <p className="text-sm text-muted-foreground">No notes yet</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground/60">Type below — timestamp locks to current position</p>
+                </div>
+              ) : (
+                activeRevision.comments?.map((comment) => {
+                  const isClient = !!(portalToken?.client_name && comment.author_name === portalToken.client_name);
+                  return (
+                    <div key={comment.id} className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 ${isClient ? "border-sky-500/15 bg-sky-500/[0.04]" : "border-[#d4a853]/10 bg-[#d4a853]/[0.03]"}`}>
+                      <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${isClient ? "bg-sky-500/15 text-sky-400" : "bg-[#d4a853]/15 text-[#d4a853]"}`}>
+                        {(comment.author_name ?? "?")[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <span className="text-xs font-semibold text-foreground">{comment.author_name ?? "You"}</span>
+                          {comment.timestamp_seconds != null && (
+                            <button
+                              type="button"
+                              className={`font-mono text-[10px] hover:underline ${isClient ? "text-sky-400" : "text-[#d4a853]"}`}
+                              onClick={() => {
+                                const t = comment.timestamp_seconds!;
+                                setCurrentTime(t);
+                                if (videoRef.current) videoRef.current.currentTime = t;
+                                setNotesSheetOpen(false);
+                              }}
+                            >
+                              {formatTime(comment.timestamp_seconds)}
+                            </button>
+                          )}
+                          <span className="ml-auto text-[10px] text-muted-foreground/50">{formatRelative(comment.created_at)}</span>
+                        </div>
+                        <p className="text-sm text-foreground/80 leading-snug">{comment.content}</p>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteComment(activeRevision.id, comment.id)}
+                        disabled={deletingCommentId === comment.id}
+                        className="shrink-0 rounded-lg p-1.5 text-muted-foreground/30 hover:text-red-400 transition-colors"
+                      >
+                        {deletingCommentId === comment.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Note input */}
+            <div className="shrink-0 border-t border-border px-4 py-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={commentDraft}
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddComment(); } }}
+                  placeholder="Type your note…"
+                  autoFocus
+                  className="flex-1 rounded-xl border border-border bg-muted/20 px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/40 focus:outline-none"
+                />
+                <button
+                  onClick={handleAddComment}
+                  disabled={!commentDraft.trim() || savingComment}
+                  className="flex shrink-0 items-center justify-center rounded-xl bg-[#d4a853] px-4 text-black disabled:opacity-40 active:scale-95 transition-all"
+                >
+                  {savingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Deploy modal */}
       {deployTarget && selectedProject && (
