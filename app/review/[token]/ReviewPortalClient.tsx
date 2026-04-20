@@ -440,6 +440,10 @@ export default function ReviewPortalClient({ token }: { token: string }) {
   }
 
   function currentStageIndex(projectStatus: string) {
+    // Revision status takes precedence over project status
+    if (revisions.some((r) => r.status === "final")) return 3;        // Delivered
+    if (revisions.some((r) => r.status === "approved")) return 2;     // Post-Production
+    if (revisions.some((r) => r.status === "in_review" || r.status === "revisions_requested")) return 2;
     return STAGES.findIndex((s) => s.statuses.includes(projectStatus));
   }
 
