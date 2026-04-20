@@ -21,47 +21,81 @@ import {
   FileSignature,
   Clapperboard,
   Repeat2,
+  ListChecks,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getOrCreateDisplayName, getInitials } from "@/lib/random-name";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import { isSoloPlan } from "@/types";
 
-const NAV_MAIN = [
-  { label: "Dashboard",  href: "/dashboard",      icon: LayoutDashboard },
-  { label: "Projects",   href: "/projects",       icon: FolderKanban },
-  { label: "Clients",    href: "/clients",        icon: Users },
-  { label: "Retainers",  href: "/retainers",      icon: Repeat2 },
-  { label: "Calendar",   href: "/calendar",       icon: Calendar },
-  { label: "To Do",      href: "/tasks",          icon: CheckSquare },
-  { label: "Tasks",      href: "/project-tasks",  icon: ClipboardList },
-  { label: "Contracts",  href: "/contracts",      icon: FileSignature },
-  { label: "Forms",      href: "/forms",           icon: ClipboardList },
-  { label: "Storyboard", href: "/storyboard",     icon: Clapperboard },
-  { label: "Scripts",    href: "/scripts",        icon: ScrollText },
-  { label: "Review",     href: "/revisions",      icon: Film },
-  { label: "Finance",    href: "/finance",        icon: DollarSign },
-  { label: "Team",       href: "/team",           icon: UsersRound },
+// ── Nav structure ────────────────────────────────────────────────────────────
+
+interface NavItem {
+  label: string;
+  href: string;
+  icon: React.ElementType;
+  soloHidden?: boolean;
+}
+
+interface NavGroup {
+  label: string | null; // null = no section header (Dashboard)
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Clients & Projects",
+    items: [
+      { label: "Projects",  href: "/projects",  icon: FolderKanban },
+      { label: "Clients",   href: "/clients",   icon: Users },
+      { label: "Retainers", href: "/retainers", icon: Repeat2 },
+      { label: "Calendar",  href: "/calendar",  icon: Calendar },
+    ],
+  },
+  {
+    label: "Production",
+    items: [
+      { label: "Storyboard", href: "/storyboard", icon: Clapperboard },
+      { label: "Shot Lists",  href: "/shot-lists", icon: ListChecks },
+      { label: "Scripts",     href: "/scripts",    icon: ScrollText, soloHidden: true },
+      { label: "Review",      href: "/revisions",  icon: Film },
+      { label: "Tasks",       href: "/project-tasks", icon: ClipboardList },
+      { label: "To Do",       href: "/tasks",      icon: CheckSquare },
+    ],
+  },
+  {
+    label: "Business",
+    items: [
+      { label: "Contracts", href: "/contracts", icon: FileSignature },
+      { label: "Forms",     href: "/forms",     icon: FileText },
+      { label: "Finance",   href: "/finance",   icon: DollarSign },
+      { label: "Team",      href: "/team",      icon: UsersRound, soloHidden: true },
+    ],
+  },
 ];
 
-const NAV_BOTTOM = [
+const NAV_BOTTOM: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-interface SidebarProps {
-  collapsed: boolean;
-  onToggle: () => void;
-}
+// ── NavItem ──────────────────────────────────────────────────────────────────
 
-function NavItem({
+function NavLink({
   item,
   collapsed,
   isActive,
 }: {
-  item: (typeof NAV_MAIN)[0];
+  item: NavItem;
   collapsed: boolean;
   isActive: boolean;
 }) {
@@ -76,7 +110,6 @@ function NavItem({
           : "text-white/50 hover:bg-white/[0.06] hover:text-white"
       )}
     >
-      {/* Active indicator */}
       {isActive && (
         <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[#d4a853]" />
       )}
@@ -98,9 +131,7 @@ function NavItem({
     return (
       <Tooltip>
         <TooltipTrigger asChild>{link}</TooltipTrigger>
-        <TooltipContent side="right" sideOffset={12}>
-          {item.label}
-        </TooltipContent>
+        <TooltipContent side="right" sideOffset={12}>{item.label}</TooltipContent>
       </Tooltip>
     );
   }
@@ -108,13 +139,9 @@ function NavItem({
   return link;
 }
 
-function BetaNavItem({
-  collapsed,
-  isActive,
-}: {
-  collapsed: boolean;
-  isActive: boolean;
-}) {
+// ── BetaNavItem ──────────────────────────────────────────────────────────────
+
+function BetaNavItem({ collapsed, isActive }: { collapsed: boolean; isActive: boolean }) {
   const link = (
     <Link
       href="/beta-feedback"
@@ -129,14 +156,11 @@ function BetaNavItem({
       {isActive && (
         <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[#d4a853]" />
       )}
-      {/* Pulse glow ring */}
       <span className="relative shrink-0">
         <span className="absolute inset-0 animate-ping rounded-full bg-[#d4a853]/25 duration-1000" />
         <FlaskConical className="relative h-4 w-4 text-[#d4a853] drop-shadow-[0_0_6px_rgba(212,168,83,0.7)]" />
       </span>
-      {!collapsed && (
-        <span className="truncate">Beta Feedback</span>
-      )}
+      {!collapsed && <span className="truncate">Beta Feedback</span>}
     </Link>
   );
 
@@ -144,14 +168,19 @@ function BetaNavItem({
     return (
       <Tooltip>
         <TooltipTrigger asChild>{link}</TooltipTrigger>
-        <TooltipContent side="right" sideOffset={12}>
-          Beta Feedback
-        </TooltipContent>
+        <TooltipContent side="right" sideOffset={12}>Beta Feedback</TooltipContent>
       </Tooltip>
     );
   }
 
   return link;
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -174,25 +203,24 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           if (data?.first_name || data?.last_name) {
             setDisplayName(`${data.first_name ?? ""} ${data.last_name ?? ""}`.trim());
           } else {
-            // Fall back to auth metadata → email prefix → never random
-            const meta = user.user_metadata ?? {};
-            const metaName = [meta.first_name || meta.given_name, meta.last_name || meta.family_name]
-              .filter(Boolean).join(" ").trim()
-              || meta.full_name || meta.name || "";
-            const emailPrefix = user.email?.split("@")[0] ?? "";
-            setDisplayName(metaName || emailPrefix || "User");
+            const meta = supabase.auth.getUser().then(({ data: { user: u } }) => {
+              if (!u) return;
+              const m = u.user_metadata ?? {};
+              const metaName = [m.first_name || m.given_name, m.last_name || m.family_name]
+                .filter(Boolean).join(" ").trim() || m.full_name || m.name || "";
+              const emailPrefix = u.email?.split("@")[0] ?? "";
+              setDisplayName(metaName || emailPrefix || "User");
+            });
+            void meta;
           }
         });
     });
   }, []);
 
-  const SOLO_HIDDEN = ["/team", "/scripts"];
-  const navItems = isSoloPlan(plan)
-    ? NAV_MAIN.filter((item) => !SOLO_HIDDEN.includes(item.href))
-    : NAV_MAIN;
-
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
+
+  const solo = isSoloPlan(plan);
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -202,10 +230,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           collapsed ? "w-[64px]" : "w-[240px]"
         )}
       >
-        {/* ── Ambient gold glow behind logo area ── */}
+        {/* Ambient glow */}
         <div className="pointer-events-none absolute left-0 top-0 h-20 w-full bg-[radial-gradient(ellipse_80%_60%_at_30%_0%,rgba(212,168,83,0.07),transparent)] blur-sm" />
 
-        {/* ── Logo + toggle ── */}
+        {/* Logo + toggle */}
         <div
           className={cn(
             "relative flex min-h-14 items-center border-b border-border/60 px-3 pt-[env(safe-area-inset-top)]",
@@ -222,13 +250,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               </span>
             </Link>
           )}
-
           {collapsed && (
             <div className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/12 shadow-[0_0_12px_rgba(212,168,83,0.18)]">
               <Film className="h-3.5 w-3.5 text-[#d4a853]" />
             </div>
           )}
-
           <button
             onClick={onToggle}
             className={cn(
@@ -240,7 +266,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </button>
         </div>
 
-        {/* ── Expand button when collapsed ── */}
+        {/* Expand button when collapsed */}
         {collapsed && (
           <button
             onClick={onToggle}
@@ -250,35 +276,51 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </button>
         )}
 
-        {/* ── Main nav ── */}
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2 pt-3 custom-scrollbar">
-          {navItems.map((item) => (
-            <NavItem
-              key={item.href}
-              item={item}
-              collapsed={collapsed}
-              isActive={isActive(item.href)}
-            />
-          ))}
+        {/* Main nav */}
+        <nav className="flex flex-1 flex-col overflow-y-auto p-2 pt-3 custom-scrollbar gap-4">
+          {NAV_GROUPS.map((group, gi) => {
+            const visibleItems = group.items.filter(
+              (item) => !(solo && item.soloHidden)
+            );
+            if (visibleItems.length === 0) return null;
+
+            return (
+              <div key={gi} className="flex flex-col gap-0.5">
+                {/* Section label — hidden when collapsed */}
+                {group.label && !collapsed && (
+                  <p className="mb-1 px-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/20">
+                    {group.label}
+                  </p>
+                )}
+                {/* Collapsed divider between groups (except first) */}
+                {group.label && collapsed && gi > 0 && (
+                  <div className="mx-auto mb-1 h-px w-5 bg-white/10" />
+                )}
+                {visibleItems.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    item={item}
+                    collapsed={collapsed}
+                    isActive={isActive(item.href)}
+                  />
+                ))}
+              </div>
+            );
+          })}
         </nav>
 
-        {/* ── Bottom nav ── */}
+        {/* Bottom nav */}
         <div className="p-2">
-          {/* Beta Feedback — glowing special item */}
           <BetaNavItem collapsed={collapsed} isActive={isActive("/beta-feedback")} />
-
           {NAV_BOTTOM.map((item) => (
-            <NavItem
+            <NavLink
               key={item.href}
               item={item}
               collapsed={collapsed}
               isActive={isActive(item.href)}
             />
           ))}
-
           <Separator className="my-2" />
-
-          {/* User profile */}
           <div
             className={cn(
               "flex items-center gap-2.5 rounded-md px-2.5 py-2",
@@ -294,7 +336,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-white">{displayName}</p>
                 <p className="truncate text-[10px] text-white/40">
-                  {isSoloPlan(plan) ? "Solo Creator · Beta" : "Film Studio · Beta"}
+                  {solo ? "Solo Creator · Beta" : "Film Studio · Beta"}
                 </p>
               </div>
             )}
