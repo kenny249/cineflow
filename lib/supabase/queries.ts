@@ -1175,14 +1175,17 @@ export async function markAllNotificationsRead(): Promise<void> {
 }
 
 export async function createNotification(notification: {
-  user_id: string;
+  user_id?: string;
   type: string;
   title: string;
   description?: string;
   href?: string;
 }): Promise<void> {
   try {
-    const { error } = await db().from('notifications').insert(notification);
+    const client = db();
+    const user_id = notification.user_id ?? (await client.auth.getUser()).data.user?.id;
+    if (!user_id) return;
+    const { error } = await client.from('notifications').insert({ ...notification, user_id });
     if (error) throw error;
   } catch { /* fire-and-forget */ }
 }

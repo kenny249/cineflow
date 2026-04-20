@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { getProjects } from "@/lib/supabase/queries";
+import { getProjects, createNotification } from "@/lib/supabase/queries";
 import dynamic from "next/dynamic";
 import type { Contract, ContractStatus, ContractRecipientRole, Project, SignatureField } from "@/types";
 import type { FieldDropMode } from "@/components/contracts/PDFViewer";
@@ -527,6 +527,14 @@ export default function ContractsPage() {
       setSelected(updated);
       setSignModalOpen(false);
       toast.success(isSender ? "Your signature saved" : "Contract signed");
+      if (!isSender) {
+        createNotification({
+          type: "contract_signed",
+          title: `"${selected.title}" signed`,
+          description: `Signed by ${inlineSignerName.trim()}`,
+          href: "/contracts",
+        });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -636,6 +644,12 @@ export default function ContractsPage() {
       setSelected(updated);
       setInPersonOpen(false);
       toast.success("Signed! Contract is fully executed.");
+      createNotification({
+        type: "contract_signed",
+        title: `"${selected.title}" signed`,
+        description: `Signed by ${ipName.trim()}`,
+        href: "/contracts",
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save signature");
     } finally {

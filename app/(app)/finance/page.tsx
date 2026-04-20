@@ -13,7 +13,7 @@ import {
 import { toast } from "sonner";
 import {
   getInvoices, createInvoice, updateInvoice, deleteInvoice,
-  getBudgetLines, getProjects, getProfile,
+  getBudgetLines, getProjects, getProfile, createNotification,
 } from "@/lib/supabase/queries";
 import { InvoiceDocument } from "@/components/finance/InvoiceDocument";
 import type {
@@ -400,6 +400,14 @@ export default function FinancePage() {
       setInvoices((prev) => prev.map((i) => i.id === inv.id ? updated : i));
       if (viewingInvoice?.id === inv.id) setViewingInvoice(updated);
       toast.success(`Marked as ${status}.`);
+      if (status === "paid") {
+        createNotification({
+          type: "invoice_paid",
+          title: `Invoice paid${updated.invoice_number ? " · " + updated.invoice_number : ""}`,
+          description: `${updated.client_name ? updated.client_name + " · " : ""}$${(updated.amount ?? 0).toLocaleString()}`,
+          href: "/finance",
+        });
+      }
     } catch { toast.error("Failed to update."); }
   }
 

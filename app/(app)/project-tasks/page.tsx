@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { getProjects, getTeamMembers } from "@/lib/supabase/queries";
+import { getProjects, getTeamMembers, createNotification } from "@/lib/supabase/queries";
 import type { Project, ProjectTask, ProjectTaskType, TaskPriority, ProjectTaskStatus, TeamMember } from "@/types";
 import { formatDate } from "@/lib/utils";
 
@@ -161,6 +161,15 @@ export default function ProjectTasksPage() {
         if (error) throw error;
         setTasks((prev) => [data as ProjectTask, ...prev]);
         toast.success("Task created");
+        if (fAssignee.trim()) {
+          createNotification({
+            user_id: user.id,
+            type: "task_assigned",
+            title: `Task assigned to ${fAssignee.trim()}`,
+            description: fTitle.trim(),
+            href: "/project-tasks",
+          });
+        }
       }
       setDialogOpen(false);
     } catch {

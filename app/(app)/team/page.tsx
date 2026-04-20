@@ -13,6 +13,7 @@ import {
   sendTeamMessage,
   deleteTeamMessage,
   getProjects,
+  createNotification,
 } from "@/lib/supabase/queries";
 import type { TeamMember, TeamTopic, TeamMessage } from "@/types";
 import type { Project } from "@/types";
@@ -620,6 +621,28 @@ export default function TeamPage() {
     try {
       const msg = await sendTeamMessage(activeTopic.id, content);
       setMessages((prev) => [...prev, msg]);
+
+      // Fire notifications for @mentions
+      const mentionMatches = content.match(/@([\w.]+)/g);
+      if (mentionMatches) {
+        const { data: { user } } = await createClient().auth.getUser();
+        for (const mention of mentionMatches) {
+          const name = mention.slice(1).toLowerCase();
+          const mentioned = members.find(
+            (m) => m.name?.toLowerCase().replace(/\s+/g, "") === name ||
+                   m.email?.split("@")[0].toLowerCase() === name
+          );
+          if (mentioned?.user_id && mentioned.user_id !== user?.id) {
+            createNotification({
+              user_id: mentioned.user_id,
+              type: "team_mention",
+              title: `You were mentioned in #${activeTopic.name}`,
+              description: `${msg.author?.full_name ?? msg.author?.email ?? "Someone"}: ${content.slice(0, 100)}`,
+              href: "/team",
+            });
+          }
+        }
+      }
     } catch (err: any) {
       toast.error(err.message ?? "Failed to send message");
       setDraft(content);
