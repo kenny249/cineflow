@@ -1235,7 +1235,8 @@ export interface ProjectTemplate {
   name: string;
   description?: string;
   type: string;
-  phase_items: string[];
+  tasks: Array<{ title: string; priority: string }>;
+  deliverables: Array<{ label: string }>;
   tags: string[];
   created_at: string;
 }
@@ -1257,7 +1258,8 @@ export async function createProjectTemplate(template: {
   name: string;
   description?: string;
   type: string;
-  phase_items: string[];
+  tasks: Array<{ title: string; priority: string }>;
+  deliverables: Array<{ label: string }>;
   tags: string[];
 }): Promise<ProjectTemplate> {
   const client = db();

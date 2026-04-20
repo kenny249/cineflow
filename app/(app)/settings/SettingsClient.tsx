@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, ChevronDown, Tv2, Sparkles, Check } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, Tv2, Sparkles, Check, BookTemplate, Plus, Trash2, X } from "lucide-react";
 import { CinematicWallpaper } from "@/components/shared/CinematicWallpaper";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { getProfile, updateProfile } from "@/lib/supabase/queries";
+import { getProfile, updateProfile, getProjectTemplates, createProjectTemplate, deleteProjectTemplate, type ProjectTemplate } from "@/lib/supabase/queries";
 import { setDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import type { PaymentSettings } from "@/types";
@@ -794,6 +794,12 @@ export default function SettingsClient() {
             </div>
           </section>
 
+          {/* ── Project Templates ────────────────────────────────── */}
+          <section>
+            <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Project Templates</h2>
+            <ProjectTemplatesSection />
+          </section>
+
           {/* ── Danger Zone ──────────────────────────────────────── */}
           <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-red-400">Danger Zone</h2>
@@ -922,6 +928,193 @@ function PaymentSection({
       {open && (
         <div className="border-t border-border bg-muted/5 px-5 pb-5 pt-4">
           {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Project Templates section ────────────────────────────────────────────────
+
+const PRIORITY_OPTIONS = [
+  { value: "high",   label: "High" },
+  { value: "medium", label: "Medium" },
+  { value: "low",    label: "Low" },
+];
+
+function ProjectTemplatesSection() {
+  const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [tplName, setTplName] = useState("");
+  const [tplTasks, setTplTasks] = useState<Array<{ title: string; priority: string }>>([]);
+  const [tplDeliverables, setTplDeliverables] = useState<Array<{ label: string }>>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getProjectTemplates().then(setTemplates).catch(() => {});
+  }, []);
+
+  const resetForm = () => {
+    setTplName(""); setTplTasks([]); setTplDeliverables([]); setCreating(false);
+  };
+
+  const handleSave = async () => {
+    if (!tplName.trim()) return;
+    setSaving(true);
+    try {
+      const tpl = await createProjectTemplate({
+        name: tplName.trim(),
+        type: "other",
+        tasks: tplTasks.filter((t) => t.title.trim()),
+        deliverables: tplDeliverables.filter((d) => d.label.trim()),
+        tags: [],
+      });
+      setTemplates((prev) => [tpl, ...prev]);
+      resetForm();
+      toast.success("Template saved");
+    } catch {
+      toast.error("Failed to save template");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteProjectTemplate(id);
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      toast.success("Template deleted");
+    } catch {
+      toast.error("Failed to delete template");
+    }
+  };
+
+  const addTask = () => setTplTasks((prev) => [...prev, { title: "", priority: "medium" }]);
+  const addDeliverable = () => setTplDeliverables((prev) => [...prev, { label: "" }]);
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {templates.length === 0 && !creating ? (
+        <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/10">
+            <BookTemplate className="h-5 w-5 text-[#d4a853]" />
+          </div>
+          <p className="text-sm font-medium text-foreground">No templates yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">Save a project structure to reuse across future projects.</p>
+          <button
+            onClick={() => setCreating(true)}
+            className="mt-4 flex items-center gap-1.5 rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/8 px-3 py-1.5 text-xs font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" /> New Template
+          </button>
+        </div>
+      ) : (
+        <>
+          {templates.map((tpl) => (
+            <div key={tpl.id} className="flex items-center justify-between gap-3 border-b border-border px-5 py-3 last:border-0">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">{tpl.name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {tpl.tasks.length} task{tpl.tasks.length !== 1 ? "s" : ""}
+                  {tpl.deliverables.length > 0 && ` · ${tpl.deliverables.length} deliverable${tpl.deliverables.length !== 1 ? "s" : ""}`}
+                </p>
+              </div>
+              <button
+                onClick={() => handleDelete(tpl.id)}
+                className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+
+          {!creating && (
+            <div className="border-t border-border px-5 py-3">
+              <button
+                onClick={() => setCreating(true)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-[#d4a853] transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" /> New Template
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {creating && (
+        <div className="border-t border-border bg-muted/5 p-5 space-y-4">
+          <input
+            autoFocus
+            type="text"
+            placeholder="Template name (e.g. Wedding Package)"
+            value={tplName}
+            onChange={(e) => setTplName(e.target.value)}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
+          />
+
+          {/* Tasks */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Tasks</p>
+            {tplTasks.map((task, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Task title"
+                  value={task.title}
+                  onChange={(e) => setTplTasks((prev) => prev.map((t, idx) => idx === i ? { ...t, title: e.target.value } : t))}
+                  className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                />
+                <select
+                  value={task.priority}
+                  onChange={(e) => setTplTasks((prev) => prev.map((t, idx) => idx === i ? { ...t, priority: e.target.value } : t))}
+                  className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none"
+                >
+                  {PRIORITY_OPTIONS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+                <button onClick={() => setTplTasks((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-red-400 transition-colors">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+            <button onClick={addTask} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <Plus className="h-3 w-3" /> Add task
+            </button>
+          </div>
+
+          {/* Deliverables */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Deliverables</p>
+            {tplDeliverables.map((d, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. Highlight reel (4 min)"
+                  value={d.label}
+                  onChange={(e) => setTplDeliverables((prev) => prev.map((item, idx) => idx === i ? { label: e.target.value } : item))}
+                  className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                />
+                <button onClick={() => setTplDeliverables((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-red-400 transition-colors">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+            <button onClick={addDeliverable} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+              <Plus className="h-3 w-3" /> Add deliverable
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={handleSave}
+              disabled={!tplName.trim() || saving}
+              className="rounded-lg bg-[#d4a853] px-4 py-1.5 text-xs font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-40 transition-colors"
+            >
+              {saving ? "Saving…" : "Save template"}
+            </button>
+            <button onClick={resetForm} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

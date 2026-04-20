@@ -55,6 +55,7 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const tagInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,6 +82,7 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
   const applyTemplate = (tpl: ProjectTemplate) => {
     setForm((f) => ({ ...f, description: tpl.description || f.description }));
     setTags(tpl.tags ?? []);
+    setSelectedTemplate(tpl);
     toast.success(`Template "${tpl.name}" applied`);
   };
 
@@ -129,7 +131,34 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
         thumbnail_url: getCoverUrl(form.title),
       };
 
-      await createProject(projectData);
+      const newProject = await createProject(projectData);
+
+      // Seed tasks + deliverables from template
+      if (selectedTemplate) {
+        const supabaseClient = createClient();
+        const tasks = selectedTemplate.tasks.filter((t) => t.title.trim());
+        if (tasks.length > 0) {
+          await supabaseClient.from("project_tasks").insert(
+            tasks.map((t) => ({
+              project_id: newProject.id,
+              title: t.title,
+              type: "general",
+              priority: t.priority,
+              status: "todo",
+              created_by: user.id,
+            }))
+          );
+        }
+        for (const d of selectedTemplate.deliverables.filter((d) => d.label.trim())) {
+          await supabaseClient.from("project_deliverables").insert({
+            project_id: newProject.id,
+            label: d.label,
+            done: false,
+            sort_order: 0,
+          });
+        }
+      }
+
       toast.success("Project created successfully");
 
       // Reset form
@@ -142,6 +171,7 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
         due_date: "",
         progress: 0,
       });
+      setSelectedTemplate(null);
 
       onClose();
       onSuccess?.();

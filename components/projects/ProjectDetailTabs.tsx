@@ -2506,7 +2506,7 @@ export default function ProjectDetailTabs({
               className="w-full sm:w-auto text-muted-foreground hover:text-foreground"
               onClick={async () => {
                 try {
-                  await createProjectTemplate({ name: editTitle.trim() || title, description: editDescription, type: project.type, phase_items: [...checkedPhaseItems], tags: editTags });
+                  await createProjectTemplate({ name: editTitle.trim() || title, description: editDescription, type: project.type, tasks: [], deliverables: [], tags: editTags });
                   toast.success("Template saved");
                 } catch { toast.error("Failed to save template"); }
               }}
