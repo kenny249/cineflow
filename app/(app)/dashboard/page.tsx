@@ -16,6 +16,7 @@ import {
   Repeat2,
   DollarSign,
   MessageSquare,
+  Clapperboard,
 } from "lucide-react";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 
@@ -44,10 +45,11 @@ import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardParticles } from "@/components/dashboard/DashboardParticles";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
-import { getProjects, getActivityLog, getCalendarEvents, getRetainers, getInvoices } from "@/lib/supabase/queries";
+import { getProjects, getActivityLog, getCalendarEvents, getRetainers, getInvoices, updateProfile } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import type { Project, ActivityItem, CalendarEvent, Retainer, Invoice } from "@/types";
 import { isSoloPlan } from "@/types";
+import { toast } from "sonner";
 
 export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -59,6 +61,10 @@ export default function DashboardPage() {
   const [retainers, setRetainers] = useState<Retainer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [nameSetupOpen, setNameSetupOpen] = useState(false);
+  const [nameFirst, setNameFirst] = useState("");
+  const [nameLast, setNameLast] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
   );
@@ -84,9 +90,9 @@ export default function DashboardPage() {
         if (profile?.first_name || profile?.last_name) {
           setDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
         } else {
-          // No name set yet — use email username, never a random name
           const emailName = user.email?.split("@")[0] ?? "";
           if (emailName) setDisplayName(emailName);
+          setNameSetupOpen(true);
         }
       }
 
@@ -120,7 +126,22 @@ export default function DashboardPage() {
   };
 
   const handleCreateProjectSuccess = () => {
-    loadData(); // Refresh projects list
+    loadData();
+  };
+
+  const handleNameSave = async () => {
+    if (!nameFirst.trim()) return;
+    setNameSaving(true);
+    try {
+      await updateProfile({ first_name: nameFirst.trim(), last_name: nameLast.trim() || undefined });
+      setDisplayName([nameFirst.trim(), nameLast.trim()].filter(Boolean).join(" "));
+      setNameSetupOpen(false);
+      toast.success("Welcome to Cineflow!");
+    } catch {
+      toast.error("Couldn't save your name — try again.");
+    } finally {
+      setNameSaving(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -181,6 +202,48 @@ export default function DashboardPage() {
 
   return (
     <>
+      {/* ── Name setup modal (first login) ── */}
+      {nameSetupOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-sm rounded-2xl border border-[#d4a853]/20 bg-card p-6 shadow-2xl">
+            <div className="mb-5 flex flex-col items-center text-center">
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#d4a853]/20 bg-[#d4a853]/10">
+                <Clapperboard className="h-6 w-6 text-[#d4a853]" />
+              </div>
+              <h2 className="font-display text-lg font-bold text-foreground">Welcome to Cineflow</h2>
+              <p className="mt-1 text-sm text-muted-foreground">What should we call you?</p>
+            </div>
+            <div className="space-y-3">
+              <input
+                autoFocus
+                type="text"
+                placeholder="First name"
+                value={nameFirst}
+                onChange={(e) => setNameFirst(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleNameSave()}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
+              />
+              <input
+                type="text"
+                placeholder="Last name (optional)"
+                value={nameLast}
+                onChange={(e) => setNameLast(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleNameSave()}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
+              />
+            </div>
+            <button
+              onClick={handleNameSave}
+              disabled={!nameFirst.trim() || nameSaving}
+              className="mt-4 w-full rounded-xl bg-[#d4a853] py-2.5 text-sm font-bold text-black transition hover:bg-[#d4a853]/90 disabled:opacity-40"
+            >
+              {nameSaving ? "Saving…" : "Let's go"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <CreateProjectModal open={modalOpen} onClose={() => setModalOpen(false)} onSuccess={handleCreateProjectSuccess} />
 
       <div className="relative flex h-full flex-col overflow-y-auto custom-scrollbar">
