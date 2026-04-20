@@ -1158,16 +1158,16 @@ export default function ReviewPage() {
                         </button>
                       </div>
                     )}
-                    {/* Mobile floating notes button — always visible on video */}
+                    {/* Mobile floating notes button */}
                     <button
-                      className="md:hidden absolute top-3 right-3 z-10 flex items-center gap-2 rounded-full bg-black/60 border border-white/10 backdrop-blur-sm px-3.5 py-2 active:scale-95 transition-transform"
+                      className="md:hidden absolute bottom-4 right-4 z-10 flex items-center gap-2 rounded-full bg-[#d4a853] px-5 py-3 shadow-lg shadow-black/50 active:scale-95 transition-transform"
                       onClick={() => {
                         if (videoRef.current && isPlaying) videoRef.current.pause();
                         setNotesSheetOpen(true);
                       }}
                     >
-                      <MessageSquare className="h-4 w-4 text-[#d4a853]" />
-                      <span className="text-xs font-semibold text-white">
+                      <MessageSquare className="h-5 w-5 text-black" />
+                      <span className="text-sm font-bold text-black">
                         {(activeRevision.comments?.length ?? 0) > 0
                           ? `Notes (${activeRevision.comments!.length})`
                           : "Add Note"}
