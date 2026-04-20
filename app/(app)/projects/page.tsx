@@ -327,6 +327,9 @@ function ProjectsPageInner() {
             <PipelineView
               projects={filtered}
               onNew={() => setModalOpen(true)}
+              onStatusChange={(id, status) =>
+                setProjects((prev) => prev.map((p) => p.id === id ? { ...p, status } : p))
+              }
             />
           ) : (
             <ListView
@@ -419,7 +422,7 @@ const PIPELINE_COLUMNS: { status: ProjectStatus; label: string }[] = [
   { status: "delivered", label: "Delivered" },
 ];
 
-function PipelineView({ projects: initialProjects, onNew }: { projects: Project[]; onNew: () => void }) {
+function PipelineView({ projects: initialProjects, onNew, onStatusChange }: { projects: Project[]; onNew: () => void; onStatusChange?: (id: string, status: ProjectStatus) => void }) {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overStatus, setOverStatus] = useState<ProjectStatus | null>(null);
@@ -443,18 +446,19 @@ function PipelineView({ projects: initialProjects, onNew }: { projects: Project[
   async function handleDrop(e: React.DragEvent, status: ProjectStatus) {
     e.preventDefault();
     setOverStatus(null);
-    if (!draggingId) return;
-    const project = projects.find((p) => p.id === draggingId);
+    const id = draggingId;
+    if (!id) return;
+    const project = projects.find((p) => p.id === id);
     if (!project || project.status === status) { setDraggingId(null); return; }
-    // Optimistic update
-    setProjects((prev) => prev.map((p) => p.id === draggingId ? { ...p, status } : p));
+    const prevStatus = project.status;
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, status } : p));
     setDraggingId(null);
     try {
-      await updateProject(draggingId, { status });
+      await updateProject(id, { status });
+      onStatusChange?.(id, status);
       toast.success(`Moved to ${PIPELINE_COLUMNS.find((c) => c.status === status)?.label}`);
     } catch {
-      // Rollback
-      setProjects((prev) => prev.map((p) => p.id === draggingId ? { ...p, status: project.status } : p));
+      setProjects((prev) => prev.map((p) => p.id === id ? { ...p, status: prevStatus } : p));
       toast.error("Failed to update status");
     }
   }
