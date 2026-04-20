@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Plus, Link2, Trash2, ChevronDown, ChevronRight,
   ClipboardList, CheckCircle2, Loader2, Eye,
-  User, Mail, Calendar, MoreHorizontal, Pencil, ImagePlus,
+  User, Mail, Calendar, MoreHorizontal, Pencil, ImagePlus, Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -99,9 +99,35 @@ function FormRow({
   const [responses, setResponses] = useState<FormResponse[] | null>(null);
   const [loadingResponses, setLoadingResponses] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendEmail, setSendEmail] = useState("");
+  const [sendName, setSendName] = useState("");
+  const [sending, setSending] = useState(false);
 
   const responseCount = form._responseCount ?? 0;
   const getFormUrl = () => `https://usecineflow.com/forms/${form.token}`;
+
+  const handleSend = async () => {
+    if (!sendEmail.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/forms/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form_id: form.id, to_email: sendEmail.trim(), to_name: sendName.trim() || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to send");
+      toast.success(`Form sent to ${sendEmail.trim()}`);
+      setSendOpen(false);
+      setSendEmail("");
+      setSendName("");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to send form");
+    } finally {
+      setSending(false);
+    }
+  };
 
   const loadResponses = async () => {
     if (responses !== null) { setResponsesOpen(true); return; }
@@ -165,6 +191,14 @@ function FormRow({
             </button>
             <button
               type="button"
+              onClick={() => { setSendOpen((v) => !v); setResponsesOpen(false); }}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              <Send className="h-3 w-3" />
+              <span className="hidden sm:inline">Send</span>
+            </button>
+            <button
+              type="button"
               onClick={copyLink}
               className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors"
             >
@@ -216,6 +250,54 @@ function FormRow({
           </div>
         </div>
       </div>
+
+      {/* Send slide-down */}
+      {sendOpen && (
+        <div className="rounded-xl border border-border bg-muted/20 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <Send className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-sm font-semibold text-foreground">Send form by email</p>
+            </div>
+            <button type="button" onClick={() => setSendOpen(false)} className="text-muted-foreground hover:text-foreground">
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Client email *</label>
+                <Input
+                  type="email"
+                  placeholder="client@example.com"
+                  value={sendEmail}
+                  onChange={(e) => setSendEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Client name (optional)</label>
+                <Input
+                  type="text"
+                  placeholder="Jane Smith"
+                  value={sendName}
+                  onChange={(e) => setSendName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setSendOpen(false)}>Cancel</Button>
+              <Button variant="gold" size="sm" onClick={handleSend} disabled={sending || !sendEmail.trim()}>
+                {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                Send form
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Responses slide-down */}
       {responsesOpen && responses !== null && (

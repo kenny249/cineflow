@@ -1192,6 +1192,12 @@ export default function ProjectDetailTabs({
             <span className="text-foreground font-medium truncate">{project.title}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
+            {isAdmin && (
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setActiveTab("finance")}>
+                <span className="hidden sm:inline">Invoice</span>
+                <span className="sm:hidden">$</span>
+              </Button>
+            )}
             {canEdit && (
               <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={openEditDialog}>
                 <Edit3 className="h-3 w-3" />
