@@ -121,17 +121,38 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     }
   }, [theme]);
 
-  // Global ⌘K / Ctrl+K listener
+  // Global keyboard shortcuts
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const editing = tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable;
+
+      // ⌘K / Ctrl+K — command palette (always)
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setPaletteOpen(true);
+        return;
+      }
+      // ⌘, — settings (always)
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        router.push("/settings");
+        return;
+      }
+      // ⌘\ — toggle sidebar (always)
+      if ((e.metaKey || e.ctrlKey) && e.key === "\\") {
+        e.preventDefault();
+        setCollapsed(!collapsed);
+        return;
+      }
+      // ? — show shortcuts hint (not in text fields)
+      if (!editing && e.key === "?") {
+        toast.info("Shortcuts: ⌘K command palette · ⌘, settings · ⌘\\ sidebar", { duration: 3000 });
       }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, []);
+  }, [router]);
 
   const handleSignOut = async () => {
     const { error } = await createClient().auth.signOut();

@@ -697,10 +697,20 @@ export default function ContractsPage() {
           {loading ? (
             <p className="p-4 text-xs text-muted-foreground">Loading…</p>
           ) : contracts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
-              <FileSignature className="h-8 w-8 text-muted-foreground/30" />
-              <p className="text-xs text-muted-foreground">No contracts yet.</p>
-              <button onClick={openNew} className="text-xs text-[#d4a853] hover:underline">Create your first</button>
+            <div className="flex flex-col items-center justify-center gap-4 p-8 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-muted/20">
+                <FileSignature className="h-6 w-6 text-muted-foreground/30" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">No contracts yet</p>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">Create your first contract to send for e-signature.</p>
+              </div>
+              <button
+                onClick={openNew}
+                className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
+              >
+                New Contract
+              </button>
             </div>
           ) : (() => {
             const groups: { key: string; label: string; contracts: Contract[] }[] = [];
