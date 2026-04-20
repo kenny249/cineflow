@@ -14,6 +14,8 @@ import {
   Film,
   Camera,
   Repeat2,
+  DollarSign,
+  MessageSquare,
 } from "lucide-react";
 import { ProjectCard } from "@/components/projects/ProjectCard";
 
@@ -42,9 +44,9 @@ import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { DashboardParticles } from "@/components/dashboard/DashboardParticles";
 import { CreateProjectModal } from "@/components/projects/CreateProjectModal";
-import { getProjects, getActivityLog, getCalendarEvents, getRetainers } from "@/lib/supabase/queries";
+import { getProjects, getActivityLog, getCalendarEvents, getRetainers, getInvoices } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
-import type { Project, ActivityItem, CalendarEvent, Retainer } from "@/types";
+import type { Project, ActivityItem, CalendarEvent, Retainer, Invoice } from "@/types";
 import { isSoloPlan } from "@/types";
 
 export default function DashboardPage() {
@@ -55,6 +57,7 @@ export default function DashboardPage() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [retainers, setRetainers] = useState<Retainer[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [displayName, setDisplayName] = useState("Early Tester");
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
@@ -95,6 +98,12 @@ export default function DashboardPage() {
       } catch {
         // retainers table may not exist yet
       }
+      try {
+        const invoicesData = await getInvoices();
+        setInvoices(invoicesData);
+      } catch {
+        // invoices table may not exist yet
+      }
       const activityData = await getActivityLog(10);
       setActivity(activityData);
       try {
@@ -128,6 +137,18 @@ export default function DashboardPage() {
   })();
 
   const solo = isSoloPlan(plan);
+
+  // Revenue metrics
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const thisMonthInvoiced = invoices
+    .filter((inv) => new Date(inv.created_at) >= monthStart && inv.status !== "draft")
+    .reduce((s, inv) => s + (inv.amount ?? 0), 0);
+  const outstanding = invoices
+    .filter((inv) => inv.status === "sent" || inv.status === "overdue" || inv.status === "partial")
+    .reduce((s, inv) => s + (inv.amount ?? 0), 0);
+
+  const reviewProjects = projects.filter((p) => p.status === "review");
+
   const activeProjects = projects.filter(
     (p) => p.status !== "archived" && p.status !== "cancelled" && p.status !== "delivered"
   );
@@ -375,6 +396,73 @@ export default function DashboardPage() {
                           )}
                         </div>
                         <ArrowUpRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Finance widget */}
+              {invoices.length > 0 && (
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
+                      <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                      Finance
+                    </h2>
+                    <Link href="/finance" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
+                      View all <ArrowUpRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-xl border border-border bg-card p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-[10px] text-muted-foreground">This month</span>
+                      </div>
+                      <p className="font-display text-lg font-bold text-foreground">
+                        ${thisMonthInvoiced.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border bg-card p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="h-3.5 w-3.5 text-amber-400" />
+                        <span className="text-[10px] text-muted-foreground">Outstanding</span>
+                      </div>
+                      <p className="font-display text-lg font-bold text-foreground">
+                        ${outstanding.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {/* Review queue widget */}
+              {reviewProjects.length > 0 && (
+                <section>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
+                      <span className="h-3 w-0.5 rounded-full bg-amber-400" />
+                      Awaiting Feedback
+                    </h2>
+                    <Link href="/projects" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
+                      View all <ArrowUpRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+                  <div className="rounded-xl border border-border bg-card divide-y divide-border">
+                    {reviewProjects.slice(0, 4).map((p) => (
+                      <Link
+                        key={p.id}
+                        href={`/projects/${p.id}`}
+                        className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 first:rounded-t-xl last:rounded-b-xl"
+                      >
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-400/10">
+                          <MessageSquare className="h-3.5 w-3.5 text-amber-400" />
+                        </div>
+                        <p className="min-w-0 flex-1 truncate text-xs font-medium text-foreground group-hover:text-[#d4a853] transition-colors">
+                          {p.title}
+                        </p>
+                        <ArrowUpRight className="h-3 w-3 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
                       </Link>
                     ))}
                   </div>

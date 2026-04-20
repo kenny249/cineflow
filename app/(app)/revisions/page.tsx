@@ -1028,7 +1028,13 @@ export default function ReviewPage() {
           ) : (
             <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
               {displayedRevisions.length === 0 ? (
-                <p className="py-16 text-center text-sm text-muted-foreground">No cuts in this status</p>
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border bg-card">
+                    <Film className="h-5 w-5 text-muted-foreground/30" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">No cuts in this status</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Try switching the filter above to see other cuts</p>
+                </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
                   {displayedRevisions.map((revision) => (
