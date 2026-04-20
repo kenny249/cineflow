@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   Play, Pause, Volume2, VolumeX, Maximize, Download,
   CheckCircle2, Circle, MessageSquare, Send, X, Package,
@@ -116,7 +117,7 @@ function ApproveModal({
       setTimeout(() => { onSuccess(); onClose(); }, 1800);
     } catch {
       setSubmitting(false);
-      alert("Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
     }
   }
 
@@ -231,7 +232,7 @@ function RequestChangesModal({
       setTimeout(() => { onSuccess(); onClose(); }, 2000);
     } catch {
       setSubmitting(false);
-      alert("Something went wrong. Please try again.");
+      toast.error("Something went wrong. Please try again.");
     }
   }
 
@@ -398,7 +399,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
       );
       setCommentDraft(""); setNoteTs(null);
     } catch {
-      alert("Couldn't submit your note. Please try again.");
+      toast.error("Couldn't submit your note. Please try again.");
     } finally {
       setSubmittingComment(false);
     }
@@ -434,7 +435,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      alert("Download failed. Please try again.");
+      toast.error("Download failed. Please try again.");
     }
   }
 
