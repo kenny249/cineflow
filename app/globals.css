@@ -131,6 +131,11 @@
     animation: silver-sweep 3s linear infinite;
   }
 
+  /* Shared form input style */
+  .input-style {
+    @apply w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30;
+  }
+
   /* Gold shimmer skeleton for loading states */
   @keyframes shimmer-gold {
     0%   { background-position: -200% center; }

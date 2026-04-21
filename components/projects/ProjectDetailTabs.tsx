@@ -16,7 +16,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText } from "lucide-react";
+import { CallSheetGenerator } from "@/components/call-sheet/CallSheetGenerator";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -615,6 +616,7 @@ export default function ProjectDetailTabs({
   // ── Shot list sub-mode (shots / storyboard) ──
   const [shotListSubMode, setShotListSubMode] = useState<"shots" | "storyboard">("shots");
   const [showShootDays, setShowShootDays] = useState(false);
+  const [callSheetOpen, setCallSheetOpen] = useState(false);
 
   // ── Inline video player state ──
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
@@ -1198,6 +1200,15 @@ export default function ProjectDetailTabs({
                 <span className="sm:hidden">$</span>
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10"
+              onClick={() => setCallSheetOpen(true)}
+            >
+              <FileText className="h-3 w-3" />
+              <span className="hidden sm:inline">Call Sheet</span>
+            </Button>
             {canEdit && (
               <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={openEditDialog}>
                 <Edit3 className="h-3 w-3" />
@@ -1208,6 +1219,10 @@ export default function ProjectDetailTabs({
               <MoreHorizontal className="h-4 w-4" />
             </Button>
           </div>
+
+          {callSheetOpen && (
+            <CallSheetGenerator project={project} onClose={() => setCallSheetOpen(false)} />
+          )}
         </div>
 
         <div className="relative h-28 sm:h-36 w-full overflow-hidden" data-cover>
