@@ -119,7 +119,7 @@ function LineItemsBuilder({
             value={li.description}
             onChange={(e) => update(li.id, "description", e.target.value)}
             placeholder="Service or deliverable"
-            className="q-input"
+            className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors"
           />
           <input
             value={li.quantity}
@@ -127,7 +127,7 @@ function LineItemsBuilder({
             type="number"
             min="0"
             step="0.5"
-            className="q-input text-center"
+            className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-center text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors"
           />
           <input
             value={li.rate}
@@ -136,7 +136,7 @@ function LineItemsBuilder({
             min="0"
             step="50"
             placeholder="0"
-            className="q-input text-right"
+            className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors text-right"
           />
           <button
             type="button"
@@ -182,7 +182,7 @@ function PackageCard({
           value={pkg.name}
           onChange={(e) => onChange({ ...pkg, name: e.target.value })}
           placeholder={`Package ${index + 1}`}
-          className="q-input flex-1 font-semibold"
+          className="flex-1 rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors font-semibold"
         />
         <button
           type="button"
@@ -207,7 +207,7 @@ function PackageCard({
         value={pkg.description}
         onChange={(e) => onChange({ ...pkg, description: e.target.value })}
         placeholder="Short package description (shown to client)"
-        className="q-input text-sm text-muted-foreground"
+        className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-muted-foreground placeholder:text-muted-foreground/60 outline-none focus:border-[#d4a853]/50 transition-colors"
       />
       <LineItemsBuilder
         items={pkg.line_items}
@@ -363,21 +363,21 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
           <div className="px-6 py-4 grid grid-cols-2 gap-3">
             <p className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Client</p>
             <div>
-              <label className="q-label">Client / Company name *</label>
-              <input value={form.client_name} onChange={(e) => set("client_name", e.target.value)} placeholder="Meridian Films" className="q-input" required />
+              <label className="block text-[11px] font-medium text-muted-foreground mb-1">Client / Company name *</label>
+              <input value={form.client_name} onChange={(e) => set("client_name", e.target.value)} placeholder="Meridian Films" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" required />
             </div>
             <div>
-              <label className="q-label">Client email</label>
-              <input value={form.client_email} onChange={(e) => set("client_email", e.target.value)} type="email" placeholder="client@company.com" className="q-input" />
+              <label className="block text-[11px] font-medium text-muted-foreground mb-1">Client email</label>
+              <input value={form.client_email} onChange={(e) => set("client_email", e.target.value)} type="email" placeholder="client@company.com" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
             </div>
             <div>
-              <label className="q-label">Quote #</label>
-              <input value={form.quote_number} onChange={(e) => set("quote_number", e.target.value)} className="q-input font-mono" />
+              <label className="block text-[11px] font-medium text-muted-foreground mb-1">Quote #</label>
+              <input value={form.quote_number} onChange={(e) => set("quote_number", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors font-mono" />
             </div>
             <div>
-              <label className="q-label">Link to project (optional)</label>
+              <label className="block text-[11px] font-medium text-muted-foreground mb-1">Link to project (optional)</label>
               <div className="relative">
-                <select value={form.project_id} onChange={(e) => set("project_id", e.target.value)} className="q-input appearance-none pr-8">
+                <select value={form.project_id} onChange={(e) => set("project_id", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors appearance-none pr-8">
                   <option value="">No project</option>
                   {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
                 </select>
@@ -385,8 +385,8 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
               </div>
             </div>
             <div className="col-span-2">
-              <label className="q-label">One-line description</label>
-              <input value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="e.g. 90-second brand film for product launch" className="q-input" />
+              <label className="block text-[11px] font-medium text-muted-foreground mb-1">One-line description</label>
+              <input value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="e.g. 90-second brand film for product launch" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
             </div>
           </div>
 
@@ -398,7 +398,7 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
               onChange={(e) => set("scope_of_work", e.target.value)}
               rows={4}
               placeholder="Describe the project scope, deliverables, and any important details the client should know before reviewing pricing..."
-              className="q-input resize-none text-sm leading-relaxed"
+              className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors resize-none leading-relaxed"
             />
           </div>
 
@@ -428,12 +428,12 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
                   <LineItemsBuilder items={form.line_items} onChange={(items) => set("line_items", items)} />
                   <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
                     <div>
-                      <label className="q-label">Discount ($)</label>
-                      <input value={form.discount} onChange={(e) => set("discount", e.target.value)} type="number" min="0" step="50" placeholder="0" className="q-input" />
+                      <label className="block text-[11px] font-medium text-muted-foreground mb-1">Discount ($)</label>
+                      <input value={form.discount} onChange={(e) => set("discount", e.target.value)} type="number" min="0" step="50" placeholder="0" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                     </div>
                     <div>
-                      <label className="q-label">Tax rate (%)</label>
-                      <input value={form.tax_rate} onChange={(e) => set("tax_rate", e.target.value)} type="number" min="0" max="50" step="0.5" placeholder="0" className="q-input" />
+                      <label className="block text-[11px] font-medium text-muted-foreground mb-1">Tax rate (%)</label>
+                      <input value={form.tax_rate} onChange={(e) => set("tax_rate", e.target.value)} type="number" min="0" max="50" step="0.5" placeholder="0" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                     </div>
                   </div>
                   <div className="space-y-1 rounded-xl border border-border bg-card px-4 py-3 text-sm">
@@ -472,12 +472,12 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Retainer details</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="q-label">Monthly rate ($)</label>
-                  <input value={form.monthly_rate} onChange={(e) => set("monthly_rate", e.target.value)} type="number" min="0" step="100" placeholder="3500" className="q-input" />
+                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">Monthly rate ($)</label>
+                  <input value={form.monthly_rate} onChange={(e) => set("monthly_rate", e.target.value)} type="number" min="0" step="100" placeholder="3500" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                 </div>
                 <div>
-                  <label className="q-label">Contract length (months)</label>
-                  <input value={form.retainer_months} onChange={(e) => set("retainer_months", e.target.value)} type="number" min="1" max="24" placeholder="3" className="q-input" />
+                  <label className="block text-[11px] font-medium text-muted-foreground mb-1">Contract length (months)</label>
+                  <input value={form.retainer_months} onChange={(e) => set("retainer_months", e.target.value)} type="number" min="1" max="24" placeholder="3" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                 </div>
               </div>
               {form.monthly_rate && (
@@ -490,11 +490,11 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
                 </div>
               )}
               <div className="space-y-2">
-                <p className="q-label">Monthly deliverables</p>
+                <p className="block text-[11px] font-medium text-muted-foreground mb-1">Monthly deliverables</p>
                 {form.retainer_deliverables.map((d) => (
                   <div key={d.id} className="grid grid-cols-[1fr_60px_24px] gap-1.5">
-                    <input value={d.label} onChange={(e) => updateDeliverable(d.id, "label", e.target.value)} placeholder="Short-form videos" className="q-input" />
-                    <input value={d.quantity} onChange={(e) => updateDeliverable(d.id, "quantity", e.target.value)} type="number" min="1" className="q-input text-center" />
+                    <input value={d.label} onChange={(e) => updateDeliverable(d.id, "label", e.target.value)} placeholder="Short-form videos" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
+                    <input value={d.quantity} onChange={(e) => updateDeliverable(d.id, "quantity", e.target.value)} type="number" min="1" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-center text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                     <button type="button" onClick={() => removeDeliverable(d.id)} disabled={form.retainer_deliverables.length === 1} className="flex items-center justify-center text-muted-foreground/40 hover:text-red-400 disabled:opacity-20 transition-colors">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -511,21 +511,21 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
           <div className="px-6 py-4 grid grid-cols-2 gap-3">
             <p className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Terms</p>
             <div>
-              <label className="q-label">Payment terms</label>
+              <label className="block text-[11px] font-medium text-muted-foreground mb-1">Payment terms</label>
               <div className="relative">
-                <select value={form.payment_terms} onChange={(e) => set("payment_terms", e.target.value as PaymentTerms)} className="q-input appearance-none pr-8">
+                <select value={form.payment_terms} onChange={(e) => set("payment_terms", e.target.value as PaymentTerms)} className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors appearance-none pr-8">
                   {PAYMENT_TERMS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               </div>
             </div>
             <div>
-              <label className="q-label">Valid until</label>
-              <input value={form.valid_until} onChange={(e) => set("valid_until", e.target.value)} type="date" className="q-input" />
+              <label className="block text-[11px] font-medium text-muted-foreground mb-1">Valid until</label>
+              <input value={form.valid_until} onChange={(e) => set("valid_until", e.target.value)} type="date" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
             </div>
             <div className="col-span-2">
-              <label className="q-label">Internal notes (not shown to client)</label>
-              <textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Margin targets, negotiation room, etc." className="q-input resize-none text-sm" />
+              <label className="block text-[11px] font-medium text-muted-foreground mb-1">Internal notes (not shown to client)</label>
+              <textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Margin targets, negotiation room, etc." className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors resize-none" />
             </div>
           </div>
 
@@ -544,17 +544,6 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
           </div>
         </form>
       </div>
-
-      <style jsx>{`
-        .q-label { display: block; font-size: 11px; font-weight: 500; color: var(--muted-foreground); margin-bottom: 4px; }
-        .q-input {
-          width: 100%; border-radius: 8px; border: 1px solid hsl(var(--border));
-          background: hsl(var(--background)); padding: 7px 10px; font-size: 13px;
-          color: hsl(var(--foreground)); outline: none; transition: border-color 0.15s;
-        }
-        .q-input:focus { border-color: rgba(212,168,83,0.5); }
-        .q-input::placeholder { color: hsl(var(--muted-foreground)); }
-      `}</style>
     </div>
   );
 }
