@@ -244,6 +244,15 @@ function PrintSheet({
       {/* ── Shooting Schedule ── */}
       <div style={{ marginBottom: 14 }}>
         <SectionHeader>Shooting Schedule</SectionHeader>
+        {/* Legend — above the table */}
+        <div style={{ display: "flex", gap: 14, marginBottom: 8, flexWrap: "wrap" }}>
+          {(Object.entries(ROW_DOT) as [ScheduleItem["type"], string][]).map(([type, color]) => (
+            <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 8, color: "#6b7280" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />
+              {TYPE_LABEL[type]}
+            </span>
+          ))}
+        </div>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
           <thead>
             <tr style={{ background: "#111", color: "#fff" }}>
@@ -267,14 +276,6 @@ function PrintSheet({
             ))}
           </tbody>
         </table>
-        <div style={{ display: "flex", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
-          {(Object.entries(ROW_DOT) as [ScheduleItem["type"], string][]).map(([type, color]) => (
-            <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 8, color: "#6b7280" }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />
-              {TYPE_LABEL[type]}
-            </span>
-          ))}
-        </div>
       </div>
 
       {/* ── Director's Note ── */}
@@ -378,11 +379,43 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
     }
   };
 
-  const handleSavePDF = () => {
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const handleSavePDF = async () => {
+    if (!sheet) return;
+    setPdfLoading(true);
+    try {
+      const res = await fetch("/api/call-sheet/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project, profile, formData, crew, locations, sheet }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "PDF generation failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `call-sheet-${project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Call sheet downloaded");
+    } catch (err: any) {
+      toast.error(err.message ?? "Failed to generate PDF");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handlePrint = () => {
     const portalEl = document.getElementById("call-sheet-print-portal");
-    if (!portalEl) { toast.error("No call sheet to export"); return; }
+    if (!portalEl) { toast.error("No call sheet to print"); return; }
     const printWin = window.open("", "_blank", "width=900,height=700");
-    if (!printWin) { toast.error("Allow popups for this site to save as PDF"); return; }
+    if (!printWin) { toast.error("Allow popups for this site to print"); return; }
     printWin.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8"/>
       <title>Call Sheet — ${project.title}</title>
@@ -495,12 +528,21 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
             </button>
           )}
           {step === 5 && (
-            <button
-              onClick={handleSavePDF}
-              className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 transition-colors"
-            >
-              <Printer className="h-4 w-4" /> Save as PDF
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+              >
+                <Printer className="h-4 w-4" /> Print
+              </button>
+              <button
+                onClick={handleSavePDF}
+                disabled={pdfLoading}
+                className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-50 transition-colors"
+              >
+                {pdfLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><FileText className="h-4 w-4" /> Save as PDF</>}
+              </button>
+            </div>
           )}
         </div>
       </div>
