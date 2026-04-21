@@ -197,6 +197,9 @@ export default function ProjectDetailTabs({
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description ?? "");
   const [status, setStatus] = useState<Project["status"]>(project.status);
+  const [deliveryPlatform, setDeliveryPlatform] = useState(project.delivery_platform ?? "");
+  const [deliveryUrl, setDeliveryUrl] = useState(project.delivery_url ?? "");
+  const [deliverySaving, setDeliverySaving] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const currentPhaseId = STATUS_TO_PHASE[status] ?? "pre_prod";
   const currentPhaseIndex = PROD_PHASES.findIndex((p) => p.id === currentPhaseId);
@@ -1031,6 +1034,22 @@ export default function ProjectDetailTabs({
     }
   };
 
+  const handleSaveDelivery = async () => {
+    if (!deliveryUrl.trim() && !deliveryPlatform) return;
+    setDeliverySaving(true);
+    try {
+      await updateProject(project.id, {
+        delivery_platform: deliveryPlatform || undefined,
+        delivery_url: deliveryUrl.trim() || undefined,
+      });
+      toast.success("Delivery link saved");
+    } catch {
+      toast.error("Failed to save delivery link");
+    } finally {
+      setDeliverySaving(false);
+    }
+  };
+
   const openEditDialog = () => {
     setEditTitle(title);
     setEditDescription(description);
@@ -1625,6 +1644,68 @@ export default function ProjectDetailTabs({
                           <span className="text-xs text-foreground font-medium">{detail.value}</span>
                         </div>
                       ))}
+                    </div>
+                  </section>
+
+                  {/* ── Delivered Via ── */}
+                  <section>
+                    <h3 className="mb-2 font-display text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <ExternalLink className="h-3.5 w-3.5 text-[#d4a853]" />
+                      Delivered Via
+                    </h3>
+                    <div className="rounded-xl border border-border bg-card p-3 space-y-2.5">
+                      {deliveryUrl && !canEdit ? (
+                        <a
+                          href={deliveryUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm font-medium text-[#d4a853] hover:underline"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                          {deliveryPlatform || "View delivery"}
+                        </a>
+                      ) : canEdit ? (
+                        <>
+                          <div>
+                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Platform</p>
+                            <select
+                              value={deliveryPlatform}
+                              onChange={(e) => setDeliveryPlatform(e.target.value)}
+                              className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                            >
+                              <option value="">Select platform…</option>
+                              {["Google Drive", "Dropbox", "Frame.io", "Vimeo", "WeTransfer", "Wetransfer Pro", "Drive", "Custom"].map((p) => (
+                                <option key={p} value={p}>{p}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Link</p>
+                            <input
+                              type="url"
+                              placeholder="https://…"
+                              value={deliveryUrl}
+                              onChange={(e) => setDeliveryUrl(e.target.value)}
+                              className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                            />
+                          </div>
+                          {deliveryUrl && (
+                            <a href={deliveryUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[10px] text-[#d4a853] hover:underline">
+                              <ExternalLink className="h-3 w-3" /> Preview link
+                            </a>
+                          )}
+                          <button
+                            onClick={handleSaveDelivery}
+                            disabled={deliverySaving || (!deliveryUrl.trim() && !deliveryPlatform)}
+                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#d4a853]/10 border border-[#d4a853]/20 px-3 py-1.5 text-xs font-semibold text-[#d4a853] hover:bg-[#d4a853]/20 disabled:opacity-40 transition-colors"
+                          >
+                            {deliverySaving ? <span className="h-3 w-3 animate-spin rounded-full border border-[#d4a853]/40 border-t-[#d4a853]" /> : <Save className="h-3 w-3" />}
+                            Save delivery link
+                          </button>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No delivery link set.</p>
+                      )}
                     </div>
                   </section>
                 </div>

@@ -18,7 +18,7 @@ import {
 import { InvoiceDocument } from "@/components/finance/InvoiceDocument";
 import type {
   Invoice, InvoiceStatus, BudgetLine, Project, Profile,
-  PaymentTerms,
+  PaymentTerms, PaymentInstallment,
 } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -69,6 +69,8 @@ interface InvoiceFormState {
   line_items: LineItemForm[];
   tax_rate: string;
   payment_terms: PaymentTerms;
+  use_payment_schedule: boolean;
+  payment_schedule: PaymentInstallment[];
 }
 
 const EMPTY_LINE: () => LineItemForm = () => ({
@@ -78,10 +80,20 @@ const EMPTY_LINE: () => LineItemForm = () => ({
   rate: "",
 });
 
+const mkInstallment = (label: string, pct: number, total: number, due: string = ""): PaymentInstallment => ({
+  id: Math.random().toString(36).slice(2),
+  label,
+  amount: Math.round(total * pct * 100) / 100,
+  due_date: due,
+  status: "unpaid",
+});
+
 const EMPTY_FORM: InvoiceFormState = {
   invoice_number: "", client_name: "", client_email: "", description: "", status: "draft",
   invoice_date: "", due_date: "", paid_date: "", notes: "", project_id: "",
   line_items: [EMPTY_LINE()], tax_rate: "0", payment_terms: "net30",
+  use_payment_schedule: false,
+  payment_schedule: [],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -296,6 +308,8 @@ export default function FinancePage() {
       line_items: lineItems,
       tax_rate: String(inv.tax_rate ?? 0),
       payment_terms: inv.payment_terms ?? "net30",
+      use_payment_schedule: !!(inv.payment_schedule && inv.payment_schedule.length > 0),
+      payment_schedule: inv.payment_schedule ?? [],
     });
     setEditingId(inv.id);
     setShowForm(true);
@@ -335,6 +349,9 @@ export default function FinancePage() {
         line_items: lineItems.length > 0 ? lineItems : undefined,
         tax_rate: parseFloat(form.tax_rate) || 0,
         payment_terms: form.payment_terms,
+        payment_schedule: form.use_payment_schedule && form.payment_schedule.length > 0
+          ? form.payment_schedule
+          : undefined,
       };
 
       let savedId: string;
@@ -377,6 +394,30 @@ export default function FinancePage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function markInstallmentPaid(inv: Invoice, installmentId: string) {
+    const schedule = (inv.payment_schedule ?? []).map((inst) =>
+      inst.id === installmentId
+        ? { ...inst, status: "paid" as const, paid_at: new Date().toISOString() }
+        : inst
+    );
+    const totalPaid = schedule
+      .filter((i) => i.status === "paid")
+      .reduce((s, i) => s + i.amount, 0);
+    const allPaid = schedule.every((i) => i.status === "paid");
+    const updates: Partial<Invoice> = {
+      payment_schedule: schedule,
+      amount_paid: totalPaid,
+      status: allPaid ? "paid" : totalPaid > 0 ? "partial" : inv.status,
+    };
+    if (allPaid) updates.paid_date = new Date().toISOString().split("T")[0];
+    try {
+      const updated = await updateInvoice(inv.id, updates);
+      setInvoices((prev) => prev.map((i) => i.id === inv.id ? updated : i));
+      if (viewingInvoice?.id === inv.id) setViewingInvoice(updated);
+      toast.success(allPaid ? "Invoice fully paid!" : "Installment marked paid");
+    } catch { toast.error("Failed to update installment"); }
   }
 
   async function handleDelete(id: string) {
@@ -528,6 +569,7 @@ export default function FinancePage() {
                           key={inv.id} inv={inv}
                           onEdit={openEditForm} onDelete={handleDelete}
                           onQuickStatus={quickStatus} onView={setViewingInvoice}
+                          onMarkInstallmentPaid={markInstallmentPaid}
                           deletingId={deletingId} projects={projects}
                         />
                       ))}
@@ -547,6 +589,7 @@ export default function FinancePage() {
                       key={inv.id} inv={inv}
                       onEdit={openEditForm} onDelete={handleDelete}
                       onQuickStatus={quickStatus} onView={setViewingInvoice}
+                      onMarkInstallmentPaid={markInstallmentPaid}
                       deletingId={deletingId} projects={projects}
                     />
                   ))
@@ -819,6 +862,106 @@ export default function FinancePage() {
                 </div>
               </div>
 
+              {/* ── Section: Payment Schedule ── */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="fin-section-label" style={{ marginBottom: 0 }}>Payment Schedule</p>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                    <span>Split into payments</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const enabling = !form.use_payment_schedule;
+                        if (enabling && form.payment_schedule.length === 0) {
+                          const half = Math.round(total * 0.5 * 100) / 100;
+                          setForm((f) => ({
+                            ...f,
+                            use_payment_schedule: true,
+                            payment_schedule: [
+                              mkInstallment("Deposit (50%)", 0.5, total),
+                              mkInstallment("Balance on Delivery (50%)", 0.5, total),
+                            ],
+                          }));
+                        } else {
+                          setForm((f) => ({ ...f, use_payment_schedule: enabling }));
+                        }
+                      }}
+                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${form.use_payment_schedule ? "bg-[#d4a853]" : "bg-muted"}`}
+                    >
+                      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${form.use_payment_schedule ? "translate-x-4" : "translate-x-0.5"}`} />
+                    </button>
+                  </label>
+                </div>
+                {form.use_payment_schedule && (
+                  <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+                    <div className="grid grid-cols-[1fr_5.5rem_6rem_1.5rem] gap-2 bg-muted/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      <span>Label</span>
+                      <span className="text-right">Amount</span>
+                      <span>Due Date</span>
+                      <span />
+                    </div>
+                    <div className="divide-y divide-border">
+                      {form.payment_schedule.map((inst, idx) => (
+                        <div key={inst.id} className="grid grid-cols-[1fr_5.5rem_6rem_1.5rem] items-center gap-2 px-3 py-2">
+                          <input
+                            className="fin-input text-xs"
+                            placeholder="e.g. Deposit"
+                            value={inst.label}
+                            onChange={(e) => setForm((f) => ({
+                              ...f,
+                              payment_schedule: f.payment_schedule.map((i) => i.id === inst.id ? { ...i, label: e.target.value } : i),
+                            }))}
+                          />
+                          <input
+                            className="fin-input text-right text-xs"
+                            type="number" min="0" step="0.01"
+                            value={inst.amount}
+                            onChange={(e) => setForm((f) => ({
+                              ...f,
+                              payment_schedule: f.payment_schedule.map((i) => i.id === inst.id ? { ...i, amount: parseFloat(e.target.value) || 0 } : i),
+                            }))}
+                          />
+                          <input
+                            className="fin-input text-xs [color-scheme:dark]"
+                            type="date"
+                            value={inst.due_date ?? ""}
+                            onChange={(e) => setForm((f) => ({
+                              ...f,
+                              payment_schedule: f.payment_schedule.map((i) => i.id === inst.id ? { ...i, due_date: e.target.value } : i),
+                            }))}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, payment_schedule: f.payment_schedule.filter((i) => i.id !== inst.id) }))}
+                            className="rounded p-0.5 text-muted-foreground/40 hover:text-red-400 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-border bg-muted/5 px-3 py-2 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setForm((f) => ({
+                          ...f,
+                          payment_schedule: [...f.payment_schedule, mkInstallment("Installment", 0, total)],
+                        }))}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-[#d4a853] transition-colors"
+                      >
+                        <Plus className="h-3 w-3" /> Add installment
+                      </button>
+                      <span className={`text-xs font-medium ${
+                        Math.abs(form.payment_schedule.reduce((s, i) => s + i.amount, 0) - total) < 0.01
+                          ? "text-emerald-400" : "text-amber-400"
+                      }`}>
+                        {fmtFull(form.payment_schedule.reduce((s, i) => s + i.amount, 0))} / {fmtFull(total)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* ── Section: Notes ── */}
               <div>
                 <label className="fin-label">Internal Notes</label>
@@ -943,12 +1086,13 @@ export default function FinancePage() {
 
 // ─── Invoice Row ──────────────────────────────────────────────────────────────
 
-function InvoiceRow({ inv, onEdit, onDelete, onQuickStatus, onView, deletingId, projects }: {
+function InvoiceRow({ inv, onEdit, onDelete, onQuickStatus, onView, onMarkInstallmentPaid, deletingId, projects }: {
   inv: Invoice;
   onEdit: (inv: Invoice) => void;
   onDelete: (id: string) => void;
   onQuickStatus: (inv: Invoice, s: InvoiceStatus) => void;
   onView: (inv: Invoice) => void;
+  onMarkInstallmentPaid: (inv: Invoice, installmentId: string) => void;
   deletingId: string | null;
   projects: Project[];
 }) {
@@ -1008,6 +1152,41 @@ function InvoiceRow({ inv, onEdit, onDelete, onQuickStatus, onView, deletingId, 
           </div>
           {inv.description && <p className="text-xs text-muted-foreground">{inv.description}</p>}
           {inv.notes && <p className="text-xs text-muted-foreground/60 italic">{inv.notes}</p>}
+
+          {/* ── Payment Schedule ── */}
+          {inv.payment_schedule && inv.payment_schedule.length > 0 && (
+            <div className="rounded-lg border border-border bg-background overflow-hidden">
+              <div className="grid grid-cols-[1fr_5rem_5.5rem_auto] gap-2 px-3 py-1.5 bg-muted/20 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                <span>Installment</span>
+                <span className="text-right">Amount</span>
+                <span>Due</span>
+                <span />
+              </div>
+              {inv.payment_schedule.map((inst) => (
+                <div key={inst.id} className={`grid grid-cols-[1fr_5rem_5.5rem_auto] items-center gap-2 px-3 py-2 border-t border-border ${inst.status === "paid" ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {inst.status === "paid"
+                      ? <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
+                      : <div className="h-3 w-3 shrink-0 rounded-full border border-muted-foreground/40" />
+                    }
+                    <span className="text-xs truncate text-foreground">{inst.label}</span>
+                  </div>
+                  <span className="text-right text-xs font-medium text-foreground">{fmtFull(inst.amount)}</span>
+                  <span className="text-xs text-muted-foreground">{inst.due_date || "—"}</span>
+                  {inst.status === "unpaid" ? (
+                    <button
+                      onClick={() => onMarkInstallmentPaid(inv, inst.id)}
+                      className="flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[9px] font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors whitespace-nowrap"
+                    >
+                      <Check className="h-2.5 w-2.5" /> Paid
+                    </button>
+                  ) : (
+                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wide">Paid</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
             {inv.status !== "paid" && (

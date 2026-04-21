@@ -94,6 +94,8 @@ export interface Project {
   created_by?: string;
   owner_id?: string;
   tags?: string[];
+  delivery_platform?: string;
+  delivery_url?: string;
   deleted_at?: string;
   created_at: string;
   updated_at: string;
@@ -396,6 +398,15 @@ export interface BudgetLine {
   updated_at: string;
 }
 
+export interface PaymentInstallment {
+  id: string;
+  label: string;
+  amount: number;
+  due_date?: string;
+  status: "unpaid" | "paid";
+  paid_at?: string;
+}
+
 export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue";
 export type PaymentMethod = "stripe" | "paypal" | "zelle" | "ach" | "wire" | "check";
 export type PaymentTerms = "due_on_receipt" | "net15" | "net30" | "net60";
@@ -428,6 +439,7 @@ export interface Invoice {
   payment_terms?: PaymentTerms;
   accepted_payment_methods?: string[];
   invoice_date?: string;
+  payment_schedule?: PaymentInstallment[];
   created_by?: string;
   created_at: string;
   updated_at: string;
