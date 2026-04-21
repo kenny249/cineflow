@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem, Quote, QuoteStatus } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -1621,4 +1621,66 @@ export async function getStorageUsageBytes(): Promise<number> {
 export async function deleteRetainerDeliverable(id: string): Promise<void> {
   const { error } = await db().from('retainer_deliverables').delete().eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+// ─── Quotes ───────────────────────────────────────────────────────────────────
+
+export async function getQuotes(): Promise<Quote[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('quotes')
+    .select('*')
+    .eq('created_by', user.id)
+    .order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as Quote[];
+}
+
+export async function getQuoteByToken(token: string): Promise<Quote | null> {
+  const { data, error } = await db()
+    .from('quotes')
+    .select('*')
+    .eq('token', token)
+    .eq('is_active', true)
+    .single();
+  if (error) { if (error.code === 'PGRST116') return null; throw error; }
+  return data as Quote;
+}
+
+export async function createQuote(payload: Omit<Quote, 'id' | 'token' | 'is_active' | 'created_at' | 'updated_at'>): Promise<Quote> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('quotes')
+    .insert({ ...payload, created_by: user.id })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Quote;
+}
+
+export async function updateQuote(id: string, updates: Partial<Omit<Quote, 'id' | 'token' | 'created_at'>>): Promise<Quote> {
+  const { data, error } = await db()
+    .from('quotes')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Quote;
+}
+
+export async function deleteQuote(id: string): Promise<void> {
+  const { error } = await db().from('quotes').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function nextQuoteNumber(quotes: Quote[]): Promise<string> {
+  const nums = quotes
+    .map((q) => parseInt(q.quote_number.replace(/\D/g, ''), 10))
+    .filter((n) => !isNaN(n));
+  return `QUO-${String(nums.length ? Math.max(...nums) + 1 : 1).padStart(4, '0')}`;
 }

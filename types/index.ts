@@ -43,6 +43,7 @@ export interface Profile {
   business_phone?: string;
   business_website?: string;
   payment_settings?: PaymentSettings;
+  brand_color?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -440,6 +441,60 @@ export interface Invoice {
   accepted_payment_methods?: string[];
   invoice_date?: string;
   payment_schedule?: PaymentInstallment[];
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Quotes ───────────────────────────────────────────────────────────────────
+
+export type QuoteStatus = "draft" | "sent" | "viewed" | "accepted" | "declined" | "expired";
+export type QuoteType = "project" | "retainer";
+
+export interface QuotePackage {
+  id: string;
+  name: string;
+  description?: string;
+  line_items: LineItem[];
+  amount: number;
+  highlighted?: boolean;
+}
+
+export interface Quote {
+  id: string;
+  project_id?: string;
+  quote_number: string;
+  client_name?: string;
+  client_email?: string;
+  description?: string;
+  status: QuoteStatus;
+  quote_type: QuoteType;
+  amount: number;
+  tax_rate?: number;
+  discount?: number;
+  currency?: string;
+  line_items?: LineItem[];
+  packages?: QuotePackage[];
+  scope_of_work?: string;
+  payment_terms?: PaymentTerms;
+  notes?: string;
+  monthly_rate?: number;
+  retainer_months?: number;
+  retainer_deliverables?: RetainerTemplateItem[];
+  valid_until?: string;
+  sent_at?: string;
+  viewed_at?: string;
+  accepted_at?: string;
+  declined_at?: string;
+  accepted_name?: string;
+  accepted_email?: string;
+  token: string;
+  is_active: boolean;
+  brand_logo_url?: string;
+  brand_name?: string;
+  brand_color?: string;
+  converted_project_id?: string;
+  converted_invoice_id?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;

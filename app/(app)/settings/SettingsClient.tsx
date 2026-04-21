@@ -72,6 +72,7 @@ export default function SettingsClient() {
   // Business info
   const [businessName, setBusinessName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [brandColor, setBrandColor] = useState("#d4a853");
   const [addrLine1, setAddrLine1] = useState("");
   const [addrLine2, setAddrLine2] = useState("");
   const [addrCity, setAddrCity] = useState("");
@@ -119,6 +120,7 @@ export default function SettingsClient() {
           setAvatarUrl(profile.avatar_url ?? "");
           setBusinessName(profile.business_name ?? "");
           setLogoUrl(profile.logo_url ?? "");
+          setBrandColor(profile.brand_color ?? "#d4a853");
           setAddrLine1(profile.address_line1 ?? "");
           setAddrLine2(profile.address_line2 ?? "");
           setAddrCity(profile.city ?? "");
@@ -185,6 +187,7 @@ export default function SettingsClient() {
       await updateProfile({
         business_name: businessName.trim() || undefined,
         logo_url: logoUrl || undefined,
+        brand_color: brandColor || undefined,
         address_line1: addrLine1.trim() || undefined,
         address_line2: addrLine2.trim() || undefined,
         city: addrCity.trim() || undefined,
@@ -361,6 +364,28 @@ export default function SettingsClient() {
                     className="hidden"
                     onChange={(e) => handleLogoChange(e.target.files?.[0])}
                   />
+                </div>
+              </div>
+              <Separator />
+              {/* Brand accent color — used on quote portals */}
+              <div className="space-y-1.5">
+                <Label>Brand color</Label>
+                <p className="text-xs text-muted-foreground">Accent color shown on your public quote pages.</p>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={brandColor}
+                    onChange={(e) => setBrandColor(e.target.value)}
+                    className="h-9 w-16 cursor-pointer rounded border border-border bg-background p-0.5"
+                  />
+                  <span className="font-mono text-xs text-muted-foreground">{brandColor.toUpperCase()}</span>
+                  <button
+                    type="button"
+                    onClick={() => setBrandColor("#d4a853")}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Reset to default
+                  </button>
                 </div>
               </div>
               <Separator />

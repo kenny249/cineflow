@@ -14,11 +14,13 @@ import { toast } from "sonner";
 import {
   getInvoices, createInvoice, updateInvoice, deleteInvoice,
   getBudgetLines, getProjects, getProfile, createNotification,
+  getQuotes,
 } from "@/lib/supabase/queries";
 import { InvoiceDocument } from "@/components/finance/InvoiceDocument";
+import QuotesTab from "@/components/quotes/QuotesTab";
 import type {
   Invoice, InvoiceStatus, BudgetLine, Project, Profile,
-  PaymentTerms, PaymentInstallment,
+  PaymentTerms, PaymentInstallment, Quote,
 } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -211,20 +213,22 @@ export default function FinancePage() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "invoices" | "projects">("overview");
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [activeTab, setActiveTab] = useState<"overview" | "invoices" | "projects" | "quotes">("overview");
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
   useEffect(() => {
     let alive = true;
     async function load() {
       try {
-        const [allProjects, allInvoices, prof] = await Promise.all([
-          getProjects(), getInvoices(), getProfile(),
+        const [allProjects, allInvoices, prof, allQuotes] = await Promise.all([
+          getProjects(), getInvoices(), getProfile(), getQuotes(),
         ]);
         if (!alive) return;
         setProjects(allProjects);
         setInvoices(allInvoices);
         setProfile(prof);
+        setQuotes(allQuotes);
         const budgetResults = await Promise.all(
           allProjects.map((p) => getBudgetLines(p.id).catch(() => [] as BudgetLine[]))
         );
@@ -512,7 +516,7 @@ export default function FinancePage() {
 
         {/* Sub-tabs */}
         <div className="mt-4 flex gap-1 border-b border-border">
-          {(["overview", "invoices", "projects"] as const).map((t) => (
+          {(["overview", "invoices", "projects", "quotes"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setActiveTab(t)}
@@ -520,7 +524,10 @@ export default function FinancePage() {
                 activeTab === t ? "border-[#d4a853] text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t === "overview" ? "Overview" : t === "invoices" ? `Invoices (${invoices.length})` : `Projects (${projectSummaries.length})`}
+              {t === "overview" ? "Overview"
+                : t === "invoices" ? `Invoices (${invoices.length})`
+                : t === "projects" ? `Projects (${projectSummaries.length})`
+                : `Quotes (${quotes.length})`}
             </button>
           ))}
         </div>
@@ -595,6 +602,15 @@ export default function FinancePage() {
                   ))
                 )}
               </div>
+            )}
+
+            {activeTab === "quotes" && (
+              <QuotesTab
+                quotes={quotes}
+                projects={projects}
+                profile={profile}
+                onQuotesChange={setQuotes}
+              />
             )}
 
             {activeTab === "projects" && (
