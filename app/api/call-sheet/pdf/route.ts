@@ -26,11 +26,42 @@ export async function POST(req: NextRequest) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
+    const dateStr = formData.shootDate || new Date().toISOString().slice(0, 10);
+    const filename = `call-sheet-${slug}-${dateStr}.pdf`;
+    const storagePath = `${project.id}/docs/${Date.now()}_${filename}`;
+
+    // Upload to Supabase storage
+    const { error: uploadError } = await supabase.storage
+      .from("project-files")
+      .upload(storagePath, uint8, { contentType: "application/pdf", upsert: false });
+
+    if (uploadError) {
+      console.error("[call-sheet/pdf] storage upload failed:", uploadError.message);
+      // Non-fatal — still return the PDF for download
+    } else {
+      // Get public URL and save the project_files record
+      const { data: urlData } = supabase.storage
+        .from("project-files")
+        .getPublicUrl(storagePath);
+
+      await supabase.from("project_files").insert({
+        project_id: project.id,
+        tab: "docs",
+        category: "call-sheets",
+        name: filename,
+        storage_path: storagePath,
+        public_url: urlData.publicUrl,
+        size: uint8.byteLength,
+        mime_type: "application/pdf",
+        uploaded_by: user.id,
+      });
+    }
+
     return new NextResponse(uint8, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="call-sheet-${slug}.pdf"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Content-Length": uint8.byteLength.toString(),
       },
     });
