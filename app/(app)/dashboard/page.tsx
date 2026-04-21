@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -50,6 +50,46 @@ import { createClient } from "@/lib/supabase/client";
 import type { Project, ActivityItem, CalendarEvent, Retainer, Invoice } from "@/types";
 import { isSoloPlan } from "@/types";
 import { toast } from "sonner";
+
+const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&";
+
+function useScramble(target: string | null, { duration = 900, delay = 0 } = {}) {
+  const [output, setOutput] = useState<string | null>(null);
+  const frame = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (target === null) { setOutput(null); return; }
+
+    let elapsed = 0;
+    const totalFrames = Math.round(duration / 30);
+    const len = target.length;
+
+    const tick = () => {
+      elapsed++;
+      const progress = elapsed / totalFrames;
+      const lockedCount = Math.floor(progress * progress * len); // ease-in lock-in
+      const scrambled = target
+        .split("")
+        .map((char, i) => {
+          if (char === " ") return " ";
+          if (i < lockedCount) return char;
+          return CHARS[Math.floor(Math.random() * CHARS.length)];
+        })
+        .join("");
+      setOutput(scrambled);
+      if (elapsed < totalFrames) frame.current = setTimeout(tick, 30);
+      else setOutput(target);
+    };
+
+    const start = setTimeout(tick, delay);
+    return () => {
+      clearTimeout(start);
+      if (frame.current) clearTimeout(frame.current);
+    };
+  }, [target, duration, delay]);
+
+  return output;
+}
 
 export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -158,6 +198,7 @@ export default function DashboardPage() {
   })();
 
   const solo = isSoloPlan(plan);
+  const scrambledName = useScramble(displayName, { duration: 800, delay: 80 });
 
   // Revenue metrics
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -259,10 +300,15 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
                   {greeting},{" "}
-                  {displayName === null ? (
+                  {scrambledName === null ? (
                     <span className="shimmer-gold inline-block h-[0.9em] w-36 translate-y-[0.05em] rounded-full align-middle" />
                   ) : (
-                    <span className="animate-fade-in-name">{displayName}</span>
+                    <span
+                      className="font-mono tracking-tight transition-all duration-75"
+                      style={{ color: scrambledName === displayName ? "inherit" : "#d4a853" }}
+                    >
+                      {scrambledName}
+                    </span>
                   )}
                 </h1>
                 <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/25 bg-[#d4a853]/10 px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-[#d4a853] uppercase">
