@@ -136,6 +136,14 @@
     @apply w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30;
   }
 
+  /* Call sheet print — hide app, show portal */
+  @media print {
+    body > *:not(#call-sheet-print-portal) { display: none !important; }
+    #call-sheet-print-portal { display: block !important; padding: 24px; }
+    .csg-modal { display: none !important; }
+  }
+  #call-sheet-print-portal { display: none; }
+
   /* Gold shimmer skeleton for loading states */
   @keyframes shimmer-gold {
     0%   { background-position: -200% center; }
