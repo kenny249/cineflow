@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { getProfile, updateProfile, getProjectTemplates, createProjectTemplate, deleteProjectTemplate, type ProjectTemplate } from "@/lib/supabase/queries";
+import { getProfile, updateProfile, getProjectTemplates, createProjectTemplate, deleteProjectTemplate, getStorageUsageBytes, BETA_STORAGE_LIMIT_BYTES, type ProjectTemplate } from "@/lib/supabase/queries";
 import { setDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import type { PaymentSettings } from "@/types";
@@ -90,6 +90,7 @@ export default function SettingsClient() {
 
   // Plan
   const [plan, setPlan] = useState<string>("studio_beta");
+  const [storageUsed, setStorageUsed] = useState<number | null>(null);
 
   // Wallpaper mode
   const [wallpaperOpen, setWallpaperOpen] = useState(false);
@@ -131,6 +132,7 @@ export default function SettingsClient() {
       } catch {
         toast.error("Failed to load profile");
       }
+      getStorageUsageBytes().then(setStorageUsed).catch(() => {});
     }
     load();
   }, []);
@@ -790,6 +792,39 @@ export default function SettingsClient() {
                     {feat}
                   </div>
                 ))}
+              </div>
+
+              {/* Storage meter */}
+              <div className="mt-5 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Storage</span>
+                  {storageUsed === null ? (
+                    <span>Loading…</span>
+                  ) : (
+                    <span>
+                      {storageUsed < 1024 * 1024 * 1024
+                        ? `${(storageUsed / (1024 * 1024)).toFixed(1)} MB`
+                        : `${(storageUsed / (1024 * 1024 * 1024)).toFixed(2)} GB`}
+                      {" "}of 10 GB used
+                    </span>
+                  )}
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  {storageUsed !== null && (
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.min((storageUsed / BETA_STORAGE_LIMIT_BYTES) * 100, 100).toFixed(1)}%`,
+                        background: storageUsed / BETA_STORAGE_LIMIT_BYTES > 0.85
+                          ? "#ef4444"
+                          : storageUsed / BETA_STORAGE_LIMIT_BYTES > 0.65
+                          ? "#f59e0b"
+                          : "#d4a853",
+                      }}
+                    />
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground/60">Beta cap — 10 GB per account. Increases at launch.</p>
               </div>
             </div>
           </section>

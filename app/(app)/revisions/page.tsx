@@ -587,6 +587,10 @@ export default function ReviewPage() {
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
     if (!uploadFile || !selectedProjectId) { toast.error("Choose a video file"); return; }
+    if (uploadFile.size > 2 * 1024 * 1024 * 1024) {
+      toast.error("File exceeds the 2 GB limit. Please compress or trim before uploading.");
+      return;
+    }
     setUploading(true); setUploadProgress(0);
     const timer = setInterval(() => setUploadProgress((p) => Math.min(p + Math.random() * 18, 85)), 400);
     try {
@@ -867,7 +871,28 @@ export default function ReviewPage() {
               placeholder="Cut title (defaults to filename)"
               className="min-w-[200px] flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
             />
-            <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                if (f) {
+                  const GB2 = 2 * 1024 * 1024 * 1024;
+                  const MB500 = 500 * 1024 * 1024;
+                  if (f.size > GB2) {
+                    toast.error("File exceeds the 2 GB limit. Please compress or trim before uploading.");
+                    e.target.value = "";
+                    return;
+                  }
+                  if (f.size > MB500) {
+                    toast.warning(`Large file (${(f.size / (1024 * 1024 * 1024)).toFixed(2)} GB) — upload may take a while.`);
+                  }
+                }
+                setUploadFile(f);
+              }}
+            />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
