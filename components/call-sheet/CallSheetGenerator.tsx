@@ -160,25 +160,60 @@ function PrintSheet({
         </div>
       </div>
 
-      {/* ── Info strip ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 14 }}>
-        {[
-          { label: "General Call", value: formData.callTime || "TBD" },
-          { label: "Wrap", value: formData.wrapTime || "TBD" },
-          { label: "Weather", value: formData.weather || "—" },
-          { label: "Nearest Hospital", value: formData.hospital || "See location" },
-        ].map(({ label, value }) => (
-          <div key={label} style={{ border: "1px solid #d1d5db", borderRadius: 4, padding: "6px 8px" }}>
-            <p style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#9ca3af", margin: "0 0 3px" }}>{label}</p>
-            <p style={{ fontSize: 11, fontWeight: 700, margin: 0 }}>{value}</p>
-          </div>
-        ))}
+      {/* ── General call time — most prominent element ── */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#111", color: "#fff", borderRadius: 6, padding: "10px 16px", marginBottom: 10 }}>
+        <div>
+          <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>General Crew Call</p>
+          <p style={{ fontSize: 28, fontWeight: 900, fontFamily: "monospace", margin: 0, letterSpacing: "0.05em" }}>{formData.callTime || "TBD"}</p>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Wrap</p>
+          <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{formData.wrapTime || "TBD"}</p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Weather</p>
+          <p style={{ fontSize: 11, fontWeight: 600, margin: 0 }}>{formData.weather || "—"}</p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Nearest Hospital</p>
+          <p style={{ fontSize: 10, fontWeight: 600, margin: 0 }}>{formData.hospital || "See location contact"}</p>
+        </div>
       </div>
 
       {/* ── Warning ── */}
       {sheet.warning && (
-        <div style={{ border: "1px solid #fbbf24", background: "#fffbeb", borderRadius: 4, padding: "6px 10px", marginBottom: 12, fontSize: 10, color: "#92400e", display: "flex", gap: 6 }}>
+        <div style={{ border: "1px solid #fbbf24", background: "#fffbeb", borderRadius: 4, padding: "6px 10px", marginBottom: 10, fontSize: 10, color: "#92400e", display: "flex", gap: 6 }}>
           <span style={{ fontWeight: 800 }}>⚠ NOTE:</span> {sheet.warning}
+        </div>
+      )}
+
+      {/* ── Crew by Department (FIRST — what everyone checks first) ── */}
+      {crew.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <SectionHeader>Crew Call Times</SectionHeader>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+            {Array.from(deptMap.entries()).map(([dept, members]) => (
+              <div key={dept} style={{ border: "1px solid #e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", padding: "4px 10px" }}>
+                  <p style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: "#374151", margin: 0 }}>{dept}</p>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+                  <tbody>
+                    {members.map((m) => (
+                      <tr key={m.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ padding: "4px 10px", fontWeight: 700 }}>{m.name}</td>
+                        <td style={{ padding: "4px 10px", color: "#6b7280" }}>{m.role}</td>
+                        {m.phone && <td style={{ padding: "4px 10px", color: "#9ca3af", fontSize: 9, whiteSpace: "nowrap" }}>{m.phone}</td>}
+                        <td style={{ padding: "4px 10px", fontFamily: "monospace", fontWeight: 900, textAlign: "right", whiteSpace: "nowrap", color: "#111" }}>
+                          {m.callTime || formData.callTime || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -188,16 +223,16 @@ function PrintSheet({
           <SectionHeader>Locations</SectionHeader>
           <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(locations.length, 2)}, 1fr)`, gap: 6 }}>
             {locations.map((loc, i) => (
-              <div key={loc.id} style={{ border: "1px solid #e5e7eb", borderRadius: 4, padding: "7px 10px" }}>
-                <p style={{ fontSize: 10, fontWeight: 800, margin: "0 0 2px" }}>
-                  <span style={{ display: "inline-block", width: 16, height: 16, background: "#111", color: "#fff", borderRadius: "50%", textAlign: "center", lineHeight: "16px", fontSize: 8, fontWeight: 700, marginRight: 5 }}>{i + 1}</span>
+              <div key={loc.id} style={{ border: "1px solid #e5e7eb", borderRadius: 4, padding: "8px 10px" }}>
+                <p style={{ fontSize: 11, fontWeight: 800, margin: "0 0 3px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ display: "inline-flex", width: 18, height: 18, background: "#111", color: "#fff", borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span>
                   {loc.name}
                 </p>
-                {loc.address && <p style={{ fontSize: 9, color: "#6b7280", margin: "1px 0" }}>{loc.address}</p>}
-                {loc.parkingNotes && <p style={{ fontSize: 9, color: "#6b7280", margin: "1px 0" }}>🅿 {loc.parkingNotes}</p>}
+                {loc.address && <p style={{ fontSize: 9, color: "#374151", margin: "2px 0 2px 24px" }}>{loc.address}</p>}
+                {loc.parkingNotes && <p style={{ fontSize: 9, color: "#6b7280", margin: "2px 0 2px 24px" }}>Parking: {loc.parkingNotes}</p>}
                 {loc.contact_name && (
-                  <p style={{ fontSize: 9, color: "#6b7280", margin: "1px 0" }}>
-                    Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}
+                  <p style={{ fontSize: 9, color: "#6b7280", margin: "2px 0 2px 24px" }}>
+                    Location Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}
                   </p>
                 )}
               </div>
@@ -212,29 +247,27 @@ function PrintSheet({
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
           <thead>
             <tr style={{ background: "#111", color: "#fff" }}>
-              <th style={{ padding: "5px 8px", textAlign: "left", fontWeight: 700, width: 52, whiteSpace: "nowrap" }}>Time</th>
-              <th style={{ padding: "5px 8px", textAlign: "left", fontWeight: 700 }}>Description</th>
-              <th style={{ padding: "5px 8px", textAlign: "left", fontWeight: 700, width: 110 }}>Location</th>
+              <th style={{ padding: "5px 10px", textAlign: "left", fontWeight: 700, width: 60, whiteSpace: "nowrap" }}>Time</th>
+              <th style={{ padding: "5px 10px", textAlign: "left", fontWeight: 700 }}>Description</th>
+              <th style={{ padding: "5px 10px", textAlign: "left", fontWeight: 700, width: 120 }}>Location</th>
             </tr>
           </thead>
           <tbody>
             {sheet.schedule.map((item, i) => (
               <tr key={i} style={{ background: ROW_BG[item.type] ?? "#fff", borderBottom: "1px solid #e5e7eb" }}>
-                <td style={{ padding: "5px 8px", fontFamily: "monospace", fontWeight: 700, whiteSpace: "nowrap", verticalAlign: "top" }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: ROW_DOT[item.type] ?? "#9ca3af", display: "inline-block", flexShrink: 0 }} />
+                <td style={{ padding: "5px 10px", fontFamily: "monospace", fontWeight: 800, whiteSpace: "nowrap", verticalAlign: "top" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: ROW_DOT[item.type] ?? "#9ca3af", display: "inline-block", flexShrink: 0 }} />
                     {item.time}
                   </span>
                 </td>
-                <td style={{ padding: "5px 8px", verticalAlign: "top" }}>{item.label}</td>
-                <td style={{ padding: "5px 8px", color: "#6b7280", fontSize: 9, verticalAlign: "top" }}>{item.location || "—"}</td>
+                <td style={{ padding: "5px 10px", verticalAlign: "top" }}>{item.label}</td>
+                <td style={{ padding: "5px 10px", color: "#6b7280", fontSize: 9, verticalAlign: "top" }}>{item.location || "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
-
-        {/* Legend */}
-        <div style={{ display: "flex", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
           {(Object.entries(ROW_DOT) as [ScheduleItem["type"], string][]).map(([type, color]) => (
             <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 8, color: "#6b7280" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />
@@ -244,39 +277,11 @@ function PrintSheet({
         </div>
       </div>
 
-      {/* ── Crew ── */}
-      {crew.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <SectionHeader>Crew</SectionHeader>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-            {Array.from(deptMap.entries()).map(([dept, members]) => (
-              <div key={dept}>
-                <p style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "#6b7280", margin: "0 0 4px" }}>{dept}</p>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
-                  <tbody>
-                    {members.map((m) => (
-                      <tr key={m.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                        <td style={{ padding: "3px 0", fontWeight: 600 }}>{m.name}</td>
-                        <td style={{ padding: "3px 0", color: "#6b7280" }}>{m.role}</td>
-                        {m.phone && <td style={{ padding: "3px 0", color: "#9ca3af", fontSize: 9 }}>{m.phone}</td>}
-                        <td style={{ padding: "3px 0", fontFamily: "monospace", fontWeight: 700, textAlign: "right", whiteSpace: "nowrap" }}>
-                          {m.callTime || formData.callTime || "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Director's Note ── */}
       {formData.directorNote && (
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 4, padding: "8px 12px", marginBottom: 12 }}>
+        <div style={{ border: "1px solid #e5e7eb", borderLeft: "3px solid #111", borderRadius: 4, padding: "8px 12px", marginBottom: 12 }}>
           <p style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.15em", color: "#9ca3af", margin: "0 0 4px" }}>Director's Note</p>
-          <p style={{ fontSize: 10, lineHeight: 1.6, margin: 0 }}>{formData.directorNote}</p>
+          <p style={{ fontSize: 10, lineHeight: 1.7, margin: 0, fontStyle: "italic" }}>{formData.directorNote}</p>
         </div>
       )}
 
@@ -373,8 +378,23 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleSavePDF = () => {
+    const portalEl = document.getElementById("call-sheet-print-portal");
+    if (!portalEl) { toast.error("No call sheet to export"); return; }
+    const printWin = window.open("", "_blank", "width=900,height=700");
+    if (!printWin) { toast.error("Allow popups for this site to save as PDF"); return; }
+    printWin.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8"/>
+      <title>Call Sheet — ${project.title}</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 28px; color: #111; background: #fff; }
+        @media print { body { padding: 20px; } @page { margin: 12mm; } }
+        img { max-width: 100%; }
+        table { border-collapse: collapse; }
+      </style>
+    </head><body>${portalEl.innerHTML}<script>setTimeout(()=>{window.print();},350);<\/script></body></html>`);
+    printWin.document.close();
   };
 
   if (loading) {
@@ -476,10 +496,10 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
           )}
           {step === 5 && (
             <button
-              onClick={handlePrint}
+              onClick={handleSavePDF}
               className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 transition-colors"
             >
-              <Printer className="h-4 w-4" /> Print / Save PDF
+              <Printer className="h-4 w-4" /> Save as PDF
             </button>
           )}
         </div>
