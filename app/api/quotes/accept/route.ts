@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
 
     const { data: quote } = await supabase
       .from("quotes")
-      .select("id, status")
+      .select("id, status, quote_type, client_name, monthly_rate, retainer_months, retainer_deliverables, created_by")
       .eq("token", token)
       .eq("is_active", true)
       .single();
@@ -170,6 +170,21 @@ export async function POST(req: NextRequest) {
         accepted_email: trimmedEmail,
       })
       .eq("id", quote.id);
+
+    // Auto-create retainer record when a retainer quote is accepted
+    if (quote.quote_type === "retainer" && quote.client_name && quote.created_by) {
+      const template = Array.isArray(quote.retainer_deliverables) && quote.retainer_deliverables.length > 0
+        ? quote.retainer_deliverables
+        : [];
+      await supabase.from("retainers").insert({
+        created_by: quote.created_by,
+        client_name: quote.client_name,
+        monthly_rate: quote.monthly_rate ?? null,
+        template,
+        is_active: true,
+        start_date: new Date().toISOString().slice(0, 10),
+      });
+    }
 
     // Fire-and-forget email notifications
     sendQuoteEmails(supabase, quote.id, trimmedName, trimmedEmail ?? undefined);

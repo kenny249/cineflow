@@ -139,13 +139,29 @@ export default function ClientsPage() {
     );
   }, [projects, search]);
 
-  const groups = useMemo(() => groupByClient(filtered), [filtered]);
+  const groups = useMemo(() => {
+    const projectGroups = groupByClient(filtered);
+    const projectNames = new Set(projectGroups.map(([name]) => name));
+    // Add retainer-only clients that have no projects
+    const retainerOnly = Object.keys(retainerMap)
+      .filter((name) => !projectNames.has(name))
+      .filter((name) => !search.trim() || name.toLowerCase().includes(search.toLowerCase()))
+      .map((name): [string, Project[]] => [name, []]);
+    return [...projectGroups, ...retainerOnly].sort(([a], [b]) => {
+      if (a === "Unassigned") return 1;
+      if (b === "Unassigned") return -1;
+      return a.localeCompare(b);
+    });
+  }, [filtered, retainerMap, search]);
 
   // Summary stats
-  const totalClients = useMemo(
-    () => new Set(projects.map((p) => p.client_name?.trim() || "Unassigned")).size,
-    [projects]
-  );
+  const totalClients = useMemo(() => {
+    const names = new Set([
+      ...projects.map((p) => p.client_name?.trim() || "Unassigned"),
+      ...Object.keys(retainerMap),
+    ]);
+    return names.size;
+  }, [projects, retainerMap]);
   const activeProjects = projects.filter((p) => p.status === "active").length;
   const deliveredProjects = projects.filter((p) => p.status === "delivered").length;
 
@@ -347,7 +363,7 @@ export default function ClientsPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
             <Film className="h-10 w-10 text-muted-foreground/20" />
             <p className="text-sm font-semibold text-foreground">No clients yet</p>
-            <p className="text-xs text-muted-foreground max-w-xs">Create your first project and assign a client name, it will appear here automatically.</p>
+            <p className="text-xs text-muted-foreground max-w-xs">Create a project or retainer and assign a client name — they'll appear here automatically.</p>
             <Button variant="gold" size="sm" className="mt-2" onClick={() => setShowForm(true)}>+ New Project</Button>
           </div>
         )}
@@ -355,9 +371,10 @@ export default function ClientsPage() {
         {groups.map(([clientName, clientProjects]) => {
           const isOpen = !!expandedClients[clientName];
           const activeCount = clientProjects.filter((p) => p.status === "active").length;
-          const totalProgress = Math.round(
-            clientProjects.reduce((s, p) => s + (p.progress ?? 0), 0) / clientProjects.length
-          );
+          const totalProgress = clientProjects.length > 0
+            ? Math.round(clientProjects.reduce((s, p) => s + (p.progress ?? 0), 0) / clientProjects.length)
+            : 0;
+          const retainer = retainerMap[clientName];
 
           return (
             <div key={clientName} className="overflow-hidden rounded-xl border border-border bg-card/50">
@@ -385,10 +402,14 @@ export default function ClientsPage() {
                     )}
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    {clientProjects.length} project{clientProjects.length !== 1 ? "s" : ""}
+                    {clientProjects.length > 0
+                      ? <>{clientProjects.length} project{clientProjects.length !== 1 ? "s" : ""}</>
+                      : retainer
+                        ? <span className="text-violet-400/80">Retainer client</span>
+                        : "No projects"}
                     {activeCount > 0 && <span className="ml-2 text-emerald-400">· {activeCount} active</span>}
                     {portals[clientName] && <span className="ml-2 text-[#d4a853]/60">· portal active</span>}
-                    {retainerMap[clientName] && <span className="ml-2 text-violet-400/70">· retainer</span>}
+                    {retainer && <span className="ml-2 text-violet-400/70">· ${retainer.monthly_rate?.toLocaleString()}/mo</span>}
                   </p>
                   {/* Contact info quick summary */}
                   {clientContacts[clientName] && (clientContacts[clientName].email || clientContacts[clientName].phone) && (
@@ -472,11 +493,11 @@ export default function ClientsPage() {
                 return (
                 <div className="border-t border-border divide-y divide-border">
                   {/* Active Retainer widget */}
-                  {retainerMap[clientName] && (
+                  {retainer && (
                     <div className="px-4 py-3">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Active Retainer</p>
-                        <Link href={`/retainers/${retainerMap[clientName].id}`} className="text-[10px] text-[#d4a853]/60 hover:text-[#d4a853] transition-colors flex items-center gap-1">
+                        <Link href={`/retainers/${retainer.id}`} className="text-[10px] text-[#d4a853]/60 hover:text-[#d4a853] transition-colors flex items-center gap-1">
                           View <ChevronRight className="h-2.5 w-2.5" />
                         </Link>
                       </div>
@@ -484,15 +505,17 @@ export default function ClientsPage() {
                         <div className="flex items-center gap-2">
                           <Repeat2 className="h-3.5 w-3.5 text-violet-400/60 shrink-0" />
                           <div>
-                            <p className="text-xs text-white/70 font-medium">{retainerMap[clientName].client_name}</p>
-                            <p className="text-[10px] text-white/30 mt-0.5">
-                              {retainerMap[clientName].template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}
-                            </p>
+                            <p className="text-xs text-white/70 font-medium">{retainer.client_name}</p>
+                            {retainer.template.length > 0 && (
+                              <p className="text-[10px] text-white/30 mt-0.5">
+                                {retainer.template.map(t => `${t.quantity}× ${t.label}`).join(" · ")}
+                              </p>
+                            )}
                           </div>
                         </div>
-                        {retainerMap[clientName].monthly_rate && (
-                          <span className="text-xs text-[#d4a853]/60 shrink-0">
-                            ${retainerMap[clientName].monthly_rate!.toLocaleString()}/mo
+                        {retainer.monthly_rate && (
+                          <span className="text-xs font-semibold text-[#d4a853]/80 shrink-0">
+                            ${retainer.monthly_rate.toLocaleString()}/mo
                           </span>
                         )}
                       </div>
