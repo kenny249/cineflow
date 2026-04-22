@@ -3,17 +3,18 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   ContactRound, Plus, Search, Star, MapPin, Mail, Phone, Globe,
-  Instagram, ExternalLink, X, Edit2, Trash2, Globe2,
+  Instagram, ExternalLink, X, Edit2, Trash2, Globe2, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   getMyCrewProfiles, getPublicCrewProfiles,
-  createCrewProfile, updateCrewProfile, deleteCrewProfile,
+  createCrewProfile, updateCrewProfile, deleteCrewProfile, bulkCreateCrewProfiles,
 } from "@/lib/supabase/queries";
 import type { CrewProfile, CrewAvailability } from "@/types";
 import { CREW_ROLES } from "@/types";
+import { CsvImportModal, type ImportRow } from "@/components/crew/CsvImportModal";
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -449,6 +450,7 @@ export default function CrewPage() {
   const [hasSearched, setHasSearched] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editTarget, setEditTarget] = useState<CrewProfile | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -515,10 +517,16 @@ export default function CrewPage() {
           <ContactRound className="h-4 w-4 text-[#d4a853]" />
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground">Crew Network</h1>
         </div>
-        <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setEditTarget(null); setShowModal(true); }}>
-          <Plus className="h-3.5 w-3.5" />
-          Add Person
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowImport(true)}>
+            <Upload className="h-3.5 w-3.5" />
+            Import CSV
+          </Button>
+          <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setEditTarget(null); setShowModal(true); }}>
+            <Plus className="h-3.5 w-3.5" />
+            Add Person
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -657,6 +665,34 @@ export default function CrewPage() {
             }
             setShowModal(false);
             setEditTarget(null);
+          }}
+        />
+      )}
+
+      {/* CSV import modal */}
+      {showImport && (
+        <CsvImportModal
+          existingEmails={new Set(myProfiles.map((p) => p.email?.toLowerCase() ?? "").filter(Boolean))}
+          onClose={() => setShowImport(false)}
+          onImport={async (selected: ImportRow[]) => {
+            const payloads = selected.map((row) => ({
+              name: row.name,
+              primary_role: row.detectedRole ?? "Other",
+              roles: row.detectedRole ? [row.detectedRole] : [],
+              email: row.email || undefined,
+              phone: row.phone || undefined,
+              city: row.city || undefined,
+              country: "",
+              skills: [],
+              gear: [],
+              rating: 0,
+              availability: "available" as CrewAvailability,
+              is_public: false,
+            }));
+            const created = await bulkCreateCrewProfiles(payloads);
+            setMyProfiles((prev) => [...prev, ...created]);
+            setShowImport(false);
+            toast.success(`Imported ${created.length} contact${created.length !== 1 ? "s" : ""}`);
           }}
         />
       )}

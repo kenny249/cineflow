@@ -1768,3 +1768,25 @@ export async function deleteCrewProfile(id: string): Promise<void> {
   const { error } = await db().from('crew_profiles').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
+
+export async function bulkCreateCrewProfiles(
+  payloads: Array<Omit<CrewProfile, 'id' | 'added_by' | 'is_claimed' | 'created_at' | 'updated_at'>>
+): Promise<CrewProfile[]> {
+  const client = createClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const rows = payloads.map((p) => ({
+    ...p,
+    added_by: user.id,
+    is_public: false,
+    is_claimed: false,
+  }));
+
+  const { data, error } = await client
+    .from('crew_profiles')
+    .insert(rows)
+    .select();
+  if (error) throw new Error(error.message);
+  return data as CrewProfile[];
+}
