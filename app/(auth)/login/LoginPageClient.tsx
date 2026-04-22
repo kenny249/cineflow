@@ -193,31 +193,29 @@ export function LoginPageClient() {
 
     setIsSendingLink(true);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOtp({
-        email: trimmedEmail,
-        options: {
-          shouldCreateUser: true,
-          data: { plan: planValue },
-        },
+      const res = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail, plan: planValue }),
       });
 
-      if (error) {
-        const msg = error.message;
+      const json = await res.json();
+
+      if (!res.ok) {
+        const msg: string = json.error ?? "Could not send your code.";
         toast.error(
           msg.includes("fetch failed")
             ? "Unable to reach our servers. Check your internet connection and try again."
-            : msg.toLowerCase().includes("unable to validate email") || msg.toLowerCase().includes("invalid format") || msg.toLowerCase().includes("invalid email")
-              ? "Having trouble with that email address? Try using a Gmail or personal email to sign in — some work domains aren't supported by our auth provider."
+            : msg.toLowerCase().includes("invalid email") || msg.toLowerCase().includes("invalid format")
+              ? "Having trouble with that email? Try a Gmail or personal address."
               : msg
         );
         return;
       }
 
       setLinkSentTo(trimmedEmail);
-      toast.success("Magic link sent.");
     } catch {
-      toast.error("Could not send your magic link.");
+      toast.error("Could not send your code.");
     } finally {
       setIsSendingLink(false);
     }
