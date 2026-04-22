@@ -1740,11 +1740,10 @@ export async function createCrewProfile(
   const { data: { user } } = await client.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const slug = payload.is_public ? generateSlug(payload.name) : undefined;
-
+  // Slug is only set when the crew member claims their own profile
   const { data, error } = await client
     .from('crew_profiles')
-    .insert({ ...payload, added_by: user.id, slug, is_claimed: false })
+    .insert({ ...payload, added_by: user.id, is_public: false, is_claimed: false })
     .select()
     .single();
   if (error) throw new Error(error.message);

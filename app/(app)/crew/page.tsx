@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ContactRound, Plus, Search, Star, MapPin, Mail, Phone, Globe,
-  Instagram, ExternalLink, X, Edit2, Trash2, Globe2, ChevronDown,
+  Instagram, ExternalLink, X, Edit2, Trash2, Globe2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -34,7 +34,6 @@ const EMPTY_FORM = {
   reel_url: "", bio: "", notes: "", rating: 0, skills: [] as string[],
   gear: [] as string[], day_rate_min: "" as string | number,
   day_rate_max: "" as string | number, availability: "available" as CrewAvailability,
-  is_public: false,
 };
 
 // ── Star rating ───────────────────────────────────────────────────────────────
@@ -116,7 +115,7 @@ function CrewModal({
     skills: initial.skills, gear: initial.gear,
     day_rate_min: initial.day_rate_min ?? "" as string | number,
     day_rate_max: initial.day_rate_max ?? "" as string | number,
-    availability: initial.availability, is_public: initial.is_public,
+    availability: initial.availability,
   } : EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const f = (k: string, v: unknown) => setForm((p) => ({ ...p, [k]: v }));
@@ -132,6 +131,7 @@ function CrewModal({
         day_rate_max: form.day_rate_max !== "" ? Number(form.day_rate_max) : undefined,
         rating: form.rating || undefined,
         country: "US",
+        is_public: false, // only the crew member themselves can make their profile public
       };
       let result: CrewProfile;
       if (initial) {
@@ -154,8 +154,8 @@ function CrewModal({
       <div className="relative z-10 w-full max-w-xl rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-2xl max-h-[90dvh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
-            <h2 className="font-display text-base font-semibold">{initial ? "Edit crew member" : "Add to crew network"}</h2>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Your private notes and rating are never shown publicly.</p>
+            <h2 className="font-display text-base font-semibold">{initial ? "Edit crew member" : "Add to your crew network"}</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Everything here is private to you. They control their own public profile.</p>
           </div>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent"><X className="h-4 w-4" /></button>
         </div>
@@ -249,14 +249,22 @@ function CrewModal({
             <TagInput tags={form.gear} onChange={(t) => f("gear", t)} placeholder="Add gear (press Enter)" />
           </div>
 
+          {/* Bio */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Bio / About</label>
+            <textarea value={form.bio} onChange={(e) => f("bio", e.target.value)} rows={2}
+              placeholder="Brief description of their style, experience, specialties…"
+              className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/50 focus:outline-none resize-none" />
+          </div>
+
           {/* Rating + Availability */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Your rating (private)</label>
-              <StarRating value={form.rating} onChange={(v) => f("rating", v)} />
+              <div className="pt-1"><StarRating value={form.rating} onChange={(v) => f("rating", v)} /></div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">Availability</label>
+              <label className="text-xs font-medium text-muted-foreground">Availability (as you know it)</label>
               <select value={form.availability} onChange={(e) => f("availability", e.target.value)}
                 className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground focus:border-[#d4a853]/50 focus:outline-none">
                 <option value="available">Available</option>
@@ -266,33 +274,20 @@ function CrewModal({
             </div>
           </div>
 
-          {/* Notes */}
+          {/* Private notes */}
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Private notes</label>
             <textarea value={form.notes} onChange={(e) => f("notes", e.target.value)} rows={2}
-              placeholder="e.g. Great with run-and-gun, slow turnaround on edits…"
+              placeholder="e.g. Great with run-and-gun, slow turnaround on edits. Good for branded content."
               className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/50 focus:outline-none resize-none" />
           </div>
 
-          {/* Public toggle */}
-          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-3 py-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">Make discoverable</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">They'll appear in public search at usecineflow.com/crew</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => f("is_public", !form.is_public)}
-              className={cn(
-                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none",
-                form.is_public ? "bg-[#d4a853]" : "bg-muted-foreground/30"
-              )}
-            >
-              <span className={cn(
-                "pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow ring-0 transition-transform",
-                form.is_public ? "translate-x-4" : "translate-x-0"
-              )} />
-            </button>
+          {/* Info box — no toggle, they control discoverability */}
+          <div className="rounded-lg border border-border bg-muted/10 px-3 py-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              <span className="font-medium text-foreground">Discoverability is their choice.</span>{" "}
+              This profile is private to you. If you invite them to CineFlow, they can choose to appear in the public crew search.
+            </p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
@@ -417,7 +412,13 @@ function CrewCard({
             <button onClick={onEdit} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Edit">
               <Edit2 className="h-3.5 w-3.5" />
             </button>
-            <button onClick={onDelete} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-red-400 transition-colors" title="Remove">
+            <button
+              onClick={() => {
+                if (window.confirm(`Remove ${profile.name} from your crew network?`)) onDelete?.();
+              }}
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-colors"
+              title="Remove"
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
