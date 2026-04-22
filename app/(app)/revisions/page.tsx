@@ -1148,17 +1148,17 @@ export default function ReviewPage() {
           <div className="flex flex-1 flex-col overflow-hidden md:flex-row">
 
             {/* Video player */}
-            <div className="relative flex flex-1 flex-col overflow-hidden bg-black md:flex-none md:flex-[3]">
+            <div className="relative flex flex-1 flex-col overflow-hidden bg-black md:flex-[3]">
               {activeRevision.file_url ? (
                 <>
-                  <div className="relative flex-1 overflow-hidden">
+                  <div className="relative min-h-0 flex-1 overflow-hidden">
                     <video
                       ref={videoRef}
                       src={activeRevision.file_url}
                       playsInline
                       preload="metadata"
                       muted={isMuted}
-                      className="mx-auto h-full w-full object-contain"
+                      className="absolute inset-0 h-full w-full object-contain"
                       onClick={() => { if (!videoRef.current) return; isPlaying ? videoRef.current.pause() : videoRef.current.play(); }}
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}

@@ -133,6 +133,28 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
 
       const newProject = await createProject(projectData);
 
+      // Add owner + all active team members to project_members
+      const { data: teamMembers } = await supabase
+        .from("team_members")
+        .select("user_id, role")
+        .eq("status", "active")
+        .not("user_id", "is", null);
+
+      const memberRows = [
+        { project_id: newProject.id, user_id: user.id, role: "owner" },
+        ...((teamMembers ?? [])
+          .filter((m) => m.user_id !== user.id)
+          .map((m) => ({
+            project_id: newProject.id,
+            user_id: m.user_id as string,
+            role: (m.role === "admin" ? "editor" : "viewer") as string,
+          }))),
+      ];
+
+      await supabase
+        .from("project_members")
+        .upsert(memberRows, { onConflict: "project_id,user_id", ignoreDuplicates: true });
+
       // Seed tasks + deliverables from template
       if (selectedTemplate) {
         const supabaseClient = createClient();

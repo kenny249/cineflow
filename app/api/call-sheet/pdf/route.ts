@@ -6,6 +6,9 @@ import { CallSheetPDFDocument } from "@/lib/call-sheet-pdf";
 import type { ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
