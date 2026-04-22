@@ -224,7 +224,8 @@ export function CsvImportModal({ onClose, onImport, existingEmails }: Props) {
     setIsDragging(false);
     const file = e.dataTransfer.files[0];
     if (file) processFile(file);
-  }, [existingEmails]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingEmails]); // processFile reads existingEmails from its own render scope
 
   function toggle(key: string) {
     setRows((prev) => prev.map((r) => r.key === key ? { ...r, selected: !r.selected } : r));

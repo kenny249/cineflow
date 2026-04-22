@@ -689,10 +689,15 @@ export default function CrewPage() {
               availability: "available" as CrewAvailability,
               is_public: false,
             }));
-            const created = await bulkCreateCrewProfiles(payloads);
-            setMyProfiles((prev) => [...prev, ...created]);
-            setShowImport(false);
-            toast.success(`Imported ${created.length} contact${created.length !== 1 ? "s" : ""}`);
+            try {
+              const created = await bulkCreateCrewProfiles(payloads);
+              setMyProfiles((prev) => [...prev, ...created]);
+              setShowImport(false);
+              toast.success(`Imported ${created.length} contact${created.length !== 1 ? "s" : ""}`);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Import failed — please try again");
+              throw err; // re-throw so modal stays open and resets its loading state
+            }
           }}
         />
       )}
