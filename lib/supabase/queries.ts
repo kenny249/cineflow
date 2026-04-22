@@ -1684,3 +1684,88 @@ export async function nextQuoteNumber(quotes: Quote[]): Promise<string> {
     .filter((n) => !isNaN(n));
   return `QUO-${String(nums.length ? Math.max(...nums) + 1 : 1).padStart(4, '0')}`;
 }
+
+// ─── Crew ─────────────────────────────────────────────────────────────────────
+
+import type { CrewProfile } from '@/types';
+
+export async function getMyCrewProfiles(): Promise<CrewProfile[]> {
+  const { data, error } = await db()
+    .from('crew_profiles')
+    .select('*')
+    .order('name');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CrewProfile[];
+}
+
+export async function getPublicCrewProfiles(filters?: {
+  role?: string;
+  city?: string;
+  skill?: string;
+}): Promise<CrewProfile[]> {
+  let q = db()
+    .from('crew_profiles')
+    .select('*')
+    .eq('is_public', true)
+    .order('name');
+
+  if (filters?.role) q = q.eq('primary_role', filters.role);
+  if (filters?.city) q = q.ilike('city', `%${filters.city}%`);
+  if (filters?.skill) q = q.contains('skills', [filters.skill]);
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CrewProfile[];
+}
+
+export async function getCrewProfileBySlug(slug: string): Promise<CrewProfile | null> {
+  const { data } = await db()
+    .from('crew_profiles')
+    .select('*')
+    .eq('slug', slug)
+    .eq('is_public', true)
+    .single();
+  return data as CrewProfile | null;
+}
+
+function generateSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') +
+    '-' + Math.random().toString(36).slice(2, 6);
+}
+
+export async function createCrewProfile(
+  payload: Omit<CrewProfile, 'id' | 'added_by' | 'is_claimed' | 'created_at' | 'updated_at'>
+): Promise<CrewProfile> {
+  const client = createClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const slug = payload.is_public ? generateSlug(payload.name) : undefined;
+
+  const { data, error } = await client
+    .from('crew_profiles')
+    .insert({ ...payload, added_by: user.id, slug, is_claimed: false })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as CrewProfile;
+}
+
+export async function updateCrewProfile(
+  id: string,
+  updates: Partial<Omit<CrewProfile, 'id' | 'added_by' | 'created_at' | 'updated_at'>>
+): Promise<CrewProfile> {
+  const { data, error } = await db()
+    .from('crew_profiles')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as CrewProfile;
+}
+
+export async function deleteCrewProfile(id: string): Promise<void> {
+  const { error } = await db().from('crew_profiles').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}

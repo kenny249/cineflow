@@ -23,6 +23,7 @@ import {
   Repeat2,
   ListChecks,
   FileText,
+  ContactRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -59,6 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Projects",  href: "/projects",  icon: FolderKanban },
       { label: "Clients",   href: "/clients",   icon: Users },
       { label: "Retainers", href: "/retainers", icon: Repeat2 },
+      { label: "Crew",      href: "/crew",      icon: ContactRound },
       { label: "Calendar",  href: "/calendar",  icon: Calendar },
     ],
   },

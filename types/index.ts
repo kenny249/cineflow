@@ -724,3 +724,67 @@ export interface RetainerDeliverable {
   sort_order: number;
   created_at: string;
 }
+
+// ─── Crew ─────────────────────────────────────────────────────────────────────
+
+export type CrewAvailability = "available" | "booked" | "unavailable";
+
+export interface CrewProfile {
+  id: string;
+  added_by: string;
+  user_id?: string;
+  name: string;
+  slug?: string;
+  photo_url?: string;
+  primary_role: string;
+  roles: string[];
+  city?: string;
+  state?: string;
+  country: string;
+  skills: string[];
+  gear: string[];
+  day_rate_min?: number;
+  day_rate_max?: number;
+  reel_url?: string;
+  instagram?: string;
+  website?: string;
+  email?: string;
+  phone?: string;
+  bio?: string;
+  notes?: string;
+  rating?: number;
+  availability: CrewAvailability;
+  available_from?: string;
+  is_public: boolean;
+  is_claimed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const CREW_ROLES = [
+  "Director",
+  "Director of Photography (DP)",
+  "Camera Operator",
+  "Drone / Aerial Operator",
+  "1st AC / Focus Puller",
+  "2nd AC",
+  "Steadicam Operator",
+  "Editor",
+  "Colorist",
+  "Sound Mixer / Recordist",
+  "Sound Designer",
+  "Composer",
+  "Gaffer",
+  "Key Grip",
+  "Production Designer",
+  "Art Director",
+  "Makeup / Hair",
+  "Producer",
+  "Line Producer",
+  "Production Assistant",
+  "Script Supervisor",
+  "Motion Graphics Designer",
+  "VFX Artist",
+  "Photographer",
+  "Other",
+] as const;
