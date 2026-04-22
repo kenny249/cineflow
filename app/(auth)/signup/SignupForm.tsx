@@ -20,32 +20,38 @@ export function SignupForm() {
     event.preventDefault();
     setIsLoading(true);
 
-    const redirectUrl = `${window.location.origin}/login`;
-    const { data, error } = await createClient().auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          company,
-        },
-      },
-    });
+    try {
+      // Create user server-side with email_confirm: true — no verification email needed
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, firstName, lastName, company }),
+      });
 
-    setIsLoading(false);
+      const json = await res.json();
 
-    if (error) {
-      const message = error.message.includes("fetch failed")
-        ? "Unable to reach Supabase. Check your project URL and network."
-        : error.message;
-      toast.error(message);
-      return;
+      if (!res.ok) {
+        const message = json.error?.includes("already registered")
+          ? "An account with this email already exists."
+          : json.error ?? "Failed to create account.";
+        toast.error(message);
+        return;
+      }
+
+      // Auto sign-in immediately — no email confirmation step
+      const { error: signInError } = await createClient().auth.signInWithPassword({ email, password });
+
+      if (signInError) {
+        toast.error("Account created but sign-in failed. Please log in manually.");
+        window.location.assign("/login");
+        return;
+      }
+
+      toast.success("Welcome to CineFlow!");
+      window.location.assign("/dashboard");
+    } finally {
+      setIsLoading(false);
     }
-
-    toast.success("Account created successfully.");
-    window.location.assign(data.session ? "/dashboard" : "/login");
   };
 
   return (
