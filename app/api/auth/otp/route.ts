@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
     const supabase = getAdminClient();
     const trimmedEmail = email.trim().toLowerCase();
 
-    // Find existing user
-    const { data: { users } } = await supabase.auth.admin.listUsers();
+    // Find existing user — fetch up to 1000 so we don't miss anyone
+    const { data: { users } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const existing = users.find((u) => u.email?.toLowerCase() === trimmedEmail);
 
     if (existing) {
