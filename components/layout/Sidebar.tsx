@@ -247,9 +247,12 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/12 shadow-[0_0_12px_rgba(212,168,83,0.18)]">
                 <Film className="h-3.5 w-3.5 text-[#d4a853]" />
               </div>
-              <span className="font-display text-sm font-semibold tracking-tight text-gradient-gold">
-                CINEFLOW
-              </span>
+              <div className="flex flex-col leading-none">
+                <span className="font-display text-sm font-semibold tracking-tight text-gradient-gold">
+                  CINEFLOW
+                </span>
+                <span className="text-[9px] text-white/25 tracking-widest uppercase">by Maltav</span>
+              </div>
             </Link>
           )}
           {collapsed && (
