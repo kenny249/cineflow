@@ -137,6 +137,13 @@ export default function ContractsPage() {
   // Delete confirmation
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  // Void confirmation
+  const [voidTargetId, setVoidTargetId] = useState<string | null>(null);
+  const [voiding, setVoiding] = useState(false);
+
+  // Resend confirmation
+  const [resendConfirmOpen, setResendConfirmOpen] = useState(false);
+
   // In-person iPad signing
   const [inPersonOpen, setInPersonOpen] = useState(false);
   const [ipName, setIpName] = useState("");
@@ -279,6 +286,27 @@ export default function ContractsPage() {
       setDeleteTargetId(null);
     }
   }, [selected, contracts]);
+
+  const handleVoid = useCallback(async (id: string) => {
+    setVoiding(true);
+    try {
+      const res = await fetch("/api/contracts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: "voided" }),
+      });
+      if (!res.ok) throw new Error();
+      const voided = { ...selected!, status: "voided" as ContractStatus };
+      setContracts((prev) => prev.map((c) => c.id === id ? voided : c));
+      setSelected(voided);
+      toast.success("Contract voided");
+    } catch {
+      toast.error("Failed to void contract");
+    } finally {
+      setVoiding(false);
+      setVoidTargetId(null);
+    }
+  }, [selected]);
 
   function openEdit() {
     if (!selected) return;
@@ -972,7 +1000,7 @@ export default function ContractsPage() {
                     <div className="space-y-1.5">
                       {(selected.status === "draft" || selected.status === "sent") && (
                         <button
-                          onClick={handleSend}
+                          onClick={selected.status === "sent" ? () => setResendConfirmOpen(true) : handleSend}
                           disabled={sending || !selected.recipient_email}
                           className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#d4a853] px-3 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
                         >
@@ -1092,6 +1120,18 @@ export default function ContractsPage() {
                     </div>
                   </div>
 
+                  {/* ── 9. Void ──────────────────────────────────────────────── */}
+                  {(selected.status === "draft" || selected.status === "sent") && (
+                    <div className="pt-1 border-t border-border">
+                      <button
+                        onClick={() => setVoidTargetId(selected.id)}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg border border-red-500/20 px-3 py-2 text-xs font-medium text-red-400/70 hover:border-red-500/40 hover:text-red-400 hover:bg-red-500/5 transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" /> Void Contract
+                      </button>
+                    </div>
+                  )}
+
                 </div>
               </div>
             </div>
@@ -1121,6 +1161,52 @@ export default function ContractsPage() {
               onClick={() => { if (deleteTargetId) handleDelete(deleteTargetId); }}
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Void Confirmation Dialog ─────────────────────────────────────────── */}
+      <Dialog open={!!voidTargetId} onOpenChange={(v) => { if (!v) setVoidTargetId(null); }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Void this contract?</DialogTitle>
+            <DialogDescription>
+              This will mark the contract as void and the signing link will no longer be accessible. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setVoidTargetId(null)}>Cancel</Button>
+            <Button
+              size="sm"
+              disabled={voiding}
+              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={() => { if (voidTargetId) handleVoid(voidTargetId); }}
+            >
+              {voiding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              Void Contract
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Resend Confirmation Dialog ───────────────────────────────────────── */}
+      <Dialog open={resendConfirmOpen} onOpenChange={setResendConfirmOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Resend for signature?</DialogTitle>
+            <DialogDescription>
+              A new signing email will be sent to {selected?.recipient_email}. The previous link will still be valid.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setResendConfirmOpen(false)}>Cancel</Button>
+            <Button
+              size="sm"
+              className="bg-[#d4a853] hover:bg-[#c49843] text-black font-semibold"
+              onClick={() => { setResendConfirmOpen(false); handleSend(); }}
+            >
+              <Send className="h-3.5 w-3.5 mr-1.5" /> Resend
             </Button>
           </DialogFooter>
         </DialogContent>

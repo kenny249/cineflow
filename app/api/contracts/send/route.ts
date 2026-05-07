@@ -46,7 +46,13 @@ export async function POST(req: NextRequest) {
   let signingToken = contract.signing_token;
   if (!signingToken) {
     signingToken = crypto.randomUUID();
-    await supabase.from("contracts").update({ signing_token: signingToken }).eq("id", contract.id);
+    const { error: tokenErr } = await supabase
+      .from("contracts")
+      .update({ signing_token: signingToken })
+      .eq("id", contract.id);
+    if (tokenErr) {
+      return NextResponse.json({ error: "Failed to generate signing link. Please try again." }, { status: 500 });
+    }
   }
   const signingUrl = `${appUrl}/sign/${signingToken}`;
   const bizName = profile?.business_name || profile?.company || profile?.full_name || "Studio";
