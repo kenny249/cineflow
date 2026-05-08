@@ -1595,6 +1595,24 @@ export async function createRetainerDeliverable(payload: {
   return data as RetainerDeliverable;
 }
 
+export async function bulkCreateRetainerDeliverables(rows: {
+  month_id: string;
+  title: string;
+  type: string;
+  sort_order: number;
+}[]): Promise<RetainerDeliverable[]> {
+  if (rows.length === 0) return [];
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('retainer_deliverables')
+    .insert(rows.map((r) => ({ ...r, created_by: user.id })))
+    .select();
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RetainerDeliverable[];
+}
+
 export async function updateRetainerDeliverable(id: string, updates: { status?: string; title?: string; notes?: string }): Promise<void> {
   const { error } = await db()
     .from('retainer_deliverables')

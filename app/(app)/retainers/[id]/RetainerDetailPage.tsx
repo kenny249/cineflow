@@ -11,7 +11,7 @@ import {
   getRetainer, getRetainerMonths, getRetainerDeliverables,
   createRetainerMonth, updateRetainerMonth, updateRetainer,
   createRetainerDeliverable, updateRetainerDeliverable, deleteRetainerDeliverable,
-  deleteRetainer, createInvoice,
+  bulkCreateRetainerDeliverables, deleteRetainer, createInvoice,
 } from "@/lib/supabase/queries";
 import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus, RetainerTemplateItem } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -248,18 +248,61 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     if (!retainer || !editClientName.trim()) { toast.error("Client name is required"); return; }
     if (editTemplate.some((t) => !t.label.trim())) { toast.error("All deliverables need a label"); return; }
     setSavingEdit(true);
+    const newTemplate = editTemplate.filter((t) => t.quantity > 0);
     try {
       await updateRetainer(id, {
         client_name: editClientName.trim(),
         monthly_rate: editRate ? Number(editRate) : undefined,
-        template: editTemplate.filter((t) => t.quantity > 0),
+        template: newTemplate,
         notes: editNotes.trim() || undefined,
       });
+
+      // Sync deliverables for the active month — add any rows missing due to quantity increases
+      if (activeMonthId) {
+        const toAdd: { month_id: string; title: string; type: string; sort_order: number }[] = [];
+        let maxSort = deliverables.reduce((m, d) => Math.max(m, d.sort_order), -1);
+
+        for (const item of newTemplate) {
+          const mode = item.mode ?? (item.type === "photo" || item.type === "story" ? "batch" : "individual");
+          const existing = deliverables.filter((d) => d.type === item.type);
+
+          if (mode === "batch") {
+            // One batch row per type — only add if none exist yet
+            if (existing.length === 0) {
+              toAdd.push({
+                month_id: activeMonthId,
+                title: item.quantity > 1 ? `${item.label} · ${item.quantity}` : item.label,
+                type: item.type,
+                sort_order: ++maxSort,
+              });
+            }
+          } else {
+            // Individual — add rows for the deficit
+            const deficit = item.quantity - existing.length;
+            for (let i = 1; i <= deficit; i++) {
+              const num = existing.length + i;
+              const suffix = item.quantity > 1 ? ` ${num}` : "";
+              toAdd.push({
+                month_id: activeMonthId,
+                title: `${item.label}${suffix}`,
+                type: item.type,
+                sort_order: ++maxSort,
+              });
+            }
+          }
+        }
+
+        if (toAdd.length > 0) {
+          const created = await bulkCreateRetainerDeliverables(toAdd);
+          setDeliverables((prev) => [...prev, ...created]);
+        }
+      }
+
       setRetainer((prev) => prev ? {
         ...prev,
         client_name: editClientName.trim(),
         monthly_rate: editRate ? Number(editRate) : undefined,
-        template: editTemplate.filter((t) => t.quantity > 0),
+        template: newTemplate,
         notes: editNotes.trim() || undefined,
       } : prev);
       setEditOpen(false);
