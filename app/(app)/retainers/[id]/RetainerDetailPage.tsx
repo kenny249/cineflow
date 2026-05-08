@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
-  CalendarDays, X, Pencil, Check, AlertCircle, Trash2, Settings2,
+  CalendarDays, X, Pencil, Check, AlertCircle, Trash2, Settings2, Link2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -189,6 +189,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [togglingActive, setTogglingActive] = useState(false);
+  const [sharingPortal, setSharingPortal] = useState(false);
 
   const activeMonth = months.find(m => m.id === activeMonthId) ?? null;
 
@@ -294,6 +295,38 @@ export default function RetainerDetailPage({ id }: { id: string }) {
       toast.error(e.message ?? "Failed to delete");
       setDeleting(false);
       setConfirmDelete(false);
+    }
+  }
+
+  // ── Share client portal ──────────────────────────────────────────────────
+
+  async function handleSharePortal() {
+    if (!retainer) return;
+    setSharingPortal(true);
+    try {
+      // If we already have a token locally, just copy
+      if (retainer.portal_token) {
+        const url = `${window.location.origin}/portal/retainer/${retainer.portal_token}`;
+        await navigator.clipboard.writeText(url);
+        toast.success("Portal link copied!");
+        return;
+      }
+      // Otherwise generate one via the API (passes the user's session token)
+      const { data: { session } } = await (await import("@/lib/supabase/client")).createClient().auth.getSession();
+      const res = await fetch(`/api/retainer-portal/${id}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to generate link");
+      const url = `${window.location.origin}/portal/retainer/${json.portal_token}`;
+      setRetainer((prev) => prev ? { ...prev, portal_token: json.portal_token } : prev);
+      await navigator.clipboard.writeText(url);
+      toast.success("Portal link copied!");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to generate link");
+    } finally {
+      setSharingPortal(false);
     }
   }
 
@@ -522,6 +555,17 @@ export default function RetainerDetailPage({ id }: { id: string }) {
             title={retainer.is_active ? "Pause retainer" : "Activate retainer"}
           >
             {retainer.is_active ? "Pause" : "Activate"}
+          </button>
+
+          {/* Share client portal */}
+          <button
+            onClick={handleSharePortal}
+            disabled={sharingPortal}
+            className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/8 px-2.5 py-1.5 text-xs font-medium text-[#d4a853]/80 hover:border-[#d4a853]/50 hover:text-[#d4a853] hover:bg-[#d4a853]/12 transition-colors disabled:opacity-50"
+            title={retainer.portal_token ? "Copy client portal link" : "Generate & copy client portal link"}
+          >
+            <Link2 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{retainer.portal_token ? "Copy Link" : "Share Portal"}</span>
           </button>
 
           {/* Edit retainer */}

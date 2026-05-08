@@ -693,6 +693,7 @@ export interface Retainer {
   notes?: string;
   is_active: boolean;
   start_date?: string;
+  portal_token?: string;
   created_at: string;
   updated_at: string;
 }
