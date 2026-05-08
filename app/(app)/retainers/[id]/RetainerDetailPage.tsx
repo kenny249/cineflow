@@ -347,25 +347,15 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     if (!retainer) return;
     setSharingPortal(true);
     try {
-      // If we already have a token locally, just copy
-      if (retainer.portal_token) {
-        const url = `${window.location.origin}/portal/retainer/${retainer.portal_token}`;
-        await navigator.clipboard.writeText(url);
-        toast.success("Portal link copied!");
-        return;
+      let token = retainer.portal_token;
+      if (!token) {
+        token = crypto.randomUUID();
+        await updateRetainer(id, { portal_token: token });
+        setRetainer((prev) => prev ? { ...prev, portal_token: token! } : prev);
       }
-      // Otherwise generate one via the API (passes the user's session token)
-      const { data: { session } } = await (await import("@/lib/supabase/client")).createClient().auth.getSession();
-      const res = await fetch(`/api/retainer-portal/${id}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to generate link");
-      const url = `${window.location.origin}/portal/retainer/${json.portal_token}`;
-      setRetainer((prev) => prev ? { ...prev, portal_token: json.portal_token } : prev);
+      const url = `${window.location.origin}/portal/retainer/${token}`;
       await navigator.clipboard.writeText(url);
-      toast.success("Portal link copied!");
+      toast.success(retainer.portal_token ? "Portal link copied!" : "Portal link created & copied!");
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to generate link");
     } finally {
@@ -398,14 +388,10 @@ export default function RetainerDetailPage({ id }: { id: string }) {
 
   // ── Month status advance ─────────────────────────────────────────────────
 
-  async function handleAdvanceStatus() {
-    if (!activeMonth) return;
-    const idx = MONTH_STATUS_ORDER.indexOf(activeMonth.status as any);
-    if (idx >= MONTH_STATUS_ORDER.length - 1) return;
-    const next = MONTH_STATUS_ORDER[idx + 1];
-    await updateRetainerMonth(activeMonth.id, { status: next });
-    setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, status: next } : m));
-    toast.success(`Month marked as ${MONTH_STATUS_CONFIG[next].label}`);
+  async function handleSetStatus(newStatus: typeof MONTH_STATUS_ORDER[number]) {
+    if (!activeMonth || activeMonth.status === newStatus) return;
+    await updateRetainerMonth(activeMonth.id, { status: newStatus });
+    setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, status: newStatus } : m));
   }
 
   // ── Create invoice from wrapped month ───────────────────────────────────
@@ -522,9 +508,6 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     );
   }
 
-  const nextStatus = activeMonth
-    ? MONTH_STATUS_ORDER[MONTH_STATUS_ORDER.indexOf(activeMonth.status as any) + 1]
-    : null;
 
   return (
     <div className="flex flex-col gap-0 h-full overflow-hidden">
@@ -736,19 +719,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 {/* Month header */}
                 <div className="flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="text-lg font-semibold text-foreground">{formatMonthYear(activeMonth.month_year)}</h2>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <Badge className={cn("text-[10px] border", MONTH_STATUS_CONFIG[activeMonth.status]?.color ?? "")}>
-                          {MONTH_STATUS_CONFIG[activeMonth.status]?.label ?? activeMonth.status}
-                        </Badge>
-                        {activeMonth.shoot_date && (
-                          <span className="text-xs text-muted-foreground">
-                            Shoot: {new Date(activeMonth.shoot_date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                    <h2 className="text-lg font-semibold text-foreground">{formatMonthYear(activeMonth.month_year)}</h2>
 
                     {/* Shoot date input */}
                     <div className="flex items-center gap-1.5 shrink-0">
@@ -763,29 +734,39 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                     </div>
                   </div>
 
-                  {/* Action buttons row */}
-                  {(nextStatus || activeMonth.status === "wrapped") && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {nextStatus && (
-                        <Button
-                          onClick={handleAdvanceStatus}
-                          variant="outline"
-                          className="h-8 text-xs border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                        >
-                          Mark {MONTH_STATUS_CONFIG[nextStatus]?.label}
-                        </Button>
-                      )}
-                      {activeMonth.status === "wrapped" && (
-                        <Button
-                          onClick={handleCreateInvoice}
-                          variant="outline"
-                          className="h-8 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10 hover:border-[#d4a853]/50"
-                        >
-                          Create Invoice
-                        </Button>
-                      )}
+                  {/* Status segmented control */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/30 border border-border w-fit">
+                      {MONTH_STATUS_ORDER.map((s) => {
+                        const isActive = activeMonth.status === s;
+                        const cfg = MONTH_STATUS_CONFIG[s];
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => handleSetStatus(s)}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md text-[11px] font-medium transition-all duration-150",
+                              isActive
+                                ? cn("shadow-sm", cfg.color)
+                                : "text-muted-foreground/40 hover:text-muted-foreground"
+                            )}
+                          >
+                            {cfg.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
+                    {activeMonth.status === "wrapped" && (
+                      <Button
+                        onClick={handleCreateInvoice}
+                        variant="outline"
+                        size="sm"
+                        className="w-fit h-7 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10 hover:border-[#d4a853]/50"
+                      >
+                        Create Invoice →
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Progress summary */}
