@@ -11,6 +11,7 @@ const PUBLIC_PREFIXES = [
   "/pay",
   "/board",
   "/client",
+  "/portal",
   "/auth",
   "/api",
   "/_next",
