@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Film, LogOut, Send, ArrowLeft } from "lucide-react";
-import type { ProjectMessage } from "@/types";
+import { Film, LogOut, Send, ArrowLeft, Users } from "lucide-react";
+import type { ProjectMessage, ProjectCollaborator } from "@/types";
 
 interface CollabProjectDetail {
   id: string;
@@ -16,8 +16,7 @@ interface CollabProjectDetail {
 }
 
 function formatTime(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatDate(iso: string) {
@@ -30,19 +29,29 @@ function formatDate(iso: string) {
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function statusStyle(status: string) {
+  if (status === "active") return "text-emerald-400 border-emerald-400/20 bg-emerald-400/10";
+  if (status === "review") return "text-amber-400 border-amber-400/20 bg-amber-400/10";
+  if (status === "delivered") return "text-blue-400 border-blue-400/20 bg-blue-400/10";
+  return "text-white/30 border-white/10 bg-white/5";
+}
+
 export default function CollabProjectPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.projectId as string;
 
   const [project, setProject] = useState<CollabProjectDetail | null>(null);
+  const [collaborators, setCollaborators] = useState<ProjectCollaborator[]>([]);
   const [messages, setMessages] = useState<ProjectMessage[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [showPeople, setShowPeople] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -58,16 +67,12 @@ export default function CollabProjectPage() {
         .eq("id", user.id)
         .single();
 
-      if (profile && !profile.is_collaborator) {
-        router.replace("/dashboard");
-        return;
-      }
+      if (profile && !profile.is_collaborator) { router.replace("/dashboard"); return; }
 
       if (profile?.first_name || profile?.last_name) {
         setDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
       }
 
-      // Verify this collaborator is active on this project
       const { data: collab } = await supabase
         .from("project_collaborators")
         .select("id")
@@ -76,62 +81,44 @@ export default function CollabProjectPage() {
         .eq("status", "active")
         .single();
 
-      if (!collab) {
-        router.replace("/collab");
-        return;
-      }
+      if (!collab) { router.replace("/collab"); return; }
 
-      const { data: proj } = await supabase
-        .from("projects")
-        .select("id, title, client_name, status, description, shoot_date")
-        .eq("id", projectId)
-        .single();
+      const [projRes, collabsRes, msgsRes] = await Promise.all([
+        supabase.from("projects").select("id, title, client_name, status, description, shoot_date").eq("id", projectId).single(),
+        supabase.from("project_collaborators").select("*").eq("project_id", projectId).eq("status", "active"),
+        supabase.from("project_messages").select("*").eq("project_id", projectId).order("created_at", { ascending: true }).limit(100),
+      ]);
 
-      setProject(proj ?? null);
-
-      const { data: msgs } = await supabase
-        .from("project_messages")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: true })
-        .limit(100);
-
-      setMessages(msgs ?? []);
+      setProject(projRes.data ?? null);
+      setCollaborators((collabsRes.data as ProjectCollaborator[]) ?? []);
+      setMessages((msgsRes.data as ProjectMessage[]) ?? []);
       setLoading(false);
     }
 
     load();
   }, [projectId, router]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!projectId) return;
     const supabase = createClient();
-
     const channel = supabase
-      .channel(`project_messages:${projectId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "project_messages",
-          filter: `project_id=eq.${projectId}`,
-        },
-        (payload) => {
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === payload.new.id)) return prev;
-            return [...prev, payload.new as ProjectMessage];
-          });
-        }
-      )
+      .channel(`collab_msgs:${projectId}`)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "project_messages",
+        filter: `project_id=eq.${projectId}`,
+      }, (payload) => {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === payload.new.id)) return prev;
+          return [...prev, payload.new as ProjectMessage];
+        });
+      })
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [projectId]);
 
@@ -140,17 +127,14 @@ export default function CollabProjectPage() {
     if (!content || sending) return;
     setSending(true);
     setInput("");
-
     const res = await fetch(`/api/projects/${projectId}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content, author_name: displayName || "Collaborator" }),
     });
-
-    if (!res.ok) {
-      setInput(content);
-    }
+    if (!res.ok) setInput(content);
     setSending(false);
+    inputRef.current?.focus();
   }
 
   async function handleSignOut() {
@@ -159,17 +143,15 @@ export default function CollabProjectPage() {
     router.replace("/login");
   }
 
-  // Group messages by date
   const grouped: { date: string; msgs: ProjectMessage[] }[] = [];
   for (const msg of messages) {
     const date = formatDate(msg.created_at);
     const last = grouped[grouped.length - 1];
-    if (last && last.date === date) {
-      last.msgs.push(msg);
-    } else {
-      grouped.push({ date, msgs: [msg] });
-    }
+    if (last && last.date === date) last.msgs.push(msg);
+    else grouped.push({ date, msgs: [msg] });
   }
+
+  const otherPeople = collaborators.filter((c) => c.user_id !== userId);
 
   if (loading) {
     return (
@@ -188,81 +170,71 @@ export default function CollabProjectPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0b0b0b] text-white">
+    <div className="flex h-screen flex-col bg-[#0b0b0b] text-white overflow-hidden">
       <div className="pointer-events-none fixed left-0 top-0 h-64 w-full bg-[radial-gradient(ellipse_60%_40%_at_30%_0%,rgba(212,168,83,0.06),transparent)]" />
 
       {/* Header */}
-      <header className="border-b border-white/[0.06] px-4 py-4 sm:px-8">
-        <div className="mx-auto flex max-w-3xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/collab")}
-              className="flex items-center gap-1.5 text-white/30 hover:text-white/60 transition-colors"
-            >
+      <header className="shrink-0 border-b border-white/[0.06] px-4 py-3.5 sm:px-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={() => router.push("/collab")} className="text-white/30 hover:text-white/60 transition-colors shrink-0">
               <ArrowLeft className="h-3.5 w-3.5" />
             </button>
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/12">
-                <Film className="h-3.5 w-3.5 text-[#d4a853]" />
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/12">
+                <Film className="h-3 w-3 text-[#d4a853]" />
               </div>
-              <div className="flex flex-col leading-none">
-                <span className="text-xs font-semibold tracking-tight text-white/80">Cineflow</span>
-                <span className="text-[9px] text-white/20 tracking-widest uppercase">Project Workspace</span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{project.title}</p>
+                {project.client_name && <p className="text-[10px] text-white/30 truncate">{project.client_name}</p>}
               </div>
             </div>
+            <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${statusStyle(project.status)}`}>
+              {project.status}
+            </span>
           </div>
-          <div className="flex items-center gap-3">
-            {displayName && <span className="text-xs text-white/40">{displayName}</span>}
+          <div className="flex items-center gap-2 shrink-0">
+            {shoot_date(project) && (
+              <span className="hidden sm:block text-[10px] text-white/30">
+                Shoot {new Date(project.shoot_date!).toLocaleDateString([], { month: "short", day: "numeric" })}
+              </span>
+            )}
+            <button
+              onClick={() => setShowPeople((v) => !v)}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
+                showPeople ? "border-[#d4a853]/30 text-[#d4a853]" : "border-white/10 text-white/40 hover:text-white hover:border-white/20"
+              }`}
+            >
+              <Users className="h-3 w-3" />
+              <span className="hidden sm:inline">People</span>
+              {collaborators.length > 0 && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white/10 text-[9px]">
+                  {collaborators.length}
+                </span>
+              )}
+            </button>
+            {displayName && <span className="hidden sm:block text-xs text-white/40">{displayName}</span>}
             <button
               onClick={handleSignOut}
               className="flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/40 hover:text-white hover:border-white/20 transition-colors"
             >
-              <LogOut className="h-3 w-3" /> Sign out
+              <LogOut className="h-3 w-3" />
+              <span className="hidden sm:inline">Sign out</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pb-6 pt-8 sm:px-8">
-        {/* Project info */}
-        <div className="mb-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-bold text-white">{project.title}</h1>
-              {project.client_name && (
-                <p className="mt-0.5 text-sm text-white/40">{project.client_name}</p>
-              )}
-              {project.description && (
-                <p className="mt-2 text-sm text-white/50 leading-relaxed max-w-xl">{project.description}</p>
-              )}
-            </div>
-            <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${
-              project.status === "active"    ? "text-emerald-400 border-emerald-400/20 bg-emerald-400/10" :
-              project.status === "review"    ? "text-amber-400 border-amber-400/20 bg-amber-400/10" :
-              project.status === "delivered" ? "text-blue-400 border-blue-400/20 bg-blue-400/10" :
-              "text-white/30 border-white/10 bg-white/5"
-            }`}>
-              {project.status}
-            </span>
-          </div>
-          {project.shoot_date && (
-            <p className="mt-2 text-xs text-white/30">
-              Shoot date: {new Date(project.shoot_date).toLocaleDateString([], { month: "long", day: "numeric", year: "numeric" })}
-            </p>
-          )}
-        </div>
+      {/* Body: chat + optional people sidebar */}
+      <div className="flex flex-1 min-h-0">
 
-        {/* Chat section */}
-        <div className="flex flex-col flex-1 rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-          <div className="border-b border-white/[0.06] px-4 py-3">
-            <p className="text-xs font-semibold text-white/50 uppercase tracking-widest">Project Chat</p>
-          </div>
-
+        {/* Chat */}
+        <div className="flex flex-1 flex-col min-w-0">
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1" style={{ minHeight: 320, maxHeight: "calc(100vh - 480px)" }}>
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-0.5">
             {messages.length === 0 ? (
-              <div className="flex h-full items-center justify-center py-16">
-                <p className="text-sm text-white/20">No messages yet — start the conversation.</p>
+              <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
+                <p className="text-sm text-white/20">No messages yet — say hello!</p>
               </div>
             ) : (
               grouped.map(({ date, msgs }) => (
@@ -276,21 +248,20 @@ export default function CollabProjectPage() {
                     const isMe = msg.author_id === userId;
                     const prevMsg = i > 0 ? msgs[i - 1] : null;
                     const showAuthor = !prevMsg || prevMsg.author_id !== msg.author_id;
-
                     return (
                       <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} ${showAuthor ? "mt-3" : "mt-0.5"}`}>
                         {showAuthor && (
-                          <span className={`mb-1 text-[10px] text-white/30 ${isMe ? "mr-1" : "ml-1"}`}>
+                          <span className={`mb-1 text-[10px] text-white/30 ${isMe ? "mr-1" : "ml-9"}`}>
                             {isMe ? "You" : msg.author_name}
                           </span>
                         )}
                         <div className="flex items-end gap-2">
                           {!isMe && (
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-[10px] font-semibold text-white/50">
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-semibold text-white/50">
                               {msg.author_name.charAt(0).toUpperCase()}
                             </div>
                           )}
-                          <div className={`max-w-xs rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                          <div className={`max-w-sm rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                             isMe
                               ? "bg-[#d4a853] text-black rounded-br-sm"
                               : "bg-white/[0.06] text-white/90 rounded-bl-sm"
@@ -309,16 +280,17 @@ export default function CollabProjectPage() {
           </div>
 
           {/* Input */}
-          <div className="border-t border-white/[0.06] p-3">
+          <div className="shrink-0 border-t border-white/[0.06] p-4">
             <div className="flex items-center gap-2">
               <input
+                ref={inputRef}
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 placeholder="Message the team…"
-                className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-white/20 outline-none focus:border-[#d4a853]/30 transition-colors"
                 disabled={sending}
+                className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-white/20 outline-none focus:border-[#d4a853]/30 transition-colors"
               />
               <button
                 onClick={handleSend}
@@ -330,7 +302,62 @@ export default function CollabProjectPage() {
             </div>
           </div>
         </div>
-      </main>
+
+        {/* People sidebar */}
+        {showPeople && (
+          <div className="hidden sm:flex w-56 shrink-0 flex-col border-l border-white/[0.06] overflow-y-auto">
+            <div className="px-4 pt-4 pb-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-3">On this project</p>
+              {collaborators.length === 0 ? (
+                <p className="text-xs text-white/20 italic">Just you for now.</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {collaborators.map((c) => {
+                    const isYou = c.user_id === userId;
+                    return (
+                      <div key={c.id} className="flex items-center gap-2.5">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-semibold text-white/50">
+                          {c.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-white/80 truncate">
+                            {c.name}{isYou ? " (you)" : ""}
+                          </p>
+                        </div>
+                        <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            {project.description && (
+              <>
+                <div className="mx-4 border-t border-white/[0.06]" />
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1.5">About</p>
+                  <p className="text-xs text-white/40 leading-relaxed">{project.description}</p>
+                </div>
+              </>
+            )}
+            {project.shoot_date && (
+              <>
+                <div className="mx-4 border-t border-white/[0.06]" />
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1">Shoot Date</p>
+                  <p className="text-xs text-white/60">
+                    {new Date(project.shoot_date).toLocaleDateString([], { weekday: "short", month: "long", day: "numeric", year: "numeric" })}
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+function shoot_date(project: CollabProjectDetail): boolean {
+  return !!project.shoot_date;
 }

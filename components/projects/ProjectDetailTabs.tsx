@@ -33,8 +33,7 @@ import { ScriptsTab } from "@/components/projects/tabs/ScriptsTab";
 import { ProjectTasksTab } from "@/components/projects/tabs/ProjectTasksTab";
 import { VideoDeliverablesTab } from "@/components/projects/tabs/VideoDeliverablesTab";
 import { ShootDaysPanel } from "@/components/projects/tabs/ShootDaysPanel";
-import { CollaboratorsTab } from "@/components/projects/tabs/CollaboratorsTab";
-import { ChatTab } from "@/components/projects/tabs/ChatTab";
+import { PeopleTab } from "@/components/projects/tabs/PeopleTab";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
 import { downloadCSV } from "@/lib/export";
@@ -1405,8 +1404,7 @@ export default function ProjectDetailTabs({
                 { value: "production",     label: "Production", alsoActiveFor: PRODUCTION_TABS },
                 { value: "review",         label: `Review${revisions.length ? ` (${revisions.length})` : ""}` },
                 { value: "final-cuts",     label: "Final Cuts" },
-                { value: "team",           label: "Team" },
-                { value: "chat",           label: "Chat" },
+                { value: "people",         label: "People" },
                 ...(isAdmin ? [{ value: "finance", label: "Finance 🔒" }] : []),
               ].map((tab) => {
                 const isActive = activeTab === tab.value || (tab.alsoActiveFor?.includes(activeTab) ?? false);
@@ -2562,15 +2560,10 @@ export default function ProjectDetailTabs({
               </div>
             </TabsContent>
 
-            {/* ── Team / Collaborators ── */}
-            <TabsContent value="team" className="m-0">
-              <CollaboratorsTab projectId={project.id} />
-            </TabsContent>
-
-            {/* ── Project Chat ── */}
-            <TabsContent value="chat" className="m-0">
+            {/* ── People: Agency Team + External Contributors + Chat ── */}
+            <TabsContent value="people" className="m-0">
               {chatUserId ? (
-                <ChatTab projectId={project.id} displayName={chatDisplayName} userId={chatUserId} />
+                <PeopleTab projectId={project.id} userId={chatUserId} displayName={chatDisplayName} />
               ) : (
                 <div className="flex h-48 items-center justify-center">
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />
