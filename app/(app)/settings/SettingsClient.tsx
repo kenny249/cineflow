@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, ChevronDown, Tv2, Sparkles, Check, BookTemplate, Plus, Trash2, X } from "lucide-react";
+import { Eye, EyeOff, ChevronDown, Tv2, Sparkles, Check, BookTemplate, Plus, Trash2, X, Shield } from "lucide-react";
+import { ROLE_DEFINITIONS } from "@/lib/roles";
 import { CinematicWallpaper } from "@/components/shared/CinematicWallpaper";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -456,6 +457,46 @@ export default function SettingsClient() {
                   {isSavingBusiness ? "Saving…" : "Save business info"}
                 </Button>
               </div>
+            </div>
+          </section>
+
+          {/* ── Team Roles ───────────────────────────────────────── */}
+          <section>
+            <h2 className="mb-1 font-display text-sm font-semibold text-foreground">Team Roles</h2>
+            <p className="mb-4 text-xs text-muted-foreground">
+              What each role can access in your workspace.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {ROLE_DEFINITIONS.map((def) => {
+                const Icon = def.icon;
+                return (
+                  <div key={def.value} className={`rounded-xl border ${def.border} ${def.bg} p-4`}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Icon className={`h-3.5 w-3.5 ${def.color}`} />
+                      <span className={`text-xs font-semibold ${def.color}`}>{def.label}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mb-3 leading-relaxed">{def.description}</p>
+                    <div className="space-y-1.5">
+                      {def.can.map((item) => (
+                        <div key={item} className="flex items-start gap-1.5">
+                          <Check className="h-3 w-3 mt-0.5 shrink-0 text-emerald-400" />
+                          <span className="text-[11px] text-muted-foreground leading-snug">{item}</span>
+                        </div>
+                      ))}
+                      {def.cannot.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-border/50 space-y-1.5">
+                          {def.cannot.map((item) => (
+                            <div key={item} className="flex items-start gap-1.5">
+                              <X className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground/40" />
+                              <span className="text-[11px] text-muted-foreground/50 leading-snug">{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
 

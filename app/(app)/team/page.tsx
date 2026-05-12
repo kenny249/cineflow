@@ -18,6 +18,7 @@ import {
 import type { TeamMember, TeamTopic, TeamMessage } from "@/types";
 import type { Project } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { ROLE_DEFINITIONS, ROLE_MAP } from "@/lib/roles";
 import {
   Users,
   Hash,
@@ -117,48 +118,107 @@ function InviteModal({ onClose, onInvited }: { onClose: () => void; onInvited: (
     }
   }
 
+  const selectableRoles = ROLE_DEFINITIONS.filter((r) => r.value !== "owner");
+  const selectedDef = ROLE_MAP[role];
+
   return (
-    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold text-foreground">Invite Team Member</h2>
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="pointer-events-auto w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h2 className="font-display text-base font-bold text-foreground">Invite Team Member</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Email address</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="colleague@studio.com"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
-            />
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Email address</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="colleague@studio.com"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Name (optional)</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Alex Johnson"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
+              />
+            </div>
           </div>
+
+          {/* Role picker */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Name (optional)</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Alex Johnson"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
-            />
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">Role</label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {selectableRoles.map((def) => {
+                const Icon = def.icon;
+                const selected = role === def.value;
+                return (
+                  <button
+                    key={def.value}
+                    type="button"
+                    onClick={() => setRole(def.value as TeamMember["role"])}
+                    className={`text-left rounded-xl border p-3.5 transition-all ${
+                      selected
+                        ? `${def.border} ${def.bg}`
+                        : "border-border bg-background hover:border-border/80 hover:bg-muted/20"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Icon className={`h-3.5 w-3.5 ${selected ? def.color : "text-muted-foreground"}`} />
+                      <span className={`text-xs font-semibold ${selected ? def.color : "text-foreground"}`}>
+                        {def.label}
+                      </span>
+                      {selected && (
+                        <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-[#d4a853] text-black">
+                          <Check className="h-2.5 w-2.5" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">{def.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Permission preview for selected role */}
+            {selectedDef && (
+              <div className="mt-2 rounded-lg border border-border bg-muted/20 px-3.5 py-3 space-y-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
+                  {selectedDef.label} can access
+                </p>
+                {selectedDef.can.map((item) => (
+                  <div key={item} className="flex items-start gap-2">
+                    <Check className="h-3 w-3 mt-0.5 shrink-0 text-emerald-400" />
+                    <span className="text-[11px] text-muted-foreground">{item}</span>
+                  </div>
+                ))}
+                {selectedDef.cannot.length > 0 && (
+                  <>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mt-2 mb-1.5">
+                      Cannot access
+                    </p>
+                    {selectedDef.cannot.map((item) => (
+                      <div key={item} className="flex items-start gap-2">
+                        <X className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground/50" />
+                        <span className="text-[11px] text-muted-foreground/60">{item}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
           </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as TeamMember["role"])}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
-            >
-              <option value="member">Member</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
+
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
               Cancel
