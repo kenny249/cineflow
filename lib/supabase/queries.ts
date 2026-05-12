@@ -1096,6 +1096,7 @@ export interface DbTask {
   done: boolean;
   priority: 'high' | 'medium' | 'low';
   date: string; // YYYY-MM-DD
+  sort_order: number;
   created_at: string;
 }
 
@@ -1103,7 +1104,7 @@ export async function getTasks(date?: string): Promise<DbTask[]> {
   const client = db();
   const { data: { user } } = await client.auth.getUser();
   if (!user) return [];
-  let q = client.from('tasks').select('*').eq('user_id', user.id).order('created_at');
+  let q = client.from('tasks').select('*').eq('user_id', user.id).order('sort_order').order('created_at');
   if (date) q = (q as any).eq('date', date);
   const { data, error } = await q;
   if (error) { if (isMissingTableError(error)) return []; throw error; }
@@ -1114,9 +1115,18 @@ export async function createTask(task: { title: string; priority: 'high' | 'medi
   const client = db();
   const { data: { user } } = await client.auth.getUser();
   if (!user) throw new Error('Not authenticated');
+  const { data: existing } = await client
+    .from('tasks')
+    .select('sort_order')
+    .eq('user_id', user.id)
+    .eq('date', task.date)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const sort_order = (existing?.sort_order ?? -1) + 1;
   const { data, error } = await client
     .from('tasks')
-    .insert({ user_id: user.id, title: task.title, priority: task.priority, date: task.date, done: false })
+    .insert({ user_id: user.id, title: task.title, priority: task.priority, date: task.date, done: false, sort_order })
     .select()
     .single();
   if (error) throw new Error(error.message);
@@ -1132,6 +1142,15 @@ export async function updateTask(id: string, updates: { done?: boolean; title?: 
 export async function deleteTask(id: string): Promise<void> {
   const { error } = await db().from('tasks').delete().eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+export async function reorderTasks(orderedIds: string[]): Promise<void> {
+  const client = db();
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      client.from('tasks').update({ sort_order: index }).eq('id', id)
+    )
+  );
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

@@ -17,10 +17,11 @@ import {
   FolderKanban,
   CalendarDays,
   ExternalLink,
+  GripVertical,
 } from "lucide-react";
 import Link from "next/link";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
-import { getTasks, createTask as dbCreateTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask, type DbTask } from "@/lib/supabase/queries";
+import { getTasks, createTask as dbCreateTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask, reorderTasks, type DbTask } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectTask, Project, TaskPriority } from "@/types";
 
@@ -331,6 +332,8 @@ export default function TasksPage() {
   const [dailyQuote, setDailyQuote] = useState("");
   const [sessionCompletedCount, setSessionCompletedCount] = useState(0);
   const [showCompletionGlow, setShowCompletionGlow] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -469,6 +472,28 @@ export default function TasksPage() {
       // No-op on unsupported browsers.
     }
   }, [soundEnabled]);
+
+  const handleDragStart = (id: string) => setDragId(id);
+  const handleDragOver = (id: string) => { if (id !== dragId) setDragOverId(id); };
+  const handleDrop = () => {
+    if (!dragId || !dragOverId || dragId === dragOverId) {
+      setDragId(null); setDragOverId(null); return;
+    }
+    setTasks((prev) => {
+      const pending = prev.filter((t) => t.date === viewDate && !t.done);
+      const rest = prev.filter((t) => !(t.date === viewDate && !t.done));
+      const fromIdx = pending.findIndex((t) => t.id === dragId);
+      const toIdx = pending.findIndex((t) => t.id === dragOverId);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      const reordered = [...pending];
+      const [moved] = reordered.splice(fromIdx, 1);
+      reordered.splice(toIdx, 0, moved);
+      reorderTasks(reordered.map((t) => t.id)).catch(() => {});
+      return [...rest, ...reordered];
+    });
+    setDragId(null);
+    setDragOverId(null);
+  };
 
   const addTask = async () => {
     const trimmed = newTitle.trim();
@@ -858,8 +883,19 @@ export default function TasksPage() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, x: 24, scale: 0.96 }}
                 transition={{ duration: 0.2, delay: i * 0.04, layout: { duration: 0.2 } }}
-                className="group mb-2 flex items-center gap-3 rounded-xl border border-border bg-card/75 backdrop-blur-sm px-4 py-3 hover:border-[#d4a853]/25 transition-colors"
+                draggable
+                onDragStart={() => handleDragStart(task.id)}
+                onDragOver={(e) => { e.preventDefault(); handleDragOver(task.id); }}
+                onDragEnd={handleDrop}
+                className={`group mb-2 flex items-center gap-3 rounded-xl border bg-card/75 backdrop-blur-sm px-4 py-3 transition-colors cursor-default ${
+                  dragOverId === task.id && dragId !== task.id
+                    ? "border-[#d4a853]/60 bg-[#d4a853]/5"
+                    : dragId === task.id
+                    ? "border-border/40 opacity-50"
+                    : "border-border hover:border-[#d4a853]/25"
+                }`}
               >
+                <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition-colors cursor-grab active:cursor-grabbing" />
                 <CheckButton
                   done={task.done}
                   completing={completingIds.includes(task.id)}
