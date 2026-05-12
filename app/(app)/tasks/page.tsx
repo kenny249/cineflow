@@ -921,9 +921,15 @@ export default function TasksPage() {
                     {task.title}
                   </p>
                 )}
-                <span
-                  className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_CONFIG[task.priority].dot}`}
-                  title={`${PRIORITY_CONFIG[task.priority].label} priority`}
+                <button
+                  onClick={() => {
+                    const cycle: Task["priority"][] = ["high", "medium", "low"];
+                    const next = cycle[(cycle.indexOf(task.priority) + 1) % cycle.length];
+                    setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, priority: next } : t));
+                    dbUpdateTask(task.id, { priority: next }).catch(() => {});
+                  }}
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full transition-transform hover:scale-125 active:scale-95 ${PRIORITY_CONFIG[task.priority].dot}`}
+                  title={`Priority: ${PRIORITY_CONFIG[task.priority].label} — click to change`}
                 />
                 <button
                   onClick={() => deleteTask(task.id)}
