@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
-import type { Project, ProjectNote, Revision, ShotList, StoryboardFrame } from "@/types";
+import type { Project, ProjectNote, ProjectRole, Revision, ShotList, StoryboardFrame } from "@/types";
 import ProjectDetailTabs from "@/components/projects/ProjectDetailTabs";
 import { createClient } from "@/lib/supabase/server";
 
@@ -24,6 +24,32 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function SingleProjectPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createClient();
+
+  // Determine the real role of the logged-in user
+  let userRole: ProjectRole = "owner";
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("workspace_id")
+        .eq("id", user.id)
+        .single();
+
+      const isOwner = profile?.workspace_id === user.id;
+      if (!isOwner) {
+        const { data: member } = await supabase
+          .from("team_members")
+          .select("role")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .single();
+
+        if (member?.role === "admin") userRole = "admin";
+        else userRole = "team";
+      }
+    }
+  } catch { /* default to owner on error */ }
 
   let project: Project | null = null;
   let notes: ProjectNote[] = [];
@@ -91,7 +117,7 @@ export default async function SingleProjectPage({ params }: PageProps) {
         initialStoryboardFrames={storyboardFrames}
         initialRevisions={revisions}
         initialMembers={[]}
-        userRole="owner"
+        userRole={userRole}
       />
     </div>
   );

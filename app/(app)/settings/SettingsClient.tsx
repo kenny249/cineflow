@@ -106,6 +106,8 @@ export default function SettingsClient() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
+  const [isOwner, setIsOwner] = useState(true);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -135,6 +137,11 @@ export default function SettingsClient() {
         toast.error("Failed to load profile");
       }
       getStorageUsageBytes().then(setStorageUsed).catch(() => {});
+
+      // Determine if user is workspace owner
+      const supabase = createClient();
+      const { data: role } = await supabase.rpc("get_member_role");
+      setIsOwner(role === "owner");
     }
     load();
   }, []);
@@ -452,8 +459,8 @@ export default function SettingsClient() {
             </div>
           </section>
 
-          {/* ── Payment Methods ──────────────────────────────────── */}
-          <section>
+          {/* ── Payment Methods + Invoice Email (owner only) ─────── */}
+          {isOwner && <><section>
             <h2 className="mb-1 font-display text-sm font-semibold text-foreground">Payment Methods</h2>
             <p className="mb-4 text-xs text-muted-foreground">
               Configure how clients can pay your invoices. Enable only the methods you accept.
@@ -653,7 +660,7 @@ export default function SettingsClient() {
             </div>
           </section>
 
-          {/* ── Email / Invoicing ───────────────────────────────── */}
+          {/* ── Email / Invoicing (owner only) ──────────────────── */}
           <section>
             <h2 className="mb-1 font-display text-sm font-semibold text-foreground">Invoice Email</h2>
             <p className="mb-4 text-xs text-muted-foreground">
@@ -703,7 +710,7 @@ export default function SettingsClient() {
                 </Button>
               </div>
             </div>
-          </section>
+          </section></>}
 
           {/* ── Password ─────────────────────────────────────────── */}
           <section>

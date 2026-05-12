@@ -84,16 +84,19 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   );
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
+  const [workspaceRole, setWorkspaceRole] = useState<"owner" | "admin" | "member">("owner");
   const router = useRouter();
   const pathname = usePathname();
 
-  // Confirm plan from Supabase and keep sessionStorage in sync
+  // Confirm plan, profile and role from Supabase
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("profiles").select("plan, first_name, last_name, avatar_url").eq("id", user.id).single()
-        .then(({ data }) => {
+      Promise.all([
+        supabase.from("profiles").select("plan, first_name, last_name, avatar_url, workspace_id").eq("id", user.id).single(),
+        supabase.rpc("get_member_role"),
+      ]).then(([{ data }, { data: role }]) => {
           if (data?.plan) {
             setPlan(data.plan);
             sessionStorage.setItem("cf_plan", data.plan);
@@ -101,13 +104,11 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
           if (data?.first_name || data?.last_name) {
             setProfileName([data.first_name, data.last_name].filter(Boolean).join(" "));
           } else {
-            // No name set yet — use email username so TopBar never shows a random name
             const emailName = user.email?.split("@")[0] ?? "";
             if (emailName) setProfileName(emailName);
           }
-          if (data?.avatar_url) {
-            setProfileAvatarUrl(data.avatar_url);
-          }
+          if (data?.avatar_url) setProfileAvatarUrl(data.avatar_url);
+          if (role) setWorkspaceRole(role as "owner" | "admin" | "member");
         });
     });
   }, []);
@@ -170,7 +171,10 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
   const solo         = isSoloPlan(plan);
   const primaryNav   = solo ? MOBILE_SOLO_PRIMARY   : MOBILE_STUDIO_PRIMARY;
-  const moreItems    = solo ? MOBILE_SOLO_MORE       : MOBILE_STUDIO_MORE;
+  const isProducer   = workspaceRole === "owner" || workspaceRole === "admin";
+  const moreItems    = (solo ? MOBILE_SOLO_MORE : MOBILE_STUDIO_MORE).filter(
+    (item) => isProducer || item.href !== "/finance"
+  );
   const moreIsActive = moreItems.some((item) => isActive(item.href));
 
   return (
@@ -200,7 +204,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       {/* Sidebar — hidden on mobile, visible md+ */}
       <div className="hidden md:flex">
-        <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+        <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} role={workspaceRole} />
         <SidebarDivider />
       </div>
 

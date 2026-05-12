@@ -78,9 +78,9 @@ function MemberAvatar({ member, size = "md" }: { member: TeamMember | { full_nam
 // ─── Role badge ───────────────────────────────────────────────────────────────
 
 const ROLE_CONFIG = {
-  owner: { label: "Owner", icon: Crown, color: "text-[#d4a853] bg-[#d4a853]/10" },
-  admin: { label: "Admin", icon: Shield, color: "text-blue-400 bg-blue-400/10" },
-  member: { label: "Member", icon: User, color: "text-muted-foreground bg-muted/50" },
+  owner:  { label: "Owner",    icon: Crown,  color: "text-[#d4a853] bg-[#d4a853]/10" },
+  admin:  { label: "Producer", icon: Shield, color: "text-blue-400 bg-blue-400/10" },
+  member: { label: "Member",   icon: User,   color: "text-muted-foreground bg-muted/50" },
 } as const;
 
 function RoleBadge({ role }: { role: TeamMember["role"] }) {
@@ -528,6 +528,7 @@ export default function TeamPage() {
   const [sending, setSending] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [newTopicOpen, setNewTopicOpen] = useState(false);
   const [newProjectTopicOpen, setNewProjectTopicOpen] = useState(false);
   const [memberMenuId, setMemberMenuId] = useState<string | null>(null);
@@ -540,7 +541,9 @@ export default function TeamPage() {
 
   // ── Init ──
   useEffect(() => {
-    createClient().auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+    supabase.rpc("get_member_role").then(({ data: role }) => setIsOwner(role === "owner"));
     getTeamMembers().then(setMembers).catch(() => {});
     getProjects().then(setProjects).catch(() => {});
     getTeamTopics().then((ts) => {
@@ -714,13 +717,15 @@ export default function TeamPage() {
             {panel === "chat" ? <Users className="h-3.5 w-3.5" /> : <MessageSquare className="h-3.5 w-3.5" />}
             {panel === "chat" ? "Members" : "Chat"}
           </button>
-          <button
-            onClick={() => setInviteOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            Invite
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => setInviteOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              Invite
+            </button>
+          )}
         </div>
       </div>
 
@@ -1007,6 +1012,7 @@ export default function TeamPage() {
                         {memberMenuId === member.id && (
                           <div className="absolute right-0 top-8 z-20 w-44 rounded-xl border border-border bg-card shadow-2xl">
                             <div className="p-1">
+                              {isOwner && <>
                               <p className="px-2 pb-1 pt-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/70">Change role</p>
                               {(["member", "admin"] as const).map((r) => (
                                 <button
@@ -1021,7 +1027,8 @@ export default function TeamPage() {
                                   {member.role === r && <Check className="h-3 w-3 text-[#d4a853]" />}
                                 </button>
                               ))}
-                              <div className="my-1 border-t border-border" />
+                              </>}
+                              {isOwner && <div className="my-1 border-t border-border" />}
                               <button
                                 onClick={() => handleRemoveMember(member.id)}
                                 className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors"

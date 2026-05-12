@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import {
   DollarSign, TrendingUp, TrendingDown, Plus, Trash2, Edit3,
   Check, X, ChevronDown, ChevronUp, ExternalLink, Receipt, Layers,
@@ -202,11 +204,23 @@ function ChartTooltip({ active, payload, label }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function FinancePage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [budgetsByProject, setBudgetsByProject] = useState<Record<string, BudgetLine[]>>({});
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Role gate — members cannot access Finance
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.rpc("get_member_role").then(({ data: role }) => {
+      if (role === "member") {
+        router.replace("/dashboard");
+        toast.error("Finance is only accessible to Owners and Producers.");
+      }
+    });
+  }, [router]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<InvoiceFormState>(EMPTY_FORM);

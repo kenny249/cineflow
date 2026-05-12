@@ -40,6 +40,7 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   soloHidden?: boolean;
+  producerOnly?: boolean; // hidden for plain 'member' role
 }
 
 interface NavGroup {
@@ -80,7 +81,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Contracts", href: "/contracts", icon: FileSignature },
       { label: "Forms",     href: "/forms",     icon: FileText },
-      { label: "Finance",   href: "/finance",   icon: DollarSign },
+      { label: "Finance",   href: "/finance",   icon: DollarSign, producerOnly: true },
       { label: "Team",      href: "/team",      icon: UsersRound, soloHidden: true },
     ],
   },
@@ -183,9 +184,10 @@ function BetaNavItem({ collapsed, isActive }: { collapsed: boolean; isActive: bo
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  role?: "owner" | "admin" | "member";
 }
 
-export function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState("Studio User");
   const [plan, setPlan] = useState<string>(() =>
@@ -222,7 +224,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
-  const solo = isSoloPlan(plan);
+  const solo       = isSoloPlan(plan);
+  const isProducer = role === "owner" || role === "admin";
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -285,7 +288,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <nav className="flex flex-1 flex-col overflow-y-auto p-2 pt-3 custom-scrollbar gap-4">
           {NAV_GROUPS.map((group, gi) => {
             const visibleItems = group.items.filter(
-              (item) => !(solo && item.soloHidden)
+              (item) => !(solo && item.soloHidden) && !(item.producerOnly && !isProducer)
             );
             if (visibleItems.length === 0) return null;
 
@@ -341,7 +344,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-white">{displayName}</p>
                 <p className="truncate text-[10px] text-white/40">
-                  {solo ? "Solo Creator · Beta" : "Film Studio · Beta"}
+                  {role === "owner" ? "Owner" : role === "admin" ? "Producer" : "Team Member"}
                 </p>
               </div>
             )}
