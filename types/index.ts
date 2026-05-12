@@ -44,6 +44,7 @@ export interface Profile {
   business_website?: string;
   payment_settings?: PaymentSettings;
   brand_color?: string;
+  is_collaborator?: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -109,6 +110,26 @@ export interface ProjectMember {
   role: string;
   profile: Profile;
   joined_at: string;
+}
+
+export interface ProjectCollaborator {
+  id: string;
+  project_id: string;
+  invited_by: string;
+  user_id: string | null;
+  email: string;
+  name: string;
+  status: "pending" | "active";
+  created_at: string;
+}
+
+export interface ProjectMessage {
+  id: string;
+  project_id: string;
+  author_id: string;
+  author_name: string;
+  content: string;
+  created_at: string;
 }
 
 export interface ProjectNote {

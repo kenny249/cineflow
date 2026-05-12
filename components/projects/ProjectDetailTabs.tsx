@@ -33,6 +33,8 @@ import { ScriptsTab } from "@/components/projects/tabs/ScriptsTab";
 import { ProjectTasksTab } from "@/components/projects/tabs/ProjectTasksTab";
 import { VideoDeliverablesTab } from "@/components/projects/tabs/VideoDeliverablesTab";
 import { ShootDaysPanel } from "@/components/projects/tabs/ShootDaysPanel";
+import { CollaboratorsTab } from "@/components/projects/tabs/CollaboratorsTab";
+import { ChatTab } from "@/components/projects/tabs/ChatTab";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
 import { downloadCSV } from "@/lib/export";
@@ -207,6 +209,25 @@ export default function ProjectDetailTabs({
   const [storyboardFrames, setStoryboardFrames] = useState<StoryboardFrame[]>(initialStoryboardFrames);
   const [revisions, setRevisions] = useState<Revision[]>(initialRevisions);
   const [notes, setNotes] = useState<ProjectNote[]>(initialNotes);
+  const [chatUserId, setChatUserId] = useState("");
+  const [chatDisplayName, setChatDisplayName] = useState("");
+
+  // Load current user for chat
+  useEffect(() => {
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      const supabase = createClient();
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return;
+        setChatUserId(user.id);
+        supabase.from("profiles").select("first_name, last_name").eq("id", user.id).single()
+          .then(({ data: profile }) => {
+            if (profile?.first_name || profile?.last_name) {
+              setChatDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
+            }
+          });
+      });
+    });
+  }, []);
 
   // ── Phase milestones — DB is source of truth, localStorage is cache ──
   const [checkedPhaseItems, setCheckedPhaseItems] = useState<Set<string>>(() => {
@@ -1380,10 +1401,12 @@ export default function ProjectDetailTabs({
             <div className="overflow-x-auto no-scrollbar">
               <TabsList className="flex h-10 w-max min-w-full bg-transparent gap-0 rounded-none border-b-0 p-0 px-4 sm:px-6">
               {[
-                { value: "overview",    label: "Overview" },
-                { value: "production",  label: "Production", alsoActiveFor: PRODUCTION_TABS },
-                { value: "review",      label: `Review${revisions.length ? ` (${revisions.length})` : ""}` },
-                { value: "final-cuts",  label: "Final Cuts" },
+                { value: "overview",       label: "Overview" },
+                { value: "production",     label: "Production", alsoActiveFor: PRODUCTION_TABS },
+                { value: "review",         label: `Review${revisions.length ? ` (${revisions.length})` : ""}` },
+                { value: "final-cuts",     label: "Final Cuts" },
+                { value: "team",           label: "Team" },
+                { value: "chat",           label: "Chat" },
                 ...(isAdmin ? [{ value: "finance", label: "Finance 🔒" }] : []),
               ].map((tab) => {
                 const isActive = activeTab === tab.value || (tab.alsoActiveFor?.includes(activeTab) ?? false);
@@ -2537,6 +2560,22 @@ export default function ProjectDetailTabs({
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* ── Team / Collaborators ── */}
+            <TabsContent value="team" className="m-0">
+              <CollaboratorsTab projectId={project.id} />
+            </TabsContent>
+
+            {/* ── Project Chat ── */}
+            <TabsContent value="chat" className="m-0">
+              {chatUserId ? (
+                <ChatTab projectId={project.id} displayName={chatDisplayName} userId={chatUserId} />
+              ) : (
+                <div className="flex h-48 items-center justify-center">
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />
+                </div>
+              )}
             </TabsContent>
           </div>
         </Tabs>

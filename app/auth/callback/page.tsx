@@ -71,8 +71,34 @@ function CallbackInner() {
         const meta = user.user_metadata ?? {};
         const plan = (meta.plan as string) ?? "studio_beta";
 
-        if (isInvite && meta.workspace_id) {
-          // Invited member: set workspace_id and mark team_members row active
+        if (isInvite && meta.is_collaborator && meta.project_id) {
+          // ── Project collaborator invite ──────────────────────────────────
+          const name = (meta.invited_as as string) || "";
+          const parts = name.split(" ");
+          await supabase.from("profiles").upsert(
+            {
+              id: user.id,
+              email: user.email,
+              first_name: parts[0] ?? null,
+              last_name: parts.slice(1).join(" ") || null,
+              is_collaborator: true,
+              workspace_id: user.id,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id" }
+          );
+          // Activate the pending project_collaborators row
+          await supabase
+            .from("project_collaborators")
+            .update({ user_id: user.id, status: "active" })
+            .eq("project_id", meta.project_id as string)
+            .eq("email", user.email ?? "")
+            .eq("status", "pending");
+
+          if (name) localStorage.setItem("cf_display_name", name);
+
+        } else if (isInvite && meta.workspace_id) {
+          // ── Workspace team member invite ─────────────────────────────────
           await supabase.from("profiles").upsert(
             {
               id: user.id,
@@ -82,7 +108,6 @@ function CallbackInner() {
             },
             { onConflict: "id" }
           );
-          // Link team_members row to the real user_id and activate it
           await supabase
             .from("team_members")
             .update({ user_id: user.id, status: "active" })
@@ -99,14 +124,13 @@ function CallbackInner() {
             localStorage.setItem("cf_display_name", meta.invited_as as string);
           }
         } else {
-          // Owner signup: workspace_id = their own uid so they can invite members
+          // ── Owner signup ─────────────────────────────────────────────────
           await supabase.from("profiles").upsert(
             { id: user.id, email: user.email, plan, workspace_id: user.id, updated_at: new Date().toISOString() },
             { onConflict: "id" }
           );
           sessionStorage.setItem("cf_plan", plan);
 
-          // Seed localStorage display name from real profile so nav shows correct name
           const { data: profile } = await supabase
             .from("profiles")
             .select("first_name, last_name")

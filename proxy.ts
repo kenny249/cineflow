@@ -12,6 +12,7 @@ const PUBLIC_PREFIXES = [
   "/board",
   "/client",
   "/portal",
+  "/collab",
   "/auth",
   "/api",
   "/_next",
@@ -57,14 +58,33 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Logged-in user hitting /login → send to dashboard
+  // Logged-in user hitting /login → send to appropriate home
   if (user && pathname.startsWith("/login")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    // Check if collaborator — redirect to collab view instead of dashboard
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_collaborator")
+      .eq("id", user.id)
+      .single();
+    const dest = profile?.is_collaborator ? "/collab" : "/dashboard";
+    return NextResponse.redirect(new URL(dest, request.url));
   }
 
   // Unauthenticated user hitting a protected route → send to login
   if (!user) {
     return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // Collaborator trying to access main app → redirect to their view
+  if (user && !pathname.startsWith("/collab")) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_collaborator")
+      .eq("id", user.id)
+      .single();
+    if (profile?.is_collaborator) {
+      return NextResponse.redirect(new URL("/collab", request.url));
+    }
   }
 
   return response;
