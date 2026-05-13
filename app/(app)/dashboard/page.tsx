@@ -65,6 +65,7 @@ export default function DashboardPage() {
   const [nameFirst, setNameFirst] = useState("");
   const [nameLast, setNameLast] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
+  const [savedQuickActions, setSavedQuickActions] = useState<string[] | null>(null);
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
   );
@@ -82,13 +83,16 @@ export default function DashboardPage() {
 
       // Load plan — awaited so the correct mode renders before loading clears
       if (user) {
-        const { data: profile } = await supabase.from("profiles").select("plan, first_name, last_name").eq("id", user.id).single();
+        const { data: profile } = await supabase.from("profiles").select("plan, first_name, last_name, quick_actions").eq("id", user.id).single();
         if (profile?.plan) {
           setPlan(profile.plan);
           sessionStorage.setItem("cf_plan", profile.plan);
         }
         if (profile?.first_name || profile?.last_name) {
           setDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
+        }
+        if (profile?.quick_actions) {
+          setSavedQuickActions(profile.quick_actions as string[]);
         } else {
           const emailName = user.email?.split("@")[0] ?? "";
           if (emailName) setDisplayName(emailName);
@@ -422,10 +426,8 @@ export default function DashboardPage() {
                   Quick Actions
                 </h2>
                 <QuickActions
+                  savedKeys={savedQuickActions}
                   onNewProject={() => setModalOpen(true)}
-                  onAddShotList={() => router.push("/shot-lists")}
-                  onUploadRevision={() => router.push("/revisions")}
-                  isSolo={solo}
                 />
               </section>
 

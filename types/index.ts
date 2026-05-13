@@ -45,6 +45,7 @@ export interface Profile {
   payment_settings?: PaymentSettings;
   brand_color?: string;
   is_collaborator?: boolean;
+  quick_actions?: string[];
   created_at: string;
   updated_at?: string;
 }
