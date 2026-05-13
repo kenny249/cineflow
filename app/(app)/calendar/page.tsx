@@ -310,6 +310,19 @@ export default function CalendarPage() {
       ));
       setCreateOpen(false);
       toast.success("Event created");
+
+      if (values.notifyTeam) {
+        fetch("/api/calendar/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventId: newEvent.id }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.sent > 0) toast.success(`Notified ${d.sent} team member${d.sent === 1 ? "" : "s"}`);
+          })
+          .catch(() => { /* silent — notification is best-effort */ });
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("createCalendarEvent error:", err);

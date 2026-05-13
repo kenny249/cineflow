@@ -89,6 +89,7 @@ export interface EventFormValues {
   assigned_to?: string;
   recurrence_rule?: "daily" | "weekly" | "monthly";
   recurrence_end_date?: string;
+  notifyTeam?: boolean;
 }
 
 export interface TeamMember {
@@ -143,6 +144,7 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
   const [assignedTo, setAssignedTo] = useState("");
   const [recurrenceRule, setRecurrenceRule] = useState<"" | "daily" | "weekly" | "monthly">("");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState("");
+  const [notifyTeam, setNotifyTeam] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
@@ -162,6 +164,7 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
     setAssignedTo("");
     setRecurrenceRule("");
     setRecurrenceEndDate("");
+    setNotifyTeam(true);
     setShowDetails(false);
   }, [open, defaultDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -190,6 +193,7 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
       assigned_to: assignedTo || undefined,
       recurrence_rule: recurrenceRule || undefined,
       recurrence_end_date: recurrenceRule && recurrenceEndDate ? recurrenceEndDate : undefined,
+      notifyTeam,
     });
   };
 
@@ -372,6 +376,25 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
             </div>
           )}
         </div>
+
+        {/* Notify toggle */}
+        {teamMembers.length > 0 && (
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <div
+              onClick={() => setNotifyTeam((v) => !v)}
+              className={`relative h-4.5 w-8 rounded-full transition-colors ${notifyTeam ? "bg-[#d4a853]" : "bg-muted"}`}
+              style={{ width: 32, height: 18 }}
+            >
+              <span
+                className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${notifyTeam ? "translate-x-3.5" : "translate-x-0.5"}`}
+                style={{ width: 14, height: 14 }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Notify team by email
+            </span>
+          </label>
+        )}
 
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
