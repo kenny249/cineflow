@@ -90,13 +90,13 @@ export default function DashboardPage() {
         }
         if (profile?.first_name || profile?.last_name) {
           setDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
-        }
-        if (profile?.quick_actions) {
-          setSavedQuickActions(profile.quick_actions as string[]);
         } else {
           const emailName = user.email?.split("@")[0] ?? "";
           if (emailName) setDisplayName(emailName);
           setNameSetupOpen(true);
+        }
+        if (profile?.quick_actions) {
+          setSavedQuickActions(profile.quick_actions as string[]);
         }
       }
 
