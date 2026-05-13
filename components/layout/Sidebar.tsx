@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEditSession } from "@/contexts/EditSessionContext";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -181,6 +182,60 @@ function BetaNavItem({ collapsed, isActive }: { collapsed: boolean; isActive: bo
   return link;
 }
 
+// ── Session indicator ─────────────────────────────────────────────────────────
+
+function fmtElapsed(secs: number): string {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function SessionIndicator({ collapsed }: { collapsed: boolean }) {
+  const { active, elapsed } = useEditSession();
+  const router = useRouter();
+  if (!active) return null;
+
+  const timeStr = fmtElapsed(elapsed);
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => router.push("/editor-tools")}
+            className="mx-auto mb-1 flex h-9 w-9 items-center justify-center rounded-md"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inset-0 animate-ping rounded-full bg-[#d4a853]/50 duration-1000" />
+              <span className="relative h-2.5 w-2.5 rounded-full bg-[#d4a853]" />
+            </span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={12}>Editing · {timeStr}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => router.push("/editor-tools")}
+      className="mx-2 mb-1 flex items-center gap-2.5 rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/8 px-2.5 py-2 text-left transition-all hover:border-[#d4a853]/35 hover:bg-[#d4a853]/12 active:scale-[0.98]"
+    >
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="absolute inset-0 animate-ping rounded-full bg-[#d4a853]/50 duration-1000" />
+        <span className="relative h-2 w-2 rounded-full bg-[#d4a853]" />
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="font-mono text-[11px] font-bold text-[#d4a853] leading-none">{timeStr}</p>
+        <p className="text-[9px] text-white/30 truncate mt-0.5">{active.title}</p>
+      </div>
+    </button>
+  );
+}
+
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 
 interface SidebarProps {
@@ -318,6 +373,8 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
             );
           })}
         </nav>
+
+        <SessionIndicator collapsed={collapsed} />
 
         {/* Bottom nav */}
         <div className="p-2">
