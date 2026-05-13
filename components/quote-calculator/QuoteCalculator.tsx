@@ -3,14 +3,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, Trash2, ChevronDown, Save, FolderOpen, X,
-  Calculator, Pencil, Check, Info,
+  Calculator, Pencil, Info, Sparkles, Loader2, Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { CalcLineItem, CalcCategory, RateCardItem, QuoteEstimate, Project, Profile, Quote } from "@/types";
+import type { CalcLineItem, CalcCategory, RateCardItem, QuoteEstimate, Project, Profile, Quote, CrewProfile } from "@/types";
 import {
   getRateCardItems, getQuoteEstimates, saveQuoteEstimate,
   updateQuoteEstimate, deleteQuoteEstimate, getProjects, getProfile, getQuotes,
+  getMyCrewProfiles,
 } from "@/lib/supabase/queries";
 import QuoteFormModal, { type QuoteFormState, type LineItemForm } from "@/components/quotes/QuoteFormModal";
 
@@ -26,6 +27,64 @@ export const CALC_CATEGORY_CONFIG: Record<CalcCategory, { label: string; color: 
 };
 
 const CATEGORIES = Object.keys(CALC_CATEGORY_CONFIG) as CalcCategory[];
+
+// ── Project type templates ────────────────────────────────────────────────────
+
+const PROJECT_TEMPLATES: { label: string; items: Partial<CalcLineItem>[] }[] = [
+  {
+    label: "Commercial",
+    items: [
+      { service: "Director", category: "pre-production", people: 1, days: 2, rate: 1500, isFlat: false },
+      { service: "DP / Camera Op", category: "production", people: 1, days: 2, rate: 900, isFlat: false },
+      { service: "Gaffer", category: "production", people: 1, days: 2, rate: 550, isFlat: false },
+      { service: "Production Assistant", category: "production", people: 2, days: 2, rate: 300, isFlat: false },
+      { service: "Camera & Lens Package", category: "equipment", people: 1, days: 2, rate: 650, isFlat: false },
+      { service: "Edit & Color Grade", category: "post-production", people: 1, days: 3, rate: 900, isFlat: false },
+    ],
+  },
+  {
+    label: "Social Content",
+    items: [
+      { service: "Videographer", category: "production", people: 1, days: 1, rate: 700, isFlat: false },
+      { service: "Content Strategist", category: "pre-production", people: 1, days: 1, rate: 600, isFlat: false },
+      { service: "Edit (per video)", category: "post-production", people: 1, days: 2, rate: 400, isFlat: false },
+      { service: "Motion Graphics", category: "post-production", people: 1, days: 1, rate: 500, isFlat: false },
+    ],
+  },
+  {
+    label: "Documentary",
+    items: [
+      { service: "Director / DP", category: "production", people: 1, days: 5, rate: 1200, isFlat: false },
+      { service: "Sound Recordist", category: "production", people: 1, days: 5, rate: 600, isFlat: false },
+      { service: "Production Coordinator", category: "pre-production", people: 1, days: 3, rate: 500, isFlat: false },
+      { service: "Edit & Color Grade", category: "post-production", people: 1, days: 8, rate: 800, isFlat: false },
+      { service: "Sound Mix & Master", category: "post-production", people: 1, days: 2, rate: 700, isFlat: false },
+    ],
+  },
+  {
+    label: "Brand Film",
+    items: [
+      { service: "Creative Director", category: "pre-production", people: 1, days: 2, rate: 1500, isFlat: false },
+      { service: "DP", category: "production", people: 1, days: 3, rate: 1000, isFlat: false },
+      { service: "Gaffer + Electric", category: "production", people: 2, days: 3, rate: 600, isFlat: false },
+      { service: "Art Director", category: "pre-production", people: 1, days: 2, rate: 900, isFlat: false },
+      { service: "Camera + Lens Package", category: "equipment", people: 1, days: 3, rate: 800, isFlat: false },
+      { service: "Edit, Color & Sound", category: "post-production", people: 1, days: 5, rate: 900, isFlat: false },
+    ],
+  },
+  {
+    label: "Event Coverage",
+    items: [
+      { service: "Lead Videographer", category: "production", people: 1, days: 1, rate: 900, isFlat: false },
+      { service: "2nd Camera Op", category: "production", people: 1, days: 1, rate: 650, isFlat: false },
+      { service: "Photographer", category: "production", people: 1, days: 1, rate: 700, isFlat: false },
+      { service: "Same-Day Edit", category: "post-production", people: 1, days: 1, rate: 600, isFlat: false },
+      { service: "Full Highlight Edit", category: "post-production", people: 1, days: 2, rate: 800, isFlat: false },
+    ],
+  },
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(n: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
@@ -52,11 +111,15 @@ function lineTotal(item: CalcLineItem): number {
 
 function RateCardPopover({
   items,
+  crew,
   onSelect,
+  onSelectCrew,
   onClose,
 }: {
   items: RateCardItem[];
+  crew: CrewProfile[];
   onSelect: (item: RateCardItem) => void;
+  onSelectCrew: (member: CrewProfile) => void;
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -74,23 +137,50 @@ function RateCardPopover({
     {} as Record<CalcCategory, RateCardItem[]>
   );
 
-  const hasAny = items.length > 0;
+  const hasCrew = crew.length > 0;
+  const hasItems = items.length > 0;
 
   return (
     <div
       ref={ref}
-      className="absolute left-0 top-full z-50 mt-1.5 w-72 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+      className="absolute left-0 top-full z-50 mt-1.5 w-80 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
     >
       <div className="px-3 py-2 border-b border-border">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Rate Card</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Add Line Item</p>
       </div>
-      <div className="max-h-72 overflow-y-auto custom-scrollbar">
-        {!hasAny ? (
-          <div className="px-4 py-6 text-center">
-            <p className="text-xs text-muted-foreground/50">No rate card items yet.</p>
-            <p className="text-[10px] text-muted-foreground/30 mt-1">Add services in Settings → Rate Card.</p>
+      <div className="max-h-80 overflow-y-auto custom-scrollbar">
+        {/* Crew section */}
+        {hasCrew && (
+          <div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/20">
+              <Users className="h-3 w-3 text-muted-foreground/40" />
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Crew</p>
+            </div>
+            {crew.map((member) => {
+              const rate = member.day_rate_min ?? 0;
+              return (
+                <button
+                  key={member.id}
+                  onClick={() => { onSelectCrew(member); onClose(); }}
+                  className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/30 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <span className="text-sm text-foreground truncate block">{member.name}</span>
+                    <span className="text-[10px] text-muted-foreground/50">{member.primary_role}</span>
+                  </div>
+                  {rate > 0 && (
+                    <span className="text-[11px] text-muted-foreground font-mono ml-2 shrink-0">
+                      {fmt(rate)}/day
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-        ) : (
+        )}
+
+        {/* Rate card items */}
+        {hasItems ? (
           CATEGORIES.map((cat) => {
             const catItems = grouped[cat];
             if (!catItems.length) return null;
@@ -115,7 +205,12 @@ function RateCardPopover({
               </div>
             );
           })
-        )}
+        ) : !hasCrew ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground/50">No rate card items or crew yet.</p>
+            <p className="text-[10px] text-muted-foreground/30 mt-1">Add services in Settings → Rate Card.</p>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -225,6 +320,7 @@ export function QuoteCalculator() {
   const [currentEstimateId, setCurrentEstimateId] = useState<string | null>(null);
   const [savedEstimates, setSavedEstimates] = useState<QuoteEstimate[]>([]);
   const [rateCardItems, setRateCardItems] = useState<RateCardItem[]>([]);
+  const [crewProfiles, setCrewProfiles] = useState<CrewProfile[]>([]);
   const [saving, setSaving] = useState(false);
 
   // ── Quote modal state ──────────────────────────────────────────────────────
@@ -238,6 +334,15 @@ export function QuoteCalculator() {
   const [showLoadMenu, setShowLoadMenu] = useState(false);
   const loadMenuRef = useRef<HTMLDivElement>(null);
 
+  // ── AI Scope Writer state ──────────────────────────────────────────────────
+  const [showAIScope, setShowAIScope] = useState(false);
+  const [scopeBrief, setScopeBrief] = useState("");
+  const [scopeLoading, setScopeLoading] = useState(false);
+  const [scopeTitle, setScopeTitle] = useState("");
+  const [scopeDescription, setScopeDescription] = useState("");
+  const [scopeSOW, setScopeSOW] = useState("");
+  const scopeGenerated = !!(scopeTitle || scopeDescription || scopeSOW);
+
   // ── Fetch on mount ─────────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
@@ -246,12 +351,14 @@ export function QuoteCalculator() {
       getProjects(),
       getProfile(),
       getQuotes(),
-    ]).then(([rc, est, proj, prof, q]) => {
+      getMyCrewProfiles(),
+    ]).then(([rc, est, proj, prof, q, crew]) => {
       setRateCardItems(rc);
       setSavedEstimates(est);
       setProjects(proj);
       setProfile(prof);
       setQuotes(q);
+      setCrewProfiles(crew);
     }).catch(() => {});
   }, []);
 
@@ -289,6 +396,18 @@ export function QuoteCalculator() {
     setLineItems((prev) => [
       ...prev,
       newLine({ service: item.name, category: item.category, rate: item.default_rate, isFlat: item.rate_type === "flat" }),
+    ]);
+  }
+
+  function addFromCrew(member: CrewProfile) {
+    setLineItems((prev) => [
+      ...prev,
+      newLine({
+        service: `${member.name} — ${member.primary_role}`,
+        category: "production",
+        rate: member.day_rate_min ?? 0,
+        isFlat: false,
+      }),
     ]);
   }
 
@@ -357,6 +476,40 @@ export function QuoteCalculator() {
     }
   }
 
+  // ── AI Scope Writer ────────────────────────────────────────────────────────
+  async function handleGenerateScope() {
+    if (!scopeBrief.trim()) return;
+    setScopeLoading(true);
+    try {
+      const res = await fetch("/api/ai/quote-scope", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brief: scopeBrief,
+          title: estimateTitle,
+          lineItems: lineItems.filter((li) => li.service.trim()),
+          selectedTier,
+          tierAmount,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setScopeTitle(data.title ?? "");
+      setScopeDescription(data.description ?? "");
+      setScopeSOW(data.scope_of_work ?? "");
+    } catch {
+      toast.error("AI generation failed — try again");
+    }
+    setScopeLoading(false);
+  }
+
+  function openAIScope() {
+    setScopeTitle("");
+    setScopeDescription("");
+    setScopeSOW("");
+    setShowAIScope(true);
+  }
+
   // ── Build Quote prefill ────────────────────────────────────────────────────
   function buildQuotePrefill(): Partial<QuoteFormState> {
     const scale = costTotal > 0 ? tierMult * (1 + overheadPct / 100) : 1;
@@ -370,7 +523,8 @@ export function QuoteCalculator() {
       }));
 
     return {
-      description: estimateTitle !== "Untitled Estimate" ? estimateTitle : "",
+      description: scopeDescription || (estimateTitle !== "Untitled Estimate" ? estimateTitle : ""),
+      scope_of_work: scopeSOW || "",
       line_items: prefillItems.length ? prefillItems : undefined,
     };
   }
@@ -486,6 +640,20 @@ export function QuoteCalculator() {
               )}
             </div>
 
+            {/* Project type templates */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+              <span className="text-[10px] text-muted-foreground/40 font-medium shrink-0">Templates:</span>
+              {PROJECT_TEMPLATES.map((tmpl) => (
+                <button
+                  key={tmpl.label}
+                  onClick={() => setLineItems(tmpl.items.map((item) => newLine(item)))}
+                  className="shrink-0 rounded-full border border-border bg-muted/30 px-3 py-1 text-[11px] font-medium text-muted-foreground hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5 hover:text-[#d4a853] transition-all"
+                >
+                  {tmpl.label}
+                </button>
+              ))}
+            </div>
+
             {/* Line items table */}
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               {/* Column headers */}
@@ -506,12 +674,6 @@ export function QuoteCalculator() {
                     <div key={item.id} className="grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 items-center group hover:bg-muted/10 transition-colors">
                       {/* Service name + category */}
                       <div className="flex items-center gap-2 min-w-0">
-                        <select
-                          value={item.category}
-                          onChange={(e) => updateItem(item.id, "category", e.target.value as CalcCategory)}
-                          className="sr-only"
-                          title="Category"
-                        />
                         <button
                           onClick={() => {
                             const idx = CATEGORIES.indexOf(item.category);
@@ -527,27 +689,43 @@ export function QuoteCalculator() {
                           className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
                         />
                       </div>
-                      {/* People */}
+                      {/* People — text input to avoid leading-zero and spinner issues */}
                       <input
-                        type="number" min="0" value={item.people}
-                        onChange={(e) => updateItem(item.id, "people", Math.max(0, Number(e.target.value)))}
+                        type="text"
+                        inputMode="numeric"
+                        value={item.isFlat ? "" : String(item.people)}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, "");
+                          updateItem(item.id, "people", v === "" ? 0 : Number(v));
+                        }}
                         disabled={item.isFlat}
-                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30"
                       />
                       {/* Days */}
                       <input
-                        type="number" min="0" value={item.days}
-                        onChange={(e) => updateItem(item.id, "days", Math.max(0, Number(e.target.value)))}
+                        type="text"
+                        inputMode="numeric"
+                        value={item.isFlat ? "" : String(item.days)}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/\D/g, "");
+                          updateItem(item.id, "days", v === "" ? 0 : Number(v));
+                        }}
                         disabled={item.isFlat}
-                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30"
                       />
                       {/* Rate */}
                       <div className="relative">
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/50">$</span>
                         <input
-                          type="number" min="0" value={item.rate}
-                          onChange={(e) => updateItem(item.id, "rate", Math.max(0, Number(e.target.value)))}
-                          className="w-full rounded-md border border-transparent bg-transparent pl-5 pr-1.5 py-1 text-sm font-mono text-foreground text-right focus:border-border focus:bg-background focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          type="text"
+                          inputMode="numeric"
+                          value={item.rate === 0 ? "" : String(item.rate)}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/[^\d.]/g, "");
+                            updateItem(item.id, "rate", v === "" ? 0 : Number(v));
+                          }}
+                          placeholder="0"
+                          className="w-full rounded-md border border-transparent bg-transparent pl-5 pr-1.5 py-1 text-sm font-mono text-foreground text-right focus:border-border focus:bg-background focus:outline-none transition-colors"
                         />
                       </div>
                       {/* Total */}
@@ -576,7 +754,6 @@ export function QuoteCalculator() {
                   <span />
                 </div>
               )}
-
             </div>
 
             {/* Add buttons — outside card so dropdown isn't clipped */}
@@ -593,7 +770,9 @@ export function QuoteCalculator() {
                 {showRateCard && (
                   <RateCardPopover
                     items={rateCardItems}
+                    crew={crewProfiles}
                     onSelect={addFromRateCard}
+                    onSelectCrew={addFromCrew}
                     onClose={() => setShowRateCard(false)}
                   />
                 )}
@@ -620,9 +799,15 @@ export function QuoteCalculator() {
               <div className="flex items-center gap-2 shrink-0">
                 <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 px-2.5 py-1.5">
                   <input
-                    type="number" min="0" max="100" value={overheadPct}
-                    onChange={(e) => setOverheadPct(Math.max(0, Number(e.target.value)))}
-                    className="w-10 bg-transparent text-sm font-mono text-foreground text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    type="text"
+                    inputMode="numeric"
+                    value={overheadPct === 0 ? "" : String(overheadPct)}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "");
+                      setOverheadPct(v === "" ? 0 : Math.min(100, Number(v)));
+                    }}
+                    placeholder="0"
+                    className="w-10 bg-transparent text-sm font-mono text-foreground text-center focus:outline-none"
                   />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
@@ -667,7 +852,7 @@ export function QuoteCalculator() {
               selected={selectedTier === "floor"}
               onSelect={() => setSelectedTier("floor")}
               onMultChange={setFloorMult}
-              onBuildQuote={() => { setShowQuoteModal(true); }}
+              onBuildQuote={openAIScope}
             />
             <TierCard
               label="Standard"
@@ -678,7 +863,7 @@ export function QuoteCalculator() {
               selected={selectedTier === "standard"}
               onSelect={() => setSelectedTier("standard")}
               onMultChange={setStdMult}
-              onBuildQuote={() => { setShowQuoteModal(true); }}
+              onBuildQuote={openAIScope}
             />
             <TierCard
               label="Premium"
@@ -688,15 +873,99 @@ export function QuoteCalculator() {
               selected={selectedTier === "premium"}
               onSelect={() => setSelectedTier("premium")}
               onMultChange={setPremiumMult}
-              onBuildQuote={() => { setShowQuoteModal(true); }}
+              onBuildQuote={openAIScope}
             />
 
             <p className="text-[9px] text-muted-foreground/30 text-center">
               Click ×N on any tier to edit its multiplier
             </p>
 
+            {/* AI Scope Writer panel */}
+            {showAIScope && (
+              <div className="rounded-xl border border-[#d4a853]/25 bg-card p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-[#d4a853]" />
+                    <p className="text-xs font-bold text-foreground">AI Scope Writer</p>
+                  </div>
+                  <button
+                    onClick={() => setShowAIScope(false)}
+                    className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    value={scopeBrief}
+                    onChange={(e) => setScopeBrief(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !scopeLoading && handleGenerateScope()}
+                    placeholder="Describe the project in one line…"
+                    className="flex-1 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-[#d4a853]/50 transition-colors"
+                  />
+                  <button
+                    onClick={handleGenerateScope}
+                    disabled={scopeLoading || !scopeBrief.trim()}
+                    className="flex items-center gap-1.5 shrink-0 rounded-lg bg-[#d4a853]/10 border border-[#d4a853]/20 px-2.5 py-1.5 text-xs font-semibold text-[#d4a853] hover:bg-[#d4a853]/20 disabled:opacity-40 transition-all"
+                  >
+                    {scopeLoading
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Sparkles className="h-3.5 w-3.5" />
+                    }
+                    {scopeLoading ? "Writing…" : "Generate"}
+                  </button>
+                </div>
+
+                {scopeGenerated && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Quote Title</label>
+                      <input
+                        value={scopeTitle}
+                        onChange={(e) => setScopeTitle(e.target.value)}
+                        className="mt-0.5 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:border-[#d4a853]/50 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Description</label>
+                      <input
+                        value={scopeDescription}
+                        onChange={(e) => setScopeDescription(e.target.value)}
+                        className="mt-0.5 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:border-[#d4a853]/50 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Scope of Work</label>
+                      <textarea
+                        value={scopeSOW}
+                        onChange={(e) => setScopeSOW(e.target.value)}
+                        rows={3}
+                        className="mt-0.5 w-full rounded-xl border border-border bg-background px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:border-[#d4a853]/50 transition-colors resize-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-0.5">
+                  <button
+                    onClick={() => { setShowAIScope(false); setShowQuoteModal(true); }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1"
+                  >
+                    Skip
+                  </button>
+                  <button
+                    onClick={() => { setShowAIScope(false); setShowQuoteModal(true); }}
+                    className="flex-1 rounded-lg bg-[#d4a853] py-2 text-xs font-bold text-black hover:bg-[#c49843] transition-all active:scale-[0.98]"
+                  >
+                    Build Quote →
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Summary */}
-            {subtotal > 0 && (
+            {subtotal > 0 && !showAIScope && (
               <div className="rounded-xl border border-border bg-card p-3 space-y-1.5 text-[11px]">
                 <div className="flex justify-between text-muted-foreground/60">
                   <span>Crew / services</span>

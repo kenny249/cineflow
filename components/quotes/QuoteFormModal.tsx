@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Plus, Trash2, Star, ChevronDown } from "lucide-react";
+import { X, Plus, Trash2, Star, ChevronDown, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Quote, QuoteType, PaymentTerms, Project, Profile } from "@/types";
 
@@ -259,6 +259,8 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
 
   const [form, setForm] = useState<QuoteFormState>(defaultForm());
   const [saving, setSaving] = useState(false);
+  const [aiBrief, setAiBrief] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -297,6 +299,40 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
     } finally {
       setSaving(false);
     }
+  }
+
+  // AI package generator
+  async function handleGeneratePackages() {
+    if (!aiBrief.trim()) return;
+    setAiLoading(true);
+    try {
+      const referenceItems = form.line_items.filter((li) => li.description.trim());
+      const tierAmount = calcLineItems(form.line_items);
+      const res = await fetch("/api/ai/quote-packages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brief: aiBrief, lineItems: referenceItems, tierAmount }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const generated: PackageForm[] = (data.packages as Array<{ name: string; description: string; line_items: Array<{ description: string; quantity: string; rate: string }> }>).map((pkg, i) => ({
+        id: Math.random().toString(36).slice(2),
+        name: pkg.name,
+        description: pkg.description,
+        line_items: pkg.line_items.map((li) => ({
+          id: Math.random().toString(36).slice(2),
+          description: li.description,
+          quantity: String(li.quantity),
+          rate: String(li.rate),
+        })),
+        highlighted: i === 1,
+      }));
+      set("packages", generated);
+      toast.success("Packages generated");
+    } catch {
+      toast.error("Failed to generate packages — try again");
+    }
+    setAiLoading(false);
   }
 
   // Package handlers
@@ -445,6 +481,28 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
                 </>
               ) : (
                 <div className="space-y-3">
+                  {/* AI Package Generator */}
+                  <div className="flex gap-2 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/5 p-3">
+                    <Sparkles className="h-3.5 w-3.5 text-[#d4a853] shrink-0 mt-1.5" />
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        value={aiBrief}
+                        onChange={(e) => setAiBrief(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && !aiLoading && handleGeneratePackages()}
+                        placeholder="Describe the project — AI generates 3 package tiers instantly"
+                        className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none min-w-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleGeneratePackages}
+                        disabled={aiLoading || !aiBrief.trim()}
+                        className="flex items-center gap-1.5 shrink-0 rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-semibold text-black hover:bg-[#c49843] disabled:opacity-40 transition-all"
+                      >
+                        {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                        {aiLoading ? "Generating…" : "Generate"}
+                      </button>
+                    </div>
+                  </div>
                   <p className="text-xs text-muted-foreground">Present multiple options — client picks one on the quote page.</p>
                   {form.packages.map((pkg, i) => (
                     <PackageCard

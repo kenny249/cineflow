@@ -80,8 +80,10 @@ function ItemRow({ item, onUpdate, onDelete }: ItemRowProps) {
         <div className="relative flex items-center">
           <span className="absolute left-2.5 text-xs text-muted-foreground/50">$</span>
           <input
-            type="number" min="0" value={rate}
-            onChange={(e) => setRate(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            value={rate}
+            onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ""))}
             className="w-24 rounded-lg border border-border bg-background pl-6 pr-2.5 py-1.5 text-sm font-mono text-foreground text-right focus:outline-none focus:border-[#d4a853]/50"
           />
         </div>
@@ -174,8 +176,10 @@ function AddForm({ onAdd, onCancel }: { onAdd: (item: RateCardItem) => void; onC
         <div className="relative flex items-center">
           <span className="absolute left-2.5 text-xs text-muted-foreground/50">$</span>
           <input
-            type="number" min="0" value={rate}
-            onChange={(e) => setRate(e.target.value)}
+            type="text"
+            inputMode="numeric"
+            value={rate}
+            onChange={(e) => setRate(e.target.value.replace(/[^\d.]/g, ""))}
             placeholder="0"
             className="w-24 rounded-lg border border-border bg-background pl-6 pr-2.5 py-1.5 text-sm font-mono text-foreground text-right focus:outline-none focus:border-[#d4a853]/50"
           />
