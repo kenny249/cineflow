@@ -319,7 +319,7 @@ export default function CalendarPage() {
         })
           .then((r) => r.json())
           .then((d) => {
-            if (d.sent > 0) toast.success(`Notified ${d.sent} team member${d.sent === 1 ? "" : "s"}`);
+            if (d.sent > 0) toast.success("Client notified");
           })
           .catch(() => { /* silent — notification is best-effort */ });
       }

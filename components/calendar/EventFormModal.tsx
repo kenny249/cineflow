@@ -377,21 +377,21 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
           )}
         </div>
 
-        {/* Notify toggle */}
-        {teamMembers.length > 0 && (
+        {/* Email client toggle — only when selected project has a client email */}
+        {projects.find((p) => p.id === projectId)?.client_email && (
           <label className="flex items-center gap-2.5 cursor-pointer select-none">
             <div
               onClick={() => setNotifyTeam((v) => !v)}
-              className={`relative h-4.5 w-8 rounded-full transition-colors ${notifyTeam ? "bg-[#d4a853]" : "bg-muted"}`}
               style={{ width: 32, height: 18 }}
+              className={`relative rounded-full transition-colors ${notifyTeam ? "bg-[#d4a853]" : "bg-muted"}`}
             >
               <span
-                className={`absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${notifyTeam ? "translate-x-3.5" : "translate-x-0.5"}`}
                 style={{ width: 14, height: 14 }}
+                className={`absolute top-0.5 rounded-full bg-white shadow transition-transform ${notifyTeam ? "translate-x-3.5" : "translate-x-0.5"}`}
               />
             </div>
             <span className="text-xs text-muted-foreground">
-              Notify team by email
+              Email client a booking confirmation
             </span>
           </label>
         )}

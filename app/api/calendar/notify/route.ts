@@ -61,10 +61,11 @@ function buildICS(ev: {
 function buildEmailHtml(ev: {
   title: string; event_type: string; start_time: string; end_time?: string | null;
   location?: string | null; meeting_link?: string | null; description?: string | null;
-}, agencyName: string, isReminder = false): string {
+}, agencyName: string, isReminder = false, clientName?: string): string {
   const color = TYPE_COLOR[ev.event_type] ?? TYPE_COLOR.other;
   const label = TYPE_LABEL[ev.event_type] ?? "Event";
   const appUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com").trim();
+  const greeting = clientName ? `Hi ${clientName.split(" ")[0]},` : "Hi,";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -77,8 +78,9 @@ function buildEmailHtml(ev: {
       <div style="display:inline-block;background:${color}20;border:1px solid ${color}50;border-radius:999px;padding:4px 14px;margin-bottom:12px;">
         <span style="color:${color};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">${label}</span>
       </div>
+      <p style="margin:0 0 6px;color:#a1a1aa;font-size:13px;">${greeting}</p>
       <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;line-height:1.3;">${ev.title}</h1>
-      ${isReminder ? `<p style="margin:8px 0 0;color:#d4a853;font-size:13px;font-weight:600;">Tomorrow — don't forget</p>` : ""}
+      ${isReminder ? `<p style="margin:8px 0 0;color:#d4a853;font-size:13px;font-weight:600;">Tomorrow — don't forget</p>` : `<p style="margin:8px 0 0;color:#a1a1aa;font-size:13px;">${agencyName} has scheduled an event with you.</p>`}
     </div>
 
     <!-- Details -->
@@ -151,45 +153,37 @@ export async function POST(req: NextRequest) {
     // Get event
     const { data: ev } = await service
       .from("calendar_events")
-      .select("id, title, description, location, meeting_link, start_time, end_time, event_type, assigned_to, created_by")
+      .select("id, title, description, location, meeting_link, start_time, end_time, event_type, assigned_to, created_by, project_id")
       .eq("id", eventId)
       .single();
     if (!ev) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
-    // Get workspace owner profile (agency name + sender info)
+    // Get agency name from the owner's profile
     const { data: ownerProfile } = await service
       .from("profiles")
-      .select("workspace_id, business_name, company, full_name, email")
+      .select("business_name, company, full_name")
       .eq("id", user.id)
       .single();
 
-    const workspaceOwnerId = ownerProfile?.workspace_id ?? user.id;
     const agencyName = ownerProfile?.business_name || ownerProfile?.company || ownerProfile?.full_name || "Your agency";
 
-    // Determine recipients
-    let recipientEmails: string[] = [];
-    if (ev.assigned_to) {
-      const { data: assignee } = await service
-        .from("profiles")
-        .select("email")
-        .eq("id", ev.assigned_to)
-        .single();
-      if (assignee?.email) recipientEmails = [assignee.email];
-    } else {
-      // Workspace-wide — all active team members (not the owner)
-      const { data: members } = await service
-        .from("team_members")
-        .select("email, profiles(email)")
-        .eq("invited_by", workspaceOwnerId)
-        .eq("status", "active");
-      recipientEmails = (members ?? [])
-        .map((m: any) => m.profiles?.email || m.email)
-        .filter(Boolean);
+    // Recipient = client on the linked project
+    if (!ev.project_id) {
+      return NextResponse.json({ sent: 0, message: "No project linked — no client to notify" });
     }
 
-    if (recipientEmails.length === 0) {
-      return NextResponse.json({ sent: 0, message: "No recipients — no team members to notify" });
+    const { data: project } = await service
+      .from("projects")
+      .select("client_name, client_email")
+      .eq("id", ev.project_id)
+      .single();
+
+    if (!project?.client_email) {
+      return NextResponse.json({ sent: 0, message: "Project has no client email" });
     }
+
+    const recipientEmails = [project.client_email];
+    const clientName = project.client_name || undefined;
 
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) return NextResponse.json({ error: "RESEND_API_KEY not configured" }, { status: 500 });
@@ -198,11 +192,11 @@ export async function POST(req: NextRequest) {
     const resend = new Resend(resendKey);
 
     const subject = isReminder
-      ? `Reminder tomorrow: ${ev.title}`
-      : `${TYPE_LABEL[ev.event_type] ?? "New event"}: ${ev.title} — ${formatEventDate(ev.start_time)}`;
+      ? `Reminder: ${ev.title} is tomorrow`
+      : `Booking confirmed: ${ev.title} — ${formatEventDate(ev.start_time)}`;
 
     const icsContent = buildICS(ev);
-    const html = buildEmailHtml(ev, agencyName, isReminder);
+    const html = buildEmailHtml(ev, agencyName, isReminder, clientName);
 
     const results = await Promise.allSettled(
       recipientEmails.map((to) =>
@@ -220,7 +214,7 @@ export async function POST(req: NextRequest) {
     );
 
     const sent = results.filter((r) => r.status === "fulfilled").length;
-    console.log(`[calendar/notify] sent ${sent}/${recipientEmails.length} notifications for event ${eventId}`);
+    console.log(`[calendar/notify] sent ${sent}/${recipientEmails.length} client notification(s) for event ${eventId}`);
 
     return NextResponse.json({ sent, total: recipientEmails.length });
   } catch (e: unknown) {
