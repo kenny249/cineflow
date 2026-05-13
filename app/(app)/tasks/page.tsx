@@ -317,61 +317,106 @@ function CheckButton({
 }
 
 // ── Hourglass SVG ─────────────────────────────────────────────────────────────
-// viewBox 0 0 100 200. Top neck at y=100 (x=48–52). Bottom neck same.
 function HourglassSVG({ progress }: { progress: number }) {
   const p = Math.min(1, Math.max(0, progress));
-  const sandTopY   = 8  + p * 92;        // top sand surface (drains down)
-  const sandBotTopY = 192 - p * 92;      // bottom sand surface (fills up)
+  const sandTopY    = 8   + p * 92;   // drains down  (0 → full, 1 → empty)
+  const sandBotTopY = 192 - p * 92;   // fills up     (0 → empty, 1 → full)
+  const topSandH    = Math.max(0, 100 - sandTopY);
+  const botSandH    = Math.max(0, 192 - sandBotTopY);
+  const streamH     = Math.max(0, sandBotTopY - 100);
 
   return (
     <svg
       viewBox="0 0 100 200"
-      className="w-36 h-72"
-      style={{ filter: "drop-shadow(0 0 18px rgba(212,168,83,0.12))" }}
+      className="w-40 h-80"
+      style={{ filter: "drop-shadow(0 0 22px rgba(212,168,83,0.25)) drop-shadow(0 0 7px rgba(212,168,83,0.12))" }}
       aria-hidden
     >
       <defs>
         <clipPath id="hg-clip">
           <polygon points="8,8 92,8 52,100 92,192 8,192 48,100" />
         </clipPath>
+
+        {/* Sand — horizontal gradient, darker at edges for volumetric depth */}
+        <linearGradient id="hg-sand" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#7A4F10" stopOpacity="0.9" />
+          <stop offset="22%"  stopColor="#C8922E" stopOpacity="0.93" />
+          <stop offset="50%"  stopColor="#EDB84A" stopOpacity="0.97" />
+          <stop offset="78%"  stopColor="#C8922E" stopOpacity="0.93" />
+          <stop offset="100%" stopColor="#7A4F10" stopOpacity="0.9" />
+        </linearGradient>
+
+        {/* Sand surface shimmer — bright at top, fades down */}
+        <linearGradient id="hg-surf" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#FFE090" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#FFE090" stopOpacity="0" />
+        </linearGradient>
+
+        {/* Glass interior — subtle radial highlight, off-center for realism */}
+        <radialGradient id="hg-glass" cx="32%" cy="22%" r="58%">
+          <stop offset="0%"   stopColor="white" stopOpacity="0.06" />
+          <stop offset="100%" stopColor="white" stopOpacity="0.008" />
+        </radialGradient>
+
+        {/* Stream glow */}
+        <filter id="hg-glow" x="-150%" y="-5%" width="400%" height="110%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
 
-      {/* Glass fill */}
+      {/* Glass body */}
       <polygon points="8,8 92,8 52,100 92,192 8,192 48,100"
-        fill="rgba(255,255,255,0.015)" clipPath="url(#hg-clip)" />
+        fill="url(#hg-glass)" />
 
-      {/* Top sand (drains) */}
-      {p < 1 && (
-        <rect x="0" y={sandTopY} width="100" height={100 - sandTopY}
-          fill="rgba(212,168,83,0.55)" clipPath="url(#hg-clip)" />
+      {/* Top sand body */}
+      {topSandH > 0 && (
+        <rect x="0" y={sandTopY} width="100" height={topSandH}
+          fill="url(#hg-sand)" clipPath="url(#hg-clip)" />
       )}
-      {/* Top sand surface shine */}
-      {p < 1 && (
-        <rect x="0" y={sandTopY} width="100" height="1.5"
-          fill="rgba(240,192,96,0.8)" clipPath="url(#hg-clip)" />
-      )}
-
-      {/* Bottom sand (fills) */}
-      {p > 0 && (
-        <rect x="0" y={sandBotTopY} width="100" height={192 - sandBotTopY}
-          fill="rgba(212,168,83,0.55)" clipPath="url(#hg-clip)" />
-      )}
-      {/* Bottom sand surface shine */}
-      {p > 0.01 && p < 1 && (
-        <rect x="0" y={sandBotTopY} width="100" height="1.5"
-          fill="rgba(240,192,96,0.8)" clipPath="url(#hg-clip)" />
+      {/* Top sand surface shimmer */}
+      {topSandH > 0 && (
+        <rect x="0" y={sandTopY} width="100" height={Math.min(5, topSandH)}
+          fill="url(#hg-surf)" clipPath="url(#hg-clip)" />
       )}
 
-      {/* Sand stream through neck */}
-      {p > 0.01 && p < 0.99 && (
-        <rect x="49" y="99" width="2" height={Math.max(0, sandBotTopY - 99)}
-          fill="rgba(212,168,83,0.35)" />
+      {/* Bottom sand body */}
+      {botSandH > 0 && (
+        <rect x="0" y={sandBotTopY} width="100" height={botSandH}
+          fill="url(#hg-sand)" clipPath="url(#hg-clip)" />
+      )}
+      {/* Bottom sand surface shimmer */}
+      {botSandH > 0 && (
+        <rect x="0" y={sandBotTopY} width="100" height={Math.min(5, botSandH)}
+          fill="url(#hg-surf)" clipPath="url(#hg-clip)" />
+      )}
+
+      {/* Sand stream — shows immediately (no delay) */}
+      {p < 1 && streamH > 0 && (
+        <rect x="49" y="100" width="2" height={streamH}
+          fill="rgba(237,184,74,0.7)" filter="url(#hg-glow)" />
       )}
 
       {/* Glass outline */}
       <polygon points="8,8 92,8 52,100 92,192 8,192 48,100"
-        fill="none" stroke="rgba(212,168,83,0.22)" strokeWidth="0.8"
+        fill="none" stroke="rgba(212,168,83,0.38)" strokeWidth="0.75"
         strokeLinejoin="round" />
+
+      {/* Frame caps — top and bottom */}
+      <line x1="6" y1="8"   x2="94" y2="8"
+        stroke="rgba(212,168,83,0.7)" strokeWidth="2" strokeLinecap="round" />
+      <line x1="6" y1="192" x2="94" y2="192"
+        stroke="rgba(212,168,83,0.7)" strokeWidth="2" strokeLinecap="round" />
+
+      {/* Glass highlight — left inner edge of top chamber */}
+      <line x1="16" y1="22" x2="45" y2="93"
+        stroke="rgba(255,255,255,0.15)" strokeWidth="2.5" strokeLinecap="round" />
+      {/* Glass highlight — right inner edge of bottom chamber (subtler) */}
+      <line x1="84" y1="178" x2="55" y2="107"
+        stroke="rgba(255,255,255,0.06)" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -620,17 +665,17 @@ export default function TasksPage() {
   };
   // Keep refreshTasks available for future use
   void refreshTasks;
-  // Focus timer
+  // Focus timer — 250ms ticks so stream and sand feel responsive from the start
   useEffect(() => {
     if (!focusSession || focusDone) return;
     const iv = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - focusSession.startedAt) / 1000);
+      const elapsed = (Date.now() - focusSession.startedAt) / 1000;
       setFocusElapsed(elapsed);
       if (elapsed >= focusSession.totalSecs) {
         setFocusDone(true);
         clearInterval(iv);
       }
-    }, 1000);
+    }, 250);
     return () => clearInterval(iv);
   }, [focusSession, focusDone]);
 
