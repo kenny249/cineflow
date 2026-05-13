@@ -388,8 +388,8 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, package
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-12 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-2xl border border-border bg-[#0f0f0f] shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-start justify-center overflow-y-auto bg-black/60 sm:p-4 sm:pt-12 backdrop-blur-sm">
+      <div className="w-full max-w-2xl rounded-t-2xl sm:rounded-2xl border border-border bg-[#0f0f0f] shadow-2xl mb-0 sm:mb-8" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>

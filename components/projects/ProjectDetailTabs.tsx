@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { formatDate, formatRelative, formatFileSize, getProgressColor, getInitials, PROJECT_TYPE_LABELS, PROJECT_STATUS_LABELS } from "@/lib/utils";
@@ -182,6 +182,7 @@ export default function ProjectDetailTabs({
   hasQuote = false,
 }: ProjectDetailTabsProps) {
   // Role helpers
+  const router = useRouter();
   const searchParams = useSearchParams();
   const rawInitialTab = searchParams.get("tab") ?? "overview";
   // Map legacy/hidden tab values into their new parent tab
@@ -1410,7 +1411,7 @@ export default function ProjectDetailTabs({
             id: "quote",
             label: "Quote",
             done: hasQuote,
-            onClick: () => { window.location.href = "/quotes"; },
+            onClick: () => router.push("/finance?tab=quotes"),
           },
           {
             id: "pre-prod",

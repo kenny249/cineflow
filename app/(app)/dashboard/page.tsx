@@ -114,7 +114,7 @@ export default function DashboardPage() {
       } catch {
         // invoices table may not exist yet
       }
-      const activityData = await getActivityLog(10);
+      const activityData = await getActivityLog(25);
       setActivity(activityData);
       try {
         const eventsData = await getCalendarEvents();
@@ -140,7 +140,9 @@ export default function DashboardPage() {
       await updateProfile({ first_name: nameFirst.trim(), last_name: nameLast.trim() || undefined });
       setDisplayName([nameFirst.trim(), nameLast.trim()].filter(Boolean).join(" "));
       setNameSetupOpen(false);
-      toast.success("Welcome to Cineflow!");
+      // Nudge them straight into creating their first project
+      setTimeout(() => setModalOpen(true), 300);
+      toast.success(`Welcome, ${nameFirst.trim()}! Let's create your first project.`);
     } catch {
       toast.error("Couldn't save your name — try again.");
     } finally {
@@ -414,6 +416,7 @@ export default function DashboardPage() {
                   hasProjects={projects.length > 0}
                   hasClients={projects.some((p) => !!p.client_name)}
                   hasInvoices={invoices.length > 0}
+                  hasRevisions={activity.some((a) => a.type === "revision_uploaded")}
                   isSolo={solo}
                   onCreateProject={() => setModalOpen(true)}
                 />
@@ -552,7 +555,17 @@ export default function DashboardPage() {
                     {activity.length === 0 ? (
                       <p className="py-4 text-center text-xs text-muted-foreground">No activity yet — create a project or upload a revision to get started.</p>
                     ) : (
-                      <ActivityFeed items={activity} />
+                      <>
+                        <ActivityFeed items={activity.slice(0, 10)} />
+                        {activity.length > 10 && (
+                          <button
+                            onClick={() => { /* navigate to full activity log */ window.location.href = "/projects"; }}
+                            className="mt-3 w-full rounded-lg border border-border bg-muted/20 py-2 text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            {activity.length - 10} more events — view all projects
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </section>

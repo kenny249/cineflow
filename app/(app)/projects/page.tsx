@@ -65,10 +65,16 @@ function ProjectsPageInner() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
   const [trashedProjects, setTrashedProjects] = useState<Project[]>([]);
+  const [displayCount, setDisplayCount] = useState(24);
 
   useEffect(() => {
     setSearch(searchParams.get("q") ?? "");
   }, [searchParams]);
+
+  // Reset page when search or filter changes
+  useEffect(() => {
+    setDisplayCount(24);
+  }, [search, statusFilter, viewMode]);
 
   useEffect(() => {
     async function loadProjects() {
@@ -102,7 +108,7 @@ function ProjectsPageInner() {
       setProjects(projects.filter((p) => p.id !== deleteConfirm.id));
       setDeleteConfirm(null);
       toast.success("Project moved to trash", {
-        action: { label: "Undo", onClick: async () => { await restoreProject(deleteConfirm.id); setProjects((prev) => [...prev, { ...prev[0] }]); handleProjectCreated(); } },
+        action: { label: "Undo", onClick: async () => { await restoreProject(deleteConfirm.id); handleProjectCreated(); } },
       });
     } catch {
       toast.error("Failed to delete project");
@@ -136,10 +142,15 @@ function ProjectsPageInner() {
     const matchesSearch =
       !q ||
       p.title.toLowerCase().includes(q) ||
-      p.client_name?.toLowerCase().includes(q);
+      p.client_name?.toLowerCase().includes(q) ||
+      p.description?.toLowerCase().includes(q) ||
+      p.tags?.some((t) => t.toLowerCase().includes(q));
     const matchesStatus = statusFilter === "all" || p.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const paginatedFiltered = viewMode === "pipeline" ? filtered : filtered.slice(0, displayCount);
+  const hasMore = viewMode !== "pipeline" && filtered.length > displayCount;
 
   return (
     <>
@@ -318,11 +329,23 @@ function ProjectsPageInner() {
               </p>
             </div>
           ) : viewMode === "grid" ? (
-            <GridView
-              projects={filtered}
-              onNew={() => setModalOpen(true)}
-              onDelete={(id, title) => setDeleteConfirm({ id, title })}
-            />
+            <>
+              <GridView
+                projects={paginatedFiltered}
+                onNew={() => setModalOpen(true)}
+                onDelete={(id, title) => setDeleteConfirm({ id, title })}
+              />
+              {hasMore && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={() => setDisplayCount((n) => n + 24)}
+                    className="rounded-xl border border-border bg-card px-5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-[#d4a853]/30 hover:text-foreground"
+                  >
+                    Show {Math.min(24, filtered.length - displayCount)} more
+                  </button>
+                </div>
+              )}
+            </>
           ) : viewMode === "pipeline" ? (
             <PipelineView
               projects={filtered}
@@ -332,11 +355,23 @@ function ProjectsPageInner() {
               }
             />
           ) : (
-            <ListView
-              projects={filtered}
-              density={density}
-              onDelete={(id, title) => setDeleteConfirm({ id, title })}
-            />
+            <>
+              <ListView
+                projects={paginatedFiltered}
+                density={density}
+                onDelete={(id, title) => setDeleteConfirm({ id, title })}
+              />
+              {hasMore && (
+                <div className="mt-4 flex justify-center">
+                  <button
+                    onClick={() => setDisplayCount((n) => n + 24)}
+                    className="rounded-xl border border-border bg-card px-5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:border-[#d4a853]/30 hover:text-foreground"
+                  >
+                    Show {Math.min(24, filtered.length - displayCount)} more
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

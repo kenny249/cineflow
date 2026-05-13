@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { isRateLimited, getClientIp } from "@/lib/rate-limit";
 
 function getAdmin() {
   return createClient(
@@ -10,10 +11,17 @@ function getAdmin() {
 }
 
 export async function GET(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const ip = getClientIp(request);
+  if (isRateLimited(`client-portal:${ip}`, 30, 60_000)) {
+    console.warn("[client/portal] rate limited ip:", ip);
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { token } = await params;
+  console.log("[client/portal] GET token:", token.slice(0, 8));
   const supabaseAdmin = getAdmin();
 
   // Look up portal by token
@@ -25,6 +33,7 @@ export async function GET(
     .single();
 
   if (portalError || !portal) {
+    console.warn("[client/portal] not found, token:", token.slice(0, 8));
     return NextResponse.json({ error: "Portal not found" }, { status: 404 });
   }
 
@@ -51,6 +60,7 @@ export async function GET(
     deliverables = data ?? [];
   }
 
+  console.log("[client/portal] served", (projects ?? []).length, "projects,", deliverables.length, "deliverables for", portal.client_name);
   return NextResponse.json({
     client_name: portal.client_name,
     projects: projects ?? [],

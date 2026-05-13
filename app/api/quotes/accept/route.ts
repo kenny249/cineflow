@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
+import { isRateLimited, getClientIp } from "@/lib/rate-limit";
 
 function getAdminClient() {
   return createClient(
@@ -118,6 +119,12 @@ async function sendQuoteEmails(supabase: ReturnType<typeof getAdminClient>, quot
 }
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  if (isRateLimited(`quotes-accept:${ip}`, 10, 60_000)) {
+    console.warn("[quotes/accept] rate limited ip:", ip);
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   try {
     const body = await req.json();
     const { token, name, email, declined } = body;
@@ -126,6 +133,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "token required" }, { status: 400 });
     }
 
+    console.log("[quotes/accept] token:", token.slice(0, 8), "declined:", !!declined);
     const supabase = getAdminClient();
 
     const { data: quote } = await supabase
@@ -136,6 +144,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!quote) {
+      console.warn("[quotes/accept] quote not found for token:", token.slice(0, 8));
       return NextResponse.json({ error: "Quote not found" }, { status: 404 });
     }
 
@@ -146,11 +155,9 @@ export async function POST(req: NextRequest) {
     if (declined) {
       await supabase
         .from("quotes")
-        .update({
-          status: "declined",
-          declined_at: new Date().toISOString(),
-        })
+        .update({ status: "declined", declined_at: new Date().toISOString() })
         .eq("id", quote.id);
+      console.log("[quotes/accept] declined quote:", quote.id);
       return NextResponse.json({ ok: true, status: "declined" });
     }
 
@@ -171,12 +178,13 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", quote.id);
 
+    console.log("[quotes/accept] accepted quote:", quote.id, "by:", trimmedName);
+
     // Auto-create retainer record when a retainer quote is accepted
     if (quote.quote_type === "retainer" && quote.client_name && quote.created_by) {
       const template = Array.isArray(quote.retainer_deliverables) && quote.retainer_deliverables.length > 0
-        ? quote.retainer_deliverables
-        : [];
-      await supabase.from("retainers").insert({
+        ? quote.retainer_deliverables : [];
+      const { error: retainerErr } = await supabase.from("retainers").insert({
         created_by: quote.created_by,
         client_name: quote.client_name,
         monthly_rate: quote.monthly_rate ?? null,
@@ -184,13 +192,15 @@ export async function POST(req: NextRequest) {
         is_active: true,
         start_date: new Date().toISOString().slice(0, 10),
       });
+      if (retainerErr) console.error("[quotes/accept] retainer auto-create failed:", retainerErr.message);
     }
 
     // Fire-and-forget email notifications
     sendQuoteEmails(supabase, quote.id, trimmedName, trimmedEmail ?? undefined);
 
     return NextResponse.json({ ok: true, status: "accepted" });
-  } catch {
+  } catch (err) {
+    console.error("[quotes/accept] unexpected error:", err instanceof Error ? err.message : err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isRateLimited, getClientIp } from "@/lib/rate-limit";
 
 // GET  /api/review/[token]  → return portal data for the client page
 // POST /api/review/[token]  → submit a client comment on a revision
 // PATCH /api/review/[token] → client action: approve or request_changes
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const ip = getClientIp(req);
+  if (isRateLimited(`review-get:${ip}`, 60, 60_000)) {
+    console.warn("[review/GET] rate limited", ip);
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { token } = await params;
+  console.log("[review/GET] token:", token.slice(0, 8), "ip:", ip);
   const supabase = await createClient();
 
   const { data: tokenRow, error: tokenError } = await supabase
@@ -20,6 +28,7 @@ export async function GET(
     .single();
 
   if (tokenError || !tokenRow) {
+    console.warn("[review/GET] invalid token:", token.slice(0, 8));
     return NextResponse.json({ error: "Invalid or expired link" }, { status: 404 });
   }
 
@@ -37,6 +46,7 @@ export async function GET(
     .single();
 
   if (!project) {
+    console.error("[review/GET] project not found for token:", token.slice(0, 8));
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
@@ -67,7 +77,14 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const ip = getClientIp(req);
+  if (isRateLimited(`review-post:${ip}`, 20, 60_000)) {
+    console.warn("[review/POST] rate limited", ip);
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { token } = await params;
+  console.log("[review/POST] comment submission, token:", token.slice(0, 8));
   const supabase = await createClient();
 
   const { data: tokenRow, error: tokenError } = await supabase
@@ -119,6 +136,7 @@ export async function POST(
     .single();
 
   if (commentError) {
+    console.error("[review/POST] failed to save comment:", commentError.message);
     return NextResponse.json({ error: "Failed to save comment" }, { status: 500 });
   }
 
@@ -136,7 +154,14 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const ip = getClientIp(req);
+  if (isRateLimited(`review-patch:${ip}`, 10, 60_000)) {
+    console.warn("[review/PATCH] rate limited", ip);
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { token } = await params;
+  console.log("[review/PATCH] client action, token:", token.slice(0, 8));
   const supabase = await createClient();
 
   // Validate token
@@ -197,8 +222,11 @@ export async function PATCH(
     .eq("id", revision_id);
 
   if (updateError) {
+    console.error("[review/PATCH] failed to update revision:", updateError.message);
     return NextResponse.json({ error: "Failed to update revision" }, { status: 500 });
   }
+
+  console.log("[review/PATCH] action:", action, "revision:", revision_id, "new status:", newStatus);
 
   // Create in-app notification for the project owner
   const notifTitle = action === "approve"
@@ -242,7 +270,7 @@ export async function PATCH(
         portalUrl: reviewUrl,
         feedback: feedback ?? "",
       }),
-    }).catch(() => {});
+    }).catch((err) => console.error("[review/PATCH] notify email failed:", err));
   }
 
   return NextResponse.json({ ok: true, status: newStatus });

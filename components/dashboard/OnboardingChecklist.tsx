@@ -42,11 +42,12 @@ interface Props {
   hasProjects: boolean;
   hasClients?: boolean;
   hasInvoices?: boolean;
+  hasRevisions?: boolean;
   isSolo: boolean;
   onCreateProject: () => void;
 }
 
-export function OnboardingChecklist({ hasProjects, hasClients, hasInvoices, isSolo, onCreateProject }: Props) {
+export function OnboardingChecklist({ hasProjects, hasClients, hasInvoices, hasRevisions, isSolo, onCreateProject }: Props) {
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [visible, setVisible] = useState(false);
 
@@ -57,10 +58,11 @@ export function OnboardingChecklist({ hasProjects, hasClients, hasInvoices, isSo
     );
     if (hasProjects) saved.project = true;
     if (hasClients) saved.client = true;
+    if (hasRevisions) saved.revision = true;
     if (hasInvoices) saved.invoice = true;
     setDone(saved);
     setVisible(true);
-  }, [hasProjects, hasClients, hasInvoices]);
+  }, [hasProjects, hasClients, hasInvoices, hasRevisions]);
 
   if (!visible) return null;
 

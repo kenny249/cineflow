@@ -229,6 +229,7 @@ export default function FinancePage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [activeTab, setActiveTab] = useState<"overview" | "invoices" | "projects" | "quotes">("overview");
+  const [invoiceDisplayCount, setInvoiceDisplayCount] = useState(15);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
   useEffect(() => {
@@ -605,15 +606,25 @@ export default function FinancePage() {
                 {invoices.length === 0 ? (
                   <EmptyInvoices onNew={openNewForm} />
                 ) : (
-                  invoices.map((inv) => (
-                    <InvoiceRow
-                      key={inv.id} inv={inv}
-                      onEdit={openEditForm} onDelete={handleDelete}
-                      onQuickStatus={quickStatus} onView={setViewingInvoice}
-                      onMarkInstallmentPaid={markInstallmentPaid}
-                      deletingId={deletingId} projects={projects}
-                    />
-                  ))
+                  <>
+                    {invoices.slice(0, invoiceDisplayCount).map((inv) => (
+                      <InvoiceRow
+                        key={inv.id} inv={inv}
+                        onEdit={openEditForm} onDelete={handleDelete}
+                        onQuickStatus={quickStatus} onView={setViewingInvoice}
+                        onMarkInstallmentPaid={markInstallmentPaid}
+                        deletingId={deletingId} projects={projects}
+                      />
+                    ))}
+                    {invoices.length > invoiceDisplayCount && (
+                      <button
+                        onClick={() => setInvoiceDisplayCount((n) => n + 15)}
+                        className="w-full rounded-xl border border-border bg-card py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        Show {Math.min(15, invoices.length - invoiceDisplayCount)} more invoices
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             )}
