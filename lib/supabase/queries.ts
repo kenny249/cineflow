@@ -1137,7 +1137,7 @@ export async function createTask(task: { title: string; priority: 'high' | 'medi
   return data as DbTask;
 }
 
-export async function updateTask(id: string, updates: { done?: boolean; title?: string; priority?: string }): Promise<DbTask> {
+export async function updateTask(id: string, updates: { done?: boolean; title?: string; priority?: string; date?: string }): Promise<DbTask> {
   const { data, error } = await db().from('tasks').update(updates).eq('id', id).select().single();
   if (error) throw new Error(error.message);
   return data as DbTask;

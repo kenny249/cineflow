@@ -18,6 +18,8 @@ import {
   CalendarDays,
   ExternalLink,
   GripVertical,
+  Timer,
+  SkipForward,
 } from "lucide-react";
 import Link from "next/link";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
@@ -314,6 +316,66 @@ function CheckButton({
   );
 }
 
+// ── Hourglass SVG ─────────────────────────────────────────────────────────────
+// viewBox 0 0 100 200. Top neck at y=100 (x=48–52). Bottom neck same.
+function HourglassSVG({ progress }: { progress: number }) {
+  const p = Math.min(1, Math.max(0, progress));
+  const sandTopY   = 8  + p * 92;        // top sand surface (drains down)
+  const sandBotTopY = 192 - p * 92;      // bottom sand surface (fills up)
+
+  return (
+    <svg
+      viewBox="0 0 100 200"
+      className="w-36 h-72"
+      style={{ filter: "drop-shadow(0 0 18px rgba(212,168,83,0.12))" }}
+      aria-hidden
+    >
+      <defs>
+        <clipPath id="hg-clip">
+          <polygon points="8,8 92,8 52,100 92,192 8,192 48,100" />
+        </clipPath>
+      </defs>
+
+      {/* Glass fill */}
+      <polygon points="8,8 92,8 52,100 92,192 8,192 48,100"
+        fill="rgba(255,255,255,0.015)" clipPath="url(#hg-clip)" />
+
+      {/* Top sand (drains) */}
+      {p < 1 && (
+        <rect x="0" y={sandTopY} width="100" height={100 - sandTopY}
+          fill="rgba(212,168,83,0.55)" clipPath="url(#hg-clip)" />
+      )}
+      {/* Top sand surface shine */}
+      {p < 1 && (
+        <rect x="0" y={sandTopY} width="100" height="1.5"
+          fill="rgba(240,192,96,0.8)" clipPath="url(#hg-clip)" />
+      )}
+
+      {/* Bottom sand (fills) */}
+      {p > 0 && (
+        <rect x="0" y={sandBotTopY} width="100" height={192 - sandBotTopY}
+          fill="rgba(212,168,83,0.55)" clipPath="url(#hg-clip)" />
+      )}
+      {/* Bottom sand surface shine */}
+      {p > 0.01 && p < 1 && (
+        <rect x="0" y={sandBotTopY} width="100" height="1.5"
+          fill="rgba(240,192,96,0.8)" clipPath="url(#hg-clip)" />
+      )}
+
+      {/* Sand stream through neck */}
+      {p > 0.01 && p < 0.99 && (
+        <rect x="49" y="99" width="2" height={Math.max(0, sandBotTopY - 99)}
+          fill="rgba(212,168,83,0.35)" />
+      )}
+
+      {/* Glass outline */}
+      <polygon points="8,8 92,8 52,100 92,192 8,192 48,100"
+        fill="none" stroke="rgba(212,168,83,0.22)" strokeWidth="0.8"
+        strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function TasksPage() {
   const [activeTab, setActiveTab] = useState<"daily" | "projects">("daily");
   const [projectTasks, setProjectTasks] = useState<(ProjectTask & { project?: Pick<Project, "id" | "title" | "client_name" | "status"> })[]>([]);
@@ -334,6 +396,10 @@ export default function TasksPage() {
   const [showCompletionGlow, setShowCompletionGlow] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [focusPicking, setFocusPicking] = useState<Task | null>(null);
+  const [focusSession, setFocusSession] = useState<{ task: Task; totalSecs: number; startedAt: number } | null>(null);
+  const [focusElapsed, setFocusElapsed] = useState(0);
+  const [focusDone, setFocusDone] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -554,6 +620,39 @@ export default function TasksPage() {
   };
   // Keep refreshTasks available for future use
   void refreshTasks;
+  // Focus timer
+  useEffect(() => {
+    if (!focusSession || focusDone) return;
+    const iv = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - focusSession.startedAt) / 1000);
+      setFocusElapsed(elapsed);
+      if (elapsed >= focusSession.totalSecs) {
+        setFocusDone(true);
+        clearInterval(iv);
+      }
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [focusSession, focusDone]);
+
+  function pushToNextDay(id: string) {
+    const nextDay = format(addDays(new Date(viewDate + "T12:00:00"), 1), "yyyy-MM-dd");
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, date: nextDay } : t));
+    dbUpdateTask(id, { date: nextDay }).catch(() => {});
+  }
+
+  function startFocusSession(task: Task, mins: number) {
+    setFocusSession({ task, totalSecs: mins * 60, startedAt: Date.now() });
+    setFocusElapsed(0);
+    setFocusDone(false);
+    setFocusPicking(null);
+  }
+
+  function endFocusSession() {
+    setFocusSession(null);
+    setFocusDone(false);
+    setFocusElapsed(0);
+  }
+
   const prevDay  = () => setViewDate((d) => format(subDays(new Date(d + "T12:00:00"), 1), "yyyy-MM-dd"));
   const nextDay  = () => setViewDate((d) => format(addDays(new Date(d + "T12:00:00"), 1), "yyyy-MM-dd"));
   const goToday  = () => setViewDate(format(new Date(), "yyyy-MM-dd"));
@@ -931,13 +1030,31 @@ export default function TasksPage() {
                   className={`h-2.5 w-2.5 shrink-0 rounded-full transition-transform hover:scale-125 active:scale-95 ${PRIORITY_CONFIG[task.priority].dot}`}
                   title={`Priority: ${PRIORITY_CONFIG[task.priority].label} — click to change`}
                 />
-                <button
-                  onClick={() => deleteTask(task.id)}
-                  className="shrink-0 rounded p-1 text-muted-foreground/25 opacity-0 group-hover:opacity-100 hover:text-red-400 active:scale-90 transition-all"
-                  aria-label="Delete"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button
+                    onClick={() => setFocusPicking(task)}
+                    className="rounded p-1 text-muted-foreground/25 hover:text-[#d4a853] active:scale-90 transition-all"
+                    title="Start focus session"
+                    aria-label="Focus"
+                  >
+                    <Timer className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => pushToNextDay(task.id)}
+                    className="rounded p-1 text-muted-foreground/25 hover:text-blue-400 active:scale-90 transition-all"
+                    title={`Push to ${isViewToday ? "tomorrow" : format(addDays(new Date(viewDate + "T12:00:00"), 1), "MMM d")}`}
+                    aria-label="Push to next day"
+                  >
+                    <SkipForward className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="rounded p-1 text-muted-foreground/25 hover:text-red-400 active:scale-90 transition-all"
+                    aria-label="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </motion.div>
             ))}
           </AnimatePresence>
@@ -1038,6 +1155,101 @@ export default function TasksPage() {
       </div>
 
       <BurstRenderer particles={particles} />
+
+      {/* ── Duration picker ── */}
+      {focusPicking && !focusSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="w-full max-w-xs rounded-2xl border border-border bg-card p-6 shadow-2xl"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#d4a853]/60 mb-1">Focus on</p>
+            <p className="text-sm font-semibold text-foreground mb-6 truncate">{focusPicking.title}</p>
+            <p className="text-xs text-muted-foreground mb-3">How long?</p>
+            <div className="flex gap-2 mb-5">
+              {[25, 45, 60].map((mins) => (
+                <button
+                  key={mins}
+                  onClick={() => startFocusSession(focusPicking, mins)}
+                  className="flex-1 rounded-xl border border-[#d4a853]/25 bg-[#d4a853]/8 py-3 text-sm font-semibold text-[#d4a853] hover:bg-[#d4a853]/15 hover:border-[#d4a853]/40 transition-colors"
+                >
+                  {mins}m
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setFocusPicking(null)}
+              className="w-full py-1.5 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ── Active focus session ── */}
+      {focusSession && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/93 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center"
+          >
+            {/* Task label */}
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#d4a853]/50 mb-2">
+              {focusDone ? "Session complete" : "Focusing on"}
+            </p>
+            <p className="text-base font-semibold text-white/80 mb-10 max-w-xs text-center px-6 leading-snug">
+              {focusSession.task.title}
+            </p>
+
+            {/* Hourglass */}
+            <HourglassSVG progress={focusDone ? 1 : focusElapsed / focusSession.totalSecs} />
+
+            {/* Time display */}
+            <div className="mt-10 text-center">
+              {focusDone ? (
+                <p className="font-mono text-3xl font-bold text-[#d4a853] tracking-tight">Time&apos;s up.</p>
+              ) : (
+                <>
+                  <p className="font-mono text-4xl font-bold text-white/90 tabular-nums tracking-tight">
+                    {String(Math.floor((focusSession.totalSecs - focusElapsed) / 60)).padStart(2, "0")}
+                    <span className="text-white/30 mx-0.5">:</span>
+                    {String((focusSession.totalSecs - focusElapsed) % 60).padStart(2, "0")}
+                  </p>
+                  <p className="text-xs text-white/20 mt-1.5 tracking-wide">remaining</p>
+                </>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="mt-10 flex flex-col items-center gap-3">
+              {focusDone && (
+                <button
+                  onClick={() => {
+                    setTasks(prev => prev.map(t => t.id === focusSession.task.id ? { ...t, done: true } : t));
+                    dbUpdateTask(focusSession.task.id, { done: true }).catch(() => {});
+                    endFocusSession();
+                  }}
+                  className="flex items-center gap-2 rounded-xl bg-[#d4a853] px-7 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] active:scale-95 transition-all"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Mark done
+                </button>
+              )}
+              <button
+                onClick={endFocusSession}
+                className="text-xs text-white/15 hover:text-white/40 transition-colors py-1.5 tracking-wide"
+              >
+                {focusDone ? "Close" : "End focus"}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
