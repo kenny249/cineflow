@@ -642,7 +642,7 @@ export function SessionLog({ sessions, onDelete, onAdd }: SessionLogProps) {
                           <button
                             onClick={() => handleDelete(s.id)}
                             disabled={deletingId === s.id}
-                            className="opacity-0 group-hover/entry:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground/30 hover:text-red-400 disabled:opacity-30"
+                            className="p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground/30 hover:text-red-400 disabled:opacity-30 transition-colors"
                           >
                             <Trash2 className="h-3 w-3" />
                           </button>
