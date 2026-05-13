@@ -867,7 +867,8 @@ export interface CalcLineItem {
   people: number;
   days: number;
   rate: number;
-  isFlat: boolean;
+  rateType: "day" | "unit" | "flat";
+  isFlat?: boolean; // deprecated — kept for backward compat with saved estimates
 }
 
 export interface QuoteEstimate {

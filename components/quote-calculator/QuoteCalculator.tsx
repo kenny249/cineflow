@@ -34,52 +34,52 @@ const PROJECT_TEMPLATES: { label: string; items: Partial<CalcLineItem>[] }[] = [
   {
     label: "Commercial",
     items: [
-      { service: "Director", category: "pre-production", people: 1, days: 2, rate: 1500, isFlat: false },
-      { service: "DP / Camera Op", category: "production", people: 1, days: 2, rate: 900, isFlat: false },
-      { service: "Gaffer", category: "production", people: 1, days: 2, rate: 550, isFlat: false },
-      { service: "Production Assistant", category: "production", people: 2, days: 2, rate: 300, isFlat: false },
-      { service: "Camera & Lens Package", category: "equipment", people: 1, days: 2, rate: 650, isFlat: false },
-      { service: "Edit & Color Grade", category: "post-production", people: 1, days: 3, rate: 900, isFlat: false },
+      { service: "Director", category: "pre-production", people: 1, days: 2, rate: 1500, rateType: "day" as const },
+      { service: "DP / Camera Op", category: "production", people: 1, days: 2, rate: 900, rateType: "day" as const },
+      { service: "Gaffer", category: "production", people: 1, days: 2, rate: 550, rateType: "day" as const },
+      { service: "Production Assistant", category: "production", people: 2, days: 2, rate: 300, rateType: "day" as const },
+      { service: "Camera & Lens Package", category: "equipment", people: 1, days: 2, rate: 650, rateType: "day" as const },
+      { service: "Edit & Color Grade", category: "post-production", people: 1, days: 3, rate: 900, rateType: "day" as const },
     ],
   },
   {
     label: "Social Content",
     items: [
-      { service: "Videographer", category: "production", people: 1, days: 1, rate: 700, isFlat: false },
-      { service: "Content Strategist", category: "pre-production", people: 1, days: 1, rate: 600, isFlat: false },
-      { service: "Edit (per video)", category: "post-production", people: 1, days: 2, rate: 400, isFlat: false },
-      { service: "Motion Graphics", category: "post-production", people: 1, days: 1, rate: 500, isFlat: false },
+      { service: "Videographer", category: "production", people: 1, days: 1, rate: 700, rateType: "day" as const },
+      { service: "Content Strategist", category: "pre-production", people: 1, days: 1, rate: 600, rateType: "day" as const },
+      { service: "Edit (per video)", category: "post-production", people: 1, days: 2, rate: 400, rateType: "day" as const },
+      { service: "Motion Graphics", category: "post-production", people: 1, days: 1, rate: 500, rateType: "day" as const },
     ],
   },
   {
     label: "Documentary",
     items: [
-      { service: "Director / DP", category: "production", people: 1, days: 5, rate: 1200, isFlat: false },
-      { service: "Sound Recordist", category: "production", people: 1, days: 5, rate: 600, isFlat: false },
-      { service: "Production Coordinator", category: "pre-production", people: 1, days: 3, rate: 500, isFlat: false },
-      { service: "Edit & Color Grade", category: "post-production", people: 1, days: 8, rate: 800, isFlat: false },
-      { service: "Sound Mix & Master", category: "post-production", people: 1, days: 2, rate: 700, isFlat: false },
+      { service: "Director / DP", category: "production", people: 1, days: 5, rate: 1200, rateType: "day" as const },
+      { service: "Sound Recordist", category: "production", people: 1, days: 5, rate: 600, rateType: "day" as const },
+      { service: "Production Coordinator", category: "pre-production", people: 1, days: 3, rate: 500, rateType: "day" as const },
+      { service: "Edit & Color Grade", category: "post-production", people: 1, days: 8, rate: 800, rateType: "day" as const },
+      { service: "Sound Mix & Master", category: "post-production", people: 1, days: 2, rate: 700, rateType: "day" as const },
     ],
   },
   {
     label: "Brand Film",
     items: [
-      { service: "Creative Director", category: "pre-production", people: 1, days: 2, rate: 1500, isFlat: false },
-      { service: "DP", category: "production", people: 1, days: 3, rate: 1000, isFlat: false },
-      { service: "Gaffer + Electric", category: "production", people: 2, days: 3, rate: 600, isFlat: false },
-      { service: "Art Director", category: "pre-production", people: 1, days: 2, rate: 900, isFlat: false },
-      { service: "Camera + Lens Package", category: "equipment", people: 1, days: 3, rate: 800, isFlat: false },
-      { service: "Edit, Color & Sound", category: "post-production", people: 1, days: 5, rate: 900, isFlat: false },
+      { service: "Creative Director", category: "pre-production", people: 1, days: 2, rate: 1500, rateType: "day" as const },
+      { service: "DP", category: "production", people: 1, days: 3, rate: 1000, rateType: "day" as const },
+      { service: "Gaffer + Electric", category: "production", people: 2, days: 3, rate: 600, rateType: "day" as const },
+      { service: "Art Director", category: "pre-production", people: 1, days: 2, rate: 900, rateType: "day" as const },
+      { service: "Camera + Lens Package", category: "equipment", people: 1, days: 3, rate: 800, rateType: "day" as const },
+      { service: "Edit, Color & Sound", category: "post-production", people: 1, days: 5, rate: 900, rateType: "day" as const },
     ],
   },
   {
     label: "Event Coverage",
     items: [
-      { service: "Lead Videographer", category: "production", people: 1, days: 1, rate: 900, isFlat: false },
-      { service: "2nd Camera Op", category: "production", people: 1, days: 1, rate: 650, isFlat: false },
-      { service: "Photographer", category: "production", people: 1, days: 1, rate: 700, isFlat: false },
-      { service: "Same-Day Edit", category: "post-production", people: 1, days: 1, rate: 600, isFlat: false },
-      { service: "Full Highlight Edit", category: "post-production", people: 1, days: 2, rate: 800, isFlat: false },
+      { service: "Lead Videographer", category: "production", people: 1, days: 1, rate: 900, rateType: "day" as const },
+      { service: "2nd Camera Op", category: "production", people: 1, days: 1, rate: 650, rateType: "day" as const },
+      { service: "Photographer", category: "production", people: 1, days: 1, rate: 700, rateType: "day" as const },
+      { service: "Same-Day Edit", category: "post-production", people: 1, days: 1, rate: 600, rateType: "day" as const },
+      { service: "Full Highlight Edit", category: "post-production", people: 1, days: 2, rate: 800, rateType: "day" as const },
     ],
   },
 ];
@@ -98,13 +98,16 @@ function newLine(overrides?: Partial<CalcLineItem>): CalcLineItem {
     people: 1,
     days: 1,
     rate: 0,
-    isFlat: false,
+    rateType: "day",
     ...overrides,
   };
 }
 
 function lineTotal(item: CalcLineItem): number {
-  return item.isFlat ? item.rate : item.people * item.days * item.rate;
+  const rt = item.rateType ?? (item.isFlat ? "flat" : "day");
+  if (rt === "flat") return item.rate;
+  if (rt === "unit") return item.days * item.rate;
+  return item.people * item.days * item.rate;
 }
 
 // ── Rate Card Popover ─────────────────────────────────────────────────────────
@@ -372,7 +375,7 @@ export function QuoteCalculator() {
   function addFromRateCard(item: RateCardItem) {
     setLineItems((prev) => [
       ...prev,
-      newLine({ service: item.name, category: item.category, rate: item.default_rate, isFlat: item.rate_type === "flat" }),
+      newLine({ service: item.name, category: item.category, rate: item.default_rate, rateType: item.rate_type === "flat" ? "flat" : "day" }),
     ]);
   }
 
@@ -383,7 +386,7 @@ export function QuoteCalculator() {
         service: `${member.name} — ${member.primary_role}`,
         category: "production",
         rate: member.day_rate_min ?? 0,
-        isFlat: false,
+        rateType: "day" as const,
       }),
     ]);
   }
@@ -421,7 +424,11 @@ export function QuoteCalculator() {
 
   function loadEstimate(est: QuoteEstimate) {
     setEstimateTitle(est.title);
-    setLineItems(est.line_items.length ? est.line_items : [newLine()]);
+    const normalized = est.line_items.map((li) => ({
+      ...li,
+      rateType: li.rateType ?? (li.isFlat ? "flat" : "day"),
+    })) as CalcLineItem[];
+    setLineItems(normalized.length ? normalized : [newLine()]);
     setOverheadPct(est.overhead_pct);
     setFloorMult(est.floor_mult);
     setStdMult(est.std_mult);
@@ -495,7 +502,7 @@ export function QuoteCalculator() {
       .map((li) => ({
         id: Math.random().toString(36).slice(2),
         description: li.service,
-        quantity: li.isFlat ? "1" : String(li.people * li.days),
+        quantity: li.rateType === "flat" ? "1" : li.rateType === "unit" ? String(li.days) : String(li.people * li.days),
         rate: String(Math.round(li.rate * scale)),
       }));
 
@@ -641,7 +648,7 @@ export function QuoteCalculator() {
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               {/* Column headers */}
               <div className="grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 border-b border-border bg-muted/20">
-                {["Service", "People", "Days", "Rate/Day", "Total", ""].map((h) => (
+                {["Service", "People", "Days / Qty", "Rate", "Total", ""].map((h) => (
                   <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 text-center first:text-left last:text-right">
                     {h}
                   </span>
@@ -652,10 +659,12 @@ export function QuoteCalculator() {
               <div className="divide-y divide-border/40">
                 {lineItems.map((item) => {
                   const cfg = CALC_CATEGORY_CONFIG[item.category];
+                  const rt = item.rateType ?? (item.isFlat ? "flat" : "day");
                   const total = lineTotal(item);
+                  const RATE_CYCLE: Record<"day" | "unit" | "flat", "day" | "unit" | "flat"> = { day: "unit", unit: "flat", flat: "day" };
                   return (
                     <div key={item.id} className="grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 items-center group hover:bg-muted/10 transition-colors">
-                      {/* Service name + category */}
+                      {/* Service name + category dot + rate type badge */}
                       <div className="flex items-center gap-2 min-w-0">
                         <button
                           onClick={() => {
@@ -665,37 +674,56 @@ export function QuoteCalculator() {
                           title={cfg.label}
                           className={cn("h-2 w-2 shrink-0 rounded-full transition-transform hover:scale-125", cfg.dot)}
                         />
+                        <button
+                          onClick={() => updateItem(item.id, "rateType", RATE_CYCLE[rt])}
+                          title="Click to change: Day Rate → Per Unit → Flat Fee"
+                          className={cn(
+                            "shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border transition-all hover:opacity-80",
+                            rt === "day"  && "border-amber-500/25 bg-amber-500/8 text-amber-400/70",
+                            rt === "unit" && "border-cyan-500/25 bg-cyan-500/8 text-cyan-400/70",
+                            rt === "flat" && "border-zinc-500/25 bg-zinc-500/8 text-zinc-400/70",
+                          )}
+                        >
+                          {rt === "day" ? "Day" : rt === "unit" ? "Unit" : "Flat"}
+                        </button>
                         <input
                           value={item.service}
                           onChange={(e) => updateItem(item.id, "service", e.target.value)}
-                          placeholder="Service or crew role"
+                          placeholder={rt === "unit" ? "Deliverable (e.g. Edit per video)" : "Service or crew role"}
                           className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
                         />
                       </div>
-                      {/* People — text input to avoid leading-zero and spinner issues */}
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={item.isFlat ? "" : String(item.people)}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/\D/g, "");
-                          updateItem(item.id, "people", v === "" ? 0 : Number(v));
-                        }}
-                        disabled={item.isFlat}
-                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30"
-                      />
-                      {/* Days */}
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={item.isFlat ? "" : String(item.days)}
-                        onChange={(e) => {
-                          const v = e.target.value.replace(/\D/g, "");
-                          updateItem(item.id, "days", v === "" ? 0 : Number(v));
-                        }}
-                        disabled={item.isFlat}
-                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30"
-                      />
+                      {/* People — only for day rate */}
+                      {rt === "day" ? (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={String(item.people)}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, "");
+                            updateItem(item.id, "people", v === "" ? 0 : Number(v));
+                          }}
+                          className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors"
+                        />
+                      ) : (
+                        <span className="text-center text-muted-foreground/20 text-sm select-none">—</span>
+                      )}
+                      {/* Days / Qty — hidden for flat */}
+                      {rt === "flat" ? (
+                        <span className="text-center text-muted-foreground/20 text-sm select-none">—</span>
+                      ) : (
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={String(item.days)}
+                          onChange={(e) => {
+                            const v = e.target.value.replace(/\D/g, "");
+                            updateItem(item.id, "days", v === "" ? 0 : Number(v));
+                          }}
+                          placeholder={rt === "unit" ? "qty" : ""}
+                          className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors placeholder:text-muted-foreground/30"
+                        />
+                      )}
                       {/* Rate */}
                       <div className="relative">
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/50">$</span>

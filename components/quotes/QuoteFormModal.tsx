@@ -123,18 +123,17 @@ function LineItemsBuilder({
           />
           <input
             value={li.quantity}
-            onChange={(e) => update(li.id, "quantity", e.target.value)}
-            type="number"
-            min="0"
-            step="0.5"
+            onChange={(e) => update(li.id, "quantity", e.target.value.replace(/[^\d.]/g, ""))}
+            type="text"
+            inputMode="numeric"
+            placeholder="1"
             className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-center text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors"
           />
           <input
             value={li.rate}
-            onChange={(e) => update(li.id, "rate", e.target.value)}
-            type="number"
-            min="0"
-            step="50"
+            onChange={(e) => update(li.id, "rate", e.target.value.replace(/[^\d.]/g, ""))}
+            type="text"
+            inputMode="numeric"
             placeholder="0"
             className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors text-right"
           />
@@ -262,6 +261,8 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, package
   const [saving, setSaving] = useState(false);
   const [aiBrief, setAiBrief] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [retainerBrief, setRetainerBrief] = useState("");
+  const [retainerLoading, setRetainerLoading] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -335,6 +336,36 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, package
       toast.error("Failed to generate packages — try again");
     }
     setAiLoading(false);
+  }
+
+  // AI retainer generator
+  async function handleGenerateRetainer() {
+    if (!retainerBrief.trim()) return;
+    setRetainerLoading(true);
+    try {
+      const res = await fetch("/api/ai/retainer-scope", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brief: retainerBrief }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (data.monthly_rate) set("monthly_rate", String(data.monthly_rate));
+      if (data.retainer_months) set("retainer_months", String(data.retainer_months));
+      if (data.scope_of_work) set("scope_of_work", data.scope_of_work);
+      if (Array.isArray(data.retainer_deliverables)) {
+        set("retainer_deliverables", data.retainer_deliverables.map((d: { label: string; quantity: string }) => ({
+          id: Math.random().toString(36).slice(2),
+          type: "deliverable",
+          label: d.label,
+          quantity: String(d.quantity),
+        })));
+      }
+      toast.success("Retainer proposal generated");
+    } catch {
+      toast.error("Failed to generate retainer — try again");
+    }
+    setRetainerLoading(false);
   }
 
   // Package handlers
@@ -467,11 +498,11 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, package
                   <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
                     <div>
                       <label className="block text-[11px] font-medium text-muted-foreground mb-1">Discount ($)</label>
-                      <input value={form.discount} onChange={(e) => set("discount", e.target.value)} type="number" min="0" step="50" placeholder="0" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
+                      <input value={form.discount} onChange={(e) => set("discount", e.target.value.replace(/[^\d.]/g, ""))} type="text" inputMode="numeric" placeholder="0" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                     </div>
                     <div>
                       <label className="block text-[11px] font-medium text-muted-foreground mb-1">Tax rate (%)</label>
-                      <input value={form.tax_rate} onChange={(e) => set("tax_rate", e.target.value)} type="number" min="0" max="50" step="0.5" placeholder="0" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
+                      <input value={form.tax_rate} onChange={(e) => set("tax_rate", e.target.value.replace(/[^\d.]/g, ""))} type="text" inputMode="numeric" placeholder="0" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                     </div>
                   </div>
                   <div className="space-y-1 rounded-xl border border-border bg-card px-4 py-3 text-sm">
@@ -530,14 +561,38 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, package
           {form.quote_type === "retainer" && (
             <div className="px-6 py-4 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Retainer details</p>
+
+              {/* AI Retainer Generator */}
+              <div className="flex gap-2 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/5 p-3">
+                <Sparkles className="h-3.5 w-3.5 text-[#d4a853] shrink-0 mt-1.5" />
+                <div className="flex-1 flex gap-2">
+                  <input
+                    value={retainerBrief}
+                    onChange={(e) => setRetainerBrief(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !retainerLoading && handleGenerateRetainer()}
+                    placeholder="Describe the retainer — AI fills rate, months, deliverables & scope"
+                    className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none min-w-0"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateRetainer}
+                    disabled={retainerLoading || !retainerBrief.trim()}
+                    className="flex items-center gap-1.5 shrink-0 rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-semibold text-black hover:bg-[#c49843] disabled:opacity-40 transition-all"
+                  >
+                    {retainerLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {retainerLoading ? "Generating…" : "Generate"}
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-medium text-muted-foreground mb-1">Monthly rate ($)</label>
-                  <input value={form.monthly_rate} onChange={(e) => set("monthly_rate", e.target.value)} type="number" min="0" step="100" placeholder="3500" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
+                  <input value={form.monthly_rate} onChange={(e) => set("monthly_rate", e.target.value.replace(/[^\d.]/g, ""))} type="text" inputMode="numeric" placeholder="3500" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-muted-foreground mb-1">Contract length (months)</label>
-                  <input value={form.retainer_months} onChange={(e) => set("retainer_months", e.target.value)} type="number" min="1" max="24" placeholder="3" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
+                  <input value={form.retainer_months} onChange={(e) => set("retainer_months", e.target.value.replace(/\D/g, ""))} type="text" inputMode="numeric" placeholder="3" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                 </div>
               </div>
               {form.monthly_rate && (
@@ -554,7 +609,7 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, package
                 {form.retainer_deliverables.map((d) => (
                   <div key={d.id} className="grid grid-cols-[1fr_60px_24px] gap-1.5">
                     <input value={d.label} onChange={(e) => updateDeliverable(d.id, "label", e.target.value)} placeholder="Short-form videos" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
-                    <input value={d.quantity} onChange={(e) => updateDeliverable(d.id, "quantity", e.target.value)} type="number" min="1" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-center text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
+                    <input value={d.quantity} onChange={(e) => updateDeliverable(d.id, "quantity", e.target.value.replace(/\D/g, ""))} type="text" inputMode="numeric" placeholder="1" className="w-full rounded-lg border border-border bg-background px-2.5 py-[7px] text-sm text-center text-foreground placeholder:text-muted-foreground outline-none focus:border-[#d4a853]/50 transition-colors" />
                     <button type="button" onClick={() => removeDeliverable(d.id)} disabled={form.retainer_deliverables.length === 1} className="flex items-center justify-center text-muted-foreground/40 hover:text-red-400 disabled:opacity-20 transition-colors">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
