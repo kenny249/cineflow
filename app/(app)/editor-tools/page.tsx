@@ -33,6 +33,10 @@ export default function EditorToolsPage() {
     setSessions((prev) => prev.filter((s) => s.id !== id));
   }
 
+  function handleAdd(session: EditSession) {
+    setSessions((prev) => [session, ...prev]);
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -76,7 +80,7 @@ export default function EditorToolsPage() {
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-[#d4a853]" />
               </div>
             ) : (
-              <SessionLog sessions={sessions} onDelete={handleDelete} />
+              <SessionLog sessions={sessions} onDelete={handleDelete} onAdd={handleAdd} />
             )
           )}
           {tab === "timecode" && <TimecodeCalc />}

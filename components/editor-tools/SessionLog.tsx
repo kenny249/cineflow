@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from "react";
 import { format, startOfWeek, subDays, isAfter, startOfMonth } from "date-fns";
-import { Trash2, Clock, TrendingUp, CalendarDays, Layers } from "lucide-react";
-import { deleteEditSession } from "@/lib/supabase/queries";
+import { Trash2, Clock, TrendingUp, CalendarDays, Layers, Plus, X, Check } from "lucide-react";
+import { deleteEditSession, createEditSession } from "@/lib/supabase/queries";
 import type { EditSession, EditSessionCategory } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -134,11 +134,19 @@ function CategoryRing({ sessions }: { sessions: EditSession[] }) {
 interface SessionLogProps {
   sessions: EditSession[];
   onDelete: (id: string) => void;
+  onAdd: (session: EditSession) => void;
 }
 
-export function SessionLog({ sessions, onDelete }: SessionLogProps) {
+export function SessionLog({ sessions, onDelete, onAdd }: SessionLogProps) {
   const [filter, setFilter] = useState<"week" | "month" | "all">("week");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [formTitle, setFormTitle] = useState("");
+  const [formHours, setFormHours] = useState("0");
+  const [formMins, setFormMins] = useState("30");
+  const [formCategory, setFormCategory] = useState<EditSessionCategory>("social");
+  const [formNote, setFormNote] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const now = new Date();
   const filtered = useMemo(() => {
@@ -166,6 +174,23 @@ export function SessionLog({ sessions, onDelete }: SessionLogProps) {
     setDeletingId(null);
   }
 
+  async function handleSave() {
+    const title = formTitle.trim();
+    if (!title) return;
+    const h = parseInt(formHours, 10) || 0;
+    const m = parseInt(formMins, 10) || 0;
+    const secs = h * 3600 + m * 60;
+    if (secs <= 0) return;
+    setSaving(true);
+    try {
+      const session = await createEditSession({ title, category: formCategory, duration_secs: secs, notes: formNote.trim() || undefined });
+      onAdd(session);
+      setShowForm(false);
+      setFormTitle(""); setFormHours("0"); setFormMins("30"); setFormNote(""); setFormCategory("social");
+    } catch { /* best-effort */ }
+    setSaving(false);
+  }
+
   // Category breakdown for filtered sessions
   const catTotals = useMemo(() => {
     const map: Partial<Record<EditSessionCategory, number>> = {};
@@ -176,19 +201,88 @@ export function SessionLog({ sessions, onDelete }: SessionLogProps) {
   return (
     <div className="flex flex-col gap-6">
 
-      {/* Filter pills */}
-      <div className="flex items-center gap-1 p-0.5 rounded-lg border border-border bg-muted/30 w-fit">
-        {(["week", "month", "all"] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={cn(
-              "px-3 py-1 rounded-md text-xs font-medium transition-all",
-              filter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {f === "week" ? "This Week" : f === "month" ? "This Month" : "All Time"}
-          </button>
-        ))}
+      {/* Top row: filter + log button */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-1 p-0.5 rounded-lg border border-border bg-muted/30 w-fit">
+          {(["week", "month", "all"] as const).map((f) => (
+            <button key={f} onClick={() => setFilter(f)}
+              className={cn(
+                "px-3 py-1 rounded-md text-xs font-medium transition-all",
+                filter === f ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {f === "week" ? "This Week" : f === "month" ? "This Month" : "All Time"}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-1.5 rounded-xl bg-[#d4a853] px-3.5 py-2 text-xs font-semibold text-black hover:bg-[#c49843] active:scale-95 transition-all"
+        >
+          <Plus className="h-3.5 w-3.5" /> Log Session
+        </button>
       </div>
+
+      {/* Manual log form */}
+      {showForm && (
+        <div className="rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/5 p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-foreground">Log a Session</p>
+            <button onClick={() => setShowForm(false)} className="text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">What did you work on?</label>
+            <input
+              type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
+              placeholder="e.g. Brand film rough cut, TikTok edit, Client revisions…"
+              className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 focus:border-[#d4a853]/40 transition-colors"
+            />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-1.5 w-24">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Hours</label>
+              <input type="number" min="0" max="23" value={formHours} onChange={(e) => setFormHours(e.target.value)}
+                className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground text-center font-mono focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 focus:border-[#d4a853]/40 transition-colors"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 w-24">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Minutes</label>
+              <input type="number" min="0" max="59" value={formMins} onChange={(e) => setFormMins(e.target.value)}
+                className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground text-center font-mono focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 focus:border-[#d4a853]/40 transition-colors"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Type of edit</label>
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.entries(CATEGORY_CONFIG) as [EditSessionCategory, typeof CATEGORY_CONFIG[EditSessionCategory]][]).map(([cat, cfg]) => (
+                <button key={cat} onClick={() => setFormCategory(cat)}
+                  className={cn("px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all",
+                    formCategory === cat ? `${cfg.bg} ${cfg.color} border-current/30` : "border-border text-muted-foreground hover:text-foreground hover:border-border/80"
+                  )}
+                >
+                  {cfg.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Note (optional)</label>
+            <input type="text" value={formNote} onChange={(e) => setFormNote(e.target.value)}
+              placeholder="Any context you want to remember…"
+              className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 focus:border-[#d4a853]/40 transition-colors"
+            />
+          </div>
+          <button onClick={handleSave} disabled={saving || !formTitle.trim() || (parseInt(formHours)||0) + (parseInt(formMins)||0) === 0}
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#d4a853] px-5 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-40 active:scale-95 transition-all w-fit"
+          >
+            <Check className="h-3.5 w-3.5" />
+            {saving ? "Saving…" : "Save Session"}
+          </button>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
