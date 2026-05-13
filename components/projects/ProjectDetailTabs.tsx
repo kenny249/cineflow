@@ -1426,7 +1426,7 @@ export default function ProjectDetailTabs({
             </div>
           </div>
 
-          <div ref={tabScrollRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+          <div ref={tabScrollRef} className={`flex-1 min-h-0 custom-scrollbar ${activeTab === "people" ? "overflow-hidden" : "overflow-y-auto"}`}>
             <TabsContent value="overview" className="m-0 p-5 sm:p-6">
               <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
                 <div className="space-y-5">
@@ -2561,7 +2561,7 @@ export default function ProjectDetailTabs({
             </TabsContent>
 
             {/* ── People: Agency Team + External Contributors + Chat ── */}
-            <TabsContent value="people" className="m-0">
+            <TabsContent value="people" className="m-0 h-full">
               {chatUserId ? (
                 <PeopleTab projectId={project.id} userId={chatUserId} displayName={chatDisplayName} />
               ) : (

@@ -163,7 +163,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
   const pendingCollabs = collaborators.filter((c) => c.status === "pending");
 
   return (
-    <div className="flex h-full" style={{ height: "calc(100vh - 220px)", minHeight: 500 }}>
+    <div className="flex h-full min-h-0">
 
       {/* ── Left sidebar: People ── */}
       <div className="flex w-64 shrink-0 flex-col border-r border-border overflow-y-auto">
