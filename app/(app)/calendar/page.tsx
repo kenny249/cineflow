@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2, Video } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2, Video, RefreshCw, Copy, ExternalLink } from "lucide-react";
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getProjects, expandRecurringEvents } from "@/lib/supabase/queries";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -88,6 +88,36 @@ export default function CalendarPage() {
   const [timeMinute, setTimeMinute] = useState("00");
   const [timeAmPm, setTimeAmPm] = useState<"AM" | "PM">("PM");
 
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncUrl, setSyncUrl] = useState<string | null>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const syncRef = useRef<HTMLDivElement>(null);
+
+  const openSync = async () => {
+    setSyncOpen((v) => !v);
+    if (!syncUrl) {
+      setSyncLoading(true);
+      try {
+        const res = await fetch("/api/calendar/token");
+        const json = await res.json();
+        setSyncUrl(json.url);
+      } catch {
+        toast.error("Failed to generate sync link");
+      } finally {
+        setSyncLoading(false);
+      }
+    }
+  };
+
+  const copyUrl = () => {
+    if (!syncUrl) return;
+    navigator.clipboard.writeText(syncUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   const openTimeEdit = (ev: CalendarEvent) => {
     const d = new Date(ev.start_date);
     let h = d.getHours();
@@ -170,6 +200,15 @@ export default function CalendarPage() {
     setCardEdit(null);
     try { await updateCalendarEvent(id, updates); } catch { toast.error("Failed to save"); }
   };
+
+  useEffect(() => {
+    if (!syncOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (syncRef.current && !syncRef.current.contains(e.target as Node)) setSyncOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [syncOpen]);
 
   useEffect(() => {
     async function load() {
@@ -326,6 +365,76 @@ export default function CalendarPage() {
               title="List view"
             ><List className="h-3.5 w-3.5" /></button>
           </div>
+          <div className="relative" ref={syncRef}>
+            <button
+              onClick={openSync}
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground transition-all"
+              title="Sync to Google Calendar"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Sync</span>
+            </button>
+
+            <AnimatePresence>
+              {syncOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-border bg-card shadow-xl p-4 space-y-3"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Sync to Google Calendar</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Subscribe to your Cineflow events — updates automatically.</p>
+                  </div>
+
+                  {syncLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#d4a853] border-t-transparent" />
+                      Generating link…
+                    </div>
+                  ) : syncUrl ? (
+                    <>
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+                        <p className="flex-1 min-w-0 truncate text-[11px] font-mono text-muted-foreground">{syncUrl}</p>
+                        <button
+                          onClick={copyUrl}
+                          className="shrink-0 rounded p-1 hover:bg-accent transition-colors"
+                          title="Copy link"
+                        >
+                          {copied
+                            ? <Check className="h-3.5 w-3.5 text-emerald-400" />
+                            : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+                        </button>
+                      </div>
+
+                      <ol className="space-y-1.5 text-[11px] text-muted-foreground list-none">
+                        <li className="flex gap-2"><span className="shrink-0 font-bold text-foreground/50">1.</span>Copy the link above</li>
+                        <li className="flex gap-2"><span className="shrink-0 font-bold text-foreground/50">2.</span>Open Google Calendar → Other calendars → <span className="italic">From URL</span></li>
+                        <li className="flex gap-2"><span className="shrink-0 font-bold text-foreground/50">3.</span>Paste and click Add Calendar</li>
+                      </ol>
+
+                      <a
+                        href="https://calendar.google.com/calendar/r/settings/addbyurl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-[11px] text-[#d4a853] hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Open Google Calendar settings
+                      </a>
+                    </>
+                  ) : null}
+
+                  <p className="text-[10px] text-muted-foreground/50 border-t border-border pt-2">
+                    This link is private — treat it like a password.
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setCreateDefaultDate(undefined); setCreateOpen(true); }}>
             <Plus className="h-3.5 w-3.5" />
             New Event
