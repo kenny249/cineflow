@@ -177,7 +177,7 @@ function TierCard({
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commitMult}
               onKeyDown={(e) => e.key === "Enter" && commitMult()}
-              className="w-14 rounded-md border border-[#d4a853]/40 bg-background px-1.5 py-0.5 text-xs font-mono text-center text-foreground focus:outline-none"
+              className="w-14 rounded-md border border-[#d4a853]/40 bg-background px-1.5 py-0.5 text-xs font-mono text-center text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
           ) : (
             <button
@@ -532,14 +532,14 @@ export function QuoteCalculator() {
                         type="number" min="0" value={item.people}
                         onChange={(e) => updateItem(item.id, "people", Math.max(0, Number(e.target.value)))}
                         disabled={item.isFlat}
-                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30"
+                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       {/* Days */}
                       <input
                         type="number" min="0" value={item.days}
                         onChange={(e) => updateItem(item.id, "days", Math.max(0, Number(e.target.value)))}
                         disabled={item.isFlat}
-                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30"
+                        className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors disabled:opacity-30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       {/* Rate */}
                       <div className="relative">
@@ -547,7 +547,7 @@ export function QuoteCalculator() {
                         <input
                           type="number" min="0" value={item.rate}
                           onChange={(e) => updateItem(item.id, "rate", Math.max(0, Number(e.target.value)))}
-                          className="w-full rounded-md border border-transparent bg-transparent pl-5 pr-1.5 py-1 text-sm font-mono text-foreground text-right focus:border-border focus:bg-background focus:outline-none transition-colors"
+                          className="w-full rounded-md border border-transparent bg-transparent pl-5 pr-1.5 py-1 text-sm font-mono text-foreground text-right focus:border-border focus:bg-background focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                       {/* Total */}
@@ -577,34 +577,35 @@ export function QuoteCalculator() {
                 </div>
               )}
 
-              {/* Add buttons */}
-              <div className="px-4 py-3 border-t border-border/40 flex items-center gap-3">
-                <div className="relative">
-                  <button
-                    onClick={() => setShowRateCard((v) => !v)}
-                    className="flex items-center gap-1.5 text-xs font-medium text-[#d4a853] hover:text-[#c49843] transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add from Rate Card
-                    <ChevronDown className={cn("h-3 w-3 transition-transform", showRateCard && "rotate-180")} />
-                  </button>
-                  {showRateCard && (
-                    <RateCardPopover
-                      items={rateCardItems}
-                      onSelect={addFromRateCard}
-                      onClose={() => setShowRateCard(false)}
-                    />
-                  )}
-                </div>
-                <span className="text-muted-foreground/20 text-xs">·</span>
+            </div>
+
+            {/* Add buttons — outside card so dropdown isn't clipped */}
+            <div className="flex items-center gap-3 relative">
+              <div className="relative">
                 <button
-                  onClick={() => setLineItems((prev) => [...prev, newLine()])}
-                  className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowRateCard((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-[#d4a853] hover:text-[#c49843] transition-colors"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Custom line
+                  Add from Rate Card
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", showRateCard && "rotate-180")} />
                 </button>
+                {showRateCard && (
+                  <RateCardPopover
+                    items={rateCardItems}
+                    onSelect={addFromRateCard}
+                    onClose={() => setShowRateCard(false)}
+                  />
+                )}
               </div>
+              <span className="text-muted-foreground/20 text-xs">·</span>
+              <button
+                onClick={() => setLineItems((prev) => [...prev, newLine()])}
+                className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Custom line
+              </button>
             </div>
 
             {/* Overhead */}
@@ -621,7 +622,7 @@ export function QuoteCalculator() {
                   <input
                     type="number" min="0" max="100" value={overheadPct}
                     onChange={(e) => setOverheadPct(Math.max(0, Number(e.target.value)))}
-                    className="w-10 bg-transparent text-sm font-mono text-foreground text-center focus:outline-none"
+                    className="w-10 bg-transparent text-sm font-mono text-foreground text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                   <span className="text-sm text-muted-foreground">%</span>
                 </div>
