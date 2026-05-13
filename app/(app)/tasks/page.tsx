@@ -1261,9 +1261,7 @@ export default function TasksPage() {
               ) : (
                 <>
                   <p className="font-mono text-4xl font-bold text-white/90 tabular-nums tracking-tight">
-                    {String(Math.floor((focusSession.totalSecs - focusElapsed) / 60)).padStart(2, "0")}
-                    <span className="text-white/30 mx-0.5">:</span>
-                    {String((focusSession.totalSecs - focusElapsed) % 60).padStart(2, "0")}
+                    {(() => { const r = Math.max(0, Math.floor(focusSession.totalSecs - focusElapsed)); return `${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}`; })()}
                   </p>
                   <p className="text-xs text-white/20 mt-1.5 tracking-wide">remaining</p>
                 </>
