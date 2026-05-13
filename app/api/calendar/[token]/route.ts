@@ -80,7 +80,7 @@ export async function GET(
 
     // Build description — include meeting link if present
     let desc = ev.description ?? "";
-    if (ev.meeting_link) {
+    if (ev.meeting_link?.startsWith("http")) {
       desc = desc ? `${desc}\n\nJoin: ${ev.meeting_link}` : `Join: ${ev.meeting_link}`;
     }
 
@@ -94,7 +94,7 @@ export async function GET(
     ];
     if (desc) lines.push(`DESCRIPTION:${esc(desc)}`);
     if (ev.location) lines.push(`LOCATION:${esc(ev.location)}`);
-    if (ev.meeting_link) lines.push(`URL:${ev.meeting_link}`);
+    if (ev.meeting_link?.startsWith("http")) lines.push(`URL:${ev.meeting_link}`);
     lines.push("END:VEVENT");
     return lines.map(foldLine).join("\r\n");
   });

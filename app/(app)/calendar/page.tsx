@@ -621,7 +621,7 @@ export default function CalendarPage() {
                             {event.location}
                           </span>
                         )}
-                        {event.meeting_link && (
+                        {event.meeting_link?.startsWith("http") && (
                           <a href={event.meeting_link} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-400 hover:underline" onClick={(e) => e.stopPropagation()}>
                             <Video className="h-3 w-3" />
                             Join call
@@ -832,7 +832,7 @@ export default function CalendarPage() {
                         )}
 
                         {/* Meeting link */}
-                        {ev.meeting_link && (
+                        {ev.meeting_link?.startsWith("http") && (
                           <a
                             href={ev.meeting_link}
                             target="_blank"
