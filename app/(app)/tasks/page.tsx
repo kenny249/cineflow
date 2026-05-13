@@ -317,142 +317,108 @@ function CheckButton({
 }
 
 // ── Hourglass SVG ─────────────────────────────────────────────────────────────
+const GRAINS = [
+  { cx: 49.3, r: 0.9,  dur: "0.92s", begin: "0s"    },
+  { cx: 50.6, r: 1.05, dur: "1.12s", begin: "0.19s" },
+  { cx: 49.7, r: 0.75, dur: "0.82s", begin: "0.41s" },
+  { cx: 50.3, r: 1.0,  dur: "1.05s", begin: "0.63s" },
+  { cx: 49.5, r: 0.85, dur: "0.97s", begin: "0.81s" },
+];
+
 function HourglassSVG({ progress }: { progress: number }) {
-  const p = Math.min(1, Math.max(0, progress));
+  const p         = Math.min(1, Math.max(0, progress));
   const sandTopY    = 8   + p * 92;
   const sandBotTopY = 192 - p * 92;
   const topSandH    = Math.max(0, 100 - sandTopY);
   const botSandH    = Math.max(0, 192 - sandBotTopY);
-  const streamH     = Math.max(0, sandBotTopY - 100);
-  const flowing     = p < 1;
 
   return (
-    <>
-      <style>{`
-        @keyframes hg-breathe {
-          0%,100% { filter: drop-shadow(0 0 18px rgba(212,168,83,.2)) drop-shadow(0 0 6px rgba(212,168,83,.08)); }
-          50%      { filter: drop-shadow(0 0 40px rgba(212,168,83,.55)) drop-shadow(0 0 16px rgba(212,168,83,.28)); }
-        }
-        .hg-svg { animation: hg-breathe 3.5s ease-in-out infinite; }
-      `}</style>
-      <svg
-        viewBox="0 0 100 200"
-        className="hg-svg w-40 h-80"
-        aria-hidden
-      >
-        <defs>
-          <clipPath id="hg-clip">
-            <polygon points="8,8 92,8 52,100 92,192 8,192 48,100" />
-          </clipPath>
+    <svg
+      viewBox="0 0 100 200"
+      className="w-40 h-80"
+      style={{ filter: "drop-shadow(0 0 20px rgba(212,168,83,0.22)) drop-shadow(0 0 6px rgba(212,168,83,0.1))" }}
+      aria-hidden
+    >
+      <defs>
+        <clipPath id="hg-clip">
+          <polygon points="8,8 92,8 52,100 92,192 8,192 48,100" />
+        </clipPath>
+        <linearGradient id="hg-sand" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#7A4F10" stopOpacity="0.9" />
+          <stop offset="22%"  stopColor="#C8922E" stopOpacity="0.93" />
+          <stop offset="50%"  stopColor="#EDB84A" stopOpacity="0.97" />
+          <stop offset="78%"  stopColor="#C8922E" stopOpacity="0.93" />
+          <stop offset="100%" stopColor="#7A4F10" stopOpacity="0.9" />
+        </linearGradient>
+        <linearGradient id="hg-surf" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#FFE090" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#FFE090" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="hg-glass" cx="32%" cy="22%" r="58%">
+          <stop offset="0%"   stopColor="white" stopOpacity="0.06" />
+          <stop offset="100%" stopColor="white" stopOpacity="0.008" />
+        </radialGradient>
+      </defs>
 
-          {/* Sand — horizontal gradient, darker at edges for volumetric depth */}
-          <linearGradient id="hg-sand" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%"   stopColor="#7A4F10" stopOpacity="0.9" />
-            <stop offset="22%"  stopColor="#C8922E" stopOpacity="0.93" />
-            <stop offset="50%"  stopColor="#EDB84A" stopOpacity="0.97" />
-            <stop offset="78%"  stopColor="#C8922E" stopOpacity="0.93" />
-            <stop offset="100%" stopColor="#7A4F10" stopOpacity="0.9" />
-          </linearGradient>
+      {/* Glass body */}
+      <polygon points="8,8 92,8 52,100 92,192 8,192 48,100" fill="url(#hg-glass)" />
 
-          {/* Sand surface shimmer */}
-          <linearGradient id="hg-surf" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor="#FFE090" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#FFE090" stopOpacity="0" />
-          </linearGradient>
+      {/* Top sand */}
+      {topSandH > 0 && (
+        <rect x="0" y={sandTopY} width="100" height={topSandH}
+          fill="url(#hg-sand)" clipPath="url(#hg-clip)" />
+      )}
+      {topSandH > 0 && (
+        <rect x="0" y={sandTopY} width="100" height={Math.min(5, topSandH)}
+          fill="url(#hg-surf)" clipPath="url(#hg-clip)" />
+      )}
 
-          {/* Glass interior radial highlight */}
-          <radialGradient id="hg-glass" cx="32%" cy="22%" r="58%">
-            <stop offset="0%"   stopColor="white" stopOpacity="0.06" />
-            <stop offset="100%" stopColor="white" stopOpacity="0.008" />
-          </radialGradient>
+      {/* Falling grains — drawn before bottom sand so they get buried as level rises */}
+      {p < 1 && GRAINS.map((g, i) => (
+        <circle key={i} cx={g.cx} cy="100" r={g.r}
+          fill="rgb(237,184,74)" fillOpacity="0" clipPath="url(#hg-clip)">
+          <animate attributeName="cy"
+            from="100" to="192" dur={g.dur} begin={g.begin}
+            repeatCount="indefinite"
+            calcMode="spline" keyTimes="0;1" keySplines="0.42,0,1,1" />
+          <animate attributeName="fill-opacity"
+            values="0;0.88;0.82;0" keyTimes="0;0.06;0.84;1"
+            dur={g.dur} begin={g.begin} repeatCount="indefinite" />
+        </circle>
+      ))}
 
-          {/* Stream glow filter */}
-          <filter id="hg-stream-glow" x="-150%" y="-5%" width="400%" height="110%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+      {/* Bottom sand — covers grains as it rises */}
+      {botSandH > 0 && (
+        <rect x="0" y={sandBotTopY} width="100" height={botSandH}
+          fill="url(#hg-sand)" clipPath="url(#hg-clip)" />
+      )}
+      {botSandH > 0 && (
+        <rect x="0" y={sandBotTopY} width="100" height={Math.min(5, botSandH)}
+          fill="url(#hg-surf)" clipPath="url(#hg-clip)" />
+      )}
 
-          {/* Neck glow filter */}
-          <filter id="hg-neck-glow" x="-200%" y="-200%" width="500%" height="500%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
+      {/* Glass outline */}
+      <polygon points="8,8 92,8 52,100 92,192 8,192 48,100"
+        fill="none" stroke="rgba(212,168,83,0.38)" strokeWidth="0.75" strokeLinejoin="round" />
 
-        {/* Glass body */}
-        <polygon points="8,8 92,8 52,100 92,192 8,192 48,100"
-          fill="url(#hg-glass)" />
+      {/* Frame caps */}
+      <line x1="6" y1="8"   x2="94" y2="8"
+        stroke="rgba(212,168,83,0.7)" strokeWidth="2" strokeLinecap="round" />
+      <line x1="6" y1="192" x2="94" y2="192"
+        stroke="rgba(212,168,83,0.7)" strokeWidth="2" strokeLinecap="round" />
 
-        {/* Top sand */}
-        {topSandH > 0 && (
-          <rect x="0" y={sandTopY} width="100" height={topSandH}
-            fill="url(#hg-sand)" clipPath="url(#hg-clip)" />
-        )}
-        {topSandH > 0 && (
-          <rect x="0" y={sandTopY} width="100" height={Math.min(5, topSandH)}
-            fill="url(#hg-surf)" clipPath="url(#hg-clip)" />
-        )}
-
-        {/* Bottom sand */}
-        {botSandH > 0 && (
-          <rect x="0" y={sandBotTopY} width="100" height={botSandH}
-            fill="url(#hg-sand)" clipPath="url(#hg-clip)" />
-        )}
-        {botSandH > 0 && (
-          <rect x="0" y={sandBotTopY} width="100" height={Math.min(5, botSandH)}
-            fill="url(#hg-surf)" clipPath="url(#hg-clip)" />
-        )}
-
-        {/* Sand stream — flickering opacity simulates falling grains */}
-        {flowing && streamH > 0 && (
-          <rect x="49" y="100" width="2" height={streamH}
-            fill="rgba(237,184,74,0.7)" filter="url(#hg-stream-glow)">
-            <animate attributeName="opacity"
-              values="0.45;1;0.6;0.95;0.5;0.85;0.45"
-              dur="0.65s" repeatCount="indefinite" />
-          </rect>
-        )}
-
-        {/* Neck glow — pulses warmly where sand falls through */}
-        {flowing && (
-          <circle cx="50" cy="100" r="3" fill="rgb(237,184,74)"
-            fillOpacity="0.2" filter="url(#hg-neck-glow)">
-            <animate attributeName="r"            values="2;5.5;2"  dur="1.4s" repeatCount="indefinite" />
-            <animate attributeName="fill-opacity" values="0.1;0.45;0.1" dur="1.4s" repeatCount="indefinite" />
-          </circle>
-        )}
-
-        {/* Glass outline */}
-        <polygon points="8,8 92,8 52,100 92,192 8,192 48,100"
-          fill="none" stroke="rgba(212,168,83,0.38)" strokeWidth="0.75"
-          strokeLinejoin="round" />
-
-        {/* Frame caps */}
-        <line x1="6" y1="8"   x2="94" y2="8"
-          stroke="rgba(212,168,83,0.7)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="6" y1="192" x2="94" y2="192"
-          stroke="rgba(212,168,83,0.7)" strokeWidth="2" strokeLinecap="round" />
-
-        {/* Glass highlight — left edge, slow shimmer */}
-        <line x1="16" y1="22" x2="45" y2="93"
-          stroke="rgb(255,255,255)" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.12">
-          <animate attributeName="stroke-opacity"
-            values="0.05;0.22;0.08;0.18;0.05" dur="4s" repeatCount="indefinite" />
-        </line>
-        {/* Glass highlight — right lower chamber, offset phase */}
-        <line x1="84" y1="178" x2="55" y2="107"
-          stroke="rgb(255,255,255)" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.05">
-          <animate attributeName="stroke-opacity"
-            values="0.08;0.03;0.12;0.04;0.08" dur="5s" repeatCount="indefinite" />
-        </line>
-      </svg>
-    </>
+      {/* Glass shimmer — two highlights, long independent cycles, almost subliminal */}
+      <line x1="16" y1="22" x2="45" y2="93"
+        stroke="rgb(255,255,255)" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.1">
+        <animate attributeName="stroke-opacity"
+          values="0.04;0.18;0.06;0.16;0.04" dur="5s" repeatCount="indefinite" />
+      </line>
+      <line x1="84" y1="178" x2="55" y2="107"
+        stroke="rgb(255,255,255)" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.04">
+        <animate attributeName="stroke-opacity"
+          values="0.06;0.03;0.11;0.03;0.06" dur="6.5s" repeatCount="indefinite" />
+      </line>
+    </svg>
   );
 }
 
