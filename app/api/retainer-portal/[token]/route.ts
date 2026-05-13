@@ -22,7 +22,7 @@ export async function GET(
   // Fetch retainer by portal token
   const { data: retainer, error: retainerErr } = await supabase
     .from("retainers")
-    .select("id, client_name, monthly_rate, template, is_active, start_date, created_by")
+    .select("id, client_name, monthly_rate, template, is_active, start_date, end_date, delivery_folder_url, created_by")
     .eq("portal_token", token)
     .single();
 
@@ -62,11 +62,13 @@ export async function GET(
   if (activeMonth) {
     const { data: dels } = await supabase
       .from("retainer_deliverables")
-      .select("id, title, type, status, sort_order")
+      .select("id, title, type, status, sort_order, revision_notes, revision_count, revision_status")
       .eq("month_id", activeMonth.id)
       .order("sort_order", { ascending: true });
     deliverables = dels ?? [];
   }
+
+  console.log(`[retainer-portal] GET token=${token.slice(0, 8)}… retainer=${retainer.id} activeMonth=${activeMonth?.id ?? "none"}`);
 
   return NextResponse.json({
     retainer: {
@@ -74,6 +76,7 @@ export async function GET(
       monthly_rate: retainer.monthly_rate,
       template: retainer.template,
       is_active: retainer.is_active,
+      delivery_folder_url: retainer.delivery_folder_url ?? null,
     },
     agencyName,
     activeMonth,
@@ -82,8 +85,48 @@ export async function GET(
       id: m.id,
       month_year: m.month_year,
       status: m.status,
+      delivery_url: m.delivery_url ?? null,
+      approved_at: m.approved_at ?? null,
     })),
   });
+}
+
+// PATCH /api/retainer-portal/[token] — client approves a month (no auth, token is proof)
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const { token } = await params;
+  const { monthId } = await req.json();
+  if (!token || !monthId) return NextResponse.json({ error: "token and monthId required" }, { status: 400 });
+
+  const supabase = getAdmin();
+
+  // Verify month belongs to this retainer's portal token
+  const { data: retainer } = await supabase
+    .from("retainers")
+    .select("id")
+    .eq("portal_token", token)
+    .single();
+
+  if (!retainer) {
+    console.warn(`[retainer-portal] PATCH invalid token=${token.slice(0, 8)}…`);
+    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+  }
+
+  const { error } = await supabase
+    .from("retainer_months")
+    .update({ approved_at: new Date().toISOString() })
+    .eq("id", monthId)
+    .eq("retainer_id", retainer.id);
+
+  if (error) {
+    console.error("[retainer-portal] PATCH approve error", error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  console.log(`[retainer-portal] month ${monthId} approved via portal`);
+  return NextResponse.json({ approved: true });
 }
 
 // POST /api/retainer-portal/[token] — generate a portal token (authenticated agency only)

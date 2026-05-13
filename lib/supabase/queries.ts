@@ -1503,7 +1503,7 @@ export async function createRetainer(payload: {
   return data as Retainer;
 }
 
-export async function updateRetainer(id: string, updates: Partial<Pick<Retainer, 'client_name' | 'client_email' | 'monthly_rate' | 'template' | 'notes' | 'is_active' | 'start_date' | 'portal_token'>>): Promise<void> {
+export async function updateRetainer(id: string, updates: Partial<Pick<Retainer, 'client_name' | 'client_email' | 'monthly_rate' | 'template' | 'notes' | 'is_active' | 'start_date' | 'end_date' | 'delivery_folder_url' | 'portal_token'>>): Promise<void> {
   const { error } = await db()
     .from('retainers')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -1581,7 +1581,7 @@ export async function createRetainerMonth(payload: {
   return month as RetainerMonth;
 }
 
-export async function updateRetainerMonth(id: string, updates: Partial<Pick<RetainerMonth, 'status' | 'shoot_date' | 'notes'>>): Promise<void> {
+export async function updateRetainerMonth(id: string, updates: Partial<Pick<RetainerMonth, 'status' | 'shoot_date' | 'notes' | 'delivery_url' | 'approved_at' | 'paid'>>): Promise<void> {
   const { error } = await db()
     .from('retainer_months')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -1637,7 +1637,7 @@ export async function bulkCreateRetainerDeliverables(rows: {
   return (data ?? []) as RetainerDeliverable[];
 }
 
-export async function updateRetainerDeliverable(id: string, updates: { status?: string; title?: string; notes?: string }): Promise<void> {
+export async function updateRetainerDeliverable(id: string, updates: { status?: string; title?: string; notes?: string; revision_notes?: string; revision_count?: number; revision_status?: string }): Promise<void> {
   const { error } = await db()
     .from('retainer_deliverables')
     .update(updates)

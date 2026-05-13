@@ -705,6 +705,7 @@ export interface RetainerTemplateItem {
   label: string;  // display name e.g. "Short-form Videos"
   quantity: number;
   mode?: "individual" | "batch"; // individual = one row per item; batch = one row for the whole group
+  revisions_included?: number;   // agreed revision rounds per deliverable, e.g. 2
 }
 
 export interface Retainer {
@@ -717,6 +718,8 @@ export interface Retainer {
   notes?: string;
   is_active: boolean;
   start_date?: string;
+  end_date?: string;
+  delivery_folder_url?: string;
   portal_token?: string;
   created_at: string;
   updated_at: string;
@@ -732,11 +735,16 @@ export interface RetainerMonth {
   status: RetainerMonthStatus;
   shoot_date?: string;
   notes?: string;
+  delivery_url?: string;
+  approved_at?: string;
+  paid?: boolean;
   created_at: string;
   updated_at: string;
 }
 
 export type RetainerDeliverableStatus = "planned" | "shot" | "delivered";
+
+export type RetainerRevisionStatus = 'none' | 'requested' | 'in_progress' | 'resolved';
 
 export interface RetainerDeliverable {
   id: string;
@@ -747,6 +755,9 @@ export interface RetainerDeliverable {
   status: RetainerDeliverableStatus;
   notes?: string;
   sort_order: number;
+  revision_notes?: string;
+  revision_count: number;
+  revision_status: RetainerRevisionStatus;
   created_at: string;
 }
 

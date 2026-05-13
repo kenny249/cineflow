@@ -167,8 +167,8 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                  {/* Individual vs Batch toggle */}
-                  <div className="flex gap-1 ml-0.5">
+                  {/* Individual vs Batch toggle + revisions */}
+                  <div className="flex flex-wrap gap-1 ml-0.5 items-center">
                     <button
                       onClick={() => updateTemplate(idx, "mode", "individual")}
                       className={cn(
@@ -191,11 +191,25 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
                     >
                       Batch
                     </button>
-                    <span className="text-[10px] text-muted-foreground/40 self-center ml-1">
+                    <span className="text-[10px] text-muted-foreground/40 self-center ml-1 mr-3">
                       {(item.mode ?? "individual") === "batch"
                         ? "→ 1 row, check off the whole group"
                         : `→ ${item.quantity} rows, name each one`}
                     </span>
+                    <div className="flex items-center gap-1 ml-auto">
+                      <span className="text-[10px] text-muted-foreground/40">Revisions included:</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={item.revisions_included == null ? "" : String(item.revisions_included)}
+                        onChange={e => {
+                          const raw = e.target.value.replace(/[^0-9]/g, "");
+                          updateTemplate(idx, "revisions_included", raw === "" ? 0 : Number(raw));
+                        }}
+                        placeholder="∞"
+                        className="w-10 rounded border border-border bg-background px-1.5 py-0.5 text-center text-[10px] text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}

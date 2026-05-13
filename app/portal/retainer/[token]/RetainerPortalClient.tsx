@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Film, Circle, Camera, CheckCircle2, CalendarDays, Repeat2 } from "lucide-react";
+import { Film, Circle, Camera, CheckCircle2, CalendarDays, Repeat2, FolderOpen, Download, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RetainerTemplateItem, RetainerDeliverableStatus, RetainerMonthStatus } from "@/types";
 
@@ -14,6 +14,8 @@ interface PortalMonth {
   status: RetainerMonthStatus;
   shoot_date?: string;
   notes?: string;
+  delivery_url?: string | null;
+  approved_at?: string | null;
 }
 
 interface PortalDeliverable {
@@ -22,6 +24,8 @@ interface PortalDeliverable {
   type: string;
   status: RetainerDeliverableStatus;
   sort_order: number;
+  revision_count: number;
+  revision_status: string;
 }
 
 interface PortalData {
@@ -30,11 +34,12 @@ interface PortalData {
     monthly_rate?: number;
     template: RetainerTemplateItem[];
     is_active: boolean;
+    delivery_folder_url?: string | null;
   };
   agencyName: string;
   activeMonth: PortalMonth | null;
   deliverables: PortalDeliverable[];
-  allMonths: { id: string; month_year: string; status: RetainerMonthStatus }[];
+  allMonths: { id: string; month_year: string; status: RetainerMonthStatus; delivery_url?: string | null; approved_at?: string | null }[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -45,8 +50,8 @@ function formatMonthYear(my: string) {
 }
 
 const DELIVERABLE_STATUS: Record<RetainerDeliverableStatus, { icon: React.ReactNode; label: string; color: string; bg: string }> = {
-  planned:   { icon: <Circle className="h-4 w-4" />,       label: "Planned",   color: "text-white/20",   bg: "bg-white/5" },
-  shot:      { icon: <Camera className="h-4 w-4" />,       label: "Shot",      color: "text-amber-400",  bg: "bg-amber-400/10" },
+  planned:   { icon: <Circle className="h-4 w-4" />,       label: "Planned",   color: "text-white/20",    bg: "bg-white/5" },
+  shot:      { icon: <Camera className="h-4 w-4" />,       label: "Shot",      color: "text-amber-400",   bg: "bg-amber-400/10" },
   delivered: { icon: <CheckCircle2 className="h-4 w-4" />, label: "Delivered", color: "text-emerald-400", bg: "bg-emerald-400/10" },
 };
 
@@ -62,10 +67,7 @@ function ProgressBar({ done, total, color }: { done: number; total: number; colo
   return (
     <div className="flex items-center gap-2">
       <div className="h-1.5 flex-1 rounded-full bg-white/8 overflow-hidden">
-        <div
-          className={cn("h-full rounded-full transition-all duration-500", color)}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={cn("h-full rounded-full transition-all duration-500", color)} style={{ width: `${pct}%` }} />
       </div>
       <span className="text-[11px] text-white/30 tabular-nums w-8 text-right">{done}/{total}</span>
     </div>
@@ -81,6 +83,8 @@ export default function RetainerPortalPage() {
   const [data, setData] = useState<PortalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [approvedMonthId, setApprovedMonthId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -89,10 +93,26 @@ export default function RetainerPortalPage() {
       .then((json) => {
         if (json.error) { setError(json.error); return; }
         setData(json);
+        // Pre-populate local approval state
+        if (json.activeMonth?.approved_at) setApprovedMonthId(json.activeMonth.id);
       })
       .catch(() => setError("Failed to load portal"))
       .finally(() => setLoading(false));
   }, [token]);
+
+  async function handleApprove(monthId: string) {
+    setApproving(true);
+    try {
+      await fetch(`/api/retainer-portal/${token}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monthId }),
+      });
+      setApprovedMonthId(monthId);
+    } catch { /* silent */ } finally {
+      setApproving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -115,7 +135,6 @@ export default function RetainerPortalPage() {
 
   const { retainer, agencyName, activeMonth, deliverables, allMonths } = data;
 
-  // Progress by deliverable type
   const typeGroups = retainer.template.map((t) => {
     const items = deliverables.filter((d) => d.type === t.type);
     const delivered = items.filter((d) => d.status === "delivered").length;
@@ -127,13 +146,12 @@ export default function RetainerPortalPage() {
   const totalDelivered = deliverables.filter((d) => d.status === "delivered").length;
   const totalShot = deliverables.filter((d) => d.status === "shot").length;
   const overallPct = totalDeliverables === 0 ? 0 : Math.round((totalDelivered / totalDeliverables) * 100);
-
   const monthStatusCfg = activeMonth ? MONTH_STATUS_LABEL[activeMonth.status] : null;
+  const isApproved = activeMonth ? (approvedMonthId === activeMonth.id || !!activeMonth.approved_at) : false;
+  const allDelivered = totalDeliverables > 0 && totalDelivered === totalDeliverables;
 
   return (
     <div className="min-h-screen bg-[#0b0b0b] text-white">
-
-      {/* Ambient glow */}
       <div className="pointer-events-none fixed left-0 top-0 h-64 w-full bg-[radial-gradient(ellipse_60%_40%_at_30%_0%,rgba(212,168,83,0.06),transparent)]" />
 
       {/* Header */}
@@ -149,6 +167,17 @@ export default function RetainerPortalPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {retainer.delivery_folder_url && (
+              <a
+                href={retainer.delivery_folder_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/10 px-3 py-1.5 text-xs font-semibold text-[#d4a853] hover:bg-[#d4a853]/20 transition-colors"
+              >
+                <FolderOpen className="h-3.5 w-3.5" />
+                All Content
+              </a>
+            )}
             <span className={cn(
               "inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-semibold",
               retainer.is_active
@@ -180,7 +209,7 @@ export default function RetainerPortalPage() {
           )}
         </div>
 
-        {/* Overall progress card */}
+        {/* Overall progress */}
         {activeMonth && totalDeliverables > 0 && (
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-3">
             <div className="flex items-center justify-between">
@@ -188,26 +217,12 @@ export default function RetainerPortalPage() {
               <span className="text-xl font-bold text-white tabular-nums">{overallPct}%</span>
             </div>
             <div className="h-2 w-full rounded-full bg-white/8 overflow-hidden">
-              <div
-                className="h-full rounded-full bg-emerald-400 transition-all duration-700"
-                style={{ width: `${overallPct}%` }}
-              />
+              <div className="h-full rounded-full bg-emerald-400 transition-all duration-700" style={{ width: `${overallPct}%` }} />
             </div>
             <div className="flex gap-4 text-xs text-white/40">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                {totalDelivered} delivered
-              </span>
-              {totalShot > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Camera className="h-3.5 w-3.5 text-amber-400" />
-                  {totalShot} shot
-                </span>
-              )}
-              <span className="flex items-center gap-1.5">
-                <Circle className="h-3.5 w-3.5 text-white/20" />
-                {totalDeliverables - totalDelivered - totalShot} planned
-              </span>
+              <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />{totalDelivered} delivered</span>
+              {totalShot > 0 && <span className="flex items-center gap-1.5"><Camera className="h-3.5 w-3.5 text-amber-400" />{totalShot} shot</span>}
+              <span className="flex items-center gap-1.5"><Circle className="h-3.5 w-3.5 text-white/20" />{totalDeliverables - totalDelivered - totalShot} planned</span>
             </div>
           </div>
         )}
@@ -225,18 +240,38 @@ export default function RetainerPortalPage() {
           </div>
         )}
 
+        {/* Month delivery link */}
+        {activeMonth?.delivery_url && (
+          <a
+            href={activeMonth.delivery_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 hover:bg-emerald-500/10 transition-colors group"
+          >
+            <div className="flex items-center gap-3">
+              <Download className="h-5 w-5 text-emerald-400 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-emerald-300">Download {formatMonthYear(activeMonth.month_year)} Content</p>
+                <p className="text-xs text-white/30 mt-0.5">Your files are ready</p>
+              </div>
+            </div>
+            <span className="text-xs text-emerald-400/60 group-hover:text-emerald-400 transition-colors">Open →</span>
+          </a>
+        )}
+
         {/* Deliverables by type */}
         {activeMonth && deliverables.length > 0 && (
           <div className="space-y-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Deliverables</p>
-
-            {/* Type summaries */}
             {typeGroups.filter((g) => g.items.length > 0 || g.quantity > 0).map((g) => (
               <div key={g.type} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-white/80">{g.label}</p>
-                    <p className="text-xs text-white/30">{g.quantity}× per month</p>
+                    <p className="text-xs text-white/30">
+                      {g.quantity}× per month
+                      {g.revisions_included ? ` · ${g.revisions_included} revision${g.revisions_included === 1 ? "" : "s"} included` : ""}
+                    </p>
                   </div>
                   <span className={cn(
                     "text-xs font-semibold px-2.5 py-1 rounded-full",
@@ -245,24 +280,19 @@ export default function RetainerPortalPage() {
                     {g.delivered}/{g.quantity}
                   </span>
                 </div>
-                <ProgressBar
-                  done={g.delivered}
-                  total={g.quantity}
-                  color={g.delivered === g.quantity ? "bg-emerald-400" : "bg-[#d4a853]"}
-                />
-
-                {/* Individual items */}
+                <ProgressBar done={g.delivered} total={g.quantity} color={g.delivered === g.quantity ? "bg-emerald-400" : "bg-[#d4a853]"} />
                 {g.items.length > 0 && (
                   <div className="space-y-1.5 pt-1">
                     {g.items.map((item) => {
                       const cfg = DELIVERABLE_STATUS[item.status];
+                      const hasRevision = item.revision_status !== "none" && item.revision_count > 0;
                       return (
-                        <div
-                          key={item.id}
-                          className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2", cfg.bg)}
-                        >
+                        <div key={item.id} className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2", cfg.bg)}>
                           <span className={cfg.color}>{cfg.icon}</span>
                           <span className="flex-1 text-xs text-white/60 truncate">{item.title}</span>
+                          {hasRevision && (
+                            <span className="text-[10px] text-amber-400/70 shrink-0">Rev {item.revision_count}</span>
+                          )}
                           <span className={cn("text-[10px] font-medium shrink-0", cfg.color)}>{cfg.label}</span>
                         </div>
                       );
@@ -274,6 +304,39 @@ export default function RetainerPortalPage() {
           </div>
         )}
 
+        {/* Approve month — show when all delivered and not yet approved */}
+        {activeMonth && allDelivered && (
+          <div className={cn(
+            "rounded-xl border p-5 text-center space-y-3",
+            isApproved
+              ? "border-emerald-500/20 bg-emerald-500/5"
+              : "border-white/10 bg-white/[0.02]"
+          )}>
+            {isApproved ? (
+              <>
+                <CheckCheck className="mx-auto h-6 w-6 text-emerald-400" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-300">Content Approved</p>
+                  <p className="text-xs text-white/30 mt-0.5">You signed off on {formatMonthYear(activeMonth.month_year)}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-white/70">Happy with everything?</p>
+                <p className="text-xs text-white/30">Tap below to formally sign off on this month's content.</p>
+                <button
+                  onClick={() => handleApprove(activeMonth.id)}
+                  disabled={approving}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-400 transition-colors disabled:opacity-50"
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  {approving ? "Approving…" : "Approve this month"}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {/* No active month */}
         {!activeMonth && (
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-6 py-10 text-center space-y-2">
@@ -281,16 +344,6 @@ export default function RetainerPortalPage() {
             <p className="text-sm text-white/30">No active month yet — check back soon.</p>
           </div>
         )}
-
-        {/* Wrapped state */}
-        {activeMonth?.status === "wrapped" || activeMonth?.status === "invoiced" ? (
-          <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-5 py-4 text-center">
-            <p className="text-sm text-blue-300/70">
-              {formatMonthYear(activeMonth.month_year)} is complete.
-            </p>
-            <p className="text-xs text-white/30 mt-1">Next month&apos;s progress will appear here when it begins.</p>
-          </div>
-        ) : null}
 
         {/* Month history */}
         {allMonths.length > 1 && (
@@ -300,9 +353,25 @@ export default function RetainerPortalPage() {
               {allMonths.slice(1).map((m) => {
                 const cfg = MONTH_STATUS_LABEL[m.status];
                 return (
-                  <div key={m.id} className="flex items-center justify-between rounded-lg border border-white/[0.05] px-3 py-2">
-                    <span className="text-xs text-white/40">{formatMonthYear(m.month_year)}</span>
-                    <span className={cn("text-[10px] font-medium", cfg.color)}>{cfg.label}</span>
+                  <div key={m.id} className="flex items-center justify-between rounded-lg border border-white/[0.05] px-3 py-2.5">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-white/40">{formatMonthYear(m.month_year)}</span>
+                      {m.approved_at && (
+                        <span className="flex items-center gap-1 text-[10px] text-emerald-400/60">
+                          <CheckCheck className="h-3 w-3" /> Approved
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {m.delivery_url && (
+                        <a href={m.delivery_url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[10px] text-[#d4a853]/60 hover:text-[#d4a853] transition-colors"
+                        >
+                          <Download className="h-3 w-3" /> Files
+                        </a>
+                      )}
+                      <span className={cn("text-[10px] font-medium", cfg.color)}>{cfg.label}</span>
+                    </div>
                   </div>
                 );
               })}
@@ -312,13 +381,11 @@ export default function RetainerPortalPage() {
 
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-white/[0.04] px-4 py-6 text-center">
         <p className="text-[11px] text-white/15">
           Managed by <span className="text-white/25">{agencyName}</span> · Powered by Cineflow
         </p>
       </footer>
-
     </div>
   );
 }

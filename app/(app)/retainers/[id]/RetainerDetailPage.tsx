@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
   CalendarDays, X, Pencil, Check, AlertCircle, Trash2, Settings2, Link2,
+  FolderOpen, Download, DollarSign, CheckCheck, RotateCcw, ExternalLink,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -13,7 +14,7 @@ import {
   createRetainerDeliverable, updateRetainerDeliverable, deleteRetainerDeliverable,
   bulkCreateRetainerDeliverables, deleteRetainer, createInvoice,
 } from "@/lib/supabase/queries";
-import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus, RetainerTemplateItem } from "@/types";
+import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus, RetainerRevisionStatus, RetainerTemplateItem } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -61,22 +62,46 @@ const MONTH_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   invoiced:  { label: "Invoiced",  color: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
 };
 
+// ── Revision status config ────────────────────────────────────────────────────
+
+const REVISION_CYCLE: Record<RetainerRevisionStatus, RetainerRevisionStatus> = {
+  none:        "requested",
+  requested:   "in_progress",
+  in_progress: "resolved",
+  resolved:    "none",
+};
+
+const REVISION_CONFIG: Record<RetainerRevisionStatus, { label: string; color: string }> = {
+  none:        { label: "No revisions",  color: "text-muted-foreground/30" },
+  requested:   { label: "Requested",     color: "text-red-400" },
+  in_progress: { label: "In progress",   color: "text-amber-400" },
+  resolved:    { label: "Resolved",      color: "text-emerald-400" },
+};
+
 // ── Deliverable row ──────────────────────────────────────────────────────────
 
 function DeliverableRow({
   item,
+  revisionsIncluded,
   onStatusChange,
   onDelete,
   onTitleChange,
+  onRevisionChange,
 }: {
   item: RetainerDeliverable;
+  revisionsIncluded?: number;
   onStatusChange: (id: string, s: RetainerDeliverableStatus) => void;
   onDelete: (id: string) => void;
   onTitleChange: (id: string, title: string) => void;
+  onRevisionChange: (id: string, status: RetainerRevisionStatus, notes: string, count: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(item.title);
+  const [showRevision, setShowRevision] = useState(false);
+  const [revNotes, setRevNotes] = useState(item.revision_notes ?? "");
   const cfg = STATUS_CONFIG[item.status as RetainerDeliverableStatus] ?? STATUS_CONFIG.planned;
+  const revCfg = REVISION_CONFIG[item.revision_status as RetainerRevisionStatus ?? "none"];
+  const revStatus = (item.revision_status ?? "none") as RetainerRevisionStatus;
 
   function handleTitleBlur() {
     setEditing(false);
@@ -84,61 +109,106 @@ function DeliverableRow({
     else setTitle(item.title);
   }
 
+  function cycleRevisionStatus() {
+    const next = REVISION_CYCLE[revStatus];
+    const newCount = next === "requested" ? item.revision_count + 1 : item.revision_count;
+    onRevisionChange(item.id, next, revNotes, newCount);
+  }
+
+  function saveRevNotes() {
+    onRevisionChange(item.id, revStatus, revNotes, item.revision_count);
+  }
+
+  const revOverLimit = revisionsIncluded != null && item.revision_count > revisionsIncluded;
+
   return (
     <div className={cn(
-      "group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all duration-150",
+      "group rounded-lg border transition-all duration-150",
       item.status === "delivered"
-        ? "bg-emerald-500/[0.04] border border-emerald-500/10"
-        : "hover:bg-muted/30 border border-transparent"
+        ? "bg-emerald-500/[0.04] border-emerald-500/10"
+        : "hover:bg-muted/30 border-transparent"
     )}>
-      {/* Status toggle */}
-      <button
-        onClick={() => onStatusChange(item.id, STATUS_CYCLE[item.status as RetainerDeliverableStatus] ?? "planned")}
-        className={cn("shrink-0 transition-all duration-150 hover:scale-110", cfg.color)}
-        title={`Mark as ${STATUS_CYCLE[item.status as RetainerDeliverableStatus]}`}
-      >
-        {cfg.icon}
-      </button>
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        {/* Status toggle */}
+        <button
+          onClick={() => onStatusChange(item.id, STATUS_CYCLE[item.status as RetainerDeliverableStatus] ?? "planned")}
+          className={cn("shrink-0 transition-all duration-150 hover:scale-110", cfg.color)}
+          title={`Mark as ${STATUS_CYCLE[item.status as RetainerDeliverableStatus]}`}
+        >
+          {cfg.icon}
+        </button>
 
-      {/* Title — inline edit input or text */}
-      {editing ? (
-        <input
-          autoFocus
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onBlur={handleTitleBlur}
-          onKeyDown={e => {
-            if (e.key === "Enter") handleTitleBlur();
-            if (e.key === "Escape") { setTitle(item.title); setEditing(false); }
-          }}
-          className="flex-1 bg-muted rounded px-2 py-0.5 text-sm text-foreground outline-none border border-[#d4a853]/30 focus:border-[#d4a853]/60"
-        />
-      ) : (
-        <span className={cn(
-          "flex-1 text-sm",
-          item.status === "delivered" ? "text-muted-foreground/40 line-through" : "text-foreground"
-        )}>
-          {item.title}
-        </span>
-      )}
+        {/* Title */}
+        {editing ? (
+          <input
+            autoFocus value={title}
+            onChange={e => setTitle(e.target.value)}
+            onBlur={handleTitleBlur}
+            onKeyDown={e => { if (e.key === "Enter") handleTitleBlur(); if (e.key === "Escape") { setTitle(item.title); setEditing(false); } }}
+            className="flex-1 bg-muted rounded px-2 py-0.5 text-sm text-foreground outline-none border border-[#d4a853]/30 focus:border-[#d4a853]/60"
+          />
+        ) : (
+          <span className={cn("flex-1 text-sm", item.status === "delivered" ? "text-muted-foreground/40 line-through" : "text-foreground")}>
+            {item.title}
+          </span>
+        )}
 
-      {/* Hover actions */}
-      {!editing && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-          <button
-            onClick={() => setEditing(true)}
-            className="p-1 rounded text-muted-foreground/50 hover:text-[#d4a853]/70 hover:bg-[#d4a853]/10 transition-colors"
-            title="Rename"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button
-            onClick={() => onDelete(item.id)}
-            className="p-1 rounded text-muted-foreground/50 hover:text-red-400 hover:bg-red-400/10 transition-colors"
-            title="Delete"
-          >
-            <X className="h-3 w-3" />
-          </button>
+        {/* Revision indicator */}
+        {revStatus !== "none" && (
+          <span className={cn("text-[10px] font-medium shrink-0", revCfg.color)}>
+            {revCfg.label}
+            {revisionsIncluded != null && ` (${item.revision_count}/${revisionsIncluded})`}
+          </span>
+        )}
+        {revStatus === "none" && revisionsIncluded != null && item.revision_count > 0 && (
+          <span className={cn("text-[10px] shrink-0", revOverLimit ? "text-red-400" : "text-muted-foreground/40")}>
+            {item.revision_count}/{revisionsIncluded} rev
+          </span>
+        )}
+
+        {/* Actions */}
+        {!editing && (
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <button onClick={() => setShowRevision(v => !v)} className="p-1 rounded text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-400/10 transition-colors" title="Revision">
+              <RotateCcw className="h-3 w-3" />
+            </button>
+            <button onClick={() => setEditing(true)} className="p-1 rounded text-muted-foreground/50 hover:text-[#d4a853]/70 hover:bg-[#d4a853]/10 transition-colors" title="Rename">
+              <Pencil className="h-3 w-3" />
+            </button>
+            <button onClick={() => onDelete(item.id)} className="p-1 rounded text-muted-foreground/50 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Delete">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Revision panel */}
+      {showRevision && (
+        <div className="mx-3 mb-2.5 rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Revision</span>
+            <div className="flex items-center gap-2">
+              {revisionsIncluded != null && (
+                <span className={cn("text-[10px]", revOverLimit ? "text-red-400 font-semibold" : "text-muted-foreground/40")}>
+                  {item.revision_count}/{revisionsIncluded} used{revOverLimit ? " — over limit" : ""}
+                </span>
+              )}
+              <button
+                onClick={cycleRevisionStatus}
+                className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors", revCfg.color, "border-current/20 hover:bg-current/10")}
+              >
+                {revCfg.label}
+              </button>
+            </div>
+          </div>
+          <textarea
+            rows={2}
+            value={revNotes}
+            onChange={e => setRevNotes(e.target.value)}
+            onBlur={saveRevNotes}
+            placeholder="Revision notes — what needs to change?"
+            className="w-full resize-none rounded bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 outline-none border border-border focus:border-[#d4a853]/40"
+          />
         </div>
       )}
     </div>
@@ -192,6 +262,9 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [schedulingCalendar, setSchedulingCalendar] = useState(false);
   const [togglingActive, setTogglingActive] = useState(false);
   const [sharingPortal, setSharingPortal] = useState(false);
+  const [deliveryUrlInput, setDeliveryUrlInput] = useState("");
+  const [editDeliveryFolderUrl, setEditDeliveryFolderUrl] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
 
   const activeMonth = months.find(m => m.id === activeMonthId) ?? null;
 
@@ -221,6 +294,10 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     else setDeliverables([]);
   }, [activeMonthId]);
 
+  useEffect(() => {
+    setDeliveryUrlInput(months.find(m => m.id === activeMonthId)?.delivery_url ?? "");
+  }, [activeMonthId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Delete retainer ──────────────────────────────────────────────────────
 
   async function handleSaveRate() {
@@ -244,6 +321,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     setEditRate(retainer.monthly_rate ? String(retainer.monthly_rate) : "");
     setEditTemplate(retainer.template.map((t) => ({ ...t })));
     setEditNotes(retainer.notes ?? "");
+    setEditDeliveryFolderUrl(retainer.delivery_folder_url ?? "");
+    setEditEndDate(retainer.end_date ?? "");
     setEditOpen(true);
   }
 
@@ -259,6 +338,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
         monthly_rate: editRate ? Number(editRate) : undefined,
         template: newTemplate,
         notes: editNotes.trim() || undefined,
+        delivery_folder_url: editDeliveryFolderUrl.trim() || undefined,
+        end_date: editEndDate || undefined,
       });
 
       // Sync deliverables for the active month — add any rows missing due to quantity increases
@@ -309,6 +390,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
         monthly_rate: editRate ? Number(editRate) : undefined,
         template: newTemplate,
         notes: editNotes.trim() || undefined,
+        delivery_folder_url: editDeliveryFolderUrl.trim() || undefined,
+        end_date: editEndDate || undefined,
       } : prev);
       setEditOpen(false);
       toast.success("Retainer updated");
@@ -501,6 +584,25 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     setDeliverables(prev => prev.map(d => d.id === delivId ? { ...d, title } : d));
   }
 
+  async function handleRevisionChange(delivId: string, status: RetainerRevisionStatus, notes: string, count: number) {
+    await updateRetainerDeliverable(delivId, { revision_status: status, revision_notes: notes, revision_count: count });
+    setDeliverables(prev => prev.map(d => d.id === delivId ? { ...d, revision_status: status, revision_notes: notes, revision_count: count } : d));
+  }
+
+  async function handleDeliveryUrlSave() {
+    if (!activeMonth) return;
+    const url = deliveryUrlInput.trim() || undefined;
+    await updateRetainerMonth(activeMonth.id, { delivery_url: url });
+    setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, delivery_url: url } : m));
+  }
+
+  async function handleTogglePaid() {
+    if (!activeMonth) return;
+    const newPaid = !activeMonth.paid;
+    await updateRetainerMonth(activeMonth.id, { paid: newPaid });
+    setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, paid: newPaid } : m));
+  }
+
   async function handleQuickAdd() {
     if (!quickAddTitle.trim() || !activeMonthId) return;
     try {
@@ -624,6 +726,20 @@ export default function RetainerDetailPage({ id }: { id: string }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {/* Master drive folder */}
+          {retainer.delivery_folder_url && (
+            <a
+              href={retainer.delivery_folder_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Open client drive folder"
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              Drive
+            </a>
+          )}
+
           {/* Active/Inactive toggle */}
           <button
             onClick={handleToggleActive}
@@ -696,6 +812,22 @@ export default function RetainerDetailPage({ id }: { id: string }) {
           </Button>
         </div>
       </div>
+
+      {/* ── Renewal warning ── */}
+      {retainer.end_date && (() => {
+        const daysUntil = Math.ceil((new Date(retainer.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        if (daysUntil > 30) return null;
+        return (
+          <div className="flex items-center gap-2 px-4 sm:px-6 py-2 bg-amber-500/10 border-b border-amber-500/20 shrink-0">
+            <AlertCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="text-xs text-amber-400">
+              {daysUntil <= 0
+                ? `Retainer ended ${new Date(retainer.end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                : `Retainer ends in ${daysUntil} day${daysUntil === 1 ? "" : "s"} — ${new Date(retainer.end_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* ── No months yet ── */}
       {months.length === 0 && (
@@ -833,6 +965,53 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                       </Button>
                     )}
                   </div>
+
+                  {/* Month delivery link + paid + approval row */}
+                  <div className="flex flex-wrap items-center gap-3 pt-0.5">
+                    {/* Delivery folder link */}
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      <Download className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                      <input
+                        type="url"
+                        value={deliveryUrlInput}
+                        onChange={e => setDeliveryUrlInput(e.target.value)}
+                        onBlur={handleDeliveryUrlSave}
+                        onKeyDown={e => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+                        placeholder="Add this month's delivery link…"
+                        className="flex-1 min-w-0 bg-transparent text-xs text-muted-foreground/60 placeholder:text-muted-foreground/30 outline-none focus:text-foreground"
+                      />
+                      {activeMonth.delivery_url && (
+                        <a href={activeMonth.delivery_url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-[11px] text-emerald-400 hover:text-emerald-300 transition-colors">
+                          Open →
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Paid toggle */}
+                    <button
+                      onClick={handleTogglePaid}
+                      className={cn(
+                        "flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors shrink-0",
+                        activeMonth.paid
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                          : "border-border text-muted-foreground/40 hover:border-emerald-500/20 hover:text-emerald-400"
+                      )}
+                      title={activeMonth.paid ? "Mark as unpaid" : "Mark as paid"}
+                    >
+                      <DollarSign className="h-3 w-3" />
+                      {activeMonth.paid ? "Paid" : "Unpaid"}
+                    </button>
+
+                    {/* Client approval status */}
+                    {activeMonth.approved_at ? (
+                      <span className="flex items-center gap-1 text-[11px] text-emerald-400 shrink-0">
+                        <CheckCheck className="h-3 w-3" />
+                        Approved {new Date(activeMonth.approved_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground/30 shrink-0">Awaiting approval</span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Progress summary */}
@@ -884,9 +1063,11 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                             <DeliverableRow
                               key={item.id}
                               item={item}
+                              revisionsIncluded={retainer.template.find(t => t.type === g.type)?.revisions_included}
                               onStatusChange={handleStatusChange}
                               onDelete={handleDeleteDeliverable}
                               onTitleChange={handleTitleChange}
+                              onRevisionChange={handleRevisionChange}
                             />
                           ))}
                         </div>
@@ -979,7 +1160,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                      <div className="flex gap-1 ml-0.5">
+                      <div className="flex flex-wrap gap-1 ml-0.5 items-center">
                         {(["individual", "batch"] as const).map((m) => (
                           <button
                             key={m}
@@ -992,9 +1173,23 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                             )}
                           >{m}</button>
                         ))}
-                        <span className="text-[10px] text-muted-foreground/40 self-center ml-1">
+                        <span className="text-[10px] text-muted-foreground/40 self-center ml-1 mr-3">
                           {(item.mode ?? "individual") === "batch" ? "→ 1 row, check off the whole group" : `→ ${item.quantity} rows, name each one`}
                         </span>
+                        <div className="flex items-center gap-1 ml-auto">
+                          <span className="text-[10px] text-muted-foreground/40">Revisions:</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={item.revisions_included == null ? "" : String(item.revisions_included)}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, "");
+                              setEditTemplate((prev) => prev.map((t, i) => i === idx ? { ...t, revisions_included: raw === "" ? undefined : Number(raw) } : t));
+                            }}
+                            placeholder="∞"
+                            className="w-10 rounded border border-border bg-background px-1.5 py-0.5 text-center text-[10px] text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1007,6 +1202,14 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 <label className="text-xs text-muted-foreground mb-1.5 block">Notes (optional)</label>
                 <textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} placeholder="Scope notes, special requirements..."
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Master Delivery Folder <span className="text-muted-foreground/40">(Google Drive, Dropbox, etc.)</span></label>
+                <Input type="url" value={editDeliveryFolderUrl} onChange={(e) => setEditDeliveryFolderUrl(e.target.value)} placeholder="https://drive.google.com/…" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">End Date <span className="text-muted-foreground/40">(optional — shows renewal warning 30 days out)</span></label>
+                <Input type="date" value={editEndDate} onChange={(e) => setEditEndDate(e.target.value)} className="[color-scheme:light_dark]" />
               </div>
             </div>
             <div className="flex gap-2 mt-5">
