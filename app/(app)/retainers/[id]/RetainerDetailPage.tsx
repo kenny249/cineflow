@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
   CalendarDays, X, Pencil, Check, AlertCircle, Trash2, Settings2, Link2,
-  FolderOpen, Download, DollarSign, CheckCheck, RotateCcw, ExternalLink,
+  FolderOpen, Download, DollarSign, CheckCheck, RotateCcw, ExternalLink, StickyNote,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -71,11 +71,11 @@ const REVISION_CYCLE: Record<RetainerRevisionStatus, RetainerRevisionStatus> = {
   resolved:    "none",
 };
 
-const REVISION_CONFIG: Record<RetainerRevisionStatus, { label: string; color: string }> = {
-  none:        { label: "No revisions",  color: "text-muted-foreground/30" },
-  requested:   { label: "Requested",     color: "text-red-400" },
-  in_progress: { label: "In progress",   color: "text-amber-400" },
-  resolved:    { label: "Resolved",      color: "text-emerald-400" },
+const REVISION_CONFIG: Record<RetainerRevisionStatus, { label: string; buttonLabel: string; color: string }> = {
+  none:        { label: "No revisions", buttonLabel: "Request revision", color: "text-muted-foreground/40" },
+  requested:   { label: "Requested",    buttonLabel: "Requested",        color: "text-red-400" },
+  in_progress: { label: "In progress",  buttonLabel: "In progress",      color: "text-amber-400" },
+  resolved:    { label: "Resolved",     buttonLabel: "Resolved",         color: "text-emerald-400" },
 };
 
 // ── Deliverable row ──────────────────────────────────────────────────────────
@@ -87,6 +87,7 @@ function DeliverableRow({
   onDelete,
   onTitleChange,
   onRevisionChange,
+  onNotesChange,
 }: {
   item: RetainerDeliverable;
   revisionsIncluded?: number;
@@ -94,14 +95,18 @@ function DeliverableRow({
   onDelete: (id: string) => void;
   onTitleChange: (id: string, title: string) => void;
   onRevisionChange: (id: string, status: RetainerRevisionStatus, notes: string, count: number) => void;
+  onNotesChange: (id: string, notes: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(item.title);
   const [showRevision, setShowRevision] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [revNotes, setRevNotes] = useState(item.revision_notes ?? "");
+  const [shootNotes, setShootNotes] = useState(item.notes ?? "");
   const cfg = STATUS_CONFIG[item.status as RetainerDeliverableStatus] ?? STATUS_CONFIG.planned;
-  const revCfg = REVISION_CONFIG[item.revision_status as RetainerRevisionStatus ?? "none"];
+  const revCfg = REVISION_CONFIG[(item.revision_status ?? "none") as RetainerRevisionStatus];
   const revStatus = (item.revision_status ?? "none") as RetainerRevisionStatus;
+  const isProductionDay = item.type === "production_day";
 
   function handleTitleBlur() {
     setEditing(false);
@@ -119,7 +124,12 @@ function DeliverableRow({
     onRevisionChange(item.id, revStatus, revNotes, item.revision_count);
   }
 
+  function saveShootNotes() {
+    onNotesChange(item.id, shootNotes);
+  }
+
   const revOverLimit = revisionsIncluded != null && item.revision_count > revisionsIncluded;
+  const hasShootNotes = (item.notes ?? "").trim().length > 0;
 
   return (
     <div className={cn(
@@ -153,7 +163,10 @@ function DeliverableRow({
           </span>
         )}
 
-        {/* Revision indicator */}
+        {/* Indicators */}
+        {hasShootNotes && !showNotes && (
+          <span className="text-[10px] text-[#d4a853]/50 shrink-0" title="Has shoot notes">●</span>
+        )}
         {revStatus !== "none" && (
           <span className={cn("text-[10px] font-medium shrink-0", revCfg.color)}>
             {revCfg.label}
@@ -169,9 +182,22 @@ function DeliverableRow({
         {/* Actions */}
         {!editing && (
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-            <button onClick={() => setShowRevision(v => !v)} className="p-1 rounded text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-400/10 transition-colors" title="Revision">
-              <RotateCcw className="h-3 w-3" />
+            <button
+              onClick={() => { setShowNotes(v => !v); setShowRevision(false); }}
+              className={cn("p-1 rounded transition-colors", showNotes ? "text-[#d4a853] bg-[#d4a853]/10" : "text-muted-foreground/50 hover:text-[#d4a853]/70 hover:bg-[#d4a853]/10")}
+              title="Shoot / script notes"
+            >
+              <StickyNote className="h-3 w-3" />
             </button>
+            {!isProductionDay && (
+              <button
+                onClick={() => { setShowRevision(v => !v); setShowNotes(false); }}
+                className={cn("p-1 rounded transition-colors", showRevision ? "text-amber-400 bg-amber-400/10" : "text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-400/10")}
+                title="Revision"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </button>
+            )}
             <button onClick={() => setEditing(true)} className="p-1 rounded text-muted-foreground/50 hover:text-[#d4a853]/70 hover:bg-[#d4a853]/10 transition-colors" title="Rename">
               <Pencil className="h-3 w-3" />
             </button>
@@ -181,6 +207,22 @@ function DeliverableRow({
           </div>
         )}
       </div>
+
+      {/* Shoot / script notes panel */}
+      {showNotes && (
+        <div className="mx-3 mb-2.5 rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/[0.03] p-3 space-y-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#d4a853]/50">Shoot Notes</span>
+          <textarea
+            autoFocus
+            rows={3}
+            value={shootNotes}
+            onChange={e => setShootNotes(e.target.value)}
+            onBlur={saveShootNotes}
+            placeholder="Script, shot description, talking points, references…"
+            className="w-full resize-none rounded bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 outline-none border border-border focus:border-[#d4a853]/40"
+          />
+        </div>
+      )}
 
       {/* Revision panel */}
       {showRevision && (
@@ -197,7 +239,7 @@ function DeliverableRow({
                 onClick={cycleRevisionStatus}
                 className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-colors", revCfg.color, "border-current/20 hover:bg-current/10")}
               >
-                {revCfg.label}
+                {revCfg.buttonLabel}
               </button>
             </div>
           </div>
@@ -206,7 +248,7 @@ function DeliverableRow({
             value={revNotes}
             onChange={e => setRevNotes(e.target.value)}
             onBlur={saveRevNotes}
-            placeholder="Revision notes — what needs to change?"
+            placeholder="What needs to change?"
             className="w-full resize-none rounded bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 outline-none border border-border focus:border-[#d4a853]/40"
           />
         </div>
@@ -587,6 +629,11 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   async function handleRevisionChange(delivId: string, status: RetainerRevisionStatus, notes: string, count: number) {
     await updateRetainerDeliverable(delivId, { revision_status: status, revision_notes: notes, revision_count: count });
     setDeliverables(prev => prev.map(d => d.id === delivId ? { ...d, revision_status: status, revision_notes: notes, revision_count: count } : d));
+  }
+
+  async function handleNotesChange(delivId: string, notes: string) {
+    await updateRetainerDeliverable(delivId, { notes });
+    setDeliverables(prev => prev.map(d => d.id === delivId ? { ...d, notes } : d));
   }
 
   async function handleDeliveryUrlSave() {
@@ -1068,6 +1115,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                               onDelete={handleDeleteDeliverable}
                               onTitleChange={handleTitleChange}
                               onRevisionChange={handleRevisionChange}
+                              onNotesChange={handleNotesChange}
                             />
                           ))}
                         </div>
