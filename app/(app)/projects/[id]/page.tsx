@@ -108,6 +108,15 @@ export default async function SingleProjectPage({ params }: PageProps) {
 
   const shotList = shotLists[0] ?? null;
 
+  let hasQuote = false;
+  try {
+    const { count } = await supabase
+      .from("quotes")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", id);
+    hasQuote = (count ?? 0) > 0;
+  } catch { /* ignore */ }
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
       <ProjectDetailTabs
@@ -118,6 +127,7 @@ export default async function SingleProjectPage({ params }: PageProps) {
         initialRevisions={revisions}
         initialMembers={[]}
         userRole={userRole}
+        hasQuote={hasQuote}
       />
     </div>
   );

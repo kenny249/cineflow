@@ -46,6 +46,7 @@ interface ProjectDetailTabsProps {
   initialRevisions: Revision[];
   initialMembers: ProjectMember[];
   userRole?: ProjectRole;
+  hasQuote?: boolean;
 }
 
 const COVER_UPDATES = [
@@ -178,6 +179,7 @@ export default function ProjectDetailTabs({
   initialRevisions,
   initialMembers,
   userRole = "team",
+  hasQuote = false,
 }: ProjectDetailTabsProps) {
   // Role helpers
   const searchParams = useSearchParams();
@@ -1393,6 +1395,79 @@ export default function ProjectDetailTabs({
           </div>
         </div>
       </div>
+
+      {/* ── Production Pipeline Bar ─────────────────────────────────────── */}
+      {(() => {
+        const st = status;
+        const stages = [
+          {
+            id: "intake",
+            label: "Intake",
+            done: true,
+            onClick: () => {},
+          },
+          {
+            id: "quote",
+            label: "Quote",
+            done: hasQuote,
+            onClick: () => { window.location.href = "/quotes"; },
+          },
+          {
+            id: "pre-prod",
+            label: "Pre-Production",
+            done: shotList !== null || ["active","review","delivered"].includes(st),
+            onClick: () => setActiveTab("production"),
+          },
+          {
+            id: "production",
+            label: "Production",
+            done: ["active","review","delivered"].includes(st),
+            onClick: () => setActiveTab("production"),
+          },
+          {
+            id: "delivered",
+            label: "Delivered",
+            done: st === "delivered",
+            onClick: () => setActiveTab("final-cuts"),
+          },
+        ];
+        const currentIdx = stages.findIndex((s) => !s.done);
+        return (
+          <div className="border-b border-border bg-card/20 px-4 sm:px-6 py-2">
+            <div className="flex items-center overflow-x-auto no-scrollbar">
+              {stages.map((stage, i) => {
+                const isCurrent = i === currentIdx;
+                return (
+                  <div key={stage.id} className="flex items-center">
+                    {i > 0 && (
+                      <div className={`h-px w-6 sm:w-10 shrink-0 mx-1 ${stages[i - 1].done ? "bg-[#d4a853]/50" : "bg-border"}`} />
+                    )}
+                    <button
+                      onClick={stage.onClick}
+                      className={`flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors whitespace-nowrap ${
+                        stage.done
+                          ? "text-[#d4a853] hover:text-[#d4a853]/80"
+                          : isCurrent
+                          ? "text-foreground hover:text-foreground/80"
+                          : "text-muted-foreground/60 cursor-default"
+                      }`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        stage.done
+                          ? "bg-[#d4a853]"
+                          : isCurrent
+                          ? "bg-[#d4a853]/40 ring-1 ring-[#d4a853]"
+                          : "bg-border"
+                      }`} />
+                      {stage.label}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex-1 min-h-0 overflow-hidden">
         <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); tabScrollRef.current?.scrollTo({ top: 0, behavior: "instant" }); }} className="flex h-full flex-col">
