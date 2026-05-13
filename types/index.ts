@@ -255,6 +255,8 @@ export interface CalendarEvent {
   all_day?: boolean;
   location?: string;
   meeting_link?: string;
+  assigned_to?: string;
+  assigned_to_name?: string;
   recurrence_rule?: "daily" | "weekly" | "monthly";
   recurrence_end_date?: string;
   attendees?: string[] | Profile[];

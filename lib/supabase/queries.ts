@@ -275,6 +275,7 @@ export async function getCalendarEvents(projectId?: string) {
     start_date: row.start_time,
     end_date: row.end_time,
     meeting_link: row.meeting_link ?? undefined,
+    assigned_to: row.assigned_to ?? undefined,
     recurrence_rule: row.recurrence_rule ?? undefined,
     recurrence_end_date: row.recurrence_end_date ?? undefined,
     project: row.projects ?? undefined,
@@ -290,6 +291,7 @@ export async function createCalendarEvent(event: {
   end_date?: string;
   location?: string;
   meeting_link?: string;
+  assigned_to?: string;
   recurrence_rule?: string;
   recurrence_end_date?: string;
 }) {
@@ -306,6 +308,7 @@ export async function createCalendarEvent(event: {
       end_time: event.end_date || event.start_date,
       location: event.location || null,
       meeting_link: event.meeting_link || null,
+      assigned_to: event.assigned_to || null,
       recurrence_rule: event.recurrence_rule || null,
       recurrence_end_date: event.recurrence_end_date || null,
       created_by: user?.id ?? null,
@@ -321,6 +324,7 @@ export async function createCalendarEvent(event: {
     start_date: (data as any).start_time,
     end_date: (data as any).end_time,
     meeting_link: (data as any).meeting_link ?? undefined,
+    assigned_to: (data as any).assigned_to ?? undefined,
   } as CalendarEvent;
 }
 

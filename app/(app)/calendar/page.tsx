@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2, Video, RefreshCw, Copy, ExternalLink } from "lucide-react";
 import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getProjects, expandRecurringEvents } from "@/lib/supabase/queries";
+import { createClient } from "@/lib/supabase/client";
+import type { TeamMember } from "@/components/calendar/EventFormModal";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -67,6 +69,7 @@ export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [eventDetailOpen, setEventDetailOpen] = useState(false);
@@ -213,8 +216,19 @@ export default function CalendarPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [evts, projs] = await Promise.all([getCalendarEvents(), getProjects()]);
+        const supabase = createClient();
+        const [evts, projs, membersRes] = await Promise.all([
+          getCalendarEvents(),
+          getProjects(),
+          supabase.from("team_members").select("user_id, profiles(first_name, last_name)").eq("status", "active"),
+        ]);
         setProjects(projs || []);
+        setTeamMembers(
+          (membersRes.data ?? []).map((m: any) => ({
+            id: m.user_id,
+            name: [m.profiles?.first_name, m.profiles?.last_name].filter(Boolean).join(" ") || "Team member",
+          }))
+        );
 
         if ((evts || []).length === 0) {
           // Seed demo events so beta testers see a populated calendar
@@ -287,6 +301,7 @@ export default function CalendarPage() {
         end_date: values.end_iso || undefined,
         location: values.location || undefined,
         meeting_link: values.meeting_link || undefined,
+        assigned_to: values.assigned_to || undefined,
         recurrence_rule: values.recurrence_rule,
         recurrence_end_date: values.recurrence_end_date,
       });
@@ -960,6 +975,7 @@ export default function CalendarPage() {
         onClose={() => setCreateOpen(false)}
         onSave={handleCreate}
         projects={projects}
+        teamMembers={teamMembers}
         defaultDate={createDefaultDate}
         saving={isCreating}
       />

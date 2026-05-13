@@ -7,7 +7,6 @@ function esc(str: string): string {
 }
 
 function foldLine(line: string): string {
-  // RFC 5545: fold lines at 75 octets
   const bytes = Buffer.from(line, "utf8");
   if (bytes.length <= 75) return line;
   const chunks: string[] = [];
@@ -43,10 +42,30 @@ export async function GET(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  // Find workspace owner so we can pull all workspace events
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("workspace_id")
+    .eq("id", userId)
+    .single();
+
+  const workspaceOwnerId = profile?.workspace_id ?? userId;
+
+  // All profiles in this workspace (owner + team members)
+  const { data: members } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("workspace_id", workspaceOwnerId);
+
+  const memberIds = (members ?? []).map((m: any) => m.id);
+  if (!memberIds.includes(workspaceOwnerId)) memberIds.push(workspaceOwnerId);
+
+  // Events: workspace-wide (no assigned_to) OR assigned specifically to this user
   const { data: events, error } = await supabase
     .from("calendar_events")
-    .select("id, title, description, location, meeting_link, start_time, end_time, event_type")
-    .eq("created_by", userId)
+    .select("id, title, description, location, meeting_link, start_time, end_time, event_type, assigned_to")
+    .in("created_by", memberIds.length > 0 ? memberIds : [userId])
+    .or(`assigned_to.is.null,assigned_to.eq.${userId}`)
     .order("start_time", { ascending: true });
 
   if (error) {
@@ -58,6 +77,13 @@ export async function GET(
 
   const vevents = (events ?? []).map((ev) => {
     const endTime = ev.end_time ?? ev.start_time;
+
+    // Build description — include meeting link if present
+    let desc = ev.description ?? "";
+    if (ev.meeting_link) {
+      desc = desc ? `${desc}\n\nJoin: ${ev.meeting_link}` : `Join: ${ev.meeting_link}`;
+    }
+
     const lines = [
       "BEGIN:VEVENT",
       `UID:${ev.id}@cineflow`,
@@ -66,7 +92,7 @@ export async function GET(
       `DTEND:${dt(endTime)}`,
       `SUMMARY:${esc(ev.title)}`,
     ];
-    if (ev.description) lines.push(`DESCRIPTION:${esc(ev.description)}`);
+    if (desc) lines.push(`DESCRIPTION:${esc(desc)}`);
     if (ev.location) lines.push(`LOCATION:${esc(ev.location)}`);
     if (ev.meeting_link) lines.push(`URL:${ev.meeting_link}`);
     lines.push("END:VEVENT");

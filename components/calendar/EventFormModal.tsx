@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, MapPin, Link2, RotateCcw, StickyNote, Clock, Calendar } from "lucide-react";
+import { ChevronDown, MapPin, Link2, RotateCcw, StickyNote, Clock, Calendar, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -86,8 +86,14 @@ export interface EventFormValues {
   location: string;
   meeting_link: string;
   description: string;
+  assigned_to?: string;
   recurrence_rule?: "daily" | "weekly" | "monthly";
   recurrence_end_date?: string;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
 }
 
 interface EventFormModalProps {
@@ -95,6 +101,7 @@ interface EventFormModalProps {
   onClose: () => void;
   onSave: (values: EventFormValues) => Promise<void>;
   projects: Project[];
+  teamMembers?: TeamMember[];
   defaultDate?: string;
   saving?: boolean;
 }
@@ -122,7 +129,7 @@ function TimePicker({ value, onChange }: { value: TimeState; onChange: (t: TimeS
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function EventFormModal({ open, onClose, onSave, projects, defaultDate, saving }: EventFormModalProps) {
+export function EventFormModal({ open, onClose, onSave, projects, teamMembers = [], defaultDate, saving }: EventFormModalProps) {
   const [title, setTitle] = useState("");
   const [type, setType] = useState<CalendarEventType>("shoot");
   const [projectId, setProjectId] = useState("");
@@ -133,6 +140,7 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
   const [location, setLocation] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
   const [description, setDescription] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
   const [recurrenceRule, setRecurrenceRule] = useState<"" | "daily" | "weekly" | "monthly">("");
   const [recurrenceEndDate, setRecurrenceEndDate] = useState("");
   const [showDetails, setShowDetails] = useState(false);
@@ -151,6 +159,7 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
     setLocation("");
     setMeetingLink("");
     setDescription("");
+    setAssignedTo("");
     setRecurrenceRule("");
     setRecurrenceEndDate("");
     setShowDetails(false);
@@ -178,6 +187,7 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
       location: location.trim(),
       meeting_link: meetingLink.trim(),
       description: description.trim(),
+      assigned_to: assignedTo || undefined,
       recurrence_rule: recurrenceRule || undefined,
       recurrence_end_date: recurrenceRule && recurrenceEndDate ? recurrenceEndDate : undefined,
     });
@@ -305,6 +315,23 @@ export function EventFormModal({ open, onClose, onSave, projects, defaultDate, s
                   className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0"
                 />
               </div>
+
+              {/* Assign to */}
+              {teamMembers.length > 0 && (
+                <div className="flex items-center gap-3 px-3 py-2 border-b border-border">
+                  <UserCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <select
+                    value={assignedTo}
+                    onChange={(e) => setAssignedTo(e.target.value)}
+                    className="flex-1 bg-transparent text-sm text-foreground focus:outline-none"
+                  >
+                    <option value="">Everyone (workspace-wide)</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Repeat */}
               <div className="flex items-center gap-3 px-3 py-2 border-b border-border">
