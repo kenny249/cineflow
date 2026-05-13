@@ -23,7 +23,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
-import { getTasks, createTask as dbCreateTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask, reorderTasks, type DbTask } from "@/lib/supabase/queries";
+import { getTasks, createTask as dbCreateTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask, reorderTasks, createEditSession, type DbTask } from "@/lib/supabase/queries";
+import type { EditSessionCategory } from "@/types";
+import { CATEGORY_CONFIG } from "@/components/editor-tools/SessionLog";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectTask, Project, TaskPriority } from "@/types";
 
@@ -446,6 +449,9 @@ export default function TasksPage() {
   const [focusSession, setFocusSession] = useState<{ task: Task; totalSecs: number; startedAt: number } | null>(null);
   const [focusElapsed, setFocusElapsed] = useState(0);
   const [focusDone, setFocusDone] = useState(false);
+  const [focusLogging, setFocusLogging] = useState(false);
+  const [logCategory, setLogCategory] = useState<EditSessionCategory>("social");
+  const [logNote, setLogNote] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -697,6 +703,22 @@ export default function TasksPage() {
     setFocusSession(null);
     setFocusDone(false);
     setFocusElapsed(0);
+    setFocusLogging(false);
+    setLogNote("");
+    setLogCategory("social");
+  }
+
+  async function saveSessionLog() {
+    if (!focusSession) return;
+    const duration = Math.max(1, Math.floor(focusElapsed));
+    await createEditSession({
+      title: focusSession.task.title,
+      category: logCategory,
+      duration_secs: duration,
+      notes: logNote.trim() || undefined,
+      task_id: focusSession.task.id,
+    }).catch(() => {});
+    endFocusSession();
   }
 
   const prevDay  = () => setViewDate((d) => format(subDays(new Date(d + "T12:00:00"), 1), "yyyy-MM-dd"));
@@ -1255,42 +1277,107 @@ export default function TasksPage() {
             {/* Hourglass */}
             <HourglassSVG progress={focusDone ? 1 : focusElapsed / focusSession.totalSecs} />
 
-            {/* Time display */}
-            <div className="mt-10 text-center">
-              {focusDone ? (
-                <p className="font-mono text-3xl font-bold text-[#d4a853] tracking-tight">Time&apos;s up.</p>
-              ) : (
-                <>
-                  <p className="font-mono text-4xl font-bold text-white/90 tabular-nums tracking-tight">
-                    {(() => { const r = Math.max(0, Math.floor(focusSession.totalSecs - focusElapsed)); return `${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}`; })()}
-                  </p>
-                  <p className="text-xs text-white/20 mt-1.5 tracking-wide">remaining</p>
-                </>
-              )}
-            </div>
+            {/* Time display — hidden when logging */}
+            {!focusLogging && (
+              <div className="mt-10 text-center">
+                {focusDone ? (
+                  <p className="font-mono text-3xl font-bold text-[#d4a853] tracking-tight">Time&apos;s up.</p>
+                ) : (
+                  <>
+                    <p className="font-mono text-4xl font-bold text-white/90 tabular-nums tracking-tight">
+                      {(() => { const r = Math.max(0, Math.floor(focusSession.totalSecs - focusElapsed)); return `${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}`; })()}
+                    </p>
+                    <p className="text-xs text-white/20 mt-1.5 tracking-wide">remaining</p>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Session log form */}
+            {focusLogging && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-10 w-full max-w-xs flex flex-col gap-4"
+              >
+                <div className="text-center">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[#d4a853]/60 mb-1">Log this session</p>
+                  <p className="text-[11px] text-white/30">{Math.round(focusElapsed / 60)} min · {focusSession.task.title}</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <p className="text-[10px] text-white/30 uppercase tracking-widest">What type of edit?</p>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(Object.entries(CATEGORY_CONFIG) as [EditSessionCategory, typeof CATEGORY_CONFIG[EditSessionCategory]][]).map(([cat, cfg]) => (
+                      <button
+                        key={cat}
+                        onClick={() => setLogCategory(cat)}
+                        className={cn(
+                          "rounded-lg border py-2 text-[11px] font-semibold transition-all",
+                          logCategory === cat
+                            ? `${cfg.bg} ${cfg.color} border-current/30`
+                            : "border-white/10 text-white/30 hover:text-white/60 hover:border-white/20"
+                        )}
+                      >
+                        {cfg.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={logNote}
+                  onChange={(e) => setLogNote(e.target.value)}
+                  placeholder="Optional note… (what did you cut?)"
+                  maxLength={120}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 placeholder:text-white/20 focus:outline-none focus:border-[#d4a853]/30 transition-colors"
+                />
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={saveSessionLog}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-[#d4a853] px-6 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] active:scale-95 transition-all"
+                  >
+                    <CheckCircle2 className="h-4 w-4" /> Save to Session Log
+                  </button>
+                  <button onClick={endFocusSession} className="text-xs text-white/15 hover:text-white/40 transition-colors py-1.5 text-center">
+                    Skip
+                  </button>
+                </div>
+              </motion.div>
+            )}
 
             {/* Actions */}
-            <div className="mt-10 flex flex-col items-center gap-3">
-              {focusDone && (
+            {!focusLogging && (
+              <div className="mt-10 flex flex-col items-center gap-3">
+                {focusDone && (
+                  <button
+                    onClick={() => {
+                      setTasks(prev => prev.map(t => t.id === focusSession.task.id ? { ...t, done: true } : t));
+                      dbUpdateTask(focusSession.task.id, { done: true }).catch(() => {});
+                      setFocusLogging(true);
+                    }}
+                    className="flex items-center gap-2 rounded-xl bg-[#d4a853] px-7 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] active:scale-95 transition-all"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Mark done
+                  </button>
+                )}
+                {!focusDone && (
+                  <button
+                    onClick={() => setFocusLogging(true)}
+                    className="flex items-center gap-2 rounded-xl bg-[#d4a853] px-7 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] active:scale-95 transition-all"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    End &amp; Log
+                  </button>
+                )}
                 <button
-                  onClick={() => {
-                    setTasks(prev => prev.map(t => t.id === focusSession.task.id ? { ...t, done: true } : t));
-                    dbUpdateTask(focusSession.task.id, { done: true }).catch(() => {});
-                    endFocusSession();
-                  }}
-                  className="flex items-center gap-2 rounded-xl bg-[#d4a853] px-7 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] active:scale-95 transition-all"
+                  onClick={endFocusSession}
+                  className="text-xs text-white/15 hover:text-white/40 transition-colors py-1.5 tracking-wide"
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Mark done
+                  {focusDone ? "Close without logging" : "End focus"}
                 </button>
-              )}
-              <button
-                onClick={endFocusSession}
-                className="text-xs text-white/15 hover:text-white/40 transition-colors py-1.5 tracking-wide"
-              >
-                {focusDone ? "Close" : "End focus"}
-              </button>
-            </div>
+              </div>
+            )}
           </motion.div>
         </div>
       )}

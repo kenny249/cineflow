@@ -1811,6 +1811,43 @@ export async function deleteCrewProfile(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// ─── Edit Sessions ────────────────────────────────────────────────────────────
+
+import type { EditSession, EditSessionCategory } from "@/types";
+
+export async function getEditSessions(): Promise<EditSession[]> {
+  const { data, error } = await db()
+    .from('edit_sessions')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data as EditSession[];
+}
+
+export async function createEditSession(session: {
+  title: string;
+  category: EditSessionCategory;
+  duration_secs: number;
+  notes?: string;
+  task_id?: string;
+}): Promise<EditSession> {
+  const client = createClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+  const { data, error } = await client
+    .from('edit_sessions')
+    .insert({ ...session, user_id: user.id })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as EditSession;
+}
+
+export async function deleteEditSession(id: string): Promise<void> {
+  const { error } = await db().from('edit_sessions').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 export async function bulkCreateCrewProfiles(
   payloads: Array<Omit<CrewProfile, 'id' | 'added_by' | 'is_claimed' | 'created_at' | 'updated_at'>>
 ): Promise<CrewProfile[]> {

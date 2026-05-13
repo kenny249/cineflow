@@ -24,6 +24,7 @@ import {
   ListChecks,
   FileText,
   ContactRound,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -68,12 +69,13 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Production",
     items: [
-      { label: "Storyboard", href: "/storyboard", icon: Clapperboard },
-      { label: "Shot Lists",  href: "/shot-lists", icon: ListChecks },
-      { label: "Scripts",     href: "/scripts",    icon: ScrollText, soloHidden: true },
-      { label: "Review",      href: "/revisions",  icon: Film },
-      { label: "Tasks",       href: "/project-tasks", icon: ClipboardList },
-      { label: "To Do",       href: "/tasks",      icon: CheckSquare },
+      { label: "Storyboard",    href: "/storyboard",    icon: Clapperboard },
+      { label: "Shot Lists",    href: "/shot-lists",    icon: ListChecks },
+      { label: "Scripts",       href: "/scripts",       icon: ScrollText, soloHidden: true },
+      { label: "Review",        href: "/revisions",     icon: Film },
+      { label: "Tasks",         href: "/project-tasks", icon: ClipboardList },
+      { label: "To Do",         href: "/tasks",         icon: CheckSquare },
+      { label: "Editor Tools",  href: "/editor-tools",  icon: Wrench },
     ],
   },
   {

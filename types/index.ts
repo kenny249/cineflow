@@ -798,6 +798,19 @@ export interface CrewProfile {
   updated_at: string;
 }
 
+export type EditSessionCategory = "social" | "commercial" | "narrative" | "documentary" | "corporate" | "other";
+
+export interface EditSession {
+  id: string;
+  user_id: string;
+  task_id?: string | null;
+  title: string;
+  category: EditSessionCategory;
+  duration_secs: number;
+  notes?: string | null;
+  created_at: string;
+}
+
 export const CREW_ROLES = [
   "Director",
   "Director of Photography (DP)",
