@@ -48,7 +48,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const msgsContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Load team members + collaborators
@@ -72,9 +72,10 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
       .catch(() => setLoadingMsgs(false));
   }, [projectId]);
 
-  // Scroll to bottom on new messages
+  // Scroll to bottom on new messages (within the container, not the page)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = msgsContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   // Realtime subscription
@@ -298,7 +299,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-0.5">
+        <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-0.5">
           {loadingMsgs ? (
             <div className="flex h-full items-center justify-center">
               <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />
@@ -349,7 +350,6 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
               </div>
             ))
           )}
-          <div ref={bottomRef} />
         </div>
 
         {/* Input */}
