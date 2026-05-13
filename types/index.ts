@@ -711,6 +711,7 @@ export interface Retainer {
   id: string;
   created_by: string;
   client_name: string;
+  client_email?: string;
   monthly_rate?: number;
   template: RetainerTemplateItem[];
   notes?: string;

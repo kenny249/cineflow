@@ -184,10 +184,12 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [rateInput, setRateInput] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [editClientName, setEditClientName] = useState("");
+  const [editClientEmail, setEditClientEmail] = useState("");
   const [editRate, setEditRate] = useState("");
   const [editTemplate, setEditTemplate] = useState<RetainerTemplateItem[]>([]);
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [schedulingCalendar, setSchedulingCalendar] = useState(false);
   const [togglingActive, setTogglingActive] = useState(false);
   const [sharingPortal, setSharingPortal] = useState(false);
 
@@ -238,6 +240,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   function openEdit() {
     if (!retainer) return;
     setEditClientName(retainer.client_name);
+    setEditClientEmail(retainer.client_email ?? "");
     setEditRate(retainer.monthly_rate ? String(retainer.monthly_rate) : "");
     setEditTemplate(retainer.template.map((t) => ({ ...t })));
     setEditNotes(retainer.notes ?? "");
@@ -252,6 +255,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     try {
       await updateRetainer(id, {
         client_name: editClientName.trim(),
+        client_email: editClientEmail.trim() || undefined,
         monthly_rate: editRate ? Number(editRate) : undefined,
         template: newTemplate,
         notes: editNotes.trim() || undefined,
@@ -301,6 +305,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
       setRetainer((prev) => prev ? {
         ...prev,
         client_name: editClientName.trim(),
+        client_email: editClientEmail.trim() || undefined,
         monthly_rate: editRate ? Number(editRate) : undefined,
         template: newTemplate,
         notes: editNotes.trim() || undefined,
@@ -427,6 +432,45 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     if (!activeMonth) return;
     await updateRetainerMonth(activeMonth.id, { shoot_date: date || undefined });
     setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, shoot_date: date || undefined } : m));
+  }
+
+  // ── Schedule production day on calendar ─────────────────────────────────
+
+  async function handleScheduleProductionDay() {
+    if (!retainer || !activeMonth?.shoot_date) return;
+    setSchedulingCalendar(true);
+    try {
+      const start = new Date(`${activeMonth.shoot_date}T09:00:00`);
+      const end   = new Date(`${activeMonth.shoot_date}T18:00:00`);
+      const { createCalendarEvent } = await import("@/lib/supabase/queries");
+      const ev = await createCalendarEvent({
+        title: `${retainer.client_name} — Production Day`,
+        type: "shoot",
+        start_date: start.toISOString(),
+        end_date: end.toISOString(),
+        description: `Retainer shoot for ${retainer.client_name} (${activeMonth.month_year})`,
+      });
+      toast.success("Added to Calendar");
+
+      if (retainer.client_email) {
+        fetch("/api/calendar/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: ev.id,
+            recipientEmail: retainer.client_email,
+            recipientName: retainer.client_name,
+          }),
+        })
+          .then((r) => r.json())
+          .then((d) => { if (d.sent > 0) toast.success("Client notified by email"); })
+          .catch(() => { /* best-effort */ });
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to schedule");
+    } finally {
+      setSchedulingCalendar(false);
+    }
   }
 
   // ── Deliverable actions ──────────────────────────────────────────────────
@@ -721,8 +765,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold text-foreground">{formatMonthYear(activeMonth.month_year)}</h2>
 
-                    {/* Shoot date input */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Shoot date + schedule button */}
+                    <div className="flex items-center gap-2 shrink-0">
                       <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
                       <input
                         type="date"
@@ -731,6 +775,17 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                         className="bg-transparent text-xs text-muted-foreground/60 outline-none cursor-pointer [color-scheme:light_dark]"
                         title="Set shoot date"
                       />
+                      {activeMonth.shoot_date && (
+                        <button
+                          onClick={handleScheduleProductionDay}
+                          disabled={schedulingCalendar}
+                          title={retainer.client_email ? "Add to Calendar + email client" : "Add to Calendar"}
+                          className="flex items-center gap-1 rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10 px-2 py-0.5 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/20 transition-colors disabled:opacity-50"
+                        >
+                          <CalendarDays className="h-3 w-3" />
+                          {schedulingCalendar ? "Scheduling…" : "Add to Calendar"}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -886,6 +941,10 @@ export default function RetainerDetailPage({ id }: { id: string }) {
               <div>
                 <label className="text-xs text-muted-foreground mb-1.5 block">Client Name</label>
                 <Input value={editClientName} onChange={(e) => setEditClientName(e.target.value)} placeholder="e.g. Nike" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Client Email <span className="text-muted-foreground/40">(for booking confirmations)</span></label>
+                <Input type="email" value={editClientEmail} onChange={(e) => setEditClientEmail(e.target.value)} placeholder="client@company.com" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1.5 block">Monthly Rate (optional)</label>

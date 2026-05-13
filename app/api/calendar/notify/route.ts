@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { eventId, isReminder = false } = await req.json();
+    const { eventId, isReminder = false, recipientEmail, recipientName } = await req.json();
     if (!eventId) return NextResponse.json({ error: "eventId required" }, { status: 400 });
 
     const service = createServiceClient(
@@ -167,23 +167,28 @@ export async function POST(req: NextRequest) {
 
     const agencyName = ownerProfile?.business_name || ownerProfile?.company || ownerProfile?.full_name || "Your agency";
 
-    // Recipient = client on the linked project
-    if (!ev.project_id) {
-      return NextResponse.json({ sent: 0, message: "No project linked — no client to notify" });
+    // Recipient: explicit override (retainer flow) OR project client email
+    let recipientEmails: string[];
+    let clientName: string | undefined;
+
+    if (recipientEmail) {
+      recipientEmails = [recipientEmail];
+      clientName = recipientName || undefined;
+    } else {
+      if (!ev.project_id) {
+        return NextResponse.json({ sent: 0, message: "No project linked — no client to notify" });
+      }
+      const { data: project } = await service
+        .from("projects")
+        .select("client_name, client_email")
+        .eq("id", ev.project_id)
+        .single();
+      if (!project?.client_email) {
+        return NextResponse.json({ sent: 0, message: "Project has no client email" });
+      }
+      recipientEmails = [project.client_email];
+      clientName = project.client_name || undefined;
     }
-
-    const { data: project } = await service
-      .from("projects")
-      .select("client_name, client_email")
-      .eq("id", ev.project_id)
-      .single();
-
-    if (!project?.client_email) {
-      return NextResponse.json({ sent: 0, message: "Project has no client email" });
-    }
-
-    const recipientEmails = [project.client_email];
-    const clientName = project.client_name || undefined;
 
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) return NextResponse.json({ error: "RESEND_API_KEY not configured" }, { status: 500 });

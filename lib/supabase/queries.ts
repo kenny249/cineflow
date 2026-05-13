@@ -1502,7 +1502,7 @@ export async function createRetainer(payload: {
   return data as Retainer;
 }
 
-export async function updateRetainer(id: string, updates: Partial<Pick<Retainer, 'client_name' | 'monthly_rate' | 'template' | 'notes' | 'is_active' | 'start_date' | 'portal_token'>>): Promise<void> {
+export async function updateRetainer(id: string, updates: Partial<Pick<Retainer, 'client_name' | 'client_email' | 'monthly_rate' | 'template' | 'notes' | 'is_active' | 'start_date' | 'portal_token'>>): Promise<void> {
   const { error } = await db()
     .from('retainers')
     .update({ ...updates, updated_at: new Date().toISOString() })
