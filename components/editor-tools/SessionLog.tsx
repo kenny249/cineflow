@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { format, startOfWeek, subDays, isAfter, startOfMonth } from "date-fns";
-import { Trash2, Clock, TrendingUp, CalendarDays, Layers, Plus, X, Check, Play, Square } from "lucide-react";
+import { Trash2, Clock, TrendingUp, CalendarDays, Layers, Plus, X, Check, Play, Square, ChevronDown, RotateCcw } from "lucide-react";
 import { deleteEditSession, createEditSession } from "@/lib/supabase/queries";
 import type { EditSession, EditSessionCategory } from "@/types";
 import { useEditSession } from "@/contexts/EditSessionContext";
@@ -271,9 +271,63 @@ interface SessionLogProps {
   onAdd: (session: EditSession) => void;
 }
 
+// ── Session group ─────────────────────────────────────────────────────────────
+
+interface SessionGroup {
+  title: string;
+  category: EditSessionCategory;
+  totalSecs: number;
+  count: number;
+  lastAt: string;
+  sessions: EditSession[];
+}
+
+function groupSessions(sessions: EditSession[]): SessionGroup[] {
+  const map = new Map<string, SessionGroup>();
+  for (const s of sessions) {
+    const key = s.title.toLowerCase().trim();
+    const existing = map.get(key);
+    if (existing) {
+      existing.totalSecs += s.duration_secs;
+      existing.count += 1;
+      existing.sessions.push(s);
+      if (s.created_at > existing.lastAt) {
+        existing.lastAt = s.created_at;
+        existing.category = s.category;
+      }
+    } else {
+      map.set(key, {
+        title: s.title,
+        category: s.category,
+        totalSecs: s.duration_secs,
+        count: 1,
+        lastAt: s.created_at,
+        sessions: [s],
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function SessionLog({ sessions, onDelete, onAdd }: SessionLogProps) {
-  const { active } = useEditSession();
+  const { active, startSession } = useEditSession();
   const [filter, setFilter] = useState<"week" | "month" | "all">("week");
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  function toggleGroup(key: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  function handleResume(group: SessionGroup) {
+    if (active) return;
+    startSession(group.category, group.title);
+  }
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showStart, setShowStart] = useState(false);
   const [showManual, setShowManual] = useState(false);
@@ -329,6 +383,8 @@ export function SessionLog({ sessions, onDelete, onAdd }: SessionLogProps) {
     } catch { /* best-effort */ }
     setSaving(false);
   }
+
+  const groups = useMemo(() => groupSessions(filtered), [filtered]);
 
   const catTotals = useMemo(() => {
     const map: Partial<Record<EditSessionCategory, number>> = {};
@@ -499,47 +555,101 @@ export function SessionLog({ sessions, onDelete, onAdd }: SessionLogProps) {
         </div>
       </div>
 
-      {/* Session history */}
+      {/* Session history — grouped by project */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
           <p className="text-xs font-semibold text-foreground">Session History</p>
+          {groups.length > 0 && (
+            <p className="text-[10px] text-muted-foreground/40">{groups.length} project{groups.length !== 1 ? "s" : ""}</p>
+          )}
         </div>
-        {filtered.length === 0 ? (
+        {groups.length === 0 ? (
           <div className="py-16 text-center">
             <p className="text-sm text-muted-foreground/50">No sessions logged yet.</p>
             <p className="text-xs text-muted-foreground/30 mt-1">Hit "Start Session" to begin tracking your edit time.</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {filtered.map((s) => {
-              const cfg = CATEGORY_CONFIG[s.category];
+            {groups.map((group) => {
+              const cfg = CATEGORY_CONFIG[group.category];
+              const key = group.title.toLowerCase().trim();
+              const expanded = expandedGroups.has(key);
+              const sortedSessions = [...group.sessions].sort((a, b) => b.created_at.localeCompare(a.created_at));
+
               return (
-                <div key={s.id} className="flex items-start gap-3 px-4 py-3 group hover:bg-accent/20 transition-colors">
-                  <div className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md", cfg.bg)}>
-                    <Clock className={cn("h-3.5 w-3.5", cfg.color)} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{s.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>
-                        {cfg.label}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground font-mono">{fmtDuration(s.duration_secs)}</span>
-                      <span className="text-[10px] text-muted-foreground/40">
-                        {format(new Date(s.created_at), "MMM d, h:mm a")}
-                      </span>
-                    </div>
-                    {s.notes && (
-                      <p className="text-[11px] text-muted-foreground/60 mt-1 italic">"{s.notes}"</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleDelete(s.id)}
-                    disabled={deletingId === s.id}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground/40 hover:text-red-400 disabled:opacity-30"
+                <div key={key}>
+                  {/* Group row */}
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors cursor-pointer group"
+                    onClick={() => toggleGroup(key)}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-md", cfg.bg)}>
+                      <Clock className={cn("h-4 w-4", cfg.color)} />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{group.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md", cfg.bg, cfg.color)}>
+                          {cfg.label}
+                        </span>
+                        <span className="text-[10px] font-mono font-semibold text-foreground/70">
+                          {fmtDuration(group.totalSecs)}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/40">
+                          {group.count === 1 ? "1 session" : `${group.count} sessions`} · last {format(new Date(group.lastAt), "MMM d")}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Resume button */}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleResume(group); }}
+                      disabled={!!active}
+                      title={active ? "End current session first" : `Resume "${group.title}"`}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-all shrink-0",
+                        active
+                          ? "opacity-30 cursor-not-allowed border border-border text-muted-foreground"
+                          : "opacity-0 group-hover:opacity-100 bg-[#d4a853]/10 border border-[#d4a853]/25 text-[#d4a853] hover:bg-[#d4a853]/20 active:scale-95"
+                      )}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Resume
+                    </button>
+
+                    <ChevronDown
+                      className={cn("h-3.5 w-3.5 text-muted-foreground/40 shrink-0 transition-transform duration-200", expanded && "rotate-180")}
+                    />
+                  </div>
+
+                  {/* Expanded individual sessions */}
+                  {expanded && (
+                    <div className="border-t border-border/50 bg-muted/20">
+                      {sortedSessions.map((s) => (
+                        <div key={s.id} className="flex items-center gap-3 pl-12 pr-4 py-2.5 group/entry hover:bg-accent/10 transition-colors border-b border-border/30 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[11px] font-mono text-foreground/80">{fmtDuration(s.duration_secs)}</span>
+                              <span className="text-[10px] text-muted-foreground/40">
+                                {format(new Date(s.created_at), "MMM d, yyyy · h:mm a")}
+                              </span>
+                            </div>
+                            {s.notes && (
+                              <p className="text-[10px] text-muted-foreground/50 mt-0.5 italic">"{s.notes}"</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleDelete(s.id)}
+                            disabled={deletingId === s.id}
+                            className="opacity-0 group-hover/entry:opacity-100 transition-opacity p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground/30 hover:text-red-400 disabled:opacity-30"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
