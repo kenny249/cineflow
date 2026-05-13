@@ -838,3 +838,48 @@ export const CREW_ROLES = [
   "Photographer",
   "Other",
 ] as const;
+
+// ── Quote Calculator ──────────────────────────────────────────────────────────
+
+export type CalcCategory =
+  | "pre-production"
+  | "production"
+  | "post-production"
+  | "equipment"
+  | "travel"
+  | "other";
+
+export interface RateCardItem {
+  id: string;
+  user_id: string;
+  name: string;
+  category: CalcCategory;
+  default_rate: number;
+  rate_type: "day" | "flat";
+  sort_order: number;
+  created_at: string;
+}
+
+export interface CalcLineItem {
+  id: string;
+  service: string;
+  category: CalcCategory;
+  people: number;
+  days: number;
+  rate: number;
+  isFlat: boolean;
+}
+
+export interface QuoteEstimate {
+  id: string;
+  user_id: string;
+  title: string;
+  line_items: CalcLineItem[];
+  overhead_pct: number;
+  floor_mult: number;
+  std_mult: number;
+  premium_mult: number;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}

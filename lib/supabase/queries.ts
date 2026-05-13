@@ -1869,3 +1869,100 @@ export async function bulkCreateCrewProfiles(
   if (error) throw new Error(error.message);
   return data as CrewProfile[];
 }
+
+// ── Rate Card ─────────────────────────────────────────────────────────────────
+
+export async function getRateCardItems(): Promise<import("@/types").RateCardItem[]> {
+  const client = createClient();
+  const { data, error } = await client
+    .from("rate_card_items")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return data as import("@/types").RateCardItem[];
+}
+
+export async function createRateCardItem(
+  payload: Pick<import("@/types").RateCardItem, "name" | "category" | "default_rate" | "rate_type">
+): Promise<import("@/types").RateCardItem> {
+  const client = createClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await client
+    .from("rate_card_items")
+    .insert({ ...payload, user_id: user.id })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as import("@/types").RateCardItem;
+}
+
+export async function updateRateCardItem(
+  id: string,
+  updates: Partial<Pick<import("@/types").RateCardItem, "name" | "category" | "default_rate" | "rate_type" | "sort_order">>
+): Promise<import("@/types").RateCardItem> {
+  const client = createClient();
+  const { data, error } = await client
+    .from("rate_card_items")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as import("@/types").RateCardItem;
+}
+
+export async function deleteRateCardItem(id: string): Promise<void> {
+  const client = createClient();
+  const { error } = await client.from("rate_card_items").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// ── Quote Estimates ───────────────────────────────────────────────────────────
+
+export async function getQuoteEstimates(): Promise<import("@/types").QuoteEstimate[]> {
+  const client = createClient();
+  const { data, error } = await client
+    .from("quote_estimates")
+    .select("*")
+    .order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return data as import("@/types").QuoteEstimate[];
+}
+
+export async function saveQuoteEstimate(
+  payload: Pick<import("@/types").QuoteEstimate, "title" | "line_items" | "overhead_pct" | "floor_mult" | "std_mult" | "premium_mult" | "notes">
+): Promise<import("@/types").QuoteEstimate> {
+  const client = createClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data, error } = await client
+    .from("quote_estimates")
+    .insert({ ...payload, user_id: user.id })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as import("@/types").QuoteEstimate;
+}
+
+export async function updateQuoteEstimate(
+  id: string,
+  payload: Partial<Pick<import("@/types").QuoteEstimate, "title" | "line_items" | "overhead_pct" | "floor_mult" | "std_mult" | "premium_mult" | "notes">>
+): Promise<import("@/types").QuoteEstimate> {
+  const client = createClient();
+  const { data, error } = await client
+    .from("quote_estimates")
+    .update({ ...payload, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as import("@/types").QuoteEstimate;
+}
+
+export async function deleteQuoteEstimate(id: string): Promise<void> {
+  const client = createClient();
+  const { error } = await client.from("quote_estimates").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}

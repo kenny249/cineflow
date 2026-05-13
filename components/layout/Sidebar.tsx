@@ -26,6 +26,7 @@ import {
   FileText,
   ContactRound,
   Wrench,
+  Calculator,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -82,10 +83,11 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Business",
     items: [
-      { label: "Contracts", href: "/contracts", icon: FileSignature },
-      { label: "Forms",     href: "/forms",     icon: FileText },
-      { label: "Finance",   href: "/finance",   icon: DollarSign, producerOnly: true },
-      { label: "Team",      href: "/team",      icon: UsersRound, soloHidden: true },
+      { label: "Contracts",        href: "/contracts",        icon: FileSignature },
+      { label: "Forms",            href: "/forms",            icon: FileText },
+      { label: "Finance",          href: "/finance",          icon: DollarSign, producerOnly: true },
+      { label: "Quote Calculator", href: "/quote-calculator", icon: Calculator, producerOnly: true },
+      { label: "Team",             href: "/team",             icon: UsersRound, soloHidden: true },
     ],
   },
 ];

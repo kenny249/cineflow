@@ -14,6 +14,11 @@ import { getProfile, updateProfile, getProjectTemplates, createProjectTemplate, 
 import { setDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import type { PaymentSettings } from "@/types";
+import { RateCardSection } from "@/components/quote-calculator/RateCardSection";
+
+function RateCardSectionLazy() {
+  return <RateCardSection />;
+}
 
 // ─── Payment method tab config ────────────────────────────────────────────────
 
@@ -906,6 +911,12 @@ export default function SettingsClient() {
           <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Project Templates</h2>
             <ProjectTemplatesSection />
+          </section>
+
+          {/* ── Rate Card ────────────────────────────────────────── */}
+          <section>
+            <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Rate Card</h2>
+            <RateCardSectionLazy />
           </section>
 
           {/* ── Danger Zone ──────────────────────────────────────── */}
