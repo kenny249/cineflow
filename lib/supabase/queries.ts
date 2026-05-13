@@ -1485,6 +1485,7 @@ export async function getRetainer(id: string): Promise<Retainer | null> {
 
 export async function createRetainer(payload: {
   client_name: string;
+  client_email?: string;
   monthly_rate?: number;
   template: RetainerTemplateItem[];
   notes?: string;

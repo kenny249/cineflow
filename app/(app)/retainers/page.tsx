@@ -27,24 +27,26 @@ function nextMonthYear(): string {
 }
 
 const TYPE_PRESETS = [
-  { type: "short",   label: "Short-form Videos" },
-  { type: "photo",   label: "Photos" },
-  { type: "premium", label: "Premium Piece" },
-  { type: "reel",    label: "Reels" },
-  { type: "story",   label: "Stories" },
-  { type: "other",   label: "Other" },
+  { type: "short",          label: "Short-form Videos" },
+  { type: "photo",          label: "Photos" },
+  { type: "premium",        label: "Premium Piece" },
+  { type: "reel",           label: "Reels" },
+  { type: "story",          label: "Stories" },
+  { type: "production_day", label: "Production Day" },
+  { type: "other",          label: "Other" },
 ];
 
 // ── New retainer form ────────────────────────────────────────────────────────
 
 const EMPTY_TEMPLATE: RetainerTemplateItem[] = [
-  { type: "short",   label: "Short-form Videos", quantity: 12, mode: "individual" },
-  { type: "photo",   label: "Photos",            quantity: 20, mode: "batch"      },
-  { type: "premium", label: "Premium Piece",      quantity: 1,  mode: "individual" },
+  { type: "short",          label: "Short-form Videos", quantity: 12, mode: "individual" },
+  { type: "photo",          label: "Photos",            quantity: 20, mode: "batch"      },
+  { type: "production_day", label: "Production Day",    quantity: 1,  mode: "individual" },
 ];
 
 function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => void; onCancel: () => void }) {
   const [clientName, setClientName] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [monthlyRate, setMonthlyRate] = useState("");
   const [template, setTemplate] = useState<RetainerTemplateItem[]>(EMPTY_TEMPLATE);
   const [notes, setNotes] = useState("");
@@ -69,6 +71,7 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
     try {
       const r = await createRetainer({
         client_name: clientName.trim(),
+        client_email: clientEmail.trim() || undefined,
         monthly_rate: monthlyRate ? Number(monthlyRate) : undefined,
         template: template.filter(t => t.quantity > 0),
         notes: notes.trim() || undefined,
@@ -101,6 +104,17 @@ function NewRetainerForm({ onCreated, onCancel }: { onCreated: (r: Retainer) => 
               value={clientName}
               onChange={e => setClientName(e.target.value)}
               placeholder="e.g. Nike"
+            />
+          </div>
+
+          {/* Client email */}
+          <div>
+            <label className="text-xs text-muted-foreground mb-1.5 block">Client Email <span className="text-muted-foreground/40">(for booking confirmations)</span></label>
+            <Input
+              type="email"
+              value={clientEmail}
+              onChange={e => setClientEmail(e.target.value)}
+              placeholder="client@company.com"
             />
           </div>
 

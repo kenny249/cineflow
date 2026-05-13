@@ -384,6 +384,17 @@ export default function RetainerDetailPage({ id }: { id: string }) {
       setMonths(updated);
       setActiveMonthId(m.id);
       toast.success(`${formatMonthYear(monthYear)} started`);
+
+      if (retainer.client_email) {
+        fetch("/api/retainer/notify-start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ retainerId: retainer.id, monthId: m.id }),
+        })
+          .then((r) => r.json())
+          .then((d) => { if (d.sent > 0) toast.success("Kickoff email sent to client"); })
+          .catch(() => { /* best-effort */ });
+      }
     } catch (e: any) {
       toast.error(e.message ?? "Failed to start month");
     } finally {
@@ -957,15 +968,34 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 <label className="text-xs text-muted-foreground mb-1.5 block">Monthly Deliverables</label>
                 <div className="space-y-2">
                   {editTemplate.map((item, idx) => (
-                    <div key={idx} className="flex gap-2 items-center">
-                      <Input value={item.label} onChange={(e) => setEditTemplate((prev) => prev.map((t, i) => i === idx ? { ...t, label: e.target.value } : t))} placeholder="Deliverable label" className="flex-1 text-sm h-9" />
-                      <input type="text" inputMode="numeric" value={item.quantity === 0 ? "" : String(item.quantity)}
-                        onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ""); setEditTemplate((prev) => prev.map((t, i) => i === idx ? { ...t, quantity: raw === "" ? 0 : Number(raw) } : t)); }}
-                        className="w-16 rounded-md border border-border bg-background px-2 py-1.5 text-center text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
-                      />
-                      <button onClick={() => setEditTemplate((prev) => prev.filter((_, i) => i !== idx))} className="text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                    <div key={idx} className="space-y-1.5">
+                      <div className="flex gap-2 items-center">
+                        <Input value={item.label} onChange={(e) => setEditTemplate((prev) => prev.map((t, i) => i === idx ? { ...t, label: e.target.value } : t))} placeholder="Deliverable label" className="flex-1 text-sm h-9" />
+                        <input type="text" inputMode="numeric" value={item.quantity === 0 ? "" : String(item.quantity)}
+                          onChange={(e) => { const raw = e.target.value.replace(/[^0-9]/g, ""); setEditTemplate((prev) => prev.map((t, i) => i === idx ? { ...t, quantity: raw === "" ? 0 : Number(raw) } : t)); }}
+                          className="w-16 rounded-md border border-border bg-background px-2 py-1.5 text-center text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                        />
+                        <button onClick={() => setEditTemplate((prev) => prev.filter((_, i) => i !== idx))} className="text-muted-foreground/40 hover:text-red-400 transition-colors shrink-0">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex gap-1 ml-0.5">
+                        {(["individual", "batch"] as const).map((m) => (
+                          <button
+                            key={m}
+                            onClick={() => setEditTemplate((prev) => prev.map((t, i) => i === idx ? { ...t, mode: m } : t))}
+                            className={cn(
+                              "text-[10px] px-2 py-0.5 rounded-full border transition-colors capitalize",
+                              (item.mode ?? "individual") === m
+                                ? "bg-[#d4a853]/15 border-[#d4a853]/30 text-[#d4a853]"
+                                : "border-border text-muted-foreground/50 hover:text-muted-foreground"
+                            )}
+                          >{m}</button>
+                        ))}
+                        <span className="text-[10px] text-muted-foreground/40 self-center ml-1">
+                          {(item.mode ?? "individual") === "batch" ? "→ 1 row, check off the whole group" : `→ ${item.quantity} rows, name each one`}
+                        </span>
+                      </div>
                     </div>
                   ))}
                   <button onClick={() => setEditTemplate((prev) => [...prev, { type: "other", label: "", quantity: 1 }])} className="text-xs text-[#d4a853]/70 hover:text-[#d4a853] transition-colors flex items-center gap-1 mt-1">
