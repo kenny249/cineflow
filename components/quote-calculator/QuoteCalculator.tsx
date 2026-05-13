@@ -114,24 +114,12 @@ function RateCardPopover({
   crew,
   onSelect,
   onSelectCrew,
-  onClose,
 }: {
   items: RateCardItem[];
   crew: CrewProfile[];
   onSelect: (item: RateCardItem) => void;
   onSelectCrew: (member: CrewProfile) => void;
-  onClose: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [onClose]);
-
   const grouped = CATEGORIES.reduce<Record<CalcCategory, RateCardItem[]>>(
     (acc, cat) => ({ ...acc, [cat]: items.filter((i) => i.category === cat) }),
     {} as Record<CalcCategory, RateCardItem[]>
@@ -142,7 +130,6 @@ function RateCardPopover({
 
   return (
     <div
-      ref={ref}
       className="absolute left-0 top-full z-50 mt-1.5 w-80 rounded-xl border border-border bg-card shadow-xl overflow-hidden"
     >
       <div className="px-3 py-2 border-b border-border">
@@ -161,7 +148,7 @@ function RateCardPopover({
               return (
                 <button
                   key={member.id}
-                  onClick={() => { onSelectCrew(member); onClose(); }}
+                  onClick={() => onSelectCrew(member)}
                   className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/30 transition-colors"
                 >
                   <div className="min-w-0">
@@ -193,7 +180,7 @@ function RateCardPopover({
                 {catItems.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => { onSelect(item); onClose(); }}
+                    onClick={() => onSelect(item)}
                     className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-accent/30 transition-colors"
                   >
                     <span className="text-sm text-foreground truncate">{item.name}</span>
@@ -219,11 +206,11 @@ function RateCardPopover({
 // ── Tier Card ─────────────────────────────────────────────────────────────────
 
 function TierCard({
-  label, sublabel, amount, multiplier, isRecommended, selected,
+  label, sublabel, amount, multiplier, selected,
   onSelect, onMultChange, onBuildQuote,
 }: {
   label: string; sublabel: string; amount: number; multiplier: number;
-  isRecommended?: boolean; selected: boolean;
+  selected: boolean;
   onSelect: () => void; onMultChange: (v: number) => void; onBuildQuote: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -240,23 +227,15 @@ function TierCard({
     <div
       onClick={onSelect}
       className={cn(
-        "relative rounded-xl border p-4 cursor-pointer transition-all",
+        "rounded-xl border p-4 cursor-pointer transition-all",
         selected
-          ? isRecommended
-            ? "border-[#d4a853]/50 bg-[#d4a853]/8 ring-1 ring-[#d4a853]/20"
-            : "border-border bg-card ring-1 ring-foreground/10"
+          ? "border-[#d4a853]/30 bg-[#d4a853]/5 ring-1 ring-[#d4a853]/10"
           : "border-border/50 bg-card/50 hover:border-border hover:bg-card"
       )}
     >
-      {isRecommended && (
-        <span className="absolute -top-2 left-3 rounded-full bg-[#d4a853] px-2 py-0.5 text-[9px] font-bold text-black uppercase tracking-wide">
-          Recommended
-        </span>
-      )}
-
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className={cn("text-[10px] font-bold uppercase tracking-widest", isRecommended ? "text-[#d4a853]" : "text-muted-foreground/60")}>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
             {label}
           </p>
           <p className="text-2xl font-bold text-foreground font-mono tabular-nums mt-0.5">{fmt(amount)}</p>
@@ -272,7 +251,7 @@ function TierCard({
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commitMult}
               onKeyDown={(e) => e.key === "Enter" && commitMult()}
-              className="w-14 rounded-md border border-[#d4a853]/40 bg-background px-1.5 py-0.5 text-xs font-mono text-center text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-14 rounded-md border border-[#d4a853]/40 bg-background px-1.5 py-0.5 text-xs font-mono text-center text-foreground focus:outline-none"
             />
           ) : (
             <button
@@ -288,12 +267,7 @@ function TierCard({
       {selected && (
         <button
           onClick={(e) => { e.stopPropagation(); onBuildQuote(); }}
-          className={cn(
-            "mt-3 w-full rounded-lg py-2 text-xs font-bold transition-all active:scale-[0.98]",
-            isRecommended
-              ? "bg-[#d4a853] text-black hover:bg-[#c49843]"
-              : "bg-foreground/10 text-foreground hover:bg-foreground/15"
-          )}
+          className="mt-3 w-full rounded-lg bg-[#d4a853] py-2 text-xs font-bold text-black hover:bg-[#c49843] transition-all active:scale-[0.98]"
         >
           Build Quote from This →
         </button>
@@ -333,6 +307,7 @@ export function QuoteCalculator() {
   const [showRateCard, setShowRateCard] = useState(false);
   const [showLoadMenu, setShowLoadMenu] = useState(false);
   const loadMenuRef = useRef<HTMLDivElement>(null);
+  const rateCardRef = useRef<HTMLDivElement>(null);
 
   // ── AI Scope Writer state ──────────────────────────────────────────────────
   const [showAIScope, setShowAIScope] = useState(false);
@@ -362,11 +337,13 @@ export function QuoteCalculator() {
     }).catch(() => {});
   }, []);
 
-  // Close load menu on outside click
+  // Close menus on outside click
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (loadMenuRef.current && !loadMenuRef.current.contains(e.target as Node))
         setShowLoadMenu(false);
+      if (rateCardRef.current && !rateCardRef.current.contains(e.target as Node))
+        setShowRateCard(false);
     }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
@@ -643,6 +620,12 @@ export function QuoteCalculator() {
             {/* Project type templates */}
             <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
               <span className="text-[10px] text-muted-foreground/40 font-medium shrink-0">Templates:</span>
+              <button
+                onClick={() => setLineItems([newLine()])}
+                className="shrink-0 rounded-full border border-border bg-muted/30 px-3 py-1 text-[11px] font-medium text-muted-foreground hover:border-foreground/20 hover:text-foreground transition-all"
+              >
+                Blank
+              </button>
               {PROJECT_TEMPLATES.map((tmpl) => (
                 <button
                   key={tmpl.label}
@@ -758,7 +741,7 @@ export function QuoteCalculator() {
 
             {/* Add buttons — outside card so dropdown isn't clipped */}
             <div className="flex items-center gap-3 relative">
-              <div className="relative">
+              <div className="relative" ref={rateCardRef}>
                 <button
                   onClick={() => setShowRateCard((v) => !v)}
                   className="flex items-center gap-1.5 text-xs font-medium text-[#d4a853] hover:text-[#c49843] transition-colors"
@@ -771,9 +754,8 @@ export function QuoteCalculator() {
                   <RateCardPopover
                     items={rateCardItems}
                     crew={crewProfiles}
-                    onSelect={addFromRateCard}
-                    onSelectCrew={addFromCrew}
-                    onClose={() => setShowRateCard(false)}
+                    onSelect={(item) => { addFromRateCard(item); setShowRateCard(false); }}
+                    onSelectCrew={(member) => { addFromCrew(member); setShowRateCard(false); }}
                   />
                 )}
               </div>
@@ -859,7 +841,6 @@ export function QuoteCalculator() {
               sublabel="Your typical rate"
               amount={standard}
               multiplier={stdMult}
-              isRecommended
               selected={selectedTier === "standard"}
               onSelect={() => setSelectedTier("standard")}
               onMultChange={setStdMult}
@@ -995,6 +976,7 @@ export function QuoteCalculator() {
         onClose={() => setShowQuoteModal(false)}
         onSave={async () => { setShowQuoteModal(false); toast.success("Quote created — find it in Finance → Quotes"); }}
         initial={buildQuotePrefill()}
+        packageBrief={scopeBrief}
         projects={projects}
         profile={profile}
         quotes={quotes}

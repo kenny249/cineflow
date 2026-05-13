@@ -227,12 +227,13 @@ interface Props {
   onClose: () => void;
   onSave: (formState: QuoteFormState) => Promise<void>;
   initial?: Partial<QuoteFormState>;
+  packageBrief?: string;
   projects: Project[];
   profile: Profile | null;
   quotes: Quote[];
 }
 
-export default function QuoteFormModal({ open, onClose, onSave, initial, projects, profile, quotes }: Props) {
+export default function QuoteFormModal({ open, onClose, onSave, initial, packageBrief, projects, profile, quotes }: Props) {
   const defaultForm = (): QuoteFormState => ({
     quote_number: "",
     quote_type: "project",
@@ -267,6 +268,7 @@ export default function QuoteFormModal({ open, onClose, onSave, initial, project
       const nums = quotes.map((q) => parseInt(q.quote_number.replace(/\D/g, ""), 10)).filter((n) => !isNaN(n));
       const nextNum = `QUO-${String(nums.length ? Math.max(...nums) + 1 : 1).padStart(4, "0")}`;
       setForm({ ...defaultForm(), quote_number: nextNum, ...initial });
+      setAiBrief(packageBrief ?? "");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);

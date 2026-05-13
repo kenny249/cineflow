@@ -19,14 +19,14 @@ export async function POST(req: NextRequest) {
 
     const amountFormatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(tierAmount || 0);
 
-    const prompt = `You are a production agency consultant creating tiered quote packages for a client proposal.
+    const prompt = `You are a senior production agency consultant creating tiered quote packages for a client proposal.
 
 Project brief: ${brief || "Video production project"}
 Reference line items:
-${servicesList || "No specific line items"}
-Reference total: ${amountFormatted}
+${servicesList || "No specific line items provided — infer appropriate production services from the brief"}
+Reference total (Standard tier target): ${amountFormatted}
 
-Create exactly 3 production quote packages. Return ONLY valid JSON array (no markdown, no explanation):
+Create exactly 3 tiers with GENUINELY DIFFERENT scope — not just the same services at different prices. Each tier should reflect a meaningfully different production approach. Return ONLY valid JSON array (no markdown, no explanation):
 [
   {
     "name": "Essential",
@@ -51,13 +51,17 @@ Create exactly 3 production quote packages. Return ONLY valid JSON array (no mar
   }
 ]
 
-Rules:
-- Essential: ~65% of reference total. Lean scope, core deliverables only.
-- Standard: ~100% of reference total. Full scope as briefed. This is the recommended tier.
-- Premium: ~150% of reference total. Expanded scope, added value, faster turnaround or more deliverables.
-- Use realistic production line item names (not generic).
-- Rates should be round numbers. Quantities should reflect the scope (days, units, etc.).
-- Keep descriptions professional and client-facing — no internal jargon.`;
+Tier rules — scope MUST differ, not just price:
+- Essential (~60-65% of reference total): Stripped-down scope. Fewer shoot days, smaller crew, core deliverables only. No extras. A client with a tight budget gets the job done.
+- Standard (~100% of reference total): Full scope as briefed. Complete crew, full production days, all key deliverables. This is the recommended choice for most clients.
+- Premium (~145-155% of reference total): Elevated production. Larger crew, extra shoot day, additional deliverables (e.g. social cut, BTS, additional edits), faster turnaround, or higher-end treatment. Justify every extra dollar with real added value.
+
+Output rules:
+- Use specific, realistic production line item names (e.g. "DP — 2 Day Shoot" not "Videographer")
+- Quantities reflect actual units: shoot days, edit days, number of deliverables, etc.
+- Rates are round numbers in USD
+- Descriptions are polished, client-facing — no internal jargon, no mention of costs or markups
+- Line item counts should reflect scope: Essential has fewer items than Standard, Standard fewer than Premium`;
 
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
