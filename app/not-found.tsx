@@ -11,7 +11,7 @@ export default function NotFound() {
       <h1 className="font-display text-5xl font-bold text-foreground">404</h1>
       <p className="mt-3 text-muted-foreground">This scene doesn&apos;t exist in the script.</p>
       <Button variant="gold" size="lg" asChild className="mt-8">
-        <Link href="/dashboard">Back to dashboard</Link>
+        <Link href="/">Go home</Link>
       </Button>
     </div>
   );
