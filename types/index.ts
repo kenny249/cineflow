@@ -8,6 +8,7 @@ export function isSoloPlan(plan?: PlanType | string | null): boolean {
 
 export interface PaymentSettings {
   stripe_secret_key?: string;
+  stripe_webhook_secret?: string;
   paypal_me_username?: string;
   zelle_contact?: string;
   ach_bank_name?: string;

@@ -14,7 +14,7 @@ async function getInvoiceData(invoiceId: string): Promise<{
     address: string;
     website: string;
     configured_methods: string[];
-    payment_settings: Omit<PaymentSettings, "stripe_secret_key" | "resend_api_key">;
+    payment_settings: Omit<PaymentSettings, "stripe_secret_key" | "stripe_webhook_secret" | "resend_api_key">;
   };
 } | null> {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

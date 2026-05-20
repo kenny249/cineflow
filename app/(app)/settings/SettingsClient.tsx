@@ -525,16 +525,29 @@ export default function SettingsClient() {
                 <p className="mb-3 text-xs text-muted-foreground">
                   Clients pay by card, Apple Pay, or Google Pay. Cineflow auto-generates a permanent payment link for each invoice.
                 </p>
-                <div className="space-y-1.5">
-                  <Label>Stripe Secret Key</Label>
-                  <SecretInput
-                    value={paySettings.stripe_secret_key ?? ""}
-                    onChange={(v) => setPay("stripe_secret_key", v)}
-                    placeholder="sk_live_… or sk_test_…"
-                  />
-                  <p className="text-[11px] text-muted-foreground/60">
-                    Find this in your Stripe Dashboard → Developers → API keys. Stored securely in your account.
-                  </p>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label>Stripe Secret Key</Label>
+                    <SecretInput
+                      value={paySettings.stripe_secret_key ?? ""}
+                      onChange={(v) => setPay("stripe_secret_key", v)}
+                      placeholder="sk_live_… or sk_test_…"
+                    />
+                    <p className="text-[11px] text-muted-foreground/60">
+                      Find this in your Stripe Dashboard → Developers → API keys. Stored securely in your account.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Stripe Webhook Secret <span className="text-muted-foreground/50 font-normal">(optional)</span></Label>
+                    <SecretInput
+                      value={paySettings.stripe_webhook_secret ?? ""}
+                      onChange={(v) => setPay("stripe_webhook_secret", v)}
+                      placeholder="whsec_…"
+                    />
+                    <p className="text-[11px] text-muted-foreground/60">
+                      For real-time payment confirmation. In Stripe Dashboard → Developers → Webhooks, add endpoint <span className="font-mono">https://usecineflow.com/api/webhooks/stripe</span>, listen for <span className="font-mono">checkout.session.completed</span>, then paste the signing secret here.
+                    </p>
+                  </div>
                 </div>
               </PaymentSection>
 
