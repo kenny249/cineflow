@@ -77,7 +77,7 @@ export function InvoicePdfDocument({ invoice, profile }: Props) {
 
   const ps = (profile?.payment_settings ?? {}) as Record<string, string>;
 
-  const showSig = invoice.show_signature_lines !== false; // default true
+  const showSig = !!invoice.show_signature_lines; // default false
   const showRights = !!invoice.show_rights_notice;
   const rightsText = invoice.rights_notice_text ||
     "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";

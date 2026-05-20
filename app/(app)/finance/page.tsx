@@ -104,7 +104,7 @@ const EMPTY_FORM: InvoiceFormState = {
   invoice_date: "", due_date: "", paid_date: "", notes: "", project_id: "",
   line_items: [EMPTY_LINE()], tax_rate: "0", discount: "0", payment_terms: "net30",
   use_payment_schedule: false, payment_schedule: [],
-  po_number: "", brand_color: "", show_signature_lines: true, show_rights_notice: false, rights_notice_text: "",
+  po_number: "", brand_color: "", show_signature_lines: false, show_rights_notice: false, rights_notice_text: "",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -342,7 +342,7 @@ export default function FinancePage() {
       payment_schedule: inv.payment_schedule ?? [],
       po_number: inv.po_number ?? "",
       brand_color: inv.brand_color ?? "",
-      show_signature_lines: inv.show_signature_lines !== false,
+      show_signature_lines: !!inv.show_signature_lines,
       show_rights_notice: !!inv.show_rights_notice,
       rights_notice_text: inv.rights_notice_text ?? "",
     });

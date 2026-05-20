@@ -91,7 +91,7 @@ export function InvoiceDocument({
   if (ps.wire_instructions) configuredMethods.push("wire");
   if (ps.check_payable_to || ps.check_mail_to) configuredMethods.push("check");
 
-  const showSig = invoice.show_signature_lines !== false;
+  const showSig = !!invoice.show_signature_lines;
   const showRights = !!invoice.show_rights_notice;
   const rightsText = invoice.rights_notice_text ||
     "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";
@@ -194,10 +194,27 @@ export function InvoiceDocument({
       {/* ── Print styles */}
       <style jsx global>{`
         @media print {
-          body > * { display: none !important; }
-          .invoice-print-root { display: block !important; position: fixed; inset: 0; z-index: 9999; background: white; overflow: auto; }
-          .invoice-no-print { display: none !important; }
-          .invoice-doc-inner { box-shadow: none !important; border-radius: 0 !important; max-width: 100% !important; }
+          /* visibility approach: children can override a hidden parent */
+          body * { visibility: hidden; }
+          .invoice-print-root,
+          .invoice-print-root * { visibility: visible; }
+          .invoice-print-root {
+            position: fixed !important;
+            inset: 0 !important;
+            background: white !important;
+            overflow: auto !important;
+            padding: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .invoice-no-print,
+          .invoice-no-print * { visibility: hidden !important; display: none !important; }
+          .invoice-doc-inner {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+          }
         }
       `}</style>
 
@@ -241,7 +258,7 @@ export function InvoiceDocument({
               onClick={handlePrint}
               className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors"
             >
-              <Printer className="h-3.5 w-3.5" /> Print / PDF
+              <Printer className="h-3.5 w-3.5" /> Print
             </button>
             <button
               type="button"
