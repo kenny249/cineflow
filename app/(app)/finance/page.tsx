@@ -342,7 +342,7 @@ export default function FinancePage() {
       payment_schedule: inv.payment_schedule ?? [],
       po_number: inv.po_number ?? "",
       brand_color: inv.brand_color ?? "",
-      show_signature_lines: !!inv.show_signature_lines,
+      show_signature_lines: false,
       show_rights_notice: !!inv.show_rights_notice,
       rights_notice_text: inv.rights_notice_text ?? "",
     });

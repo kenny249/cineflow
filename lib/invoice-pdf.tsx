@@ -6,11 +6,8 @@ import {
   Text,
   Image,
   StyleSheet,
-  Font,
 } from "@react-pdf/renderer";
 import type { Invoice, Profile } from "@/types";
-
-Font.registerHyphenationCallback((word) => [word]);
 
 const DEFAULT_ACCENT = "#d4a853";
 const DARK  = "#18181b";
@@ -46,9 +43,10 @@ function fmtDate(iso?: string | null) {
 interface Props {
   invoice: Invoice;
   profile: Profile | null;
+  logoBase64?: string;
 }
 
-export function InvoicePdfDocument({ invoice, profile }: Props) {
+export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
   const accent = invoice.brand_color ?? profile?.brand_color ?? DEFAULT_ACCENT;
 
   const lineItems = invoice.line_items ?? [];
@@ -66,7 +64,7 @@ export function InvoicePdfDocument({ invoice, profile }: Props) {
   const bizEmail = profile?.email ?? "";
   const bizPhone = profile?.business_phone ?? "";
   const bizWebsite = profile?.business_website ?? "";
-  const logoUrl = profile?.logo_url;
+  const logoUrl = logoBase64 || undefined;
 
   const addrParts = [
     profile?.address_line1,

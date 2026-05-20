@@ -25,12 +25,33 @@ export async function GET(req: NextRequest) {
 
   if (invErr || !invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 
-  const doc = createElement(InvoicePdfDocument, {
-    invoice: invoice as Invoice,
-    profile: profile as Profile | null,
-  });
+  // Pre-fetch logo as base64 so react-pdf doesn't need to make outbound requests
+  let logoBase64: string | undefined;
+  if (profile?.logo_url) {
+    try {
+      const logoRes = await fetch(profile.logo_url);
+      if (logoRes.ok) {
+        const buf = await logoRes.arrayBuffer();
+        const ct = logoRes.headers.get("content-type") ?? "image/png";
+        logoBase64 = `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
+      }
+    } catch {
+      // skip logo if unreachable
+    }
+  }
 
-  const buffer: Buffer = await renderToBuffer(doc);
+  let buffer: Buffer;
+  try {
+    const doc = createElement(InvoicePdfDocument, {
+      invoice: invoice as Invoice,
+      profile: profile as Profile | null,
+      logoBase64,
+    });
+    buffer = await renderToBuffer(doc);
+  } catch (err) {
+    console.error("[pdf] renderToBuffer failed:", err);
+    return NextResponse.json({ error: "Failed to render PDF" }, { status: 500 });
+  }
 
   const slug = (invoice as Invoice).invoice_number
     .toLowerCase()

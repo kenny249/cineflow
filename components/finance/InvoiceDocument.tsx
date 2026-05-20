@@ -96,7 +96,30 @@ export function InvoiceDocument({
   const rightsText = invoice.rights_notice_text ||
     "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";
 
-  const handlePrint = () => { window.print(); };
+  const handlePrint = () => {
+    const inner = document.querySelector<HTMLElement>(".invoice-doc-inner");
+    if (!inner) return;
+
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (!win) { toast.error("Allow popups to print"); return; }
+
+    const styles = Array.from(document.styleSheets)
+      .flatMap((ss) => {
+        try { return Array.from(ss.cssRules).map((r) => r.cssText); }
+        catch { return []; }
+      })
+      .join("\n");
+
+    win.document.write(`<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<title>Invoice ${invoice.invoice_number}</title>
+<style>${styles}</style>
+</head><body style="margin:0;padding:24px;background:#fff">${inner.innerHTML}</body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
+    win.close();
+  };
 
   const handleCopyLink = async () => {
     if (!invoice.payment_link) return;
@@ -191,38 +214,11 @@ export function InvoiceDocument({
 
   return (
     <>
-      {/* ── Print styles */}
-      <style jsx global>{`
-        @media print {
-          /* visibility approach: children can override a hidden parent */
-          body * { visibility: hidden; }
-          .invoice-print-root,
-          .invoice-print-root * { visibility: visible; }
-          .invoice-print-root {
-            position: fixed !important;
-            inset: 0 !important;
-            background: white !important;
-            overflow: auto !important;
-            padding: 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-          }
-          .invoice-no-print,
-          .invoice-no-print * { visibility: hidden !important; display: none !important; }
-          .invoice-doc-inner {
-            box-shadow: none !important;
-            border-radius: 0 !important;
-            max-width: 100% !important;
-            margin: 0 !important;
-          }
-        }
-      `}</style>
-
       {/* ── Modal overlay */}
-      <div className="invoice-print-root fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm">
 
         {/* Toolbar */}
-        <div className="invoice-no-print flex shrink-0 items-center justify-between border-b border-white/10 bg-black/60 px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-black/60 px-4 py-3">
           <span className="text-xs font-semibold uppercase tracking-widest text-white/50">Invoice Preview</span>
           <div className="flex items-center gap-2">
             <button
@@ -424,7 +420,7 @@ export function InvoiceDocument({
                       <button
                         type="button"
                         onClick={handleCopyLink}
-                        className="invoice-no-print shrink-0 rounded-lg border border-zinc-200 bg-white p-2 text-zinc-500 hover:text-zinc-900 transition-colors"
+                        className="shrink-0 rounded-lg border border-zinc-200 bg-white p-2 text-zinc-500 hover:text-zinc-900 transition-colors"
                       >
                         <Copy className="h-3.5 w-3.5" />
                       </button>
@@ -432,7 +428,7 @@ export function InvoiceDocument({
                         href={invoice.payment_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="invoice-no-print shrink-0 flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-700 transition-colors"
+                        className="shrink-0 flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-semibold text-white hover:bg-zinc-700 transition-colors"
                       >
                         Pay Now <ExternalLink className="h-3 w-3" />
                       </a>
@@ -441,7 +437,7 @@ export function InvoiceDocument({
 
                   {/* Generate link buttons */}
                   {(configuredMethods.includes("stripe") || configuredMethods.includes("paypal")) && (
-                    <div className="invoice-no-print flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
                       {configuredMethods.includes("stripe") && !invoice.payment_link && (
                         <button
                           type="button"
