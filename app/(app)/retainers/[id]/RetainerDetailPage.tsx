@@ -6,6 +6,7 @@ import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
   CalendarDays, X, Pencil, Check, AlertCircle, Trash2, Settings2, Link2,
   FolderOpen, Download, DollarSign, CheckCheck, RotateCcw, ExternalLink, StickyNote,
+  MapPin, MessageSquare,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -14,7 +15,7 @@ import {
   createRetainerDeliverable, updateRetainerDeliverable, deleteRetainerDeliverable,
   bulkCreateRetainerDeliverables, deleteRetainer, createInvoice,
 } from "@/lib/supabase/queries";
-import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus, RetainerRevisionStatus, RetainerTemplateItem } from "@/types";
+import type { Retainer, RetainerMonth, RetainerDeliverable, RetainerDeliverableStatus, RetainerRevisionStatus, RetainerTemplateItem, ShootDay } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -301,12 +302,15 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [editTemplate, setEditTemplate] = useState<RetainerTemplateItem[]>([]);
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
-  const [schedulingCalendar, setSchedulingCalendar] = useState(false);
+
   const [togglingActive, setTogglingActive] = useState(false);
   const [sharingPortal, setSharingPortal] = useState(false);
   const [deliveryUrlInput, setDeliveryUrlInput] = useState("");
   const [editDeliveryFolderUrl, setEditDeliveryFolderUrl] = useState("");
   const [editEndDate, setEditEndDate] = useState("");
+
+  const [shootDays, setShootDays] = useState<ShootDay[]>([]);
+  const [schedulingDayId, setSchedulingDayId] = useState<string | null>(null);
 
   const activeMonth = months.find(m => m.id === activeMonthId) ?? null;
 
@@ -338,6 +342,18 @@ export default function RetainerDetailPage({ id }: { id: string }) {
 
   useEffect(() => {
     setDeliveryUrlInput(months.find(m => m.id === activeMonthId)?.delivery_url ?? "");
+  }, [activeMonthId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const m = months.find(mo => mo.id === activeMonthId);
+    if (!m) { setShootDays([]); return; }
+    const days = (m.shoot_days ?? []) as ShootDay[];
+    // backward-compat: seed from legacy shoot_date if no shoot_days yet
+    if (days.length === 0 && m.shoot_date) {
+      setShootDays([{ id: "legacy-" + m.id, date: m.shoot_date, location: "", notes: "" }]);
+    } else {
+      setShootDays(days);
+    }
   }, [activeMonthId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Delete retainer ──────────────────────────────────────────────────────
@@ -562,29 +578,55 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     }
   }
 
-  // ── Shoot date ───────────────────────────────────────────────────────────
+  // ── Shoot days ────────────────────────────────────────────────────────────
 
-  async function handleShootDateChange(date: string) {
+  async function saveShootDaysToDb(days: ShootDay[]) {
     if (!activeMonth) return;
-    await updateRetainerMonth(activeMonth.id, { shoot_date: date || undefined });
-    setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, shoot_date: date || undefined } : m));
+    await updateRetainerMonth(activeMonth.id, { shoot_days: days });
+    setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, shoot_days: days } : m));
   }
 
-  // ── Schedule production day on calendar ─────────────────────────────────
+  function addShootDay() {
+    const newDay: ShootDay = {
+      id: crypto.randomUUID(),
+      date: "",
+      location: "",
+      notes: "",
+    };
+    const updated = [...shootDays, newDay];
+    setShootDays(updated);
+    saveShootDaysToDb(updated);
+  }
 
-  async function handleScheduleProductionDay() {
-    if (!retainer || !activeMonth?.shoot_date) return;
-    setSchedulingCalendar(true);
+  function updateShootDay(id: string, field: keyof ShootDay, value: string) {
+    const updated = shootDays.map(d => d.id === id ? { ...d, [field]: value } : d);
+    setShootDays(updated);
+    saveShootDaysToDb(updated);
+  }
+
+  function removeShootDay(id: string) {
+    const updated = shootDays.filter(d => d.id !== id);
+    setShootDays(updated);
+    saveShootDaysToDb(updated);
+  }
+
+  async function scheduleShootDay(day: ShootDay) {
+    if (!retainer || !activeMonth || !day.date) return;
+    setSchedulingDayId(day.id);
     try {
-      const start = new Date(`${activeMonth.shoot_date}T09:00:00`);
-      const end   = new Date(`${activeMonth.shoot_date}T18:00:00`);
+      const start = new Date(`${day.date}T09:00:00`);
+      const end   = new Date(`${day.date}T18:00:00`);
       const { createCalendarEvent } = await import("@/lib/supabase/queries");
       const ev = await createCalendarEvent({
         title: `${retainer.client_name} — Production Day`,
         type: "shoot",
         start_date: start.toISOString(),
         end_date: end.toISOString(),
-        description: `Retainer shoot for ${retainer.client_name} (${activeMonth.month_year})`,
+        location: day.location || undefined,
+        description: [
+          `Retainer shoot for ${retainer.client_name} (${activeMonth.month_year})`,
+          day.notes,
+        ].filter(Boolean).join("\n"),
       });
       toast.success("Added to Calendar");
 
@@ -602,10 +644,10 @@ export default function RetainerDetailPage({ id }: { id: string }) {
           .then((d) => { if (d.sent > 0) toast.success("Client notified by email"); })
           .catch(() => { /* best-effort */ });
       }
-    } catch (e: any) {
-      toast.error(e.message ?? "Failed to schedule");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to schedule");
     } finally {
-      setSchedulingCalendar(false);
+      setSchedulingDayId(null);
     }
   }
 
@@ -954,29 +996,6 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 <div className="flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold text-foreground">{formatMonthYear(activeMonth.month_year)}</h2>
-
-                    {/* Shoot date + schedule button */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
-                      <input
-                        type="date"
-                        value={activeMonth.shoot_date ?? ""}
-                        onChange={e => handleShootDateChange(e.target.value)}
-                        className="bg-transparent text-xs text-muted-foreground/60 outline-none cursor-pointer [color-scheme:light_dark]"
-                        title="Set shoot date"
-                      />
-                      {activeMonth.shoot_date && (
-                        <button
-                          onClick={handleScheduleProductionDay}
-                          disabled={schedulingCalendar}
-                          title={retainer.client_email ? "Add to Calendar + email client" : "Add to Calendar"}
-                          className="flex items-center gap-1 rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10 px-2 py-0.5 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/20 transition-colors disabled:opacity-50"
-                        >
-                          <CalendarDays className="h-3 w-3" />
-                          {schedulingCalendar ? "Scheduling…" : "Add to Calendar"}
-                        </button>
-                      )}
-                    </div>
                   </div>
 
                   {/* Status segmented control */}
@@ -1059,13 +1078,103 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                   </div>
                 </div>
 
-                {/* Client notes from portal */}
-                {activeMonth.client_notes && (
-                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/60">Client Note</p>
-                    <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-line">{activeMonth.client_notes}</p>
+                {/* ── Shoot Days ─────────────────────────────────────────── */}
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/20">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
+                      <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">Shoot Days</span>
+                    </div>
+                    <button
+                      onClick={addShootDay}
+                      className="flex items-center gap-1 text-[11px] font-medium text-[#d4a853] hover:text-[#c49843] transition-colors"
+                    >
+                      <Plus className="h-3 w-3" /> Add Day
+                    </button>
                   </div>
-                )}
+
+                  {shootDays.length === 0 ? (
+                    <div className="px-4 py-5 text-center">
+                      <p className="text-xs text-muted-foreground/40">No shoot days scheduled. Click "Add Day" to plan production.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {shootDays.map((day) => (
+                        <div key={day.id} className="p-3 space-y-2">
+                          {/* Row 1: date + location + delete */}
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <CalendarDays className="h-3 w-3 text-muted-foreground/40" />
+                              <input
+                                type="date"
+                                value={day.date}
+                                onChange={e => updateShootDay(day.id, "date", e.target.value)}
+                                className="bg-transparent text-xs text-foreground outline-none cursor-pointer [color-scheme:dark]"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                              <MapPin className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                              <input
+                                type="text"
+                                value={day.location ?? ""}
+                                onChange={e => updateShootDay(day.id, "location", e.target.value)}
+                                placeholder="Location"
+                                className="flex-1 min-w-0 bg-transparent text-xs text-muted-foreground/70 placeholder:text-muted-foreground/25 outline-none"
+                              />
+                            </div>
+                            <button
+                              onClick={() => removeShootDay(day.id)}
+                              className="shrink-0 rounded p-0.5 text-muted-foreground/30 hover:text-red-400 transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                          {/* Row 2: notes + calendar button */}
+                          <div className="flex items-center gap-2">
+                            <StickyNote className="h-3 w-3 text-muted-foreground/30 shrink-0" />
+                            <input
+                              type="text"
+                              value={day.notes ?? ""}
+                              onChange={e => updateShootDay(day.id, "notes", e.target.value)}
+                              placeholder="Notes (call time, crew, special requirements…)"
+                              className="flex-1 bg-transparent text-xs text-muted-foreground/70 placeholder:text-muted-foreground/25 outline-none"
+                            />
+                            {day.date && (
+                              <button
+                                onClick={() => scheduleShootDay(day)}
+                                disabled={schedulingDayId === day.id}
+                                className="shrink-0 flex items-center gap-1 rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10 px-2 py-0.5 text-[10px] font-medium text-[#d4a853] hover:bg-[#d4a853]/20 transition-colors disabled:opacity-50"
+                              >
+                                <CalendarDays className="h-2.5 w-2.5" />
+                                {schedulingDayId === day.id ? "Adding…" : "Add to Calendar"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Client notes from portal ───────────────────────────── */}
+                <div className="rounded-xl border border-border overflow-hidden">
+                  <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border bg-muted/20">
+                    <MessageSquare className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">Client Notes</span>
+                    {activeMonth.client_notes && (
+                      <span className="ml-auto inline-flex h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    )}
+                  </div>
+                  {activeMonth.client_notes ? (
+                    <div className="px-4 py-3 bg-amber-500/5">
+                      <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-line">{activeMonth.client_notes}</p>
+                    </div>
+                  ) : (
+                    <div className="px-4 py-4 text-center">
+                      <p className="text-xs text-muted-foreground/30">No notes from the client yet. They can leave notes from their portal link.</p>
+                    </div>
+                  )}
+                </div>
 
                 {/* Progress summary */}
                 {totalItems > 0 && (

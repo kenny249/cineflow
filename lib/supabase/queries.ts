@@ -1581,7 +1581,7 @@ export async function createRetainerMonth(payload: {
   return month as RetainerMonth;
 }
 
-export async function updateRetainerMonth(id: string, updates: Partial<Pick<RetainerMonth, 'status' | 'shoot_date' | 'notes' | 'delivery_url' | 'approved_at' | 'paid'>>): Promise<void> {
+export async function updateRetainerMonth(id: string, updates: Partial<Pick<RetainerMonth, 'status' | 'shoot_date' | 'shoot_days' | 'notes' | 'client_notes' | 'delivery_url' | 'approved_at' | 'paid'>>): Promise<void> {
   const { error } = await db()
     .from('retainer_months')
     .update({ ...updates, updated_at: new Date().toISOString() })

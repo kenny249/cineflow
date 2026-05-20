@@ -81,6 +81,7 @@ export async function GET(
     agencyName,
     activeMonth: activeMonth ? {
       ...activeMonth,
+      shoot_days: activeMonth.shoot_days ?? [],
       client_notes: activeMonth.client_notes ?? null,
     } : null,
     deliverables,

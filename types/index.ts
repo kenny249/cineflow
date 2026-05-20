@@ -710,6 +710,13 @@ export interface ClientPortal {
 
 // ─── Retainers ────────────────────────────────────────────────────────────────
 
+export interface ShootDay {
+  id: string;
+  date: string;
+  location?: string;
+  notes?: string;
+}
+
 export interface RetainerTemplateItem {
   type: string;   // "short" | "photo" | "premium" | "other" | custom string
   label: string;  // display name e.g. "Short-form Videos"
@@ -744,6 +751,7 @@ export interface RetainerMonth {
   month_year: string; // "2026-04"
   status: RetainerMonthStatus;
   shoot_date?: string;
+  shoot_days?: ShootDay[];
   notes?: string;
   client_notes?: string;
   delivery_url?: string;

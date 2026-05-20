@@ -8,11 +8,19 @@ import type { RetainerTemplateItem, RetainerDeliverableStatus, RetainerMonthStat
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface ShootDayEntry {
+  id: string;
+  date: string;
+  location?: string;
+  notes?: string;
+}
+
 interface PortalMonth {
   id: string;
   month_year: string;
   status: RetainerMonthStatus;
   shoot_date?: string;
+  shoot_days?: ShootDayEntry[];
   notes?: string;
   client_notes?: string | null;
   delivery_url?: string | null;
@@ -254,18 +262,44 @@ export default function RetainerPortalPage() {
           </div>
         )}
 
-        {/* Shoot date */}
-        {activeMonth?.shoot_date && (
-          <div className="flex items-center gap-2.5 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/5 px-4 py-3">
-            <CalendarDays className="h-4 w-4 text-[#d4a853] shrink-0" />
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-[#d4a853]/50">Shoot Date</p>
-              <p className="text-sm font-medium text-white/80">
-                {new Date(activeMonth.shoot_date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-              </p>
+        {/* Shoot days */}
+        {activeMonth && (() => {
+          const days = (activeMonth.shoot_days ?? []) as ShootDayEntry[];
+          // backward compat: show legacy single date if no shoot_days
+          const displayDays: ShootDayEntry[] = days.length > 0
+            ? days.filter(d => d.date)
+            : activeMonth.shoot_date
+              ? [{ id: "legacy", date: activeMonth.shoot_date }]
+              : [];
+          if (displayDays.length === 0) return null;
+          return (
+            <div className="rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/5 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-[#d4a853]/10">
+                <CalendarDays className="h-3.5 w-3.5 text-[#d4a853]/60" />
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#d4a853]/50">
+                  {displayDays.length === 1 ? "Shoot Day" : "Shoot Days"}
+                </p>
+              </div>
+              <div className="divide-y divide-[#d4a853]/10">
+                {displayDays.map((day) => (
+                  <div key={day.id} className="px-4 py-3 space-y-0.5">
+                    <p className="text-sm font-medium text-white/80">
+                      {new Date(day.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                    </p>
+                    {day.location && (
+                      <p className="text-xs text-white/40 flex items-center gap-1.5">
+                        <span className="text-[#d4a853]/50">📍</span>{day.location}
+                      </p>
+                    )}
+                    {day.notes && (
+                      <p className="text-xs text-white/30 italic mt-0.5">{day.notes}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Month delivery link */}
         {activeMonth?.delivery_url && (
