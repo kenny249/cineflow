@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { Film, Circle, Camera, CheckCircle2, CalendarDays, Repeat2, FolderOpen, Download, CheckCheck } from "lucide-react";
+import { Film, Circle, Camera, CheckCircle2, CalendarDays, Repeat2, FolderOpen, Download, CheckCheck, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RetainerTemplateItem, RetainerDeliverableStatus, RetainerMonthStatus } from "@/types";
 
@@ -14,6 +14,7 @@ interface PortalMonth {
   status: RetainerMonthStatus;
   shoot_date?: string;
   notes?: string;
+  client_notes?: string | null;
   delivery_url?: string | null;
   approved_at?: string | null;
 }
@@ -85,6 +86,10 @@ export default function RetainerPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
   const [approvedMonthId, setApprovedMonthId] = useState<string | null>(null);
+  const [clientNotes, setClientNotes] = useState("");
+  const [notesSaved, setNotesSaved] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -93,8 +98,8 @@ export default function RetainerPortalPage() {
       .then((json) => {
         if (json.error) { setError(json.error); return; }
         setData(json);
-        // Pre-populate local approval state
         if (json.activeMonth?.approved_at) setApprovedMonthId(json.activeMonth.id);
+        if (json.activeMonth?.client_notes) setClientNotes(json.activeMonth.client_notes);
       })
       .catch(() => setError("Failed to load portal"))
       .finally(() => setLoading(false));
@@ -112,6 +117,28 @@ export default function RetainerPortalPage() {
     } catch { /* silent */ } finally {
       setApproving(false);
     }
+  }
+
+  const saveNotes = useCallback(async (monthId: string, notes: string) => {
+    setSavingNotes(true);
+    try {
+      await fetch(`/api/retainer-portal/${token}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monthId, client_notes: notes }),
+      });
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2500);
+    } catch { /* silent */ } finally {
+      setSavingNotes(false);
+    }
+  }, [token]);
+
+  function handleNotesChange(monthId: string, value: string) {
+    setClientNotes(value);
+    setNotesSaved(false);
+    if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
+    notesTimerRef.current = setTimeout(() => saveNotes(monthId, value), 1200);
   }
 
   if (loading) {
@@ -334,6 +361,33 @@ export default function RetainerPortalPage() {
                 </button>
               </>
             )}
+          </div>
+        )}
+
+        {/* Client notes */}
+        {activeMonth && (
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-3.5 w-3.5 text-white/30" />
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Notes to Your Studio</p>
+              </div>
+              {(savingNotes || notesSaved) && (
+                <span className={cn(
+                  "text-[10px] transition-opacity",
+                  savingNotes ? "text-white/20" : "text-emerald-400"
+                )}>
+                  {savingNotes ? "Saving…" : "Saved"}
+                </span>
+              )}
+            </div>
+            <textarea
+              rows={4}
+              value={clientNotes}
+              onChange={(e) => handleNotesChange(activeMonth.id, e.target.value)}
+              placeholder="Leave a note for your team — requests, feedback, or anything on your mind for this month…"
+              className="w-full resize-none rounded-lg bg-white/[0.04] border border-white/[0.06] px-3 py-2.5 text-sm text-white/70 placeholder:text-white/15 outline-none focus:border-[#d4a853]/30 focus:ring-0 transition-colors"
+            />
           </div>
         )}
 

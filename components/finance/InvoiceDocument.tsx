@@ -56,20 +56,24 @@ export function InvoiceDocument({
     : "https://usecineflow.com";
   const payUrl = `${appUrl}/pay/${invoice.id}`;
 
+  const accent = invoice.brand_color ?? profile?.brand_color ?? "#d4a853";
+
   const lineItems = invoice.line_items ?? [];
   const subtotal = lineItems.length > 0
     ? lineItems.reduce((s, li) => s + li.quantity * li.rate, 0)
     : invoice.amount;
+  const discountAmt = invoice.discount ?? 0;
   const taxRate = invoice.tax_rate ?? 0;
-  const taxAmount = subtotal * (taxRate / 100);
-  const total = subtotal + taxAmount;
+  const afterDiscount = subtotal - discountAmt;
+  const taxAmount = afterDiscount * (taxRate / 100);
+  const total = afterDiscount + taxAmount;
 
   const bizName = profile?.business_name || profile?.company || profile?.full_name || "Your Studio";
   const bizEmail = profile?.email ?? "";
   const bizPhone = profile?.business_phone ?? "";
   const bizWebsite = profile?.business_website ?? "";
+  const logoUrl = profile?.logo_url;
 
-  // Build structured address, falling back to legacy single-string field
   const addrParts = [
     profile?.address_line1,
     profile?.address_line2,
@@ -78,8 +82,6 @@ export function InvoiceDocument({
   const bizAddress = addrParts.length > 0 ? addrParts.join(", ") : (profile?.business_address ?? "");
 
   const paySettings = profile?.payment_settings ?? {};
-
-  // All methods configured in Settings — used to decide what to show in the payment section
   const ps = paySettings as Record<string, string>;
   const configuredMethods: string[] = [];
   if (ps.stripe_secret_key) configuredMethods.push("stripe");
@@ -89,9 +91,12 @@ export function InvoiceDocument({
   if (ps.wire_instructions) configuredMethods.push("wire");
   if (ps.check_payable_to || ps.check_mail_to) configuredMethods.push("check");
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const showSig = invoice.show_signature_lines !== false;
+  const showRights = !!invoice.show_rights_notice;
+  const rightsText = invoice.rights_notice_text ||
+    "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";
+
+  const handlePrint = () => { window.print(); };
 
   const handleCopyLink = async () => {
     if (!invoice.payment_link) return;
@@ -123,7 +128,7 @@ export function InvoiceDocument({
   };
 
   const handleGeneratePayPalLink = () => {
-    const username = (paySettings as Record<string, string>).paypal_me_username;
+    const username = ps.paypal_me_username;
     if (!username) {
       toast.error("Add your PayPal.me username in Settings → Payment.");
       return;
@@ -186,51 +191,46 @@ export function InvoiceDocument({
 
   return (
     <>
-      {/* ── Print styles ──────────────────────────────────────── */}
+      {/* ── Print styles */}
       <style jsx global>{`
         @media print {
           body > * { display: none !important; }
-          .invoice-print-root { display: block !important; position: fixed; inset: 0; z-index: 9999; background: white; }
+          .invoice-print-root { display: block !important; position: fixed; inset: 0; z-index: 9999; background: white; overflow: auto; }
           .invoice-no-print { display: none !important; }
+          .invoice-doc-inner { box-shadow: none !important; border-radius: 0 !important; max-width: 100% !important; }
         }
       `}</style>
 
-      {/* ── Modal overlay ─────────────────────────────────────── */}
+      {/* ── Modal overlay */}
       <div className="invoice-print-root fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm">
 
         {/* Toolbar */}
         <div className="invoice-no-print flex shrink-0 items-center justify-between border-b border-white/10 bg-black/60 px-4 py-3">
-          <span className="text-xs font-semibold uppercase tracking-widest text-white/50">
-            Invoice Preview
-          </span>
+          <span className="text-xs font-semibold uppercase tracking-widest text-white/50">Invoice Preview</span>
           <div className="flex items-center gap-2">
-            {/* Download PDF */}
             <button
               type="button"
               onClick={handleDownloadPdf}
               disabled={downloading}
               className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors disabled:opacity-60"
-              title="Download PDF"
             >
               {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               {downloading ? "Generating…" : "Download PDF"}
             </button>
-            {/* Copy pay link */}
             <button
               type="button"
               onClick={handleCopyPayUrl}
               className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors"
-              title="Copy client pay link"
             >
               <Copy className="h-3.5 w-3.5" /> Copy Link
             </button>
-            {/* Send / Remind */}
             {invoice.status !== "paid" && (
               <button
                 type="button"
                 onClick={handleSendInvoice}
                 disabled={sending}
-                className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/40 bg-[#d4a853]/20 px-3 py-1.5 text-xs font-semibold text-[#d4a853] hover:bg-[#d4a853]/30 transition-colors disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-60"
+                style={{ borderColor: accent + "66", backgroundColor: accent + "22", color: accent }}
               >
                 {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                 {sending ? "Sending…" : invoice.status === "draft" ? "Send to Client" : "Send Reminder"}
@@ -255,44 +255,60 @@ export function InvoiceDocument({
 
         {/* Document */}
         <div className="flex-1 overflow-y-auto py-8 px-4">
-          <div className="mx-auto max-w-3xl rounded-2xl bg-white text-zinc-900 shadow-2xl overflow-hidden">
+          <div className="invoice-doc-inner mx-auto max-w-3xl rounded-2xl bg-white text-zinc-900 shadow-2xl overflow-hidden">
 
             {/* Header band */}
-            <div className="flex items-start justify-between bg-zinc-900 px-10 py-8">
-              <div>
-                <p className="text-xl font-bold text-white">{bizName}</p>
-                {bizAddress && <p className="mt-1 text-xs text-zinc-400">{bizAddress}</p>}
-                {bizPhone && <p className="text-xs text-zinc-400">{bizPhone}</p>}
-                {bizEmail && <p className="text-xs text-zinc-400">{bizEmail}</p>}
-                {bizWebsite && <p className="text-xs text-zinc-400">{bizWebsite}</p>}
-              </div>
-              <div className="text-right">
-                <p className="text-3xl font-black tracking-tight text-[#d4a853]">INVOICE</p>
-                <p className="mt-1 font-mono text-sm font-semibold text-white">{invoice.invoice_number}</p>
-                <p className="mt-3 text-xs text-zinc-400">
-                  Issued: {formatDate(invoice.created_at?.split("T")[0])}
-                </p>
-                {invoice.due_date && (
-                  <p className="text-xs text-zinc-400">Due: {formatDate(invoice.due_date)}</p>
-                )}
-                {invoice.payment_terms && (
-                  <p className="mt-1 text-xs font-semibold text-[#d4a853]">
-                    {TERMS_LABEL[invoice.payment_terms] ?? invoice.payment_terms}
+            <div className="px-10 py-8" style={{ backgroundColor: "#18181b" }}>
+              <div className="flex items-start justify-between">
+                {/* Left: logo + biz info */}
+                <div>
+                  {logoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoUrl} alt={bizName} className="mb-3 h-14 w-auto max-w-[120px] rounded-md object-contain" />
+                  )}
+                  <p className="text-lg font-bold text-white">{bizName}</p>
+                  {bizAddress && <p className="mt-0.5 text-xs text-zinc-400">{bizAddress}</p>}
+                  {bizPhone && <p className="text-xs text-zinc-400">{bizPhone}</p>}
+                  {bizEmail && <p className="text-xs text-zinc-400">{bizEmail}</p>}
+                  {bizWebsite && <p className="text-xs text-zinc-400">{bizWebsite}</p>}
+                </div>
+                {/* Right: INVOICE label + meta */}
+                <div className="text-right">
+                  <p className="text-3xl font-black tracking-tight" style={{ color: accent }}>INVOICE</p>
+                  <p className="mt-1 font-mono text-sm font-semibold text-white">{invoice.invoice_number}</p>
+                  {invoice.po_number && (
+                    <p className="mt-1 text-xs text-zinc-400">PO: {invoice.po_number}</p>
+                  )}
+                  <p className="mt-2 text-xs text-zinc-400">
+                    Issued: {formatDate(invoice.invoice_date ?? invoice.created_at?.split("T")[0])}
                   </p>
-                )}
+                  {invoice.due_date && (
+                    <p className="text-xs text-zinc-400">Due: {formatDate(invoice.due_date)}</p>
+                  )}
+                  {invoice.payment_terms && (
+                    <p className="mt-1 text-xs font-semibold" style={{ color: accent }}>
+                      {TERMS_LABEL[invoice.payment_terms] ?? invoice.payment_terms}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
+            {/* Accent bar */}
+            <div className="h-1" style={{ backgroundColor: accent }} />
+
             {/* Bill To */}
             <div className="border-b border-zinc-100 bg-zinc-50 px-10 py-6">
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                Bill To
-              </p>
-              <p className="text-base font-semibold text-zinc-900">
-                {invoice.client_name || "Client"}
-              </p>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Bill To</p>
+              <p className="text-base font-semibold text-zinc-900">{invoice.client_name || "Client"}</p>
+              {invoice.client_email && (
+                <p className="mt-0.5 text-sm text-zinc-500">{invoice.client_email}</p>
+              )}
+              {invoice.client_address && (
+                <p className="mt-0.5 text-sm text-zinc-500 whitespace-pre-line">{invoice.client_address}</p>
+              )}
               {invoice.description && (
-                <p className="mt-1 text-sm text-zinc-500">{invoice.description}</p>
+                <p className="mt-2 text-sm italic text-zinc-400">{invoice.description}</p>
               )}
             </div>
 
@@ -301,18 +317,10 @@ export function InvoiceDocument({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200">
-                    <th className="pb-3 text-left text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                      Description
-                    </th>
-                    <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-16">
-                      Qty
-                    </th>
-                    <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-28">
-                      Rate
-                    </th>
-                    <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-28">
-                      Amount
-                    </th>
+                    <th className="pb-3 text-left text-[10px] font-bold uppercase tracking-widest text-zinc-400">Description</th>
+                    <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-16">Qty</th>
+                    <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-28">Rate</th>
+                    <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-28">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -322,21 +330,15 @@ export function InvoiceDocument({
                         <td className="py-3 pr-4 text-zinc-800">{li.description || "—"}</td>
                         <td className="py-3 text-right text-zinc-600">{li.quantity}</td>
                         <td className="py-3 text-right text-zinc-600">{fmt(li.rate)}</td>
-                        <td className="py-3 text-right font-medium text-zinc-900">
-                          {fmt(li.quantity * li.rate)}
-                        </td>
+                        <td className="py-3 text-right font-medium text-zinc-900">{fmt(li.quantity * li.rate)}</td>
                       </tr>
                     ))
                   ) : (
                     <tr className="border-b border-zinc-100">
-                      <td className="py-3 text-zinc-800">
-                        {invoice.description || "Services rendered"}
-                      </td>
+                      <td className="py-3 text-zinc-800">{invoice.description || "Services rendered"}</td>
                       <td className="py-3 text-right text-zinc-600">1</td>
                       <td className="py-3 text-right text-zinc-600">{fmt(invoice.amount)}</td>
-                      <td className="py-3 text-right font-medium text-zinc-900">
-                        {fmt(invoice.amount)}
-                      </td>
+                      <td className="py-3 text-right font-medium text-zinc-900">{fmt(invoice.amount)}</td>
                     </tr>
                   )}
                 </tbody>
@@ -349,6 +351,12 @@ export function InvoiceDocument({
                     <div className="flex justify-between text-sm text-zinc-600">
                       <span>Subtotal</span>
                       <span>{fmt(subtotal)}</span>
+                    </div>
+                  )}
+                  {discountAmt > 0 && (
+                    <div className="flex justify-between text-sm text-emerald-600 font-medium">
+                      <span>Discount</span>
+                      <span>−{fmt(discountAmt)}</span>
                     </div>
                   )}
                   {taxRate > 0 && (
@@ -365,18 +373,10 @@ export function InvoiceDocument({
                   )}
                   <div className="flex justify-between border-t border-zinc-200 pt-2 text-base font-bold text-zinc-900">
                     <span>
-                      {invoice.status === "paid"
-                        ? "Total Paid"
-                        : invoice.amount_paid > 0
-                        ? "Balance Due"
-                        : "Total Due"}
+                      {invoice.status === "paid" ? "Total Paid" : invoice.amount_paid > 0 ? "Balance Due" : "Total Due"}
                     </span>
-                    <span>
-                      {fmt(
-                        invoice.status === "paid"
-                          ? total
-                          : total - (invoice.amount_paid ?? 0)
-                      )}
+                    <span style={{ color: invoice.status === "paid" ? "#22c55e" : accent }}>
+                      {fmt(invoice.status === "paid" ? total : total - (invoice.amount_paid ?? 0))}
                     </span>
                   </div>
                 </div>
@@ -385,9 +385,7 @@ export function InvoiceDocument({
 
             {/* Payment Section */}
             <div className="border-t border-zinc-100 px-10 py-6">
-              <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-                Payment
-              </p>
+              <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Payment</p>
 
               {invoice.status === "paid" ? (
                 <div className="flex items-center gap-2 text-emerald-600">
@@ -399,18 +397,17 @@ export function InvoiceDocument({
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Active Stripe payment link */}
+                  {/* Active payment link */}
                   {invoice.payment_link ? (
                     <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-0.5">Pay by Card (Stripe)</p>
+                        <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-0.5">Pay by Card</p>
                         <p className="truncate font-mono text-xs text-zinc-700">{invoice.payment_link}</p>
                       </div>
                       <button
                         type="button"
                         onClick={handleCopyLink}
                         className="invoice-no-print shrink-0 rounded-lg border border-zinc-200 bg-white p-2 text-zinc-500 hover:text-zinc-900 transition-colors"
-                        title="Copy link"
                       >
                         <Copy className="h-3.5 w-3.5" />
                       </button>
@@ -425,10 +422,10 @@ export function InvoiceDocument({
                     </div>
                   ) : null}
 
-                  {/* Generate link buttons (not printed) */}
+                  {/* Generate link buttons */}
                   {(configuredMethods.includes("stripe") || configuredMethods.includes("paypal")) && (
                     <div className="invoice-no-print flex flex-wrap gap-2">
-                      {configuredMethods.includes("stripe") && !invoice.payment_link && ps.stripe_secret_key && (
+                      {configuredMethods.includes("stripe") && !invoice.payment_link && (
                         <button
                           type="button"
                           onClick={handleGenerateStripeLink}
@@ -451,7 +448,7 @@ export function InvoiceDocument({
                     </div>
                   )}
 
-                  {/* Manual payment instructions — all configured methods */}
+                  {/* Manual payment methods */}
                   {configuredMethods.includes("zelle") && ps.zelle_contact && (
                     <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
                       <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Pay via Zelle</p>
@@ -493,7 +490,37 @@ export function InvoiceDocument({
             {invoice.notes && (
               <div className="border-t border-zinc-100 px-10 py-6">
                 <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Notes</p>
-                <p className="text-sm text-zinc-600">{invoice.notes}</p>
+                <p className="text-sm text-zinc-600 whitespace-pre-line">{invoice.notes}</p>
+              </div>
+            )}
+
+            {/* Rights notice */}
+            {showRights && (
+              <div className="border-t border-zinc-100 px-10 py-5">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Rights &amp; Licensing</p>
+                  <p className="text-xs text-zinc-500 leading-relaxed">{rightsText}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Signature lines */}
+            {showSig && (
+              <div className="border-t border-zinc-100 px-10 py-8">
+                <p className="mb-6 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Authorization</p>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                  {[
+                    "Authorized Signature",
+                    "Date",
+                    "Client Signature",
+                    "Date",
+                  ].map((label) => (
+                    <div key={label}>
+                      <div className="h-10 border-b border-zinc-800" />
+                      <p className="mt-1.5 text-xs text-zinc-400">{label}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -502,6 +529,7 @@ export function InvoiceDocument({
               <p className="text-center text-xs text-zinc-400">
                 Thank you for your business — {bizName}
                 {bizEmail ? ` · ${bizEmail}` : ""}
+                {invoice.po_number ? ` · PO: ${invoice.po_number}` : ""}
               </p>
             </div>
           </div>

@@ -63,6 +63,7 @@ interface InvoiceFormState {
   invoice_number: string;
   client_name: string;
   client_email: string;
+  client_address: string;
   description: string;
   status: InvoiceStatus;
   invoice_date: string;
@@ -72,9 +73,15 @@ interface InvoiceFormState {
   project_id: string;
   line_items: LineItemForm[];
   tax_rate: string;
+  discount: string;
   payment_terms: PaymentTerms;
   use_payment_schedule: boolean;
   payment_schedule: PaymentInstallment[];
+  po_number: string;
+  brand_color: string;
+  show_signature_lines: boolean;
+  show_rights_notice: boolean;
+  rights_notice_text: string;
 }
 
 const EMPTY_LINE: () => LineItemForm = () => ({
@@ -93,11 +100,11 @@ const mkInstallment = (label: string, pct: number, total: number, due: string = 
 });
 
 const EMPTY_FORM: InvoiceFormState = {
-  invoice_number: "", client_name: "", client_email: "", description: "", status: "draft",
+  invoice_number: "", client_name: "", client_email: "", client_address: "", description: "", status: "draft",
   invoice_date: "", due_date: "", paid_date: "", notes: "", project_id: "",
-  line_items: [EMPTY_LINE()], tax_rate: "0", payment_terms: "net30",
-  use_payment_schedule: false,
-  payment_schedule: [],
+  line_items: [EMPTY_LINE()], tax_rate: "0", discount: "0", payment_terms: "net30",
+  use_payment_schedule: false, payment_schedule: [],
+  po_number: "", brand_color: "", show_signature_lines: true, show_rights_notice: false, rights_notice_text: "",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -114,9 +121,11 @@ function computeTotals(form: InvoiceFormState) {
     (s, li) => s + (parseFloat(li.quantity) || 0) * (parseFloat(li.rate) || 0),
     0
   );
+  const discountAmt = parseFloat(form.discount) || 0;
   const taxRate = parseFloat(form.tax_rate) || 0;
-  const taxAmount = subtotal * (taxRate / 100);
-  return { subtotal, taxAmount, total: subtotal + taxAmount };
+  const afterDiscount = subtotal - discountAmt;
+  const taxAmount = afterDiscount * (taxRate / 100);
+  return { subtotal, discountAmt, taxAmount, total: afterDiscount + taxAmount };
 }
 
 // ─── Date Input ───────────────────────────────────────────────────────────────
@@ -317,6 +326,7 @@ export default function FinancePage() {
       invoice_number: inv.invoice_number,
       client_name: inv.client_name ?? "",
       client_email: inv.client_email ?? "",
+      client_address: inv.client_address ?? "",
       description: inv.description ?? "",
       status: inv.status,
       invoice_date: inv.invoice_date ?? "",
@@ -326,9 +336,15 @@ export default function FinancePage() {
       project_id: inv.project_id ?? "",
       line_items: lineItems,
       tax_rate: String(inv.tax_rate ?? 0),
+      discount: String(inv.discount ?? 0),
       payment_terms: inv.payment_terms ?? "net30",
       use_payment_schedule: !!(inv.payment_schedule && inv.payment_schedule.length > 0),
       payment_schedule: inv.payment_schedule ?? [],
+      po_number: inv.po_number ?? "",
+      brand_color: inv.brand_color ?? "",
+      show_signature_lines: inv.show_signature_lines !== false,
+      show_rights_notice: !!inv.show_rights_notice,
+      rights_notice_text: inv.rights_notice_text ?? "",
     });
     setEditingId(inv.id);
     setShowForm(true);
@@ -354,6 +370,7 @@ export default function FinancePage() {
         invoice_number: form.invoice_number.trim(),
         client_name: form.client_name.trim() || undefined,
         client_email: form.client_email.trim() || undefined,
+        client_address: form.client_address.trim() || undefined,
         description: form.description.trim() || undefined,
         amount: total,
         amount_paid: editingId
@@ -367,10 +384,16 @@ export default function FinancePage() {
         project_id: form.project_id || undefined,
         line_items: lineItems.length > 0 ? lineItems : undefined,
         tax_rate: parseFloat(form.tax_rate) || 0,
+        discount: parseFloat(form.discount) || 0,
         payment_terms: form.payment_terms,
         payment_schedule: form.use_payment_schedule && form.payment_schedule.length > 0
           ? form.payment_schedule
           : undefined,
+        po_number: form.po_number.trim() || undefined,
+        brand_color: form.brand_color || undefined,
+        show_signature_lines: form.show_signature_lines,
+        show_rights_notice: form.show_rights_notice,
+        rights_notice_text: form.rights_notice_text.trim() || undefined,
       };
 
       let savedId: string;
@@ -490,7 +513,7 @@ export default function FinancePage() {
   const removeLine = (id: string) =>
     setForm((f) => ({ ...f, line_items: f.line_items.filter((li) => li.id !== id) }));
 
-  const { subtotal, taxAmount, total } = computeTotals(form);
+  const { subtotal, discountAmt, taxAmount, total } = computeTotals(form);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -753,11 +776,21 @@ export default function FinancePage() {
                     </div>
                   </div>
                   <div>
-                    <label className="fin-label">Project</label>
-                    <select className="fin-input" value={form.project_id} onChange={(e) => setForm((f) => ({ ...f, project_id: e.target.value }))}>
-                      <option value="">— Standalone (no project) —</option>
-                      {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-                    </select>
+                    <label className="fin-label">Client Billing Address</label>
+                    <textarea className="fin-input resize-none" rows={2} value={form.client_address} onChange={(e) => setForm((f) => ({ ...f, client_address: e.target.value }))} placeholder="123 Main St, City, State ZIP" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="fin-label">Project</label>
+                      <select className="fin-input" value={form.project_id} onChange={(e) => setForm((f) => ({ ...f, project_id: e.target.value }))}>
+                        <option value="">— Standalone (no project) —</option>
+                        {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="fin-label">PO Number</label>
+                      <input className="fin-input" value={form.po_number} onChange={(e) => setForm((f) => ({ ...f, po_number: e.target.value }))} placeholder="Optional PO reference" />
+                    </div>
                   </div>
                   <div>
                     <label className="fin-label">Description / Subject</label>
@@ -812,16 +845,18 @@ export default function FinancePage() {
                           />
                           <input
                             className="fin-input text-center text-xs"
-                            type="number" min="0" step="0.5"
+                            type="text"
+                            inputMode="numeric"
                             value={li.quantity}
-                            onChange={(e) => setLi(li.id, "quantity", e.target.value)}
+                            onChange={(e) => setLi(li.id, "quantity", e.target.value.replace(/[^\d.]/g, ""))}
                           />
                           <input
                             className="fin-input text-right text-xs"
-                            type="number" min="0" step="0.01"
-                            placeholder="$0.00"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="0.00"
                             value={li.rate}
-                            onChange={(e) => setLi(li.id, "rate", e.target.value)}
+                            onChange={(e) => setLi(li.id, "rate", e.target.value.replace(/[^\d.]/g, ""))}
                           />
                           <span className="text-right text-xs font-medium text-foreground">
                             {amount > 0 ? fmtFull(amount) : "—"}
@@ -853,19 +888,38 @@ export default function FinancePage() {
 
                 {/* Totals */}
                 <div className="mt-3 flex justify-end">
-                  <div className="w-56 space-y-1.5">
+                  <div className="w-64 space-y-1.5">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>Subtotal</span>
                       <span>{fmtFull(subtotal)}</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground">Discount</span>
+                        <span className="text-xs text-muted-foreground">$</span>
+                        <input
+                          className="w-20 rounded border border-border bg-background px-1.5 py-0.5 text-right text-xs text-foreground outline-none focus:border-[#d4a853]/50"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0.00"
+                          value={form.discount === "0" ? "" : form.discount}
+                          onChange={(e) => setForm((f) => ({ ...f, discount: e.target.value.replace(/[^\d.]/g, "") || "0" }))}
+                        />
+                      </div>
+                      {discountAmt > 0 && (
+                        <span className="text-xs text-emerald-400">−{fmtFull(discountAmt)}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
                         <span className="text-xs text-muted-foreground">Tax</span>
                         <input
                           className="w-14 rounded border border-border bg-background px-1.5 py-0.5 text-center text-xs text-foreground outline-none focus:border-[#d4a853]/50"
-                          type="number" min="0" max="100" step="0.5"
-                          value={form.tax_rate}
-                          onChange={(e) => setForm((f) => ({ ...f, tax_rate: e.target.value }))}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={form.tax_rate === "0" ? "" : form.tax_rate}
+                          onChange={(e) => setForm((f) => ({ ...f, tax_rate: e.target.value.replace(/[^\d.]/g, "") || "0" }))}
                         />
                         <span className="text-xs text-muted-foreground">%</span>
                       </div>
@@ -955,11 +1009,13 @@ export default function FinancePage() {
                           />
                           <input
                             className="fin-input text-right text-xs"
-                            type="number" min="0" step="0.01"
-                            value={inst.amount}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="0.00"
+                            value={inst.amount || ""}
                             onChange={(e) => setForm((f) => ({
                               ...f,
-                              payment_schedule: f.payment_schedule.map((i) => i.id === inst.id ? { ...i, amount: parseFloat(e.target.value) || 0 } : i),
+                              payment_schedule: f.payment_schedule.map((i) => i.id === inst.id ? { ...i, amount: parseFloat(e.target.value.replace(/[^\d.]/g, "")) || 0 } : i),
                             }))}
                           />
                           <input
@@ -1005,7 +1061,7 @@ export default function FinancePage() {
 
               {/* ── Section: Notes ── */}
               <div>
-                <label className="fin-label">Internal Notes</label>
+                <label className="fin-label">Notes</label>
                 <textarea
                   className="fin-input resize-none"
                   rows={2}
@@ -1013,6 +1069,73 @@ export default function FinancePage() {
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   placeholder="Notes visible on the invoice…"
                 />
+              </div>
+
+              {/* ── Section: Customization ── */}
+              <div>
+                <p className="fin-section-label">Branding &amp; Options</p>
+                <div className="space-y-3">
+
+                  {/* Brand color */}
+                  <div className="flex items-center gap-3">
+                    <label className="fin-label" style={{ marginBottom: 0 }}>Accent Color</label>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <input
+                        type="color"
+                        value={form.brand_color || "#d4a853"}
+                        onChange={(e) => setForm((f) => ({ ...f, brand_color: e.target.value }))}
+                        className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent p-0.5"
+                        title="Invoice accent color"
+                      />
+                      {form.brand_color && form.brand_color !== "#d4a853" && (
+                        <button
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, brand_color: "" }))}
+                          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Reset
+                        </button>
+                      )}
+                      <span className="text-xs text-muted-foreground font-mono">{form.brand_color || "#d4a853"}</span>
+                    </div>
+                  </div>
+
+                  {/* Toggles */}
+                  <div className="rounded-xl border border-border bg-muted/10 divide-y divide-border">
+                    {[
+                      { key: "show_signature_lines" as const, label: "Signature lines", desc: "Print signature + date blocks for both parties" },
+                      { key: "show_rights_notice" as const, label: "Rights &amp; licensing notice", desc: "Append a usage rights clause to the invoice" },
+                    ].map(({ key, label, desc }) => (
+                      <div key={key} className="flex items-center justify-between px-3 py-2.5 gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground" dangerouslySetInnerHTML={{ __html: label }} />
+                          <p className="text-[10px] text-muted-foreground/60">{desc}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, [key]: !f[key] }))}
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${form[key] ? "bg-[#d4a853]" : "bg-muted"}`}
+                        >
+                          <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${form[key] ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Rights notice text (only when enabled) */}
+                  {form.show_rights_notice && (
+                    <div>
+                      <label className="fin-label">Rights Notice Text</label>
+                      <textarea
+                        className="fin-input resize-none text-xs"
+                        rows={3}
+                        value={form.rights_notice_text}
+                        onChange={(e) => setForm((f) => ({ ...f, rights_notice_text: e.target.value }))}
+                        placeholder="All delivered content remains the exclusive property of the creator until payment is received in full…"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
             </div>

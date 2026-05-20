@@ -4,18 +4,21 @@ import {
   Page,
   View,
   Text,
+  Image,
   StyleSheet,
+  Font,
 } from "@react-pdf/renderer";
 import type { Invoice, Profile } from "@/types";
 
-const GOLD = "#d4a853";
-const DARK = "#18181b";
-const GRAY = "#71717a";
+Font.registerHyphenationCallback((word) => [word]);
+
+const DEFAULT_ACCENT = "#d4a853";
+const DARK  = "#18181b";
+const GRAY  = "#71717a";
 const LIGHT = "#f4f4f5";
 const WHITE = "#ffffff";
 const BORDER = "#e4e4e7";
-const RED = "#ef4444";
-const GREEN = "#22c55e";
+const GREEN  = "#22c55e";
 
 const TERMS_LABEL: Record<string, string> = {
   due_on_receipt: "Due on Receipt",
@@ -40,71 +43,31 @@ function fmtDate(iso?: string | null) {
   });
 }
 
-const s = StyleSheet.create({
-  page:       { fontFamily: "Helvetica", backgroundColor: WHITE, padding: 0 },
-  header:     { backgroundColor: DARK, paddingHorizontal: 40, paddingVertical: 32, flexDirection: "row", justifyContent: "space-between" },
-  bizName:    { fontSize: 16, fontFamily: "Helvetica-Bold", color: WHITE },
-  bizDetail:  { fontSize: 8, color: "#a1a1aa", marginTop: 2 },
-  invLabel:   { fontSize: 28, fontFamily: "Helvetica-Bold", color: GOLD, textAlign: "right" },
-  invNum:     { fontSize: 10, fontFamily: "Helvetica-Bold", color: WHITE, textAlign: "right", marginTop: 4 },
-  invMeta:    { fontSize: 8, color: "#a1a1aa", textAlign: "right", marginTop: 2 },
-  terms:      { fontSize: 8, fontFamily: "Helvetica-Bold", color: GOLD, textAlign: "right", marginTop: 4 },
-  billTo:     { backgroundColor: LIGHT, paddingHorizontal: 40, paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: BORDER },
-  sectionLbl: { fontSize: 7, fontFamily: "Helvetica-Bold", color: GRAY, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 },
-  billName:   { fontSize: 13, fontFamily: "Helvetica-Bold", color: DARK },
-  billDesc:   { fontSize: 9, color: GRAY, marginTop: 4 },
-  items:      { paddingHorizontal: 40, paddingTop: 24 },
-  thRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: BORDER, paddingBottom: 8, marginBottom: 2 },
-  thCell:     { fontSize: 7, fontFamily: "Helvetica-Bold", color: GRAY, textTransform: "uppercase", letterSpacing: 1 },
-  tdRow:      { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: BORDER, paddingVertical: 10 },
-  tdCell:     { fontSize: 10, color: DARK },
-  tdGray:     { fontSize: 10, color: GRAY },
-  col1:       { flex: 1 },
-  col2:       { width: 40, textAlign: "right" },
-  col3:       { width: 70, textAlign: "right" },
-  col4:       { width: 70, textAlign: "right" },
-  totals:     { alignItems: "flex-end", paddingHorizontal: 40, paddingTop: 16 },
-  totRow:     { flexDirection: "row", justifyContent: "space-between", width: 200, marginBottom: 6 },
-  totLabel:   { fontSize: 10, color: GRAY },
-  totVal:     { fontSize: 10, color: DARK },
-  totFinal:   { flexDirection: "row", justifyContent: "space-between", width: 200, borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 8, marginTop: 4 },
-  totFinalLbl:{ fontSize: 12, fontFamily: "Helvetica-Bold", color: DARK },
-  totFinalVal:{ fontSize: 12, fontFamily: "Helvetica-Bold", color: DARK },
-  paid:       { flexDirection: "row", alignItems: "center", gap: 6 },
-  paidText:   { fontSize: 12, fontFamily: "Helvetica-Bold", color: GREEN },
-  paidDate:   { fontSize: 10, color: GRAY },
-  payment:    { paddingHorizontal: 40, paddingVertical: 20, borderTopWidth: 1, borderTopColor: BORDER, marginTop: 20 },
-  payBlock:   { backgroundColor: LIGHT, borderRadius: 8, padding: 12, marginTop: 8 },
-  payTitle:   { fontSize: 7, fontFamily: "Helvetica-Bold", color: GRAY, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 },
-  payVal:     { fontSize: 10, color: DARK },
-  payRow:     { flexDirection: "row", gap: 24, marginBottom: 4 },
-  payKey:     { fontSize: 9, color: GRAY, width: 60 },
-  payData:    { fontSize: 9, fontFamily: "Helvetica-Bold", color: DARK, flex: 1 },
-  notes:      { paddingHorizontal: 40, paddingBottom: 20 },
-  noteText:   { fontSize: 10, color: GRAY, lineHeight: 1.5 },
-  footer:     { backgroundColor: LIGHT, paddingHorizontal: 40, paddingVertical: 14, borderTopWidth: 1, borderTopColor: BORDER, marginTop: "auto" },
-  footerText: { fontSize: 8, color: GRAY, textAlign: "center" },
-});
-
 interface Props {
   invoice: Invoice;
   profile: Profile | null;
 }
 
 export function InvoicePdfDocument({ invoice, profile }: Props) {
+  const accent = invoice.brand_color ?? profile?.brand_color ?? DEFAULT_ACCENT;
+
   const lineItems = invoice.line_items ?? [];
   const subtotal = lineItems.length > 0
     ? lineItems.reduce((sum, li) => sum + li.quantity * li.rate, 0)
     : invoice.amount;
+  const discountAmt = invoice.discount ?? 0;
   const taxRate = invoice.tax_rate ?? 0;
-  const taxAmount = subtotal * (taxRate / 100);
-  const total = subtotal + taxAmount;
+  const afterDiscount = subtotal - discountAmt;
+  const taxAmount = afterDiscount * (taxRate / 100);
+  const total = afterDiscount + taxAmount;
   const balanceDue = total - (invoice.amount_paid ?? 0);
 
   const bizName = profile?.business_name || profile?.company || profile?.full_name || "Your Studio";
   const bizEmail = profile?.email ?? "";
   const bizPhone = profile?.business_phone ?? "";
   const bizWebsite = profile?.business_website ?? "";
+  const logoUrl = profile?.logo_url;
+
   const addrParts = [
     profile?.address_line1,
     profile?.address_line2,
@@ -114,35 +77,132 @@ export function InvoicePdfDocument({ invoice, profile }: Props) {
 
   const ps = (profile?.payment_settings ?? {}) as Record<string, string>;
 
+  const showSig = invoice.show_signature_lines !== false; // default true
+  const showRights = !!invoice.show_rights_notice;
+  const rightsText = invoice.rights_notice_text ||
+    "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";
+
+  const s = StyleSheet.create({
+    page:        { fontFamily: "Helvetica", backgroundColor: WHITE, padding: 0 },
+    // ── Header
+    header:      { backgroundColor: DARK, paddingHorizontal: 40, paddingTop: 28, paddingBottom: 28 },
+    headerRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+    logo:        { width: 56, height: 56, objectFit: "contain", borderRadius: 6, marginBottom: 8 },
+    bizName:     { fontSize: 15, fontFamily: "Helvetica-Bold", color: WHITE },
+    bizDetail:   { fontSize: 8, color: "#a1a1aa", marginTop: 2 },
+    invLabel:    { fontSize: 30, fontFamily: "Helvetica-Bold", color: accent, textAlign: "right" },
+    invNum:      { fontSize: 10, fontFamily: "Helvetica-Bold", color: WHITE, textAlign: "right", marginTop: 4 },
+    invMeta:     { fontSize: 8, color: "#a1a1aa", textAlign: "right", marginTop: 2 },
+    accentMeta:  { fontSize: 8, fontFamily: "Helvetica-Bold", color: accent, textAlign: "right", marginTop: 3 },
+    // Accent bar under header
+    accentBar:   { height: 3, backgroundColor: accent },
+    // ── Bill To
+    billTo:      { backgroundColor: LIGHT, paddingHorizontal: 40, paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: BORDER },
+    billToRow:   { flexDirection: "row", justifyContent: "space-between" },
+    sectionLbl:  { fontSize: 7, fontFamily: "Helvetica-Bold", color: GRAY, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 },
+    billName:    { fontSize: 13, fontFamily: "Helvetica-Bold", color: DARK },
+    billDetail:  { fontSize: 9, color: GRAY, marginTop: 3 },
+    billRight:   { alignItems: "flex-end" },
+    // ── Items
+    items:       { paddingHorizontal: 40, paddingTop: 22 },
+    thRow:       { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: BORDER, paddingBottom: 7, marginBottom: 2 },
+    thCell:      { fontSize: 7, fontFamily: "Helvetica-Bold", color: GRAY, textTransform: "uppercase", letterSpacing: 1 },
+    tdRow:       { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: BORDER, paddingVertical: 9 },
+    tdCell:      { fontSize: 10, color: DARK },
+    tdGray:      { fontSize: 10, color: GRAY },
+    col1:        { flex: 1 },
+    col2:        { width: 40, textAlign: "right" },
+    col3:        { width: 70, textAlign: "right" },
+    col4:        { width: 70, textAlign: "right" },
+    // ── Totals
+    totals:      { alignItems: "flex-end", paddingHorizontal: 40, paddingTop: 14 },
+    totRow:      { flexDirection: "row", justifyContent: "space-between", width: 210, marginBottom: 5 },
+    totLabel:    { fontSize: 10, color: GRAY },
+    totVal:      { fontSize: 10, color: DARK },
+    totDiscount: { fontSize: 10, color: "#22c55e" },
+    divider:     { borderTopWidth: 1, borderTopColor: BORDER, width: 210, marginVertical: 6 },
+    totFinal:    { flexDirection: "row", justifyContent: "space-between", width: 210, paddingTop: 6 },
+    totFinalLbl: { fontSize: 13, fontFamily: "Helvetica-Bold", color: DARK },
+    totFinalVal: { fontSize: 13, fontFamily: "Helvetica-Bold" },
+    // ── Payment
+    payment:     { paddingHorizontal: 40, paddingVertical: 18, borderTopWidth: 1, borderTopColor: BORDER, marginTop: 18 },
+    payBlock:    { backgroundColor: LIGHT, borderRadius: 6, padding: 11, marginTop: 8 },
+    payTitle:    { fontSize: 7, fontFamily: "Helvetica-Bold", color: GRAY, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 5 },
+    payVal:      { fontSize: 10, color: DARK },
+    payRow:      { flexDirection: "row", gap: 20, marginBottom: 4 },
+    payKey:      { fontSize: 9, color: GRAY, width: 60 },
+    payData:     { fontSize: 9, fontFamily: "Helvetica-Bold", color: DARK, flex: 1 },
+    paidBadge:   { flexDirection: "row", alignItems: "center", gap: 6 },
+    paidText:    { fontSize: 13, fontFamily: "Helvetica-Bold", color: GREEN },
+    paidDate:    { fontSize: 10, color: GRAY },
+    // ── Notes
+    notes:       { paddingHorizontal: 40, paddingBottom: 18 },
+    noteText:    { fontSize: 9, color: GRAY, lineHeight: 1.5 },
+    // ── Rights
+    rights:      { paddingHorizontal: 40, paddingBottom: 14 },
+    rightsBox:   { borderWidth: 1, borderColor: BORDER, borderRadius: 5, padding: 10, backgroundColor: LIGHT },
+    rightsText:  { fontSize: 8, color: GRAY, lineHeight: 1.6 },
+    // ── Signature lines
+    sigSection:  { paddingHorizontal: 40, paddingBottom: 24 },
+    sigRow:      { flexDirection: "row", gap: 32, marginTop: 6 },
+    sigBlock:    { flex: 1 },
+    sigLine:     { borderBottomWidth: 1, borderBottomColor: DARK, height: 28 },
+    sigLabel:    { fontSize: 8, color: GRAY, marginTop: 4 },
+    // ── Footer
+    footer:      { backgroundColor: LIGHT, paddingHorizontal: 40, paddingVertical: 12, borderTopWidth: 1, borderTopColor: BORDER, marginTop: "auto" },
+    footerText:  { fontSize: 8, color: GRAY, textAlign: "center" },
+  });
+
   return (
     <Document>
       <Page size="LETTER" style={s.page}>
 
         {/* Header */}
         <View style={s.header}>
-          <View>
-            <Text style={s.bizName}>{bizName}</Text>
-            {bizAddress ? <Text style={s.bizDetail}>{bizAddress}</Text> : null}
-            {bizPhone   ? <Text style={s.bizDetail}>{bizPhone}</Text>   : null}
-            {bizEmail   ? <Text style={s.bizDetail}>{bizEmail}</Text>   : null}
-            {bizWebsite ? <Text style={s.bizDetail}>{bizWebsite}</Text> : null}
-          </View>
-          <View>
-            <Text style={s.invLabel}>INVOICE</Text>
-            <Text style={s.invNum}>{invoice.invoice_number}</Text>
-            <Text style={s.invMeta}>Issued: {fmtDate(invoice.created_at?.split("T")[0])}</Text>
-            {invoice.due_date ? <Text style={s.invMeta}>Due: {fmtDate(invoice.due_date)}</Text> : null}
-            {invoice.payment_terms
-              ? <Text style={s.terms}>{TERMS_LABEL[invoice.payment_terms] ?? invoice.payment_terms}</Text>
-              : null}
+          <View style={s.headerRow}>
+            {/* Left: logo + biz info */}
+            <View>
+              {logoUrl ? (
+                <Image src={logoUrl} style={s.logo} />
+              ) : null}
+              <Text style={s.bizName}>{bizName}</Text>
+              {bizAddress ? <Text style={s.bizDetail}>{bizAddress}</Text> : null}
+              {bizPhone   ? <Text style={s.bizDetail}>{bizPhone}</Text>   : null}
+              {bizEmail   ? <Text style={s.bizDetail}>{bizEmail}</Text>   : null}
+              {bizWebsite ? <Text style={s.bizDetail}>{bizWebsite}</Text> : null}
+            </View>
+            {/* Right: INVOICE + meta */}
+            <View>
+              <Text style={s.invLabel}>INVOICE</Text>
+              <Text style={s.invNum}>{invoice.invoice_number}</Text>
+              {invoice.po_number ? (
+                <Text style={s.invMeta}>PO: {invoice.po_number}</Text>
+              ) : null}
+              <Text style={s.invMeta}>Issued: {fmtDate(invoice.invoice_date ?? invoice.created_at?.split("T")[0])}</Text>
+              {invoice.due_date ? <Text style={s.invMeta}>Due: {fmtDate(invoice.due_date)}</Text> : null}
+              {invoice.payment_terms ? (
+                <Text style={s.accentMeta}>{TERMS_LABEL[invoice.payment_terms] ?? invoice.payment_terms}</Text>
+              ) : null}
+            </View>
           </View>
         </View>
 
+        {/* Accent bar */}
+        <View style={s.accentBar} />
+
         {/* Bill To */}
         <View style={s.billTo}>
-          <Text style={s.sectionLbl}>Bill To</Text>
-          <Text style={s.billName}>{invoice.client_name || "Client"}</Text>
-          {invoice.description ? <Text style={s.billDesc}>{invoice.description}</Text> : null}
+          <View style={s.billToRow}>
+            <View>
+              <Text style={s.sectionLbl}>Bill To</Text>
+              <Text style={s.billName}>{invoice.client_name || "Client"}</Text>
+              {invoice.client_email ? <Text style={s.billDetail}>{invoice.client_email}</Text> : null}
+              {invoice.client_address ? (
+                <Text style={s.billDetail}>{invoice.client_address}</Text>
+              ) : null}
+              {invoice.description ? <Text style={[s.billDetail, { marginTop: 6, fontFamily: "Helvetica-Oblique" }]}>{invoice.description}</Text> : null}
+            </View>
+          </View>
         </View>
 
         {/* Line Items */}
@@ -178,6 +238,12 @@ export function InvoicePdfDocument({ invoice, profile }: Props) {
               <Text style={s.totVal}>{fmt(subtotal)}</Text>
             </View>
           )}
+          {discountAmt > 0 && (
+            <View style={s.totRow}>
+              <Text style={s.totDiscount}>Discount</Text>
+              <Text style={s.totDiscount}>−{fmt(discountAmt)}</Text>
+            </View>
+          )}
           {taxRate > 0 && (
             <View style={s.totRow}>
               <Text style={s.totLabel}>Tax ({taxRate}%)</Text>
@@ -190,11 +256,12 @@ export function InvoicePdfDocument({ invoice, profile }: Props) {
               <Text style={[s.totVal, { color: GREEN }]}>−{fmt(invoice.amount_paid)}</Text>
             </View>
           )}
+          <View style={s.divider} />
           <View style={s.totFinal}>
             <Text style={s.totFinalLbl}>
               {invoice.status === "paid" ? "Total Paid" : (invoice.amount_paid ?? 0) > 0 ? "Balance Due" : "Total Due"}
             </Text>
-            <Text style={[s.totFinalVal, { color: invoice.status === "paid" ? GREEN : GOLD }]}>
+            <Text style={[s.totFinalVal, { color: invoice.status === "paid" ? GREEN : accent }]}>
               {fmt(invoice.status === "paid" ? total : balanceDue)}
             </Text>
           </View>
@@ -204,7 +271,7 @@ export function InvoicePdfDocument({ invoice, profile }: Props) {
         <View style={s.payment}>
           <Text style={s.sectionLbl}>Payment</Text>
           {invoice.status === "paid" ? (
-            <View style={s.paid}>
+            <View style={s.paidBadge}>
               <Text style={s.paidText}>✓ Paid in full</Text>
               {invoice.paid_date ? <Text style={s.paidDate}>— {fmtDate(invoice.paid_date)}</Text> : null}
             </View>
@@ -230,7 +297,7 @@ export function InvoicePdfDocument({ invoice, profile }: Props) {
                   <Text style={[s.payVal, { fontSize: 9 }]}>{ps.wire_instructions}</Text>
                 </View>
               )}
-              {ps.check_payable_to && (
+              {(ps.check_payable_to || ps.check_mail_to) && (
                 <View style={s.payBlock}>
                   <Text style={s.payTitle}>Pay by Check</Text>
                   {ps.check_payable_to && <Text style={s.payVal}>Make payable to: {ps.check_payable_to}</Text>}
@@ -249,10 +316,46 @@ export function InvoicePdfDocument({ invoice, profile }: Props) {
           </View>
         ) : null}
 
+        {/* Rights notice */}
+        {showRights && (
+          <View style={s.rights}>
+            <View style={s.rightsBox}>
+              <Text style={[s.sectionLbl, { marginBottom: 4 }]}>Rights &amp; Licensing</Text>
+              <Text style={s.rightsText}>{rightsText}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Signature lines */}
+        {showSig && (
+          <View style={s.sigSection}>
+            <Text style={[s.sectionLbl, { marginBottom: 8 }]}>Authorization</Text>
+            <View style={s.sigRow}>
+              <View style={s.sigBlock}>
+                <View style={s.sigLine} />
+                <Text style={s.sigLabel}>Authorized Signature</Text>
+              </View>
+              <View style={s.sigBlock}>
+                <View style={s.sigLine} />
+                <Text style={s.sigLabel}>Date</Text>
+              </View>
+              <View style={s.sigBlock}>
+                <View style={s.sigLine} />
+                <Text style={s.sigLabel}>Client Signature</Text>
+              </View>
+              <View style={s.sigBlock}>
+                <View style={s.sigLine} />
+                <Text style={s.sigLabel}>Date</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Footer */}
         <View style={s.footer}>
           <Text style={s.footerText}>
             Thank you for your business — {bizName}{bizEmail ? ` · ${bizEmail}` : ""}
+            {invoice.po_number ? ` · PO: ${invoice.po_number}` : ""}
           </Text>
         </View>
 

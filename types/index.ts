@@ -450,6 +450,7 @@ export interface Invoice {
   invoice_number: string;
   client_name?: string;
   client_email?: string;
+  client_address?: string;
   description?: string;
   amount: number;
   status: InvoiceStatus;
@@ -459,6 +460,7 @@ export interface Invoice {
   notes?: string;
   line_items?: LineItem[];
   tax_rate?: number;
+  discount?: number;
   currency?: string;
   payment_method?: PaymentMethod;
   payment_link?: string;
@@ -466,6 +468,11 @@ export interface Invoice {
   accepted_payment_methods?: string[];
   invoice_date?: string;
   payment_schedule?: PaymentInstallment[];
+  po_number?: string;
+  brand_color?: string;
+  show_signature_lines?: boolean;
+  show_rights_notice?: boolean;
+  rights_notice_text?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;
@@ -738,6 +745,7 @@ export interface RetainerMonth {
   status: RetainerMonthStatus;
   shoot_date?: string;
   notes?: string;
+  client_notes?: string;
   delivery_url?: string;
   approved_at?: string;
   paid?: boolean;

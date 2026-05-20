@@ -1001,16 +1001,14 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                         );
                       })}
                     </div>
-                    {activeMonth.status === "wrapped" && (
-                      <Button
-                        onClick={handleCreateInvoice}
-                        variant="outline"
-                        size="sm"
-                        className="w-fit h-7 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10 hover:border-[#d4a853]/50"
-                      >
-                        Create Invoice →
-                      </Button>
-                    )}
+                    <Button
+                      onClick={handleCreateInvoice}
+                      variant="outline"
+                      size="sm"
+                      className="w-fit h-7 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10 hover:border-[#d4a853]/50"
+                    >
+                      Create Invoice →
+                    </Button>
                   </div>
 
                   {/* Month delivery link + paid + approval row */}
@@ -1060,6 +1058,14 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                     )}
                   </div>
                 </div>
+
+                {/* Client notes from portal */}
+                {activeMonth.client_notes && (
+                  <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/60">Client Note</p>
+                    <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-line">{activeMonth.client_notes}</p>
+                  </div>
+                )}
 
                 {/* Progress summary */}
                 {totalItems > 0 && (

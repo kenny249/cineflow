@@ -79,7 +79,10 @@ export async function GET(
       delivery_folder_url: retainer.delivery_folder_url ?? null,
     },
     agencyName,
-    activeMonth,
+    activeMonth: activeMonth ? {
+      ...activeMonth,
+      client_notes: activeMonth.client_notes ?? null,
+    } : null,
     deliverables,
     allMonths: allMonths.map((m) => ({
       id: m.id,
@@ -127,6 +130,36 @@ export async function PATCH(
 
   console.log(`[retainer-portal] month ${monthId} approved via portal`);
   return NextResponse.json({ approved: true });
+}
+
+// PUT /api/retainer-portal/[token] — client saves notes for the active month (no auth, token is proof)
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const { token } = await params;
+  const { monthId, client_notes } = await req.json();
+  if (!token || !monthId) return NextResponse.json({ error: "token and monthId required" }, { status: 400 });
+
+  const supabase = getAdmin();
+
+  const { data: retainer } = await supabase
+    .from("retainers")
+    .select("id")
+    .eq("portal_token", token)
+    .single();
+
+  if (!retainer) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+
+  const { error } = await supabase
+    .from("retainer_months")
+    .update({ client_notes: (client_notes ?? "").trim() || null, updated_at: new Date().toISOString() })
+    .eq("id", monthId)
+    .eq("retainer_id", retainer.id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ saved: true });
 }
 
 // POST /api/retainer-portal/[token] — generate a portal token (authenticated agency only)
