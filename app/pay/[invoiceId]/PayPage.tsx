@@ -3,6 +3,7 @@
 import type { Invoice, PaymentSettings } from "@/types";
 import { CheckCircle2, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { useEffect, useState } from "react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -253,7 +254,7 @@ interface PayPageProps {
   };
 }
 
-export function PayPage({ invoice, biz }: PayPageProps) {
+export function PayPage({ invoice, biz, sessionId }: PayPageProps & { sessionId?: string }) {
   const lineItems = invoice.line_items ?? [];
   const subtotal = lineItems.length > 0
     ? lineItems.reduce((s, li) => s + li.quantity * li.rate, 0)
@@ -261,7 +262,23 @@ export function PayPage({ invoice, biz }: PayPageProps) {
   const taxRate = invoice.tax_rate ?? 0;
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
-  const isPaid = invoice.status === "paid";
+  const [isPaid, setIsPaid] = useState(invoice.status === "paid");
+  const [confirming, setConfirming] = useState(false);
+
+  // Auto-confirm payment when Stripe redirects back with a session_id
+  useEffect(() => {
+    if (!sessionId || isPaid) return;
+    setConfirming(true);
+    fetch("/api/invoices/confirm-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invoiceId: invoice.id, sessionId }),
+    })
+      .then((r) => r.json())
+      .then((data) => { if (data.paid || data.alreadyPaid) setIsPaid(true); })
+      .catch(() => {})
+      .finally(() => setConfirming(false));
+  }, [sessionId, invoice.id, isPaid]);
 
   return (
     <div className="min-h-screen bg-zinc-100 py-10 px-4">
@@ -374,7 +391,12 @@ export function PayPage({ invoice, biz }: PayPageProps) {
 
         {/* Payment section */}
         <div className="mt-6">
-          {isPaid ? (
+          {confirming ? (
+            <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-6 py-5">
+              <div className="h-5 w-5 rounded-full border-2 border-zinc-300 border-t-zinc-600 animate-spin shrink-0" />
+              <p className="font-semibold text-zinc-600">Confirming your payment…</p>
+            </div>
+          ) : isPaid ? (
             <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-5">
               <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
               <div>

@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { token, name, email, declined } = body;
+    const { token, name, email, declined, selectedPackageId } = body;
 
     if (!token || typeof token !== "string") {
       return NextResponse.json({ error: "token required" }, { status: 400 });
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
 
     const { data: quote } = await supabase
       .from("quotes")
-      .select("id, status, quote_type, client_name, monthly_rate, retainer_months, retainer_deliverables, created_by")
+      .select("id, status, quote_type, client_name, monthly_rate, retainer_months, retainer_deliverables, created_by, valid_until")
       .eq("token", token)
       .eq("is_active", true)
       .single();
@@ -150,6 +150,12 @@ export async function POST(req: NextRequest) {
 
     if (["accepted", "declined"].includes(quote.status)) {
       return NextResponse.json({ ok: true, already: true });
+    }
+
+    // Block acceptance of expired quotes
+    if (quote.valid_until && new Date(quote.valid_until) < new Date(new Date().toDateString())) {
+      console.warn("[quotes/accept] attempt to accept expired quote:", quote.id);
+      return NextResponse.json({ error: "This quote has expired. Please request an updated proposal." }, { status: 410 });
     }
 
     if (declined) {
@@ -175,6 +181,7 @@ export async function POST(req: NextRequest) {
         accepted_at: new Date().toISOString(),
         accepted_name: trimmedName,
         accepted_email: trimmedEmail,
+        ...(selectedPackageId ? { accepted_package_id: selectedPackageId } : {}),
       })
       .eq("id", quote.id);
 

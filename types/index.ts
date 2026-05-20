@@ -512,6 +512,7 @@ export interface Quote {
   declined_at?: string;
   accepted_name?: string;
   accepted_email?: string;
+  accepted_package_id?: string;
   token: string;
   is_active: boolean;
   brand_logo_url?: string;

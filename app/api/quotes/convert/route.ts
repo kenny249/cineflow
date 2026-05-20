@@ -12,6 +12,7 @@ function getAdminClient() {
 }
 
 export async function POST(req: NextRequest) {
+  console.log("[quotes/convert] POST");
   try {
     // Auth check — only the quote owner can convert
     const cookieStore = await cookies();
@@ -75,8 +76,12 @@ export async function POST(req: NextRequest) {
         rate: quote.monthly_rate ?? 0,
       }];
     } else if (quote.packages?.length) {
-      // Find the highlighted package, or first
-      const pkg = quote.packages.find((p: { highlighted?: boolean }) => p.highlighted) ?? quote.packages[0];
+      // Use the package the client selected, fall back to highlighted, then first
+      const pkg = (quote.accepted_package_id
+        ? quote.packages.find((p: { id: string }) => p.id === quote.accepted_package_id)
+        : null)
+        ?? quote.packages.find((p: { highlighted?: boolean }) => p.highlighted)
+        ?? quote.packages[0];
       lineItems = pkg?.line_items ?? [];
     } else {
       lineItems = quote.line_items ?? [];

@@ -96,12 +96,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: price.error.message }, { status: 400 });
     }
 
-    // 3. Create a permanent Payment Link
+    // 3. Create a permanent Payment Link with redirect back to pay page after completion
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com";
     const link = await stripePost(
       "/payment_links",
       {
         "line_items[0][price]": price.id as string,
         "line_items[0][quantity]": "1",
+        "after_completion[type]": "redirect",
+        "after_completion[redirect][url]": `${baseUrl}/pay/${invoiceId}?session_id={CHECKOUT_SESSION_ID}`,
       },
       stripeKey
     );

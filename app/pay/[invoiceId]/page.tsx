@@ -102,10 +102,17 @@ export async function generateMetadata({ params }: { params: Promise<{ invoiceId
   };
 }
 
-export default async function PayInvoicePage({ params }: { params: Promise<{ invoiceId: string }> }) {
+export default async function PayInvoicePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ invoiceId: string }>;
+  searchParams: Promise<{ session_id?: string }>;
+}) {
   const { invoiceId } = await params;
+  const { session_id } = await searchParams;
   const data = await getInvoiceData(invoiceId);
   if (!data) notFound();
 
-  return <PayPage invoice={data.invoice} biz={data.biz} />;
+  return <PayPage invoice={data.invoice} biz={data.biz} sessionId={session_id} />;
 }
