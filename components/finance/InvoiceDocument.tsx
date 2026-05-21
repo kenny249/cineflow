@@ -91,7 +91,7 @@ export function InvoiceDocument({
   if (ps.wire_instructions) configuredMethods.push("wire");
   if (ps.check_payable_to || ps.check_mail_to) configuredMethods.push("check");
 
-  const showSig = !!invoice.show_signature_lines;
+  const showSig = false;
   const showRights = !!invoice.show_rights_notice;
   const rightsText = invoice.rights_notice_text ||
     "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";

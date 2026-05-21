@@ -32,7 +32,7 @@ const fmt = (n: number) =>
   }).format(n);
 
 function fmtDate(iso?: string | null) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso.split("T")[0] + "T00:00:00").toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -75,7 +75,7 @@ export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
 
   const ps = (profile?.payment_settings ?? {}) as Record<string, string>;
 
-  const showSig = !!invoice.show_signature_lines; // default false
+  const showSig = false;
   const showRights = !!invoice.show_rights_notice;
   const rightsText = invoice.rights_notice_text ||
     "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";
@@ -147,7 +147,7 @@ export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
     sigLine:     { borderBottomWidth: 1, borderBottomColor: DARK, height: 28 },
     sigLabel:    { fontSize: 8, color: GRAY, marginTop: 4 },
     // ── Footer
-    footer:      { backgroundColor: LIGHT, paddingHorizontal: 40, paddingVertical: 12, borderTopWidth: 1, borderTopColor: BORDER, marginTop: "auto" },
+    footer:      { backgroundColor: LIGHT, paddingHorizontal: 40, paddingVertical: 12, borderTopWidth: 1, borderTopColor: BORDER, marginTop: 24 },
     footerText:  { fontSize: 8, color: GRAY, textAlign: "center" },
   });
 
@@ -213,7 +213,7 @@ export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
           </View>
           {lineItems.length > 0 ? lineItems.map((li, i) => (
             <View key={li.id ?? i} style={s.tdRow}>
-              <Text style={[s.tdCell, s.col1]}>{li.description || "—"}</Text>
+              <Text style={[s.tdCell, s.col1]}>{li.description || "-"}</Text>
               <Text style={[s.tdGray, s.col2]}>{li.quantity}</Text>
               <Text style={[s.tdGray, s.col3]}>{fmt(li.rate)}</Text>
               <Text style={[s.tdCell, s.col4]}>{fmt(li.quantity * li.rate)}</Text>
@@ -239,7 +239,7 @@ export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
           {discountAmt > 0 && (
             <View style={s.totRow}>
               <Text style={s.totDiscount}>Discount</Text>
-              <Text style={s.totDiscount}>−{fmt(discountAmt)}</Text>
+              <Text style={s.totDiscount}>-{fmt(discountAmt)}</Text>
             </View>
           )}
           {taxRate > 0 && (
@@ -251,7 +251,7 @@ export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
           {(invoice.amount_paid ?? 0) > 0 && invoice.status !== "paid" && (
             <View style={s.totRow}>
               <Text style={[s.totLabel, { color: GREEN }]}>Amount Paid</Text>
-              <Text style={[s.totVal, { color: GREEN }]}>−{fmt(invoice.amount_paid)}</Text>
+              <Text style={[s.totVal, { color: GREEN }]}>-{fmt(invoice.amount_paid)}</Text>
             </View>
           )}
           <View style={s.divider} />
@@ -270,8 +270,8 @@ export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
           <Text style={s.sectionLbl}>Payment</Text>
           {invoice.status === "paid" ? (
             <View style={s.paidBadge}>
-              <Text style={s.paidText}>✓ Paid in full</Text>
-              {invoice.paid_date ? <Text style={s.paidDate}>— {fmtDate(invoice.paid_date)}</Text> : null}
+              <Text style={s.paidText}>PAID IN FULL</Text>
+              {invoice.paid_date ? <Text style={s.paidDate}>{fmtDate(invoice.paid_date)}</Text> : null}
             </View>
           ) : (
             <>
@@ -318,7 +318,7 @@ export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
         {showRights && (
           <View style={s.rights}>
             <View style={s.rightsBox}>
-              <Text style={[s.sectionLbl, { marginBottom: 4 }]}>Rights &amp; Licensing</Text>
+              <Text style={[s.sectionLbl, { marginBottom: 4 }]}>Rights and Licensing</Text>
               <Text style={s.rightsText}>{rightsText}</Text>
             </View>
           </View>
@@ -352,7 +352,7 @@ export function InvoicePdfDocument({ invoice, profile, logoBase64 }: Props) {
         {/* Footer */}
         <View style={s.footer}>
           <Text style={s.footerText}>
-            Thank you for your business — {bizName}{bizEmail ? ` · ${bizEmail}` : ""}
+            Thank you for your business - {bizName}{bizEmail ? ` | ${bizEmail}` : ""}
             {invoice.po_number ? ` · PO: ${invoice.po_number}` : ""}
           </Text>
         </View>
