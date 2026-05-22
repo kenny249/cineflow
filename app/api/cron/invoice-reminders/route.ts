@@ -152,10 +152,11 @@ export async function GET(req: Request) {
   // Fetch all active (unpaid) invoices that have a due date and a client email
   const { data: invoices, error } = await supabase
     .from("invoices")
-    .select("*, created_by, reminders_sent")
+    .select("*, created_by, reminders_sent, reminders_enabled")
     .in("status", ["sent", "partial", "overdue"])
     .not("due_date", "is", null)
-    .not("client_email", "is", null);
+    .not("client_email", "is", null)
+    .neq("reminders_enabled", false);
 
   if (error) {
     console.error("[cron/invoice-reminders] db error:", error.message);

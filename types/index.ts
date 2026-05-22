@@ -472,6 +472,7 @@ export interface Invoice {
   brand_color?: string;
   header_color?: string;
   reminders_sent?: Record<string, string>;
+  reminders_enabled?: boolean;
   show_signature_lines?: boolean;
   show_rights_notice?: boolean;
   rights_notice_text?: string;

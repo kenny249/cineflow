@@ -80,6 +80,7 @@ interface InvoiceFormState {
   po_number: string;
   brand_color: string;
   header_color: string;
+  reminders_enabled: boolean;
   show_signature_lines: boolean;
   show_rights_notice: boolean;
   rights_notice_text: string;
@@ -105,7 +106,7 @@ const EMPTY_FORM: InvoiceFormState = {
   invoice_date: "", due_date: "", paid_date: "", notes: "", project_id: "",
   line_items: [EMPTY_LINE()], tax_rate: "0", discount: "0", payment_terms: "net30",
   use_payment_schedule: false, payment_schedule: [],
-  po_number: "", brand_color: "", header_color: "", show_signature_lines: false, show_rights_notice: false, rights_notice_text: "",
+  po_number: "", brand_color: "", header_color: "", reminders_enabled: true, show_signature_lines: false, show_rights_notice: false, rights_notice_text: "",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -344,6 +345,7 @@ export default function FinancePage() {
       po_number: inv.po_number ?? "",
       brand_color: inv.brand_color ?? "",
       header_color: inv.header_color ?? "",
+      reminders_enabled: inv.reminders_enabled !== false,
       show_signature_lines: false,
       show_rights_notice: !!inv.show_rights_notice,
       rights_notice_text: inv.rights_notice_text ?? "",
@@ -394,6 +396,7 @@ export default function FinancePage() {
         po_number: form.po_number.trim() || undefined,
         brand_color: form.brand_color || undefined,
         header_color: form.header_color || undefined,
+        reminders_enabled: form.reminders_enabled,
         show_signature_lines: form.show_signature_lines,
         show_rights_notice: form.show_rights_notice,
         rights_notice_text: form.rights_notice_text.trim() || undefined,
@@ -1138,6 +1141,7 @@ export default function FinancePage() {
                   {/* Toggles */}
                   <div className="rounded-xl border border-border bg-muted/10 divide-y divide-border">
                     {[
+                      { key: "reminders_enabled" as const, label: "Payment reminders", desc: "Auto-email client 3 days before, day of, and when overdue" },
                       { key: "show_signature_lines" as const, label: "Signature lines", desc: "Print signature + date blocks for both parties" },
                       { key: "show_rights_notice" as const, label: "Rights &amp; licensing notice", desc: "Append a usage rights clause to the invoice" },
                     ].map(({ key, label, desc }) => (

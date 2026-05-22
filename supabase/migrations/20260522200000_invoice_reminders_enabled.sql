@@ -1,0 +1,1 @@
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reminders_enabled BOOLEAN DEFAULT true;
