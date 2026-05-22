@@ -15,6 +15,7 @@ import { setDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import type { PaymentSettings } from "@/types";
 import { RateCardSection } from "@/components/quote-calculator/RateCardSection";
+import { FoundingMemberBadge } from "@/components/ui/FoundingMemberBadge";
 
 function RateCardSectionLazy() {
   return <RateCardSection />;
@@ -841,6 +842,54 @@ export default function SettingsClient() {
           {/* ── Plan ─────────────────────────────────────────────── */}
           <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Plan</h2>
+
+            {plan === "lifetime" ? (
+              <div className="group relative overflow-hidden rounded-xl border border-[#d4a853]/30 bg-[#d4a853]/5 p-5">
+                {/* Ambient shimmer sweep on hover */}
+                <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#d4a853]/10 to-transparent transition-transform duration-1000 ease-in-out group-hover:translate-x-full" />
+
+                <div className="relative flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/15 shadow-[0_0_16px_rgba(212,168,83,0.2)]">
+                      <Sparkles className="h-5 w-5 text-[#d4a853]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-foreground">Founding Member</p>
+                        <FoundingMemberBadge />
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Full lifetime access · Every feature · Forever
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="relative mt-4 text-xs text-[#d4a853]/70 leading-relaxed">
+                  You&apos;re one of the founding members of Cineflow — you helped shape what this became.
+                  Your access never expires, and every feature we ship is yours, always.
+                </p>
+
+                <div className="relative mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                  {[
+                    "Unlimited projects",
+                    "Invoice & finance",
+                    "Client portals",
+                    "Storyboards & shot lists",
+                    "Retainers",
+                    "Team collaboration",
+                    "Contracts & forms",
+                    "Calendar & scheduling",
+                    "Revision review",
+                  ].map((feat) => (
+                    <div key={feat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Check className="h-3 w-3 shrink-0 text-[#d4a853]" />
+                      {feat}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
             <div className="rounded-xl border border-border bg-card p-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
@@ -918,6 +967,7 @@ export default function SettingsClient() {
                 <p className="text-[11px] text-muted-foreground/60">Beta cap — 10 GB per account. Increases at launch.</p>
               </div>
             </div>
+            )}
           </section>
 
           {/* ── Project Templates ────────────────────────────────── */}

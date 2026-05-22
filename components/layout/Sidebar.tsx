@@ -36,6 +36,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import { isSoloPlan } from "@/types";
+import { FoundingMemberBadge } from "@/components/ui/FoundingMemberBadge";
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 
@@ -442,9 +443,13 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-medium text-white">{displayName}</p>
-                <p className="truncate text-[10px] text-white/40">
-                  {role === "owner" ? "Owner" : role === "admin" ? "Producer" : "Team Member"}
-                </p>
+                {plan === "lifetime" ? (
+                  <FoundingMemberBadge className="mt-0.5" />
+                ) : (
+                  <p className="truncate text-[10px] text-white/40">
+                    {role === "owner" ? "Owner" : role === "admin" ? "Producer" : "Team Member"}
+                  </p>
+                )}
               </div>
             )}
           </div>
