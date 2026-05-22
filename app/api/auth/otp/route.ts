@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isRateLimited, getClientIp } from "@/lib/rate-limit";
 
 function getAdminClient() {
   return createClient(
@@ -10,6 +11,11 @@ function getAdminClient() {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  if (isRateLimited(`otp:${ip}`, 5, 15 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests. Please wait before requesting another code." }, { status: 429 });
+  }
+
   try {
     const { email, plan } = await req.json();
 
@@ -40,7 +46,8 @@ export async function POST(req: NextRequest) {
         user_metadata: { plan: plan ?? "studio_beta" },
       });
       if (error && !error.message.includes("already registered")) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
+        console.error("[api/auth/otp] createUser:", error.message);
+        return NextResponse.json({ error: "Could not send code. Please try again." }, { status: 400 });
       }
     }
 
@@ -57,8 +64,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (otpError) {
-      console.error("[api/auth/otp]", otpError);
-      return NextResponse.json({ error: otpError.message }, { status: 400 });
+      console.error("[api/auth/otp] signInWithOtp:", otpError.message);
+      return NextResponse.json({ error: "Could not send code. Please try again." }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true });

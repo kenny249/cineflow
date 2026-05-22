@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import type { PaymentSettings } from "@/types";
+import { isRateLimited, getClientIp } from "@/lib/rate-limit";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -30,6 +31,11 @@ export async function GET(req: NextRequest) {
 
 // POST /api/contracts/sign?token=xxx — submit signature
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  if (isRateLimited(`sign:${ip}`, 10, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   const token = req.nextUrl.searchParams.get("token");
   if (!token) return NextResponse.json({ error: "Token required" }, { status: 400 });
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { isRateLimited, getClientIp } from "@/lib/rate-limit";
 
 function getAdmin() {
   return createAdminClient(
@@ -49,6 +50,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
 // POST /api/forms/[token] — public: submit a response
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const ip = getClientIp(req);
+  if (isRateLimited(`form:${ip}`, 20, 10 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many submissions. Please try again later." }, { status: 429 });
+  }
+
   const { token } = await params;
   const supabase = getAdmin();
 
@@ -93,7 +99,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     answers: body.answers,
   });
 
-  if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
+  if (insertErr) {
+    console.error("[api/forms/submit]", insertErr.message);
+    return NextResponse.json({ error: "Failed to submit form. Please try again." }, { status: 500 });
+  }
 
   // Increment response_count
   await supabase.rpc("increment_form_response_count", { form_id: form.id }).maybeSingle();

@@ -1032,7 +1032,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (createError || !createData.user) {
-      return NextResponse.json({ error: "Could not create demo session", detail: createError?.message }, { status: 500 });
+      console.error("[api/demo/start] createUser:", createError?.message);
+      return NextResponse.json({ error: "Could not create demo session" }, { status: 500 });
     }
 
     const userId = createData.user.id;
@@ -1040,7 +1041,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ email: tempEmail, password: tempPassword });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: "Internal server error", detail: msg }, { status: 500 });
+    console.error("[api/demo/start]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
