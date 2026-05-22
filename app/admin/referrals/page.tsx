@@ -27,7 +27,7 @@ export default async function ReferralsPage() {
     if (!p?.referral_code) continue;
     referralCounts[p.referral_code] = {
       code: p.referral_code,
-      owner: [p.first_name, p.last_name].filter(Boolean).join(" ") || u.email ?? "—",
+      owner: [p.first_name, p.last_name].filter(Boolean).join(" ") || u.email || "—",
       ownerId: u.id,
       signups: 0,
       converted: 0,

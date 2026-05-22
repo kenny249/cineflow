@@ -74,9 +74,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This contract has been voided" }, { status: 410 });
   }
 
-  // Get IP from forwarded header
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-
   // Save signature
   const { error: sigErr } = await supabase.from("contract_signatures").insert({
     contract_id: contract.id,
