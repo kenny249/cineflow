@@ -188,7 +188,10 @@ export function InvoiceDocument({
     setDownloading(true);
     try {
       const res = await fetch(`/api/invoices/pdf?id=${invoice.id}`);
-      if (!res.ok) throw new Error("Failed to generate PDF");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `PDF failed (${res.status})`);
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

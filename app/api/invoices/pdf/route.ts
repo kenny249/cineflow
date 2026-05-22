@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const { renderToBuffer } = require("@react-pdf/renderer");
 import { createElement } from "react";
+// require() works on Node 24 with ESM packages; cast to silence v4's stricter types
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
+const { renderToBuffer } = require("@react-pdf/renderer") as { renderToBuffer: (doc: any) => Promise<Buffer> };
 import { createClient } from "@/lib/supabase/server";
 import { InvoicePdfDocument } from "@/lib/invoice-pdf";
 import type { Invoice, Profile } from "@/types";
@@ -25,15 +26,17 @@ export async function GET(req: NextRequest) {
 
   if (invErr || !invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
 
-  // Pre-fetch logo as base64 so react-pdf doesn't need to make outbound requests
+  // Pre-fetch logo as base64 — only PNG/JPEG are reliably supported by react-pdf
   let logoBase64: string | undefined;
   if (profile?.logo_url) {
     try {
       const logoRes = await fetch(profile.logo_url);
       if (logoRes.ok) {
-        const buf = await logoRes.arrayBuffer();
-        const ct = logoRes.headers.get("content-type") ?? "image/png";
-        logoBase64 = `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
+        const ct = logoRes.headers.get("content-type") ?? "";
+        if (ct.includes("png") || ct.includes("jpeg") || ct.includes("jpg")) {
+          const buf = await logoRes.arrayBuffer();
+          logoBase64 = `data:${ct};base64,${Buffer.from(buf).toString("base64")}`;
+        }
       }
     } catch {
       // skip logo if unreachable
@@ -49,8 +52,9 @@ export async function GET(req: NextRequest) {
     });
     buffer = await renderToBuffer(doc);
   } catch (err) {
-    console.error("[pdf] renderToBuffer failed:", err);
-    return NextResponse.json({ error: "Failed to render PDF" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[pdf] renderToBuffer failed:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 
   const slug = (invoice as Invoice).invoice_number
