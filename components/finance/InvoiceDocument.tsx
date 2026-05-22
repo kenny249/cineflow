@@ -49,7 +49,6 @@ export function InvoiceDocument({
 }: InvoiceDocumentProps) {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [sending, setSending] = useState(false);
-  const [downloading, setDownloading] = useState(false);
 
   const appUrl = typeof window !== "undefined"
     ? window.location.origin
@@ -96,29 +95,13 @@ export function InvoiceDocument({
   const rightsText = invoice.rights_notice_text ||
     "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";
 
-  const handlePrint = () => {
-    const inner = document.querySelector<HTMLElement>(".invoice-doc-inner");
-    if (!inner) return;
-
-    const win = window.open("", "_blank", "width=900,height=700");
-    if (!win) { toast.error("Allow popups to print"); return; }
-
-    const styles = Array.from(document.styleSheets)
-      .flatMap((ss) => {
-        try { return Array.from(ss.cssRules).map((r) => r.cssText); }
-        catch { return []; }
-      })
-      .join("\n");
-
-    win.document.write(`<!DOCTYPE html><html><head>
-<meta charset="utf-8">
-<title>Invoice ${invoice.invoice_number}</title>
-<style>${styles}</style>
-</head><body style="margin:0;padding:24px;background:#fff">${inner.innerHTML}</body></html>`);
-    win.document.close();
-    win.focus();
-    win.print();
-    win.close();
+  const handleOpenPrint = () => {
+    const url = `/invoice/${invoice.id}/print`;
+    const win = window.open(url, "invoice-print", "width=900,height=750");
+    if (!win) {
+      // Popup blocked — open in new tab instead
+      window.open(url, "_blank");
+    }
   };
 
   const handleCopyLink = async () => {
@@ -184,27 +167,6 @@ export function InvoiceDocument({
     }
   };
 
-  const handleDownloadPdf = async () => {
-    setDownloading(true);
-    try {
-      const res = await fetch(`/api/invoices/pdf?id=${invoice.id}`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `PDF failed (${res.status})`);
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${invoice.invoice_number.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error("Failed to download PDF");
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   const handleCopyPayUrl = async () => {
     try {
@@ -226,12 +188,11 @@ export function InvoiceDocument({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleDownloadPdf}
-              disabled={downloading}
-              className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors disabled:opacity-60"
+              onClick={handleOpenPrint}
+              className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors"
             >
-              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              {downloading ? "Generating…" : "Download PDF"}
+              <Download className="h-3.5 w-3.5" />
+              Download PDF
             </button>
             <button
               type="button"
@@ -254,7 +215,7 @@ export function InvoiceDocument({
             )}
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={handleOpenPrint}
               className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors"
             >
               <Printer className="h-3.5 w-3.5" /> Print
