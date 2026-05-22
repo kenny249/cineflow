@@ -80,7 +80,8 @@ export default async function InvoicePrintPage({
     body { background: #f4f4f5 !important; font-family: system-ui, -apple-system, sans-serif; }
     @media print {
       * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      body { background: white !important; }
+      html { color-scheme: light !important; }
+      html, body { background: white !important; color: #18181b !important; }
       .no-print { display: none !important; }
       .inv-wrap { box-shadow: none !important; }
     }
@@ -132,7 +133,7 @@ export default async function InvoicePrintPage({
   `;
 
   return (
-    <>
+    <div id="invoice-print-portal">
       {/* eslint-disable-next-line react/no-unknown-property */}
       <style dangerouslySetInnerHTML={{ __html: css }} />
       {/* Auto-print when opened as a popup from the app */}
@@ -335,6 +336,6 @@ export default async function InvoicePrintPage({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
