@@ -74,6 +74,15 @@ export default async function SignupPage({ searchParams }: { searchParams: Searc
                 <h2 className="text-xl font-bold text-foreground">You&apos;ve been invited</h2>
                 <p className="text-sm text-muted-foreground mt-1">Create your account to get started.</p>
               </>
+            ) : ref ? (
+              <>
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/8 px-3 py-2">
+                  <Users className="h-3.5 w-3.5 shrink-0 text-[#d4a853]" />
+                  <p className="text-xs text-[#d4a853]">A friend invited you to Cineflow</p>
+                </div>
+                <h2 className="text-xl font-bold text-foreground">You&apos;ve been referred</h2>
+                <p className="text-sm text-muted-foreground mt-1">Create your free account and get started today.</p>
+              </>
             ) : (
               <>
                 <h2 className="text-xl font-bold text-foreground">Start your free trial</h2>
