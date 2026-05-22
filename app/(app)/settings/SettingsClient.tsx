@@ -99,6 +99,11 @@ export default function SettingsClient() {
   const [plan, setPlan] = useState<string>("studio_beta");
   const [storageUsed, setStorageUsed] = useState<number | null>(null);
 
+  // Referral
+  const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [referralCount, setReferralCount] = useState<number>(0);
+  const [referralCopied, setReferralCopied] = useState(false);
+
   // Wallpaper mode
   const [wallpaperOpen, setWallpaperOpen] = useState(false);
 
@@ -138,6 +143,16 @@ export default function SettingsClient() {
           setBusinessWebsite(profile.business_website ?? "");
           setPaySettings((profile.payment_settings as PaymentSettings) ?? {});
           if (profile.plan) setPlan(profile.plan);
+          const code = (profile as unknown as Record<string, unknown>).referral_code as string | null;
+          if (code) {
+            setReferralCode(code);
+            const supabase = createClient();
+            const { count } = await supabase
+              .from("profiles")
+              .select("id", { count: "exact", head: true })
+              .eq("referred_by", code);
+            setReferralCount(count ?? 0);
+          }
         }
       } catch {
         toast.error("Failed to load profile");
@@ -1005,6 +1020,47 @@ export default function SettingsClient() {
             </div>
             )}
           </section>}
+
+          {/* ── Referrals ────────────────────────────────────────── */}
+          <section>
+            <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Referrals</h2>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Invite people to Cineflow</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Share your link — anyone who signs up through it is tracked to you.
+                  </p>
+                </div>
+                <div className="shrink-0 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/10 px-3 py-1.5 text-center">
+                  <p className="text-lg font-bold text-[#d4a853] leading-none">{referralCount}</p>
+                  <p className="text-[10px] text-[#d4a853]/70 mt-0.5">referred</p>
+                </div>
+              </div>
+
+              {referralCode ? (
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="flex-1 rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground truncate">
+                    {`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com"}/?ref=${referralCode}`}
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com"}/?ref=${referralCode}`
+                      );
+                      setReferralCopied(true);
+                      setTimeout(() => setReferralCopied(false), 2000);
+                    }}
+                    className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-[#d4a853]/40 transition-colors"
+                  >
+                    {referralCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-4 text-xs text-muted-foreground">Generating your referral link…</p>
+              )}
+            </div>
+          </section>
 
           {/* ── Project Templates ────────────────────────────────── */}
           <section>
