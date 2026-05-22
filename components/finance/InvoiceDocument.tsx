@@ -49,6 +49,7 @@ export function InvoiceDocument({
 }: InvoiceDocumentProps) {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [sending, setSending] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const appUrl = typeof window !== "undefined"
     ? window.location.origin
@@ -95,13 +96,58 @@ export function InvoiceDocument({
   const rightsText = invoice.rights_notice_text ||
     "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";
 
+  const handleDownloadPdf = async () => {
+    setDownloading(true);
+    try {
+      // Dynamic import of browser-specific react-pdf build (bypasses the Turbopack
+      // serverExternalPackages alias which would otherwise load the Node.js build)
+      const [{ pdf }, { InvoicePdfDocumentBrowser }] = await Promise.all([
+        import("@react-pdf/renderer/lib/react-pdf.browser.js" as string) as Promise<{ pdf: (doc: unknown) => { toBlob: () => Promise<Blob> } }>,
+        import("@/lib/invoice-pdf-browser"),
+      ]);
+
+      // Pre-fetch logo as base64 — react-pdf needs data URIs in the browser
+      let logoBase64: string | undefined;
+      if (profile?.logo_url) {
+        try {
+          const res = await fetch(profile.logo_url);
+          if (res.ok) {
+            const ct = res.headers.get("content-type") ?? "";
+            if (ct.includes("png") || ct.includes("jpeg") || ct.includes("jpg")) {
+              const blob = await res.blob();
+              logoBase64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+            }
+          }
+        } catch { /* skip logo if unreachable */ }
+      }
+
+      const { createElement } = await import("react");
+      const docBlob = await pdf(
+        createElement(InvoicePdfDocumentBrowser, { invoice, profile, logoBase64 })
+      ).toBlob();
+
+      const url = URL.createObjectURL(docBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${invoice.invoice_number.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[pdf-browser]", err);
+      toast.error("Failed to generate PDF — try the Print button instead");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleOpenPrint = () => {
     const url = `/invoice/${invoice.id}/print`;
     const win = window.open(url, "invoice-print", "width=900,height=750");
-    if (!win) {
-      // Popup blocked — open in new tab instead
-      window.open(url, "_blank");
-    }
+    if (!win) window.open(url, "_blank");
   };
 
   const handleCopyLink = async () => {
@@ -188,11 +234,12 @@ export function InvoiceDocument({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleOpenPrint}
-              className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors"
+              onClick={handleDownloadPdf}
+              disabled={downloading}
+              className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors disabled:opacity-60"
             >
-              <Download className="h-3.5 w-3.5" />
-              Download PDF
+              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {downloading ? "Generating…" : "Download PDF"}
             </button>
             <button
               type="button"
