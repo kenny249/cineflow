@@ -34,6 +34,11 @@ export async function PATCH(req: NextRequest) {
   const { userId, updates } = await req.json();
   if (!userId || !updates) return NextResponse.json({ error: "userId and updates required" }, { status: 400 });
 
+  // Prevent admins from revoking their own admin status
+  if ("is_admin" in updates && updates.is_admin === false && userId === caller.id) {
+    return NextResponse.json({ error: "You cannot revoke your own admin access." }, { status: 403 });
+  }
+
   const admin = getAdmin();
   const { error } = await admin
     .from("profiles")

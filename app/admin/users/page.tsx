@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { UsersTable } from "./UsersTable";
 
 function getAdmin() {
@@ -9,8 +11,20 @@ function getAdmin() {
   );
 }
 
+async function getCurrentUserId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id ?? null;
+}
+
 export default async function UsersPage() {
   const supabase = getAdmin();
+  const currentUserId = await getCurrentUserId();
 
   // Fetch all auth users
   const { data: { users: authUsers } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -92,7 +106,7 @@ export default async function UsersPage() {
         ))}
       </div>
 
-      <UsersTable users={users} />
+      <UsersTable users={users} currentUserId={currentUserId ?? ""} />
     </div>
   );
 }

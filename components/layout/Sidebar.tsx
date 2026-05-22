@@ -27,6 +27,7 @@ import {
   ContactRound,
   Wrench,
   Calculator,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -184,6 +185,40 @@ function BetaNavItem({ collapsed, isActive }: { collapsed: boolean; isActive: bo
   return link;
 }
 
+// ── AdminNavItem ─────────────────────────────────────────────────────────────
+
+function AdminNavItem({ collapsed, isActive }: { collapsed: boolean; isActive: boolean }) {
+  const link = (
+    <Link
+      href="/admin"
+      className={cn(
+        "group relative flex h-9 items-center gap-3 rounded-md px-2.5 text-sm transition-all duration-150 mb-1",
+        collapsed ? "justify-center w-9 px-0" : "",
+        isActive
+          ? "bg-violet-500/10 text-violet-300 font-medium ring-[0.5px] ring-inset ring-violet-500/20"
+          : "text-violet-400/60 hover:bg-violet-500/[0.08] hover:text-violet-300"
+      )}
+    >
+      {isActive && (
+        <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-violet-400" />
+      )}
+      <ShieldCheck className="h-4 w-4 shrink-0" />
+      {!collapsed && <span className="truncate">Admin</span>}
+    </Link>
+  );
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{link}</TooltipTrigger>
+        <TooltipContent side="right" sideOffset={12}>Admin Portal</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return link;
+}
+
 // ── Session indicator ─────────────────────────────────────────────────────────
 
 function fmtElapsed(secs: number): string {
@@ -252,17 +287,19 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
   );
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("profiles").select("first_name, last_name, plan").eq("id", user.id).single()
+      supabase.from("profiles").select("first_name, last_name, plan, is_admin").eq("id", user.id).single()
         .then(({ data }) => {
           if (data?.plan) {
             setPlan(data.plan);
             sessionStorage.setItem("cf_plan", data.plan);
           }
+          if (data?.is_admin) setIsAdmin(true);
           if (data?.first_name || data?.last_name) {
             setDisplayName(`${data.first_name ?? ""} ${data.last_name ?? ""}`.trim());
           } else {
@@ -381,6 +418,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
         {/* Bottom nav */}
         <div className="p-2">
           <BetaNavItem collapsed={collapsed} isActive={isActive("/beta-feedback")} />
+          {isAdmin && <AdminNavItem collapsed={collapsed} isActive={isActive("/admin")} />}
           {NAV_BOTTOM.map((item) => (
             <NavLink
               key={item.href}

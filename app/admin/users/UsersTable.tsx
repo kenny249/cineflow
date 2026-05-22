@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Search, Shield, MoreHorizontal, Check, Trash2, Crown } from "lucide-react";
+import { Search, Shield, ShieldCheck, ShieldOff, MoreHorizontal, Check, Trash2, Crown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -42,7 +42,7 @@ function timeAgo(iso: string | null) {
   return `${months}mo ago`;
 }
 
-export function UsersTable({ users }: { users: User[] }) {
+export function UsersTable({ users, currentUserId }: { users: User[]; currentUserId: string }) {
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("all");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -72,6 +72,26 @@ export function UsersTable({ users }: { users: User[] }) {
         window.location.reload();
       } else {
         toast.error("Failed to update plan");
+      }
+    });
+  }
+
+  async function toggleAdmin(userId: string, grant: boolean) {
+    const label = grant ? "grant admin access to" : "revoke admin access from";
+    if (!confirm(`Are you sure you want to ${label} this user?`)) return;
+    startTransition(async () => {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, updates: { is_admin: grant } }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast.success(grant ? "Admin access granted" : "Admin access revoked");
+        setOpenMenu(null);
+        window.location.reload();
+      } else {
+        toast.error(json.error ?? "Failed to update admin status");
       }
     });
   }
@@ -199,6 +219,27 @@ export function UsersTable({ users }: { users: User[] }) {
                             <span className={u.plan === plan ? "text-[#d4a853] font-medium" : ""}>{plan}</span>
                           </button>
                         ))}
+                        <div className="my-1 border-t border-white/[0.06]" />
+                        {u.is_admin ? (
+                          <button
+                            onClick={() => toggleAdmin(u.id, false)}
+                            disabled={isPending || u.id === currentUserId}
+                            title={u.id === currentUserId ? "Cannot revoke your own access" : undefined}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+                          >
+                            <ShieldOff className="h-3.5 w-3.5" />
+                            Revoke admin
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => toggleAdmin(u.id, true)}
+                            disabled={isPending}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-violet-400 hover:bg-violet-500/10 transition-colors disabled:opacity-40"
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Grant admin
+                          </button>
+                        )}
                         <div className="my-1 border-t border-white/[0.06]" />
                         <button
                           onClick={() => deleteUser(u.id, u.email)}
