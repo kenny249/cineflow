@@ -1,42 +1,47 @@
 import type { NextConfig } from "next";
 
 const securityHeaders = [
-  // Prevent clickjacking
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
-  // Prevent MIME-type sniffing
   { key: "X-Content-Type-Options", value: "nosniff" },
-  // Limit referrer info sent to third parties
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Force HTTPS for 1 year (including subdomains)
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
-  // Restrict browser features
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-  // Basic XSS protection for older browsers
   { key: "X-XSS-Protection", value: "1; mode=block" },
 ];
 
 const nextConfig: NextConfig = {
-  // PDFViewer uses pdfjs-dist with ssr:false dynamic import, so canvas is never needed server-side
-  // @react-pdf/renderer is Node-only — keep it out of the client bundle
+  // Keep react-pdf out of the client bundle entirely
   serverExternalPackages: ["@react-pdf/renderer"],
-  turbopack: {},
-  headers: () => Promise.resolve([
-    { source: "/(.*)", headers: securityHeaders },
-  ]),
+
+  // Turbopack: force the Node.js build so the browser field in react-pdf's
+  // package.json doesn't swap in the browser stub (which throws on renderToBuffer)
+  turbopack: {
+    resolveAlias: {
+      "@react-pdf/renderer": "@react-pdf/renderer/lib/react-pdf.js",
+    },
+  },
+
+  // Webpack: same alias for server builds
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@react-pdf/renderer": require.resolve(
+          "@react-pdf/renderer/lib/react-pdf.js"
+        ),
+      };
+    }
+    return config;
+  },
+
+  headers: () =>
+    Promise.resolve([{ source: "/(.*)", headers: securityHeaders }]),
+
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "picsum.photos",
-      },
-      {
-        protocol: "https",
-        hostname: "fastly.picsum.photos",
-      },
-      {
-        protocol: "https",
-        hostname: "*.supabase.co",
-      },
+      { protocol: "https", hostname: "picsum.photos" },
+      { protocol: "https", hostname: "fastly.picsum.photos" },
+      { protocol: "https", hostname: "*.supabase.co" },
     ],
   },
 };
