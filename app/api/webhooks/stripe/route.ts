@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { timingSafeEqual } from "node:crypto";
 
 // Stripe webhook endpoint — handles payment confirmation automatically.
 //
@@ -52,7 +53,14 @@ async function verifyStripeSignature(
   const age = Math.floor(Date.now() / 1000) - parseInt(timestamp, 10);
   if (age > 300) return false;
 
-  return expected === sig;
+  try {
+    const expectedBuf = Buffer.from(expected, "hex");
+    const sigBuf = Buffer.from(sig, "hex");
+    if (expectedBuf.length !== sigBuf.length) return false;
+    return timingSafeEqual(expectedBuf, sigBuf);
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -92,7 +100,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  // Verify the webhook signature using the owner's stored webhook secret
+  // Verify the webhook signature using the owner's stored webhook secret.
+  // We always require a valid signature — no bypass if secret is unconfigured.
   const { data: profile } = await supabase
     .from("profiles")
     .select("payment_settings")
@@ -102,12 +111,15 @@ export async function POST(req: NextRequest) {
   const webhookSecret = (profile?.payment_settings as Record<string, string> | null)
     ?.stripe_webhook_secret;
 
-  if (webhookSecret && signature) {
-    const valid = await verifyStripeSignature(rawBody, signature, webhookSecret);
-    if (!valid) {
-      console.warn("[webhook/stripe] signature verification failed for invoice:", invoice.id);
-      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
-    }
+  if (!webhookSecret || !signature) {
+    console.warn("[webhook/stripe] missing webhook secret or signature for invoice:", invoice.id);
+    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 400 });
+  }
+
+  const valid = await verifyStripeSignature(rawBody, signature, webhookSecret);
+  if (!valid) {
+    console.warn("[webhook/stripe] signature verification failed for invoice:", invoice.id);
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   // Mark invoice as paid

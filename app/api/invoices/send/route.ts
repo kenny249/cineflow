@@ -6,6 +6,11 @@ import type { Invoice, PaymentSettings } from "@/types";
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
 
+function he(s: string | null | undefined): string {
+  if (!s) return "";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function formatDate(iso?: string) {
   if (!iso) return "—";
   return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
@@ -26,7 +31,7 @@ function buildSingleMethodHtml(method: string, invoice: Invoice, ps: PaymentSett
     <div style="border-top:1px solid #f4f4f5;padding:20px 40px 0;">
       <p style="margin:0 0 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Pay by Card (Stripe)</p>
       <a href="${invoice.payment_link}" style="display:inline-block;background:#d4a853;color:#000;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;">
-        Pay ${fmt(total)} Now →
+        Pay ${fmt(total)} Now &#8594;
       </a>
     </div>`;
   }
@@ -48,9 +53,9 @@ function buildSingleMethodHtml(method: string, invoice: Invoice, ps: PaymentSett
     <div style="border-top:1px solid #f4f4f5;padding:20px 40px 0;">
       <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Pay via Zelle</p>
       <table style="font-size:13px;border-collapse:collapse;">
-        <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;white-space:nowrap;">Send to</td><td style="color:#18181b;font-weight:600;">${ps.zelle_contact}</td></tr>
+        <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;white-space:nowrap;">Send to</td><td style="color:#18181b;font-weight:600;">${he(ps.zelle_contact)}</td></tr>
         <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Amount</td><td style="color:#18181b;font-weight:600;">${fmt(total)}</td></tr>
-        <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Memo</td><td style="color:#18181b;">${invoice.invoice_number}</td></tr>
+        <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Memo</td><td style="color:#18181b;">${he(invoice.invoice_number)}</td></tr>
       </table>
     </div>`;
   }
@@ -60,11 +65,11 @@ function buildSingleMethodHtml(method: string, invoice: Invoice, ps: PaymentSett
     <div style="border-top:1px solid #f4f4f5;padding:20px 40px 0;">
       <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">ACH / Bank Transfer</p>
       <table style="font-size:13px;border-collapse:collapse;">
-        ${ps.ach_bank_name ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;white-space:nowrap;">Bank</td><td style="color:#18181b;font-weight:600;">${ps.ach_bank_name}</td></tr>` : ""}
-        ${ps.ach_routing ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Routing #</td><td style="color:#18181b;font-family:monospace;font-weight:600;">${ps.ach_routing}</td></tr>` : ""}
-        ${ps.ach_account ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Account #</td><td style="color:#18181b;font-family:monospace;font-weight:600;">${ps.ach_account}</td></tr>` : ""}
+        ${ps.ach_bank_name ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;white-space:nowrap;">Bank</td><td style="color:#18181b;font-weight:600;">${he(ps.ach_bank_name)}</td></tr>` : ""}
+        ${ps.ach_routing ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Routing #</td><td style="color:#18181b;font-family:monospace;font-weight:600;">${he(ps.ach_routing)}</td></tr>` : ""}
+        ${ps.ach_account ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Account #</td><td style="color:#18181b;font-family:monospace;font-weight:600;">${he(ps.ach_account)}</td></tr>` : ""}
         <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Amount</td><td style="color:#18181b;font-weight:600;">${fmt(total)}</td></tr>
-        <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Reference</td><td style="color:#18181b;">${invoice.invoice_number}</td></tr>
+        <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Reference</td><td style="color:#18181b;">${he(invoice.invoice_number)}</td></tr>
       </table>
     </div>`;
   }
@@ -73,7 +78,7 @@ function buildSingleMethodHtml(method: string, invoice: Invoice, ps: PaymentSett
     return `
     <div style="border-top:1px solid #f4f4f5;padding:20px 40px 0;">
       <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Wire Transfer</p>
-      <pre style="margin:0;font-family:inherit;font-size:13px;color:#3f3f46;white-space:pre-wrap;">${ps.wire_instructions}</pre>
+      <pre style="margin:0;font-family:inherit;font-size:13px;color:#3f3f46;white-space:pre-wrap;">${he(ps.wire_instructions)}</pre>
     </div>`;
   }
 
@@ -82,10 +87,10 @@ function buildSingleMethodHtml(method: string, invoice: Invoice, ps: PaymentSett
     <div style="border-top:1px solid #f4f4f5;padding:20px 40px 0;">
       <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Pay by Check</p>
       <table style="font-size:13px;border-collapse:collapse;">
-        ${ps.check_payable_to ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;white-space:nowrap;">Payable to</td><td style="color:#18181b;font-weight:600;">${ps.check_payable_to}</td></tr>` : ""}
-        ${ps.check_mail_to ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;vertical-align:top;">Mail to</td><td style="color:#18181b;font-weight:600;white-space:pre-wrap;">${ps.check_mail_to}</td></tr>` : ""}
+        ${ps.check_payable_to ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;white-space:nowrap;">Payable to</td><td style="color:#18181b;font-weight:600;">${he(ps.check_payable_to)}</td></tr>` : ""}
+        ${ps.check_mail_to ? `<tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;vertical-align:top;">Mail to</td><td style="color:#18181b;font-weight:600;white-space:pre-wrap;">${he(ps.check_mail_to)}</td></tr>` : ""}
         <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Amount</td><td style="color:#18181b;font-weight:600;">${fmt(total)}</td></tr>
-        <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Memo</td><td style="color:#18181b;">${invoice.invoice_number}</td></tr>
+        <tr><td style="color:#a1a1aa;padding:2px 16px 2px 0;">Memo</td><td style="color:#18181b;">${he(invoice.invoice_number)}</td></tr>
       </table>
     </div>`;
   }
@@ -137,14 +142,14 @@ function buildEmailHtml({
   const lineRows = lineItems.length > 0
     ? lineItems.map((li) => `
         <tr>
-          <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#3f3f46;font-size:14px;">${li.description || "—"}</td>
+          <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#3f3f46;font-size:14px;">${he(li.description) || "—"}</td>
           <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#71717a;font-size:14px;text-align:right;">${li.quantity}</td>
           <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#71717a;font-size:14px;text-align:right;">${fmt(li.rate)}</td>
           <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#18181b;font-size:14px;font-weight:600;text-align:right;">${fmt(li.quantity * li.rate)}</td>
         </tr>
       `).join("")
     : `<tr>
-        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#3f3f46;font-size:14px;">${invoice.description || "Services rendered"}</td>
+        <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#3f3f46;font-size:14px;">${he(invoice.description) || "Services rendered"}</td>
         <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#71717a;font-size:14px;text-align:right;">1</td>
         <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#71717a;font-size:14px;text-align:right;">${fmt(invoice.amount)}</td>
         <td style="padding:10px 0;border-bottom:1px solid #f4f4f5;color:#18181b;font-size:14px;font-weight:600;text-align:right;">${fmt(invoice.amount)}</td>
@@ -159,13 +164,13 @@ function buildEmailHtml({
     <!-- Header -->
     <div style="background:#18181b;padding:32px 40px;display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
-        <p style="margin:0;font-size:18px;font-weight:700;color:#fff;">${bizName}</p>
-        ${bizAddress ? `<p style="margin:4px 0 0;font-size:11px;color:#a1a1aa;">${bizAddress}</p>` : ""}
-        ${bizEmail ? `<p style="margin:2px 0 0;font-size:11px;color:#a1a1aa;">${bizEmail}</p>` : ""}
+        <p style="margin:0;font-size:18px;font-weight:700;color:#fff;">${he(bizName)}</p>
+        ${bizAddress ? `<p style="margin:4px 0 0;font-size:11px;color:#a1a1aa;">${he(bizAddress)}</p>` : ""}
+        ${bizEmail ? `<p style="margin:2px 0 0;font-size:11px;color:#a1a1aa;">${he(bizEmail)}</p>` : ""}
       </div>
       <div style="text-align:right;">
         <p style="margin:0;font-size:28px;font-weight:900;color:#d4a853;letter-spacing:-0.5px;">INVOICE</p>
-        <p style="margin:4px 0 0;font-family:monospace;font-size:14px;font-weight:600;color:#fff;">${invoice.invoice_number}</p>
+        <p style="margin:4px 0 0;font-family:monospace;font-size:14px;font-weight:600;color:#fff;">${he(invoice.invoice_number)}</p>
         ${invoice.due_date ? `<p style="margin:8px 0 0;font-size:12px;color:#a1a1aa;">Due: ${formatDate(invoice.due_date)}</p>` : ""}
         ${invoice.payment_terms ? `<p style="margin:2px 0 0;font-size:11px;font-weight:600;color:#d4a853;">${TERMS_LABEL[invoice.payment_terms] ?? invoice.payment_terms}</p>` : ""}
       </div>
@@ -174,7 +179,7 @@ function buildEmailHtml({
     <!-- Bill To -->
     <div style="background:#fafafa;padding:20px 40px;border-bottom:1px solid #f4f4f5;">
       <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#a1a1aa;">Bill To</p>
-      <p style="margin:0;font-size:15px;font-weight:600;color:#18181b;">${invoice.client_name || "Client"}</p>
+      <p style="margin:0;font-size:15px;font-weight:600;color:#18181b;">${he(invoice.client_name) || "Client"}</p>
     </div>
 
     <!-- Line Items -->

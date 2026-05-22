@@ -123,12 +123,12 @@ export function SignupForm() {
       </Button>
 
       <p className="text-center text-xs text-muted-foreground">
-        By signing up you agree to our {" "}
-        <Link href="#" className="underline underline-offset-4 hover:text-foreground">
+        By signing up you agree to our{" "}
+        <Link href="/terms" className="underline underline-offset-4 hover:text-foreground">
           Terms
         </Link>{" "}
-        and {" "}
-        <Link href="#" className="underline underline-offset-4 hover:text-foreground">
+        and{" "}
+        <Link href="/privacy" className="underline underline-offset-4 hover:text-foreground">
           Privacy Policy
         </Link>
         .

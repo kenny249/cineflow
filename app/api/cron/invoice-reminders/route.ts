@@ -19,6 +19,11 @@ function getAdmin() {
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
 
+function he(s: string | null | undefined): string {
+  if (!s) return "";
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 function formatDate(iso?: string | null) {
   if (!iso) return "";
   return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
@@ -75,13 +80,13 @@ function buildReminderEmail({
 
     <!-- Header -->
     <div style="background:#18181b;padding:28px 36px;display:flex;justify-content:space-between;align-items:center;">
-      <p style="margin:0;font-size:17px;font-weight:700;color:#fff;">${bizName}</p>
+      <p style="margin:0;font-size:17px;font-weight:700;color:#fff;">${he(bizName)}</p>
       <p style="margin:0;font-size:22px;font-weight:900;color:${accent};letter-spacing:-0.5px;">INVOICE</p>
     </div>
 
     <!-- Alert band -->
     <div style="background:${type === "overdue" ? "#fef2f2" : "#fffbeb"};border-bottom:3px solid ${accent};padding:18px 36px;">
-      <p style="margin:0;font-size:16px;font-weight:700;color:${type === "overdue" ? "#991b1b" : "#92400e"};">${headline}</p>
+      <p style="margin:0;font-size:16px;font-weight:700;color:${type === "overdue" ? "#991b1b" : "#92400e"};">${he(headline)}</p>
       ${dueLabel ? `<p style="margin:4px 0 0;font-size:13px;color:${type === "overdue" ? "#b91c1c" : "#a16207"};">
         ${type === "overdue" ? "Was due" : "Due"}: ${dueLabel}
       </p>` : ""}
@@ -92,15 +97,15 @@ function buildReminderEmail({
       <table style="width:100%;border-collapse:collapse;font-size:14px;">
         <tr>
           <td style="padding:6px 0;color:#71717a;">Invoice</td>
-          <td style="padding:6px 0;font-weight:600;color:#18181b;text-align:right;font-family:monospace;">${invoice.invoice_number}</td>
+          <td style="padding:6px 0;font-weight:600;color:#18181b;text-align:right;font-family:monospace;">${he(invoice.invoice_number)}</td>
         </tr>
         <tr>
           <td style="padding:6px 0;color:#71717a;">Client</td>
-          <td style="padding:6px 0;font-weight:600;color:#18181b;text-align:right;">${invoice.client_name || "—"}</td>
+          <td style="padding:6px 0;font-weight:600;color:#18181b;text-align:right;">${he(invoice.client_name) || "—"}</td>
         </tr>
         ${invoice.description ? `<tr>
           <td style="padding:6px 0;color:#71717a;vertical-align:top;">Description</td>
-          <td style="padding:6px 0;color:#3f3f46;text-align:right;">${invoice.description}</td>
+          <td style="padding:6px 0;color:#3f3f46;text-align:right;">${he(invoice.description)}</td>
         </tr>` : ""}
         <tr style="border-top:2px solid #e4e4e7;">
           <td style="padding:12px 0 6px;font-weight:700;color:#18181b;font-size:16px;">
@@ -126,7 +131,7 @@ function buildReminderEmail({
     <div style="background:#fafafa;padding:14px 36px;border-top:1px solid #f4f4f5;text-align:center;">
       <p style="margin:0;font-size:11px;color:#a1a1aa;">
         Sent via <strong>Cineflow</strong> · ${appUrl}
-        ${bizEmail ? ` · <a href="mailto:${bizEmail}" style="color:#a1a1aa;">${bizEmail}</a>` : ""}
+        ${bizEmail ? ` · <a href="mailto:${he(bizEmail)}" style="color:#a1a1aa;">${he(bizEmail)}</a>` : ""}
       </p>
     </div>
   </div>
