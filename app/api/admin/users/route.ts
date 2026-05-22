@@ -39,56 +39,15 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "You cannot revoke your own admin access." }, { status: 403 });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const admin = getAdmin();
+  const { error } = await admin
+    .from("profiles")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", userId);
 
-  // Use direct REST API to guarantee the write bypasses any client-level issues
-  const payload = { ...updates, updated_at: new Date().toISOString() };
-  const res = await fetch(
-    `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": serviceKey,
-        "Authorization": `Bearer ${serviceKey}`,
-        "Prefer": "return=representation",
-      },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    }
-  );
-
-  const resText = await res.text();
-  console.log("[admin/users PATCH] REST status:", res.status, "body:", resText.slice(0, 300));
-
-  if (!res.ok) {
-    console.error("[api/admin/users PATCH] REST error:", res.status, resText);
+  if (error) {
+    console.error("[api/admin/users PATCH]", error.message);
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
-  }
-
-  // If no rows were updated (empty array returned), insert a minimal profile row
-  const rows = JSON.parse(resText || "[]");
-  if (rows.length === 0) {
-    const insertRes = await fetch(
-      `${supabaseUrl}/rest/v1/profiles`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": serviceKey,
-          "Authorization": `Bearer ${serviceKey}`,
-          "Prefer": "return=representation",
-        },
-        body: JSON.stringify({ id: userId, ...updates }),
-        cache: "no-store",
-      }
-    );
-    const insertText = await insertRes.text();
-    console.log("[admin/users PATCH] INSERT status:", insertRes.status, "body:", insertText.slice(0, 300));
-    if (!insertRes.ok) {
-      return NextResponse.json({ error: "Update failed" }, { status: 500 });
-    }
   }
 
   return NextResponse.json({ success: true });

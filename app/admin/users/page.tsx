@@ -34,7 +34,7 @@ export default async function UsersPage() {
   // Fetch all profiles
   const { data: profiles } = await supabase
     .from("profiles")
-    .select("id, first_name, last_name, company, business_name, plan, is_admin, is_lifetime, referral_code, referred_by, created_at");
+    .select("id, first_name, last_name, company, business_name, plan, is_admin, referral_code, referred_by, created_at");
 
   // Fetch invoice counts per user
   const { data: invoiceCounts } = await supabase
