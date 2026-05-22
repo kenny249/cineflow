@@ -1,9 +1,9 @@
-// Browser-specific version of the PDF document.
-// Imports explicitly from the browser build path so Turbopack's
-// serverExternalPackages alias (which forces the Node.js build) doesn't apply.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore – no separate typedefs for the browser subpath
-import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer/lib/react-pdf.browser.js";
+// Browser-specific PDF document.
+// Importing from "@react-pdf/renderer" (main package) is correct here —
+// with the Turbopack resolveAlias removed, Turbopack respects react-pdf's
+// browser field in package.json and loads the browser build for client bundles.
+// The server API route uses serverExternalPackages + Node.js require() instead.
+import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
 import type { Invoice, Profile } from "@/types";
 
 const DEFAULT_ACCENT = "#d4a853";

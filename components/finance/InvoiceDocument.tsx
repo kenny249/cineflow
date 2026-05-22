@@ -102,7 +102,7 @@ export function InvoiceDocument({
       // Dynamic import of browser-specific react-pdf build (bypasses the Turbopack
       // serverExternalPackages alias which would otherwise load the Node.js build)
       const [{ pdf }, { InvoicePdfDocumentBrowser }] = await Promise.all([
-        import("@react-pdf/renderer/lib/react-pdf.browser.js" as string) as Promise<{ pdf: (doc: unknown) => { toBlob: () => Promise<Blob> } }>,
+        import("@react-pdf/renderer") as Promise<{ pdf: (doc: unknown) => { toBlob: () => Promise<Blob> } }>,
         import("@/lib/invoice-pdf-browser"),
       ]);
 
