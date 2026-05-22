@@ -47,6 +47,9 @@ export interface Profile {
   brand_color?: string;
   is_collaborator?: boolean;
   quick_actions?: string[];
+  referral_code?: string | null;
+  referred_by?: string | null;
+  is_admin?: boolean;
   created_at: string;
   updated_at?: string;
 }

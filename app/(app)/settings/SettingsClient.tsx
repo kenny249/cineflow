@@ -143,8 +143,10 @@ export default function SettingsClient() {
           setBusinessWebsite(profile.business_website ?? "");
           setPaySettings((profile.payment_settings as PaymentSettings) ?? {});
           if (profile.plan) setPlan(profile.plan);
-          const code = (profile as unknown as Record<string, unknown>).referral_code as string | null;
-          if (code) {
+          // Fetch (or generate) referral code via API
+          const codeRes = await fetch("/api/referrals/code");
+          if (codeRes.ok) {
+            const { code } = await codeRes.json();
             setReferralCode(code);
             const supabase = createClient();
             const { count } = await supabase
