@@ -41,12 +41,16 @@ export async function PATCH(req: NextRequest) {
 
   const admin = getAdmin();
 
+  console.log("[admin/users PATCH] userId:", userId, "updates:", JSON.stringify(updates));
+
   // Try update first; if no row exists, insert a minimal profile
   const { error: updateError, data: updated } = await admin
     .from("profiles")
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq("id", userId)
     .select("id");
+
+  console.log("[admin/users PATCH] update result — rows:", updated?.length ?? 0, "error:", updateError?.message ?? "none");
 
   if (updateError) {
     console.error("[api/admin/users PATCH update]", updateError.message);
@@ -55,14 +59,21 @@ export async function PATCH(req: NextRequest) {
 
   // If no row was found, create a minimal profile and apply the update
   if (!updated || updated.length === 0) {
-    const { error: insertError } = await admin
+    console.log("[admin/users PATCH] no row found, inserting...");
+    const { error: insertError, data: inserted } = await admin
       .from("profiles")
-      .insert({ id: userId, ...updates, updated_at: new Date().toISOString() });
+      .insert({ id: userId, ...updates, updated_at: new Date().toISOString() })
+      .select("id");
+    console.log("[admin/users PATCH] insert result — rows:", inserted?.length ?? 0, "error:", insertError?.message ?? "none");
     if (insertError) {
       console.error("[api/admin/users PATCH insert]", insertError.message);
       return NextResponse.json({ error: "Update failed" }, { status: 500 });
     }
   }
+
+  // Verify the write actually landed
+  const { data: verify } = await admin.from("profiles").select("plan, is_admin").eq("id", userId).single();
+  console.log("[admin/users PATCH] verify read:", JSON.stringify(verify));
 
   return NextResponse.json({ success: true });
 }
