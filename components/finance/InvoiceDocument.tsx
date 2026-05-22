@@ -49,6 +49,7 @@ export function InvoiceDocument({
 }: InvoiceDocumentProps) {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [sending, setSending] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const appUrl = typeof window !== "undefined"
     ? window.location.origin
@@ -94,6 +95,28 @@ export function InvoiceDocument({
   const showRights = !!invoice.show_rights_notice;
   const rightsText = invoice.rights_notice_text ||
     "All delivered content remains the exclusive property of the creator until payment is received in full. Usage rights are granted only upon cleared payment.";
+
+  const handleDownloadPdf = async () => {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/invoices/pdf?id=${invoice.id}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(body.error || "Server error");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${invoice.invoice_number.toLowerCase().replace(/[^a-z0-9-]/g, "-")}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to download PDF");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleOpenPrint = () => {
     const url = `/invoice/${invoice.id}/print`;
@@ -185,11 +208,12 @@ export function InvoiceDocument({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleOpenPrint}
-              className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors"
+              onClick={handleDownloadPdf}
+              disabled={downloading}
+              className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/20 transition-colors disabled:opacity-60"
             >
-              <Download className="h-3.5 w-3.5" />
-              Save as PDF
+              {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              {downloading ? "Generating…" : "Download PDF"}
             </button>
             <button
               type="button"
