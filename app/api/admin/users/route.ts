@@ -40,13 +40,28 @@ export async function PATCH(req: NextRequest) {
   }
 
   const admin = getAdmin();
-  const { error } = await admin
-    .from("profiles")
-    .upsert({ id: userId, ...updates, updated_at: new Date().toISOString() }, { onConflict: "id" });
 
-  if (error) {
-    console.error("[api/admin/users PATCH]", error.message);
+  // Try update first; if no row exists, insert a minimal profile
+  const { error: updateError, data: updated } = await admin
+    .from("profiles")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", userId)
+    .select("id");
+
+  if (updateError) {
+    console.error("[api/admin/users PATCH update]", updateError.message);
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  }
+
+  // If no row was found, create a minimal profile and apply the update
+  if (!updated || updated.length === 0) {
+    const { error: insertError } = await admin
+      .from("profiles")
+      .insert({ id: userId, ...updates, updated_at: new Date().toISOString() });
+    if (insertError) {
+      console.error("[api/admin/users PATCH insert]", insertError.message);
+      return NextResponse.json({ error: "Update failed" }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ success: true });
