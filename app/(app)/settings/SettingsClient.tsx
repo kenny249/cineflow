@@ -1042,21 +1042,27 @@ export default function SettingsClient() {
 
               {referralCode ? (
                 <div className="mt-4 flex items-center gap-2">
-                  <div className="flex-1 rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground truncate">
-                    {`${process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com"}/?ref=${referralCode}`}
-                  </div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com"}/?ref=${referralCode}`
-                      );
-                      setReferralCopied(true);
-                      setTimeout(() => setReferralCopied(false), 2000);
-                    }}
-                    className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-[#d4a853]/40 transition-colors"
-                  >
-                    {referralCopied ? "Copied!" : "Copy"}
-                  </button>
+                  {(() => {
+                    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com").trim();
+                    const link = `${siteUrl}/?ref=${referralCode}`;
+                    return (
+                      <>
+                        <div className="flex-1 rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs text-muted-foreground truncate">
+                          {link}
+                        </div>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(link);
+                            setReferralCopied(true);
+                            setTimeout(() => setReferralCopied(false), 2000);
+                          }}
+                          className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-[#d4a853]/40 transition-colors"
+                        >
+                          {referralCopied ? "Copied!" : "Copy"}
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 <p className="mt-4 text-xs text-muted-foreground">Generating your referral link…</p>
