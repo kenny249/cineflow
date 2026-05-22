@@ -15,7 +15,6 @@ import { setDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import type { PaymentSettings } from "@/types";
 import { RateCardSection } from "@/components/quote-calculator/RateCardSection";
-import { FoundingMemberBadge } from "@/components/ui/FoundingMemberBadge";
 
 function RateCardSectionLazy() {
   return <RateCardSection />;
@@ -335,6 +334,44 @@ export default function SettingsClient() {
                   <Input value={company} onChange={(e) => setCompany(e.target.value)} />
                 </div>
               </div>
+              {plan === "lifetime" && (
+                <>
+                  <Separator />
+                  {/* Gradient border wrapper */}
+                  <div className="rounded-xl p-[1px]" style={{ background: "linear-gradient(135deg, rgba(212,168,83,0.8) 0%, rgba(139,105,20,0.35) 45%, rgba(212,168,83,0.8) 100%)" }}>
+                    <div
+                      className="group relative overflow-hidden rounded-[11px] px-5 py-4"
+                      style={{
+                        background: "linear-gradient(145deg, #1c1a0f 0%, #0e0d08 55%, #1a180e 100%)",
+                        boxShadow: "inset 0 1px 0 rgba(212,168,83,0.15), inset 0 -1px 0 rgba(0,0,0,0.4)",
+                      }}
+                    >
+                      {/* Shimmer sweep */}
+                      <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#d4a853]/10 to-transparent transition-transform duration-1000 ease-in-out group-hover:translate-x-full" />
+                      <div className="relative flex items-center justify-between gap-4">
+                        <div>
+                          <p
+                            className="text-[11px] font-black uppercase tracking-[0.22em]"
+                            style={{
+                              background: "linear-gradient(90deg, #a0720a, #f0c84a, #d4a853, #f5d98e, #b8860b)",
+                              WebkitBackgroundClip: "text",
+                              WebkitTextFillColor: "transparent",
+                              backgroundClip: "text",
+                            }}
+                          >
+                            ✦ Founding Member
+                          </p>
+                          <p className="mt-1 text-[10px] leading-relaxed text-[#d4a853]/40">
+                            Lifetime access · Every feature · Forever
+                          </p>
+                        </div>
+                        <Sparkles className="h-4 w-4 shrink-0 text-[#d4a853]/25" />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div className="flex justify-end">
                 <Button variant="gold" size="sm" onClick={handleSaveProfile} disabled={isSaving}>
                   {isSaving ? "Saving…" : "Save changes"}
@@ -840,7 +877,7 @@ export default function SettingsClient() {
           </section>
 
           {/* ── Plan ─────────────────────────────────────────────── */}
-          <section>
+          {plan !== "lifetime" && <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Plan</h2>
 
             {plan === "lifetime" ? (
@@ -968,7 +1005,7 @@ export default function SettingsClient() {
               </div>
             </div>
             )}
-          </section>
+          </section>}
 
           {/* ── Project Templates ────────────────────────────────── */}
           <section>

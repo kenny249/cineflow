@@ -271,10 +271,33 @@ export default function DashboardPage() {
                     <span className="animate-fade-in-name">{displayName}</span>
                   )}
                 </h1>
-                <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/25 bg-[#d4a853]/10 px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-[#d4a853] uppercase">
-                  <Sparkles className="h-2.5 w-2.5" />
-                  Early Tester
-                </span>
+                {plan === "lifetime" ? (
+                  <span className="group relative inline-flex cursor-default select-none items-center gap-1.5 overflow-hidden rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-[0.2em]"
+                    style={{
+                      background: "linear-gradient(135deg, #1c1a0f 0%, #0e0d08 55%, #1a180e 100%)",
+                      boxShadow: "0 0 0 1px rgba(212,168,83,0.45), inset 0 1px 0 rgba(212,168,83,0.15)",
+                    }}
+                  >
+                    <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#d4a853]/20 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full" />
+                    <Sparkles className="relative h-2.5 w-2.5 text-[#d4a853]" />
+                    <span
+                      className="relative"
+                      style={{
+                        background: "linear-gradient(90deg, #a0720a, #f0c84a, #d4a853, #f5d98e, #b8860b)",
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                        backgroundClip: "text",
+                      }}
+                    >
+                      Founding Member
+                    </span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/25 bg-[#d4a853]/10 px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-[#d4a853] uppercase">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Early Tester
+                  </span>
+                )}
               </div>
               <p className="mt-1.5 text-xs text-muted-foreground italic">
                 {getDailyCompliment()}
