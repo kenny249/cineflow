@@ -8,7 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 
-export function SignupForm() {
+export function SignupForm({
+  inviteCode,
+  referredBy,
+}: {
+  inviteCode?: string;
+  referredBy?: string;
+}) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [company, setCompany] = useState("");
@@ -21,11 +27,18 @@ export function SignupForm() {
     setIsLoading(true);
 
     try {
-      // Create user server-side with email_confirm: true — no verification email needed
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, firstName, lastName, company }),
+        body: JSON.stringify({
+          email,
+          password,
+          firstName,
+          lastName,
+          company,
+          inviteCode: inviteCode ?? null,
+          referredBy: referredBy ?? null,
+        }),
       });
 
       const json = await res.json();
