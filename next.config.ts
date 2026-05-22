@@ -10,14 +10,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Keep react-pdf out of the client/server bundle — loaded externally by Node.js
-  // at runtime so the browser field substitution never applies.
   serverExternalPackages: ["@react-pdf/renderer"],
 
-  // Webpack fallback alias (Turbopack alias intentionally omitted — adding a
-  // resolveAlias rewrites the import path so it no longer matches the
-  // serverExternalPackages pattern, causing Turbopack to bundle the WASM build
-  // instead of leaving it external, which crashes renderToBuffer at runtime).
+  // Required: without this alias Turbopack fails at build init (ERR_INVALID_ARG_TYPE).
+  turbopack: {
+    resolveAlias: {
+      "@react-pdf/renderer": "@react-pdf/renderer/lib/react-pdf.js",
+    },
+  },
+
   webpack: (config, { isServer }) => {
     if (isServer) {
       config.resolve.alias = {
