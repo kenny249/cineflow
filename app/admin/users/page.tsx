@@ -66,7 +66,7 @@ export default async function UsersPage() {
         email: u.email ?? "",
         name: [p.first_name, p.last_name].filter(Boolean).join(" ") || null,
         company: p.business_name || p.company || null,
-        plan: p.plan ?? "—",
+        plan: p.plan ?? "studio_beta",
         is_admin: p.is_admin ?? false,
         referral_code: p.referral_code ?? null,
         referred_by: p.referred_by ?? null,

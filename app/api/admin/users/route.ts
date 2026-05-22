@@ -42,8 +42,7 @@ export async function PATCH(req: NextRequest) {
   const admin = getAdmin();
   const { error } = await admin
     .from("profiles")
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq("id", userId);
+    .upsert({ id: userId, ...updates, updated_at: new Date().toISOString() }, { onConflict: "id" });
 
   if (error) {
     console.error("[api/admin/users PATCH]", error.message);
