@@ -65,7 +65,8 @@ async function buildInvoicePdf(
 
   const accentHex = invoice.brand_color ?? profile?.brand_color ?? "#d4a853";
   const accentColor = hexToRgb(accentHex);
-  const darkBg = rgb(0.094, 0.094, 0.106); // #18181b
+  const headerHex = invoice.header_color ?? "#18181b";
+  const darkBg = hexToRgb(headerHex);
   const lightBg = rgb(0.961, 0.961, 0.965); // #f4f4f5
   const borderColor = rgb(0.894, 0.894, 0.902); // #e4e4e7
   const mutedText = rgb(0.443, 0.443, 0.478); // #71717a

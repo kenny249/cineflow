@@ -470,6 +470,7 @@ export interface Invoice {
   payment_schedule?: PaymentInstallment[];
   po_number?: string;
   brand_color?: string;
+  header_color?: string;
   show_signature_lines?: boolean;
   show_rights_notice?: boolean;
   rights_notice_text?: string;

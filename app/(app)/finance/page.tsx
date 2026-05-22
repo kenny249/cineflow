@@ -79,6 +79,7 @@ interface InvoiceFormState {
   payment_schedule: PaymentInstallment[];
   po_number: string;
   brand_color: string;
+  header_color: string;
   show_signature_lines: boolean;
   show_rights_notice: boolean;
   rights_notice_text: string;
@@ -104,7 +105,7 @@ const EMPTY_FORM: InvoiceFormState = {
   invoice_date: "", due_date: "", paid_date: "", notes: "", project_id: "",
   line_items: [EMPTY_LINE()], tax_rate: "0", discount: "0", payment_terms: "net30",
   use_payment_schedule: false, payment_schedule: [],
-  po_number: "", brand_color: "", show_signature_lines: false, show_rights_notice: false, rights_notice_text: "",
+  po_number: "", brand_color: "", header_color: "", show_signature_lines: false, show_rights_notice: false, rights_notice_text: "",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -342,6 +343,7 @@ export default function FinancePage() {
       payment_schedule: inv.payment_schedule ?? [],
       po_number: inv.po_number ?? "",
       brand_color: inv.brand_color ?? "",
+      header_color: inv.header_color ?? "",
       show_signature_lines: false,
       show_rights_notice: !!inv.show_rights_notice,
       rights_notice_text: inv.rights_notice_text ?? "",
@@ -391,6 +393,7 @@ export default function FinancePage() {
           : undefined,
         po_number: form.po_number.trim() || undefined,
         brand_color: form.brand_color || undefined,
+        header_color: form.header_color || undefined,
         show_signature_lines: form.show_signature_lines,
         show_rights_notice: form.show_rights_notice,
         rights_notice_text: form.rights_notice_text.trim() || undefined,
@@ -1076,27 +1079,59 @@ export default function FinancePage() {
                 <p className="fin-section-label">Branding &amp; Options</p>
                 <div className="space-y-3">
 
-                  {/* Brand color */}
-                  <div className="flex items-center gap-3">
-                    <label className="fin-label" style={{ marginBottom: 0 }}>Accent Color</label>
-                    <div className="flex items-center gap-2 ml-auto">
-                      <input
-                        type="color"
-                        value={form.brand_color || "#d4a853"}
-                        onChange={(e) => setForm((f) => ({ ...f, brand_color: e.target.value }))}
-                        className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent p-0.5"
-                        title="Invoice accent color"
-                      />
-                      {form.brand_color && form.brand_color !== "#d4a853" && (
-                        <button
-                          type="button"
-                          onClick={() => setForm((f) => ({ ...f, brand_color: "" }))}
-                          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          Reset
-                        </button>
-                      )}
-                      <span className="text-xs text-muted-foreground font-mono">{form.brand_color || "#d4a853"}</span>
+                  {/* PDF color pickers */}
+                  <div className="rounded-xl border border-border bg-muted/10 divide-y divide-border">
+                    {/* Accent color */}
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground">Accent Color</p>
+                        <p className="text-[10px] text-muted-foreground/60">Invoice label, totals &amp; accent bar</p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-auto shrink-0">
+                        <span className="text-[10px] text-muted-foreground font-mono">{form.brand_color || "#d4a853"}</span>
+                        {form.brand_color && form.brand_color !== "#d4a853" && (
+                          <button
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, brand_color: "" }))}
+                            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            Reset
+                          </button>
+                        )}
+                        <input
+                          type="color"
+                          value={form.brand_color || "#d4a853"}
+                          onChange={(e) => setForm((f) => ({ ...f, brand_color: e.target.value }))}
+                          className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent p-0.5"
+                          title="Accent color"
+                        />
+                      </div>
+                    </div>
+                    {/* Header color */}
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground">Header Color</p>
+                        <p className="text-[10px] text-muted-foreground/60">PDF header background (top band)</p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-auto shrink-0">
+                        <span className="text-[10px] text-muted-foreground font-mono">{form.header_color || "#18181b"}</span>
+                        {form.header_color && form.header_color !== "#18181b" && (
+                          <button
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, header_color: "" }))}
+                            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            Reset
+                          </button>
+                        )}
+                        <input
+                          type="color"
+                          value={form.header_color || "#18181b"}
+                          onChange={(e) => setForm((f) => ({ ...f, header_color: e.target.value }))}
+                          className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent p-0.5"
+                          title="Header background color"
+                        />
+                      </div>
                     </div>
                   </div>
 
