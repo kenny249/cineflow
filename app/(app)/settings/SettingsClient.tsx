@@ -893,7 +893,6 @@ export default function SettingsClient() {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-bold text-foreground">Founding Member</p>
-                        <FoundingMemberBadge />
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         Full lifetime access · Every feature · Forever
