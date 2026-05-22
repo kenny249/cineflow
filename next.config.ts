@@ -10,10 +10,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Server routes use Node.js require() — never bundled, so browser field
-  // in react-pdf's package.json doesn't interfere with renderToBuffer.
-  // Client components get the browser build naturally via react-pdf's browser field.
   serverExternalPackages: ["@react-pdf/renderer"],
+
+  // Pin react-pdf to its Node.js build so Turbopack doesn't swap in the
+  // browser stub (which throws on renderToBuffer).
+  turbopack: {
+    resolveAlias: {
+      "@react-pdf/renderer": "@react-pdf/renderer/lib/react-pdf.js",
+    },
+  },
 
   headers: () =>
     Promise.resolve([{ source: "/(.*)", headers: securityHeaders }]),

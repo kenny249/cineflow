@@ -1,14 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Invoice, Profile } from "@/types";
-import { AutoPrint } from "./AutoPrint";
 
 export const dynamic = "force-dynamic";
-
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return { title: `Invoice ${id}` };
-}
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -141,7 +135,14 @@ export default async function InvoicePrintPage({
     <>
       {/* eslint-disable-next-line react/no-unknown-property */}
       <style dangerouslySetInnerHTML={{ __html: css }} />
-      <AutoPrint />
+      {/* Auto-print when opened as a popup from the app */}
+      <script dangerouslySetInnerHTML={{ __html: `
+        window.addEventListener('load', function() {
+          if (window.opener || window.name === 'invoice-print') {
+            setTimeout(function() { window.print(); }, 800);
+          }
+        });
+      `}} />
 
       <div className="inv-page">
         {/* Save/Print button — hidden during actual print */}
