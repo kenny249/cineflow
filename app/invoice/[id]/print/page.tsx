@@ -37,7 +37,7 @@ export default async function InvoicePrintPage({
   if (!user) redirect("/login");
 
   const [{ data: invoice }, { data: profile }] = await Promise.all([
-    supabase.from("invoices").select("*").eq("id", id).eq("user_id", user.id).single(),
+    supabase.from("invoices").select("*").eq("id", id).single(),
     supabase.from("profiles").select("*").eq("id", user.id).single(),
   ]);
 
