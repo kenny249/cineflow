@@ -32,13 +32,13 @@ export function BackgroundCanvas() {
     window.addEventListener("resize", resize);
 
     // ── Stars ────────────────────────────────────────────────────────────────
-    const stars: Star[] = Array.from({ length: 700 }, () => ({
+    const stars: Star[] = Array.from({ length: 260 }, () => ({
       x: Math.random(), y: Math.random(),
-      r: 0.3 + Math.random() * 1.4,
-      base: 0.08 + Math.random() * 0.45,
-      speed: 0.4 + Math.random() * 1.8,
+      r: 0.2 + Math.random() * 0.9,
+      base: 0.04 + Math.random() * 0.20,
+      speed: 0.3 + Math.random() * 1.4,
       phase: Math.random() * Math.PI * 2,
-      gold: Math.random() < 0.055,
+      gold: Math.random() < 0.06,
     }));
 
     // ── Explosion particles ───────────────────────────────────────────────────
@@ -60,7 +60,7 @@ export function BackgroundCanvas() {
     }
 
     // ── Clarity embers ────────────────────────────────────────────────────────
-    const embers = Array.from({ length: 280 }, () => ({
+    const embers = Array.from({ length: 140 }, () => ({
       x: Math.random(), y: Math.random() * 1.3,
       vy: -(0.00025 + Math.random() * 0.00045),
       opacity: 0.15 + Math.random() * 0.5, size: 0.6 + Math.random() * 1.2,

@@ -8,31 +8,37 @@ import { scrollState } from "./scrollState";
 
 interface Props { refCode?: string }
 
-const APPS = [
-  { name: "Frame.io",    color: "#2D9CDB" }, { name: "Milanote",    color: "#E8572A" },
-  { name: "Monday.com",  color: "#FF3D57" }, { name: "QuickBooks",  color: "#2CA01C" },
-  { name: "HoneyBook",   color: "#C5A3FF" }, { name: "Notion",      color: "#DDDDDD" },
-  { name: "Dropbox",     color: "#0061FF" }, { name: "Slack",       color: "#7B68EE" },
-  { name: "DocuSign",    color: "#FFBE10" }, { name: "G Sheets",    color: "#34A853" },
-  { name: "Trello",      color: "#0052CC" }, { name: "Airtable",    color: "#FCB400" },
+const FRAGMENTS: { text: string; mono?: boolean }[] = [
+  { text: '"where are we at?" · 11:47pm' },
+  { text: "Invoice_v4_FINAL_FINAL.pdf",      mono: true },
+  { text: '"did anyone brief the client?"' },
+  { text: "shot_list_REVISED_use_this.xlsx", mono: true },
+  { text: '"can you resend the contract?"' },
+  { text: "Client approval: pending 14d" },
+  { text: '"what time is call time again?"' },
+  { text: "Budget_Spreadsheet_v3.xlsx",      mono: true },
+  { text: '"who has the location notes?"' },
+  { text: "Schedule_FINAL_v7_USE_THIS.pdf",  mono: true },
+  { text: "Revision request · overdue" },
+  { text: '"just checking in again..."' },
 ];
 
 const PAIN_POINTS = [
-  { line1: "Shot lists buried in",   line2: "email threads."  },
-  { line1: "Invoices chased",         line2: "for 60 days."   },
-  { line1: "Clients texting you",     line2: "at 11pm."       },
+  "Shot lists buried in email threads.",
+  "Invoices chased for 60 days.",
+  "Clients texting you at 11pm.",
 ];
 
 const PANELS = [
   {
     tag: "Dashboard",
     line1: "Every project.", line2: "Every status.", line3: "One view.",
-    sub: "Your entire pipeline from brief to delivery — visible at a glance.",
+    sub: "Your entire pipeline from pre-pro to delivery — visible at a glance.",
   },
   {
     tag: "Collaboration",
     line1: "Your whole crew.", line2: "Fully in", line3: "the loop.",
-    sub: "Individual call times, shot lists, schedule alerts — all in one place.",
+    sub: "Call times, shot lists, and schedule alerts — everyone stays informed.",
   },
   {
     tag: "Clients & Finance",
@@ -56,14 +62,12 @@ export function LandingPage({ refCode }: Props) {
 
       gsap.registerPlugin(ScrollTrigger);
 
-      // ── Lenis smooth scroll ────────────────────────────────────────────────
-      const lenis = new Lenis({ lerp: 0.082, smoothWheel: true });
+      const lenis = new Lenis({ lerp: 0.08, smoothWheel: true });
       lenis.on("scroll", ScrollTrigger.update);
       const lenisTick = (time: number) => lenis.raf(time * 1000);
       gsap.ticker.add(lenisTick);
       gsap.ticker.lagSmoothing(0);
 
-      // ── Global scroll progress → shared state (read by canvas) ────────────
       const globalTrigger = ScrollTrigger.create({
         trigger: document.body,
         start: "top top",
@@ -71,7 +75,6 @@ export function LandingPage({ refCode }: Props) {
         onUpdate: (st) => { scrollState.prog = st.progress; },
       });
 
-      // ── Splitting.js ──────────────────────────────────────────────────────
       Splitting({ target: "[data-split]", by: "chars" });
 
       function smoothStep(e0: number, e1: number, x: number) {
@@ -79,69 +82,71 @@ export function LandingPage({ refCode }: Props) {
         return t * t * (3 - 2 * t);
       }
 
-      // Track orbit ticker so we can clean it up explicitly
       let orbitTickerFn: (() => void) | null = null;
       let orbitTime = 0;
       const orbit = { r: 0, opacity: 0 };
 
       const ctx = gsap.context(() => {
 
-        // ── Hero: gold line sweep ────────────────────────────────────────────
+        // ── Hero ─────────────────────────────────────────────────────────────
         gsap.fromTo("#hero-line",
           { scaleX: 0 },
-          { scaleX: 1, duration: 1.8, ease: "expo.inOut",
-            scrollTrigger: { trigger: "#s-hero", start: "top 60%", toggleActions: "play none none none" } }
+          { scaleX: 1, duration: 2.0, ease: "expo.inOut",
+            scrollTrigger: { trigger: "#s-hero", start: "top 65%", toggleActions: "play none none none" } }
         );
 
         const heroChars = document.querySelectorAll<HTMLElement>("#hero-headline .char");
         if (heroChars.length) {
-          gsap.set(heroChars, { y: 100, opacity: 0 });
+          gsap.set(heroChars, { y: 80, opacity: 0 });
           gsap.to(heroChars, {
-            y: 0, opacity: 1, duration: 1.1, ease: "expo.out", stagger: 0.028, delay: 0.4,
-            scrollTrigger: { trigger: "#s-hero", start: "top 55%", toggleActions: "play none none none" },
+            y: 0, opacity: 1, duration: 1.0, ease: "expo.out", stagger: 0.02, delay: 0.35,
+            scrollTrigger: { trigger: "#s-hero", start: "top 60%", toggleActions: "play none none none" },
           });
         }
 
         gsap.fromTo("#hero-sub",
-          { y: 30, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.2,
-            scrollTrigger: { trigger: "#s-hero", start: "top 40%", toggleActions: "play none none none" } }
+          { y: 20, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.1, ease: "power3.out", delay: 0.25,
+            scrollTrigger: { trigger: "#s-hero", start: "top 45%", toggleActions: "play none none none" } }
         );
 
-        // ── Chaos: time-based orbit (elegant, not scroll-driven) ─────────────
+        // ── Fragment orbit — driven by time, not scroll ───────────────────────
         const cardEls = cardRefs.current.filter(Boolean) as HTMLDivElement[];
         gsap.set(cardEls, { opacity: 0 });
 
-        // ScrollTrigger only controls orbit.r and orbit.opacity — never positions
         ScrollTrigger.create({
           trigger: "#s-chaos",
           start: "top 90%",
           end: "bottom 10%",
           onUpdate: (st) => {
             const p = st.progress;
-            orbit.opacity = smoothStep(0, 0.15, p) * (1 - smoothStep(0.88, 1.0, p));
-            orbit.r = smoothStep(0, 0.12, p);
+            orbit.opacity = smoothStep(0, 0.12, p) * (1 - smoothStep(0.86, 1.0, p));
+            orbit.r = smoothStep(0, 0.10, p);
           },
         });
 
-        // GSAP ticker drives the actual orbit — constant slow rotation
         orbitTickerFn = () => {
           if (orbit.opacity < 0.005) return;
-          orbitTime += 0.004; // ~25s per full revolution
+          orbitTime += 0.003; // ~35s per base revolution
           const W = window.innerWidth;
           const H = window.innerHeight;
-          const rx = Math.min(W, H) * 0.38 * orbit.r;
-          const ry = Math.min(W, H) * 0.24 * orbit.r;
+          const baseRx = Math.min(W, H) * 0.44 * orbit.r;
+          const baseRy = Math.min(W, H) * 0.26 * orbit.r;
+
           cardEls.forEach((card, i) => {
-            const angle = (i / cardEls.length) * Math.PI * 2 + orbitTime;
-            const x = W / 2 + Math.cos(angle) * rx - card.offsetWidth / 2;
-            const y = H / 2 + Math.sin(angle) * ry - card.offsetHeight / 2;
-            gsap.set(card, { x, y, opacity: orbit.opacity });
+            const total = cardEls.length;
+            const spread = 0.68 + (i % 4) * 0.09;   // vary orbit radius
+            const speed  = 0.55 + (i % 3) * 0.15;   // vary angular speed
+            const angle  = (i / total) * Math.PI * 2 + orbitTime * speed;
+            const x = W / 2 + Math.cos(angle) * baseRx * spread - card.offsetWidth / 2;
+            const y = H / 2 + Math.sin(angle) * baseRy * spread - card.offsetHeight / 2;
+            const depth = 0.38 + (i % 3) * 0.19;    // depth-based opacity
+            gsap.set(card, { x, y, opacity: orbit.opacity * depth });
           });
         };
         gsap.ticker.add(orbitTickerFn);
 
-        // ── Pain points: single onUpdate, only one visible at a time ──────────
+        // ── Pain points — one at a time via smoothStep ────────────────────────
         const painEls = Array.from(document.querySelectorAll<HTMLElement>("[data-pain]"));
         gsap.set(painEls, { opacity: 0, y: 0 });
 
@@ -151,76 +156,79 @@ export function LandingPage({ refCode }: Props) {
           end: "bottom top",
           onUpdate: (st) => {
             const p = st.progress;
-            // Each pain point fades in then out — ranges never overlap
-            const v0 = smoothStep(0.08, 0.18, p) * (1 - smoothStep(0.30, 0.42, p));
-            const v1 = smoothStep(0.42, 0.52, p) * (1 - smoothStep(0.62, 0.74, p));
-            const v2 = smoothStep(0.74, 0.84, p) * (1 - smoothStep(0.90, 0.98, p));
-            const vals = [v0, v1, v2];
-            painEls.forEach((el, i) => {
-              const v = vals[i] ?? 0;
-              gsap.set(el, { opacity: v, y: (1 - v) * 22 });
+            const v0 = smoothStep(0.06, 0.16, p) * (1 - smoothStep(0.28, 0.36, p));
+            const v1 = smoothStep(0.36, 0.46, p) * (1 - smoothStep(0.58, 0.66, p));
+            const v2 = smoothStep(0.66, 0.76, p) * (1 - smoothStep(0.84, 0.92, p));
+            [v0, v1, v2].forEach((v, i) => {
+              gsap.set(painEls[i], { opacity: v, y: (1 - v) * 16 });
             });
           },
         });
 
-        // ── "ENOUGH." — Splitting.js char reveal ─────────────────────────────
+        // ── ENOUGH ───────────────────────────────────────────────────────────
         const enoughChars = document.querySelectorAll<HTMLElement>("#enough .char");
         if (enoughChars.length) {
-          gsap.set(enoughChars, { y: 140, opacity: 0, rotationX: -80 });
+          gsap.set(enoughChars, { y: 90, opacity: 0, rotationX: -65 });
           gsap.to(enoughChars, {
             y: 0, opacity: 1, rotationX: 0,
-            duration: 1.1, ease: "expo.out", stagger: 0.06, delay: 0.9,
-            scrollTrigger: { trigger: "#s-explode", start: "top 30%", toggleActions: "play none none none" },
+            duration: 1.0, ease: "expo.out", stagger: 0.05, delay: 0.6,
+            scrollTrigger: { trigger: "#s-explode", start: "top 35%", toggleActions: "play none none none" },
           });
         }
 
-        // ── CineFlow intro gold line ───────────────────────────────────────────
+        gsap.fromTo("#enough-sub",
+          { y: 16, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.9, ease: "power2.out", delay: 1.3,
+            scrollTrigger: { trigger: "#s-explode", start: "top 35%", toggleActions: "play none none none" } }
+        );
+
+        // ── CineFlow intro ────────────────────────────────────────────────────
         gsap.fromTo("#intro-line",
           { scaleX: 0 },
-          { scaleX: 1, duration: 1.7, ease: "expo.inOut",
-            scrollTrigger: { trigger: "#s-intro", start: "top 68%", toggleActions: "play none none none" } }
+          { scaleX: 1, duration: 1.6, ease: "expo.inOut",
+            scrollTrigger: { trigger: "#s-intro", start: "top 70%", toggleActions: "play none none none" } }
         );
 
         const cineChars = document.querySelectorAll<HTMLElement>("#cineflow-word .char");
         if (cineChars.length) {
-          gsap.set(cineChars, { y: 180, opacity: 0, skewX: 12 });
+          gsap.set(cineChars, { y: 150, opacity: 0, skewX: 8 });
           gsap.to(cineChars, {
             y: 0, opacity: 1, skewX: 0,
-            duration: 1.2, ease: "expo.out", stagger: 0.055,
-            scrollTrigger: { trigger: "#s-intro", start: "top 58%", toggleActions: "play none none none" },
+            duration: 1.1, ease: "expo.out", stagger: 0.048,
+            scrollTrigger: { trigger: "#s-intro", start: "top 60%", toggleActions: "play none none none" },
           });
         }
 
         gsap.fromTo("#intro-sub",
-          { y: 36, opacity: 0 },
+          { y: 24, opacity: 0 },
           { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.5,
-            scrollTrigger: { trigger: "#s-intro", start: "top 44%", toggleActions: "play none none none" } }
+            scrollTrigger: { trigger: "#s-intro", start: "top 46%", toggleActions: "play none none none" } }
         );
 
         // ── Product panels ────────────────────────────────────────────────────
         document.querySelectorAll<HTMLElement>("[data-panel]").forEach((el) => {
           gsap.fromTo(el,
-            { y: 60, opacity: 0 },
-            { y: 0, opacity: 1, duration: 1.1, ease: "power3.out",
-              scrollTrigger: { trigger: el, start: "top 80%", toggleActions: "play none none reverse" } }
+            { y: 44, opacity: 0 },
+            { y: 0, opacity: 1, duration: 1.0, ease: "power3.out",
+              scrollTrigger: { trigger: el, start: "top 82%", toggleActions: "play none none reverse" } }
           );
         });
 
         // ── CTA ───────────────────────────────────────────────────────────────
         const ctaChars = document.querySelectorAll<HTMLElement>("#cta-headline .char");
         if (ctaChars.length) {
-          gsap.set(ctaChars, { y: 90, opacity: 0 });
+          gsap.set(ctaChars, { y: 70, opacity: 0 });
           gsap.to(ctaChars, {
-            y: 0, opacity: 1, duration: 1.0, ease: "expo.out", stagger: 0.032,
-            scrollTrigger: { trigger: "#s-cta", start: "top 72%", toggleActions: "play none none none" },
+            y: 0, opacity: 1, duration: 0.9, ease: "expo.out", stagger: 0.022,
+            scrollTrigger: { trigger: "#s-cta", start: "top 74%", toggleActions: "play none none none" },
           });
         }
         document.querySelectorAll<HTMLElement>("[data-cta]").forEach((el, i) => {
           gsap.fromTo(el,
-            { y: 30, opacity: 0 },
-            { y: 0, opacity: 1, duration: 0.9, ease: "power3.out",
-              scrollTrigger: { trigger: "#s-cta", start: "top 65%", toggleActions: "play none none none" },
-              delay: 0.5 + i * 0.14,
+            { y: 20, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.8, ease: "power3.out",
+              scrollTrigger: { trigger: "#s-cta", start: "top 66%", toggleActions: "play none none none" },
+              delay: 0.55 + i * 0.12,
             }
           );
         });
@@ -241,29 +249,29 @@ export function LandingPage({ refCode }: Props) {
 
   return (
     <>
-      {/* ── Atmospheric background canvas (fixed) ──────────────────────── */}
       <BackgroundCanvas />
 
-      {/* ── App cards (fixed, driven by GSAP ticker) ────────────────────── */}
+      {/* ── Chaos fragments (fixed, time-driven orbit) ───────────────────── */}
       <div className="fixed inset-0 z-10 pointer-events-none overflow-hidden">
-        {APPS.map((app, i) => (
+        {FRAGMENTS.map((frag, i) => (
           <div
-            key={app.name}
+            key={i}
             ref={el => { cardRefs.current[i] = el; }}
-            className="absolute flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white"
+            className="absolute rounded-md px-3 py-1.5 text-white/60"
             style={{
-              border: `1px solid ${app.color}55`,
-              background: "rgba(8,8,18,0.82)",
-              backdropFilter: "blur(10px)",
+              fontSize: "11px",
+              fontFamily: frag.mono
+                ? "'SF Mono', 'Fira Code', 'Courier New', monospace"
+                : "inherit",
+              border: "1px solid rgba(255,255,255,0.07)",
+              background: "rgba(6,6,14,0.72)",
+              backdropFilter: "blur(8px)",
               opacity: 0,
               whiteSpace: "nowrap",
+              letterSpacing: frag.mono ? "0.01em" : "-0.01em",
             }}
           >
-            <div
-              className="h-2 w-2 rounded-full flex-shrink-0"
-              style={{ background: app.color, boxShadow: `0 0 6px ${app.color}` }}
-            />
-            {app.name}
+            {frag.text}
           </div>
         ))}
       </div>
@@ -271,14 +279,14 @@ export function LandingPage({ refCode }: Props) {
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#d4a853]/40 bg-[#d4a853]/10 backdrop-blur-sm">
-            <Film className="h-4 w-4 text-[#d4a853]" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#d4a853]/40 bg-[#d4a853]/10">
+            <Film className="h-3.5 w-3.5 text-[#d4a853]" />
           </div>
-          <span className="text-sm font-bold tracking-tight text-white drop-shadow-lg">CineFlow</span>
+          <span className="text-sm font-semibold tracking-tight text-white/90">CineFlow</span>
         </div>
         <Link
           href={signupHref}
-          className="rounded-xl border border-[#d4a853]/50 bg-black/40 px-4 py-2 text-xs font-bold text-[#d4a853] backdrop-blur-sm transition-all hover:bg-[#d4a853] hover:text-black"
+          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 backdrop-blur-sm transition-all hover:border-[#d4a853]/50 hover:text-[#d4a853]"
         >
           Get early access
         </Link>
@@ -287,98 +295,105 @@ export function LandingPage({ refCode }: Props) {
       {/* ── Scrollable page ──────────────────────────────────────────────── */}
       <div className="relative z-20" style={{ background: "transparent" }}>
 
-        {/* ══ S1: HERO ════════════════════════════════════════════════════ */}
-        <section
-          id="s-hero"
-          className="relative flex h-screen flex-col items-center justify-center px-8 text-center"
-        >
-          <div className="mb-10 w-full max-w-3xl overflow-hidden">
+        {/* ══ HERO ════════════════════════════════════════════════════════ */}
+        <section id="s-hero" className="relative flex h-screen flex-col items-center justify-center px-8 text-center">
+          <div className="mb-14 w-full max-w-5xl overflow-hidden">
             <div
               id="hero-line"
-              className="h-px w-full bg-[#d4a853]"
-              style={{ transformOrigin: "left center", transform: "scaleX(0)" }}
+              className="h-px w-full"
+              style={{
+                background: "linear-gradient(90deg, transparent, rgba(212,168,83,0.5), transparent)",
+                transformOrigin: "left center",
+                transform: "scaleX(0)",
+              }}
             />
           </div>
-
-          <p className="mb-6 text-[9px] font-bold uppercase tracking-[0.45em] text-[#d4a853]">
-            The problem
-          </p>
 
           <div
             id="hero-headline"
             data-split
-            className="max-w-3xl font-black leading-[1.06] tracking-tighter text-white"
-            style={{ fontSize: "clamp(2.4rem, 5vw, 4.4rem)", overflow: "hidden", perspective: "800px" }}
+            className="max-w-5xl font-black leading-[1.04] tracking-tighter text-white"
+            style={{ fontSize: "clamp(2.8rem, 4.8vw, 5rem)", overflow: "hidden" }}
           >
             Seven tools. One production. Zero clarity.
           </div>
 
           <p
             id="hero-sub"
-            className="mt-8 max-w-sm text-sm leading-relaxed text-white/35"
+            className="mt-7 max-w-sm text-sm leading-relaxed text-white/28"
             style={{ opacity: 0 }}
           >
-            The average media agency stitches together 7 separate subscriptions
-            just to manage a single shoot. It shouldn&apos;t be this hard.
+            Production teams spend more time managing tools than making work.
+            There&apos;s a better way.
           </p>
 
-          <div className="absolute bottom-12 flex flex-col items-center gap-3">
-            <div className="h-10 w-px bg-gradient-to-b from-transparent to-[#d4a853]/40" />
-            <p className="text-[9px] font-semibold uppercase tracking-[0.3em] text-white/20">Scroll</p>
+          <div className="absolute bottom-10 flex flex-col items-center gap-3">
+            <div className="h-14 w-px bg-gradient-to-b from-transparent to-[#d4a853]/25" />
+            <p className="font-mono text-[8px] tracking-[0.35em] text-white/15 uppercase">Scroll</p>
           </div>
         </section>
 
-        {/* ══ S2: CHAOS — cards orbit + sequential pain points ════════════ */}
-        <div id="s-chaos" style={{ height: "320vh" }}>
+        {/* ══ CHAOS — fragments orbit + sequential pain points ════════════ */}
+        <div id="s-chaos" style={{ height: "280vh" }}>
           <div className="sticky top-0 h-screen overflow-hidden">
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               {PAIN_POINTS.map((pt, i) => (
                 <p
                   key={i}
                   data-pain
-                  className="absolute text-center font-black leading-tight text-white"
-                  style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)", opacity: 0, maxWidth: "600px" }}
+                  className="absolute text-center font-black leading-[1.1] tracking-tight text-white"
+                  style={{
+                    fontSize: "clamp(2.2rem, 4vw, 3.8rem)",
+                    opacity: 0,
+                    maxWidth: "680px",
+                  }}
                 >
-                  {pt.line1}<br />
-                  <span className="text-[#d4a853]">{pt.line2}</span>
+                  {pt}
                 </p>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ══ S3: EXPLOSION ═══════════════════════════════════════════════ */}
-        <div id="s-explode" style={{ height: "200vh" }}>
-          <div className="sticky top-0 h-screen overflow-hidden flex flex-col items-center justify-center px-8">
+        {/* ══ ENOUGH ══════════════════════════════════════════════════════ */}
+        <div id="s-explode" style={{ height: "160vh" }}>
+          <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8">
             <div
               id="enough"
               data-split
               className="font-black leading-none tracking-tighter text-white text-center"
-              style={{ fontSize: "clamp(5rem, 14vw, 11rem)", overflow: "hidden", perspective: "1000px" }}
+              style={{ fontSize: "clamp(3.8rem, 9vw, 7.5rem)", overflow: "hidden", perspective: "800px" }}
             >
               ENOUGH.
             </div>
+            <p
+              id="enough-sub"
+              className="mt-5 font-mono text-[10px] tracking-[0.3em] uppercase text-white/20"
+              style={{ opacity: 0 }}
+            >
+              There&apos;s a better way.
+            </p>
           </div>
         </div>
 
-        {/* ══ S4: CINEFLOW INTRO ══════════════════════════════════════════ */}
-        <div id="s-intro" style={{ height: "240vh" }}>
-          <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center px-10 sm:px-20">
+        {/* ══ CINEFLOW INTRO ══════════════════════════════════════════════ */}
+        <div id="s-intro" style={{ height: "200vh" }}>
+          <div className="sticky top-0 h-screen flex flex-col justify-center px-10 sm:px-20">
             <div className="max-w-5xl">
-              <div className="mb-10 overflow-hidden">
+              <div className="mb-7 overflow-hidden">
                 <div
                   id="intro-line"
-                  className="h-px w-full"
                   style={{
-                    background: "linear-gradient(90deg, #d4a853, #fff8e0, #d4a853)",
+                    width: "36px",
+                    height: "1px",
+                    background: "#d4a853",
                     transformOrigin: "left center",
                     transform: "scaleX(0)",
-                    boxShadow: "0 0 12px rgba(212,168,83,0.5)",
                   }}
                 />
               </div>
 
-              <p className="mb-3 text-[9px] font-bold uppercase tracking-[0.45em] text-[#d4a853]">
+              <p className="mb-4 font-mono text-[10px] tracking-[0.4em] uppercase text-[#d4a853]/60">
                 Introducing
               </p>
 
@@ -387,9 +402,9 @@ export function LandingPage({ refCode }: Props) {
                 data-split
                 className="font-black leading-none tracking-tighter"
                 style={{
-                  fontSize: "clamp(5rem, 13vw, 10.5rem)",
+                  fontSize: "clamp(4.5rem, 12vw, 10rem)",
                   overflow: "hidden",
-                  background: "linear-gradient(135deg, #ffffff 45%, #d4a853 75%, #fff8e0 100%)",
+                  background: "linear-gradient(135deg, #ffffff 38%, #d4a853 68%, #fff3c4 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
@@ -400,96 +415,97 @@ export function LandingPage({ refCode }: Props) {
 
               <p
                 id="intro-sub"
-                className="mt-8 max-w-md text-base leading-relaxed text-white/38"
+                className="mt-6 max-w-xs text-sm leading-relaxed text-white/28"
                 style={{ opacity: 0 }}
               >
-                One platform. Every production. Total control.<br />
-                Built for agencies that are done juggling.
+                One platform. Every production. Total control.
               </p>
             </div>
           </div>
         </div>
 
-        {/* ══ S5: PRODUCT PANELS ══════════════════════════════════════════ */}
-        <div id="s-panels" style={{ paddingBottom: "10rem" }}>
+        {/* ══ PRODUCT PANELS ══════════════════════════════════════════════ */}
+        <div id="s-panels" style={{ paddingBottom: "7rem" }}>
           {PANELS.map((panel, i) => (
             <div
               key={i}
               data-panel
-              className="mx-auto mb-44 max-w-4xl px-10 sm:px-20"
+              className="mx-auto mb-28 max-w-4xl px-10 sm:px-20"
               style={{ opacity: 0 }}
             >
-              <p className="mb-6 text-[9px] font-bold uppercase tracking-[0.4em] text-[#d4a853]">
-                {String(i + 1).padStart(2, "0")} / {panel.tag}
+              <p className="mb-5 font-mono text-[10px] tracking-[0.35em] uppercase text-[#d4a853]/50">
+                {String(i + 1).padStart(2, "0")} — {panel.tag}
               </p>
 
               <div
-                className="mb-6 font-black leading-[1.0] tracking-tighter text-white"
-                style={{ fontSize: "clamp(2.8rem, 6vw, 5.5rem)" }}
+                className="mb-5 font-black leading-[1.0] tracking-tighter text-white"
+                style={{ fontSize: "clamp(2.6rem, 5.5vw, 5rem)" }}
               >
                 {panel.line1}<br />
                 {panel.line2}<br />
                 <span className="text-[#d4a853]">{panel.line3}</span>
               </div>
 
-              <div className="mb-6 h-px w-16 bg-[#d4a853]/50" />
+              <div className="mb-5 h-px w-8 bg-[#d4a853]/25" />
 
-              <p className="max-w-sm text-sm leading-relaxed text-white/35">
+              <p className="max-w-xs text-[13px] leading-relaxed text-white/25">
                 {panel.sub}
               </p>
             </div>
           ))}
         </div>
 
-        {/* ══ S6: CTA — clean dark, no spotlight ══════════════════════════ */}
+        {/* ══ CTA ═════════════════════════════════════════════════════════ */}
         <div
           id="s-cta"
           className="relative h-screen flex flex-col items-center justify-center overflow-hidden"
         >
-          {/* Subtle ambient gold bloom — static, no movement */}
           <div
             className="pointer-events-none absolute inset-0"
             style={{
-              background: "radial-gradient(ellipse 70% 50% at 50% 58%, rgba(212,168,83,0.06) 0%, transparent 70%)",
+              background: "radial-gradient(ellipse 55% 42% at 50% 54%, rgba(212,168,83,0.055) 0%, transparent 70%)",
             }}
           />
 
-          <div className="relative z-10 flex flex-col items-center gap-7 px-8 text-center">
+          <div className="relative z-10 flex flex-col items-center gap-5 px-8 text-center">
             <div
               id="cta-headline"
               data-split
-              className="max-w-2xl font-black leading-tight tracking-tight text-white"
-              style={{ fontSize: "clamp(2.2rem, 5vw, 4rem)", overflow: "hidden" }}
+              className="max-w-2xl font-black leading-[1.04] tracking-tighter text-white"
+              style={{ fontSize: "clamp(2.4rem, 5vw, 4.5rem)", overflow: "hidden" }}
             >
-              Ready to direct your agency?
+              One platform. Total clarity.
             </div>
 
             <p
               data-cta
-              className="text-sm text-white/30 max-w-xs leading-relaxed"
+              className="text-[13px] text-white/25 max-w-xs leading-relaxed"
               style={{ opacity: 0 }}
             >
-              Join media agencies already running on CineFlow.
-              One platform, total clarity.
+              Join productions already running on CineFlow.
             </p>
 
             <Link
               data-cta
               href={signupHref}
-              className="rounded-2xl bg-[#d4a853] px-9 py-4 text-sm font-black text-black transition-all hover:scale-105 hover:shadow-[0_0_50px_rgba(212,168,83,0.5)]"
+              className="mt-1 rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(212,168,83,0.35)]"
               style={{ opacity: 0 }}
             >
               Start for free →
             </Link>
 
-            <p data-cta className="text-[11px] text-white/20" style={{ opacity: 0 }}>
-              No credit card required. Cancel anytime.
+            <p
+              data-cta
+              className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/15"
+              style={{ opacity: 0 }}
+            >
+              No credit card required
             </p>
           </div>
 
-          <div className="absolute bottom-7 left-0 right-0 flex justify-center gap-8 text-[10px] text-white/20">
-            <Link href="/privacy" className="hover:text-white/40 transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-white/40 transition-colors">Terms</Link>
+          <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-8 font-mono text-[9px] tracking-widest uppercase text-white/12">
+            <Link href="/privacy" className="hover:text-white/30 transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-white/30 transition-colors">Terms</Link>
             <span>© 2026 CineFlow</span>
           </div>
         </div>
