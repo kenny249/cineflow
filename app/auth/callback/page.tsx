@@ -27,7 +27,7 @@ function CallbackInner() {
     const supabase = createClient();
 
     async function exchange() {
-      const isInvite = type === "invite";
+      const isInvite = type === "invite" || type === "collab_invite";
 
       let user = null;
       let lastMsg = "Authentication failed.";
