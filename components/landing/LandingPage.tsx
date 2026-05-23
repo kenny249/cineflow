@@ -10,40 +10,37 @@ interface Props { refCode?: string }
 
 const FRAGMENTS: { text: string; mono?: boolean }[] = [
   { text: '"where are we at?" · 11:47pm' },
-  { text: "Invoice_v4_FINAL_FINAL.pdf",      mono: true },
-  { text: '"did anyone brief the client?"' },
-  { text: "shot_list_REVISED_use_this.xlsx", mono: true },
+  { text: "Invoice_v4_FINAL_FINAL.pdf",          mono: true },
+  { text: '"did you get the rough cut link?"' },
+  { text: "shot_list_REVISED_use_this.xlsx",     mono: true },
   { text: '"can you resend the contract?"' },
   { text: "Client approval: pending 14d" },
   { text: '"what time is call time again?"' },
-  { text: "Budget_Spreadsheet_v3.xlsx",      mono: true },
+  { text: "call_sheet_saturday_v4.pdf",          mono: true },
   { text: '"who has the location notes?"' },
-  { text: "Schedule_FINAL_v7_USE_THIS.pdf",  mono: true },
-  { text: "Revision request · overdue" },
+  { text: "Schedule_FINAL_v7_USE_THIS.pdf",      mono: true },
+  { text: '"I never got the invoice 🙏"' },
   { text: '"just checking in again..."' },
-];
-
-const PAIN_POINTS = [
-  "Shot lists buried in email threads.",
-  "Invoices chased for 60 days.",
-  "Clients texting you at 11pm.",
 ];
 
 const PANELS = [
   {
-    tag: "Dashboard",
-    line1: "Every project.", line2: "Every status.", line3: "One view.",
-    sub: "Your entire pipeline from pre-pro to delivery — visible at a glance.",
+    tag: "Production",
+    line1: "Your whole", line2: "production.", line3: "One view.",
+    sub: "Shot lists, call sheets, and scheduling — everything your crew needs, right where your project lives.",
+    note: "Replaces StudioBinder + Notion",
   },
   {
-    tag: "Collaboration",
-    line1: "Your whole crew.", line2: "Fully in", line3: "the loop.",
-    sub: "Call times, shot lists, and schedule alerts — everyone stays informed.",
+    tag: "Client Portal",
+    line1: "Clients stay", line2: "in the loop.", line3: "Automatically.",
+    sub: "Every client gets their own portal. They see progress, approve cuts, and sign off — without texting you.",
+    note: 'No more "hey, are the videos done yet?"',
   },
   {
-    tag: "Clients & Finance",
-    line1: "Get paid.", line2: "Get approved.", line3: "Move on.",
-    sub: "Professional invoices, client portals, and digital sign-off.",
+    tag: "Payments",
+    line1: "Stop chasing", line2: "your own", line3: "money.",
+    sub: "Professional invoices, deposit collection, and automated reminders — right next to the project.",
+    note: "Replaces HoneyBook + DocuSign",
   },
 ];
 
@@ -62,7 +59,7 @@ export function LandingPage({ refCode }: Props) {
 
       gsap.registerPlugin(ScrollTrigger);
 
-      const lenis = new Lenis({ lerp: 0.08, smoothWheel: true });
+      const lenis = new Lenis({ lerp: 0.06, smoothWheel: true });
       lenis.on("scroll", ScrollTrigger.update);
       const lenisTick = (time: number) => lenis.raf(time * 1000);
       gsap.ticker.add(lenisTick);
@@ -102,12 +99,18 @@ export function LandingPage({ refCode }: Props) {
         );
 
         gsap.fromTo("#hero-headline",
-          { y: 32, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1.5, ease: "power3.out", delay: 0.25,
+          { y: 30, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.5, ease: "power3.out", delay: 0.2,
             scrollTrigger: { trigger: "#s-hero", start: "top 58%", toggleActions: "play none none none" } }
         );
 
-        // ── Fragment orbit — time-based, not scroll-driven ────────────────────
+        gsap.fromTo("#hero-sub",
+          { y: 18, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 0.5,
+            scrollTrigger: { trigger: "#s-hero", start: "top 54%", toggleActions: "play none none none" } }
+        );
+
+        // ── Fragment orbit — time-based ───────────────────────────────────────
         const cardEls = cardRefs.current.filter(Boolean) as HTMLDivElement[];
         gsap.set(cardEls, { opacity: 0 });
 
@@ -140,9 +143,9 @@ export function LandingPage({ refCode }: Props) {
         };
         gsap.ticker.add(orbitTickerFn);
 
-        // ── Pain points — one at a time ───────────────────────────────────────
+        // ── Pain points — blur + opacity crossfade, no Y movement ─────────────
         const painEls = Array.from(document.querySelectorAll<HTMLElement>("[data-pain]"));
-        gsap.set(painEls, { opacity: 0, y: 0 });
+        gsap.set(painEls, { opacity: 0, filter: "blur(8px)" });
 
         ScrollTrigger.create({
           trigger: "#s-chaos",
@@ -150,11 +153,11 @@ export function LandingPage({ refCode }: Props) {
           end: "bottom top",
           onUpdate: (st) => {
             const p = st.progress;
-            const v0 = smoothStep(0.06, 0.16, p) * (1 - smoothStep(0.28, 0.36, p));
-            const v1 = smoothStep(0.36, 0.46, p) * (1 - smoothStep(0.58, 0.66, p));
-            const v2 = smoothStep(0.66, 0.76, p) * (1 - smoothStep(0.84, 0.92, p));
+            const v0 = smoothStep(0.06, 0.17, p) * (1 - smoothStep(0.30, 0.40, p));
+            const v1 = smoothStep(0.40, 0.51, p) * (1 - smoothStep(0.62, 0.72, p));
+            const v2 = smoothStep(0.72, 0.82, p) * (1 - smoothStep(0.90, 0.97, p));
             [v0, v1, v2].forEach((v, i) => {
-              gsap.set(painEls[i], { opacity: v, y: (1 - v) * 16 });
+              gsap.set(painEls[i], { opacity: v, filter: `blur(${(1 - v) * 7}px)` });
             });
           },
         });
@@ -171,8 +174,8 @@ export function LandingPage({ refCode }: Props) {
         }
 
         gsap.fromTo("#enough-sub",
-          { y: 14, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.8, ease: "power2.out", delay: 1.1,
+          { y: 12, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.9, ease: "power2.out", delay: 1.1,
             scrollTrigger: { trigger: "#s-explode", start: "top 40%", toggleActions: "play none none none" } }
         );
 
@@ -194,18 +197,28 @@ export function LandingPage({ refCode }: Props) {
         }
 
         gsap.fromTo("#intro-sub",
-          { y: 22, opacity: 0 },
+          { y: 20, opacity: 0 },
           { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.45,
             scrollTrigger: { trigger: "#s-intro", start: "top 48%", toggleActions: "play none none none" } }
         );
 
-        // ── Product panels ────────────────────────────────────────────────────
-        document.querySelectorAll<HTMLElement>("[data-panel]").forEach((el) => {
-          gsap.fromTo(el,
-            { y: 40, opacity: 0 },
-            { y: 0, opacity: 1, duration: 1.0, ease: "power3.out",
-              scrollTrigger: { trigger: el, start: "top 82%", toggleActions: "play none none reverse" } }
-          );
+        // ── Sticky cycling panels ─────────────────────────────────────────────
+        gsap.set("#panel-0", { opacity: 1, filter: "blur(0px)" });
+        gsap.set(["#panel-1", "#panel-2"], { opacity: 0, filter: "blur(6px)" });
+
+        ScrollTrigger.create({
+          trigger: "#s-panels",
+          start: "top top",
+          end: "bottom top",
+          onUpdate: (st) => {
+            const p = st.progress;
+            const op0 = 1 - smoothStep(0.28, 0.37, p);
+            const op1 = smoothStep(0.28, 0.37, p) * (1 - smoothStep(0.62, 0.71, p));
+            const op2 = smoothStep(0.62, 0.71, p);
+            gsap.set("#panel-0", { opacity: op0, filter: `blur(${(1 - op0) * 5}px)` });
+            gsap.set("#panel-1", { opacity: op1, filter: `blur(${(1 - op1) * 5}px)` });
+            gsap.set("#panel-2", { opacity: op2, filter: `blur(${(1 - op2) * 5}px)` });
+          },
         });
 
         // ── CTA ───────────────────────────────────────────────────────────────
@@ -305,22 +318,29 @@ export function LandingPage({ refCode }: Props) {
             />
           </div>
 
-          {/* Small kicker — specific, punchy */}
           <p
             id="hero-kicker"
-            className="mb-5 text-[13px] font-semibold tracking-tight text-white/30"
+            className="mb-4 font-mono text-[11px] tracking-[0.35em] uppercase text-white/25"
             style={{ opacity: 0 }}
           >
-            Seven tools. One production. Zero clarity.
+            For filmmakers and video production teams
           </p>
 
-          {/* Big statement — emotional, relatable */}
-          <p
+          <h1
             id="hero-headline"
-            className="max-w-2xl font-bold leading-[1.1] tracking-tight text-white"
-            style={{ fontSize: "clamp(2rem, 3.6vw, 3.4rem)", opacity: 0 }}
+            className="max-w-2xl font-black leading-[1.05] tracking-tighter text-white"
+            style={{ fontSize: "clamp(2.4rem, 4.2vw, 4rem)", opacity: 0 }}
           >
-            Production teams spend more time managing tools than making work.
+            Stop stitching your<br />production together.
+          </h1>
+
+          <p
+            id="hero-sub"
+            className="mt-6 max-w-sm text-[13px] leading-relaxed text-white/30"
+            style={{ opacity: 0 }}
+          >
+            Shot lists, client portals, invoicing, crew scheduling —<br />
+            all flowing in one place. Finally.
           </p>
 
           <div className="absolute bottom-10 flex flex-col items-center gap-3">
@@ -329,24 +349,60 @@ export function LandingPage({ refCode }: Props) {
           </div>
         </section>
 
-        {/* ══ CHAOS — fragments orbit + sequential pain points ════════════ */}
-        <div id="s-chaos" style={{ height: "280vh" }}>
+        {/* ══ CHAOS — fragments orbit + pain points ════════════════════════ */}
+        <div id="s-chaos" style={{ height: "220vh" }}>
           <div className="sticky top-0 h-screen overflow-hidden">
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              {PAIN_POINTS.map((pt, i) => (
-                <p
-                  key={i}
-                  data-pain
-                  className="absolute text-center font-black leading-[1.1] tracking-tight text-white"
+
+              {/* Pain 1 — fragmentation */}
+              <p
+                data-pain
+                className="absolute text-center font-black leading-[1.15] tracking-tighter text-white"
+                style={{ fontSize: "clamp(1.7rem, 3.2vw, 3rem)", opacity: 0, maxWidth: "660px" }}
+              >
+                StudioBinder. Frame.io. HoneyBook. Slack.<br />
+                <span className="text-white/45">Not one of them talks to the other.</span>
+              </p>
+
+              {/* Pain 2 — the financial drain */}
+              <p
+                data-pain
+                className="absolute text-center font-black leading-[1.15] tracking-tighter text-white"
+                style={{ fontSize: "clamp(1.7rem, 3.2vw, 3rem)", opacity: 0, maxWidth: "620px" }}
+              >
+                Subscription after subscription.<br />
+                <span className="text-white/45">Something&apos;s always falling through the cracks.</span>
+              </p>
+
+              {/* Pain 3 — the client text, as a chat bubble */}
+              <div
+                data-pain
+                className="absolute flex flex-col items-center gap-3"
+                style={{ opacity: 0 }}
+              >
+                <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-white/30">
+                  Sarah M.
+                </p>
+                <div
+                  className="rounded-2xl rounded-tl-md px-6 py-4"
                   style={{
-                    fontSize: "clamp(2.2rem, 4vw, 3.8rem)",
-                    opacity: 0,
-                    maxWidth: "680px",
+                    background: "rgba(255,255,255,0.07)",
+                    border: "1px solid rgba(255,255,255,0.10)",
+                    backdropFilter: "blur(12px)",
                   }}
                 >
-                  {pt}
+                  <p
+                    className="font-semibold text-white"
+                    style={{ fontSize: "clamp(1.2rem, 2.4vw, 2rem)" }}
+                  >
+                    &ldquo;hey are the videos done yet?&nbsp;👀&rdquo;
+                  </p>
+                </div>
+                <p className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/22 mt-1">
+                  No portal. Just your inbox.
                 </p>
-              ))}
+              </div>
+
             </div>
           </div>
         </div>
@@ -364,7 +420,7 @@ export function LandingPage({ refCode }: Props) {
             </div>
             <p
               id="enough-sub"
-              className="mt-5 font-mono text-[10px] tracking-[0.3em] uppercase text-white/20"
+              className="mt-6 text-base font-light tracking-wide text-white/30"
               style={{ opacity: 0 }}
             >
               There&apos;s a better way.
@@ -372,7 +428,7 @@ export function LandingPage({ refCode }: Props) {
           </div>
         </div>
 
-        {/* ══ CINEFLOW INTRO — centered ════════════════════════════════════ */}
+        {/* ══ CINEFLOW INTRO ══════════════════════════════════════════════ */}
         <div id="s-intro" style={{ height: "160vh" }}>
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
             <div className="max-w-4xl">
@@ -411,44 +467,50 @@ export function LandingPage({ refCode }: Props) {
 
               <p
                 id="intro-sub"
-                className="mt-6 mx-auto max-w-xs text-sm leading-relaxed text-white/30"
+                className="mt-6 mx-auto max-w-sm text-sm leading-relaxed text-white/30"
                 style={{ opacity: 0 }}
               >
-                One platform. Every production. Total control.
+                Everything your production runs on — finally in one place.
               </p>
             </div>
           </div>
         </div>
 
-        {/* ══ PRODUCT PANELS — centered ════════════════════════════════════ */}
-        <div id="s-panels" style={{ paddingBottom: "6rem" }}>
-          {PANELS.map((panel, i) => (
-            <div
-              key={i}
-              data-panel
-              className="mx-auto mb-20 max-w-3xl px-8 text-center"
-              style={{ opacity: 0 }}
-            >
-              <p className="mb-5 font-mono text-[10px] tracking-[0.35em] uppercase text-[#d4a853]/50">
-                {String(i + 1).padStart(2, "0")} — {panel.tag}
-              </p>
-
+        {/* ══ PRODUCT PANELS — sticky cycling ═════════════════════════════ */}
+        <div id="s-panels" style={{ height: "280vh" }}>
+          <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
+            {PANELS.map((panel, i) => (
               <div
-                className="mb-5 font-black leading-[1.0] tracking-tighter text-white"
-                style={{ fontSize: "clamp(2.6rem, 5.5vw, 5rem)" }}
+                key={i}
+                id={`panel-${i}`}
+                className="absolute max-w-3xl px-8 text-center"
+                style={{ opacity: i === 0 ? 1 : 0 }}
               >
-                {panel.line1}<br />
-                {panel.line2}<br />
-                <span className="text-[#d4a853]">{panel.line3}</span>
+                <p className="mb-5 font-mono text-[10px] tracking-[0.35em] uppercase text-[#d4a853]/50">
+                  {String(i + 1).padStart(2, "0")} — {panel.tag}
+                </p>
+
+                <div
+                  className="mb-5 font-black leading-[1.0] tracking-tighter text-white"
+                  style={{ fontSize: "clamp(2.6rem, 5.5vw, 5rem)" }}
+                >
+                  {panel.line1}<br />
+                  {panel.line2}<br />
+                  <span className="text-[#d4a853]">{panel.line3}</span>
+                </div>
+
+                <div className="mx-auto mb-5 h-px w-8 bg-[#d4a853]/25" />
+
+                <p className="mx-auto max-w-xs text-[13px] leading-relaxed text-white/30">
+                  {panel.sub}
+                </p>
+
+                <p className="mt-5 font-mono text-[9px] tracking-[0.3em] uppercase text-white/15">
+                  {panel.note}
+                </p>
               </div>
-
-              <div className="mx-auto mb-5 h-px w-8 bg-[#d4a853]/25" />
-
-              <p className="mx-auto max-w-xs text-[13px] leading-relaxed text-white/30">
-                {panel.sub}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* ══ CTA ═════════════════════════════════════════════════════════ */}
@@ -470,7 +532,7 @@ export function LandingPage({ refCode }: Props) {
               className="max-w-xl font-black leading-[1.04] tracking-tighter text-white"
               style={{ fontSize: "clamp(2.4rem, 5vw, 4.5rem)", overflow: "hidden" }}
             >
-              One platform. Total clarity.
+              Everything in one place. Finally.
             </div>
 
             <p
@@ -478,7 +540,7 @@ export function LandingPage({ refCode }: Props) {
               className="text-[13px] text-white/25 max-w-xs leading-relaxed"
               style={{ opacity: 0 }}
             >
-              Join productions already running on CineFlow.
+              Join filmmakers and video teams already running their productions on CineFlow.
             </p>
 
             <Link
@@ -492,10 +554,10 @@ export function LandingPage({ refCode }: Props) {
 
             <p
               data-cta
-              className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/15"
+              className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20"
               style={{ opacity: 0 }}
             >
-              No credit card required
+              Replaces a ton of subscriptions. Starts at $39/mo.
             </p>
           </div>
 
