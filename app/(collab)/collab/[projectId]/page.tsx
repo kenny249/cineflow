@@ -6,12 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 import {
   Film, LogOut, Send, ArrowLeft, Users, MessageSquare,
   List, CheckSquare, Info, MapPin, Phone, Clock,
-  CheckCircle2, Circle, Camera, Mail, Globe,
+  CheckCircle2, Circle, Camera, Mail, Globe, StickyNote, Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import type {
   ProjectMessage, ProjectCollaborator, ShotList,
-  ProjectTask, CrewContact, ProjectLocation,
+  ProjectTask, CrewContact, ProjectLocation, ProjectNote,
 } from "@/types";
 
 interface CollabProject {
@@ -23,7 +23,7 @@ interface CollabProject {
   shoot_date?: string;
 }
 
-type Tab = "chat" | "shots" | "tasks" | "info";
+type Tab = "chat" | "shots" | "tasks" | "notes" | "info";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -70,21 +70,36 @@ export default function CollabProjectPage() {
 
   const [project, setProject] = useState<CollabProject | null>(null);
   const [collaborators, setCollaborators] = useState<ProjectCollaborator[]>([]);
+  const [myPermissions, setMyPermissions] = useState<string[]>([]);
   const [messages, setMessages] = useState<ProjectMessage[]>([]);
   const [shotLists, setShotLists] = useState<ShotList[]>([]);
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [crew, setCrew] = useState<CrewContact[]>([]);
   const [locations, setLocations] = useState<ProjectLocation[]>([]);
+  const [notes, setNotes] = useState<ProjectNote[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [showPeople, setShowPeople] = useState(false);
+
+  // Chat
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [togglingTask, setTogglingTask] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Tasks
+  const [togglingTask, setTogglingTask] = useState<string | null>(null);
+
+  // Shots
+  const [togglingShot, setTogglingShot] = useState<string | null>(null);
+
+  // Notes
+  const [noteContent, setNoteContent] = useState("");
+  const [noteTitle, setNoteTitle] = useState("");
+  const [addingNote, setAddingNote] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -108,13 +123,14 @@ export default function CollabProjectPage() {
 
       const { data: collab } = await supabase
         .from("project_collaborators")
-        .select("id")
+        .select("id, permissions")
         .eq("project_id", projectId)
         .eq("user_id", user.id)
         .eq("status", "active")
         .single();
 
       if (!collab) { router.replace("/collab"); return; }
+      setMyPermissions((collab.permissions as string[]) ?? []);
 
       const [projRes, collabsRes, msgsRes, shotRes, tasksRes, crewRes, locRes] = await Promise.all([
         supabase.from("projects").select("id, title, client_name, status, description, shoot_date").eq("id", projectId).single(),
@@ -133,6 +149,11 @@ export default function CollabProjectPage() {
       setTasks((tasksRes.data as ProjectTask[]) ?? []);
       setCrew((crewRes.data as CrewContact[]) ?? []);
       setLocations((locRes.data as ProjectLocation[]) ?? []);
+
+      // Load notes via API route (handles permission check server-side)
+      const notesRes = await fetch(`/api/collab/${projectId}/notes`);
+      if (notesRes.ok) setNotes(await notesRes.json());
+
       setLoading(false);
     }
 
@@ -181,6 +202,7 @@ export default function CollabProjectPage() {
   }
 
   const toggleTaskStatus = useCallback(async (task: ProjectTask) => {
+    if (!myPermissions.includes("manage_tasks")) return;
     const next = task.status === "done" ? "todo" : "done";
     setTogglingTask(task.id);
     setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: next as ProjectTask["status"] } : t));
@@ -200,7 +222,66 @@ export default function CollabProjectPage() {
     } finally {
       setTogglingTask(null);
     }
-  }, [projectId]);
+  }, [projectId, myPermissions]);
+
+  const toggleShot = useCallback(async (itemId: string, current: boolean) => {
+    if (!myPermissions.includes("mark_shots")) return;
+    setTogglingShot(itemId);
+    // Optimistic update across all lists
+    setShotLists((prev) => prev.map((sl) => ({
+      ...sl,
+      items: sl.items?.map((s) => s.id === itemId ? { ...s, is_complete: !current } : s),
+    })));
+    try {
+      const res = await fetch(`/api/collab/${projectId}/shots/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_complete: !current }),
+      });
+      if (!res.ok) {
+        setShotLists((prev) => prev.map((sl) => ({
+          ...sl,
+          items: sl.items?.map((s) => s.id === itemId ? { ...s, is_complete: current } : s),
+        })));
+        toast.error("Failed to update shot");
+      }
+    } catch {
+      setShotLists((prev) => prev.map((sl) => ({
+        ...sl,
+        items: sl.items?.map((s) => s.id === itemId ? { ...s, is_complete: current } : s),
+      })));
+    } finally {
+      setTogglingShot(null);
+    }
+  }, [projectId, myPermissions]);
+
+  async function handleAddNote(e: React.FormEvent) {
+    e.preventDefault();
+    const content = noteContent.trim();
+    if (!content || savingNote) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch(`/api/collab/${projectId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, title: noteTitle.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to add note");
+      } else {
+        setNotes((prev) => [data, ...prev]);
+        setNoteContent("");
+        setNoteTitle("");
+        setAddingNote(false);
+        toast.success("Note added");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -226,6 +307,10 @@ export default function CollabProjectPage() {
   for (const d of DEPT_ORDER) if (crewByDept.has(d)) orderedDepts.set(d, crewByDept.get(d)!);
   for (const [d, v] of crewByDept) if (!orderedDepts.has(d)) orderedDepts.set(d, v);
 
+  const canMarkShots = myPermissions.includes("mark_shots");
+  const canManageTasks = myPermissions.includes("manage_tasks");
+  const canAddNotes = myPermissions.includes("add_notes");
+
   const todoTasks = tasks.filter((t) => t.status !== "done");
   const doneTasks = tasks.filter((t) => t.status === "done");
 
@@ -245,11 +330,12 @@ export default function CollabProjectPage() {
     );
   }
 
-  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "chat", label: "Chat", icon: <MessageSquare className="h-3.5 w-3.5" /> },
+  const TABS: { id: Tab; label: string; icon: React.ReactNode; hidden?: boolean }[] = [
+    { id: "chat",  label: "Chat",      icon: <MessageSquare className="h-3.5 w-3.5" /> },
     { id: "shots", label: "Shot List", icon: <Camera className="h-3.5 w-3.5" /> },
-    { id: "tasks", label: "Tasks", icon: <CheckSquare className="h-3.5 w-3.5" /> },
-    { id: "info", label: "Info", icon: <Info className="h-3.5 w-3.5" /> },
+    { id: "tasks", label: "Tasks",     icon: <CheckSquare className="h-3.5 w-3.5" /> },
+    { id: "notes", label: "Notes",     icon: <StickyNote className="h-3.5 w-3.5" /> },
+    { id: "info",  label: "Info",      icon: <Info className="h-3.5 w-3.5" /> },
   ];
 
   return (
@@ -303,12 +389,12 @@ export default function CollabProjectPage() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-3 flex gap-1">
+        <div className="mt-3 flex gap-1 overflow-x-auto">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                 activeTab === tab.id
                   ? "bg-white/[0.08] text-white"
                   : "text-white/40 hover:text-white/70"
@@ -328,8 +414,6 @@ export default function CollabProjectPage() {
 
       {/* Body */}
       <div className="flex flex-1 min-h-0">
-
-        {/* Main content */}
         <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
 
           {/* ── Chat ── */}
@@ -409,6 +493,12 @@ export default function CollabProjectPage() {
           {/* ── Shot List ── */}
           {activeTab === "shots" && (
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              {canMarkShots && (
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                  <p className="text-xs text-emerald-400">You can mark shots as complete on this project.</p>
+                </div>
+              )}
               {shotLists.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
                   <List className="h-8 w-8 text-white/10" />
@@ -432,16 +522,33 @@ export default function CollabProjectPage() {
                             {items.map((shot) => (
                               <div
                                 key={shot.id}
-                                className={`rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5 transition-colors ${
+                                className={`rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5 transition-all ${
                                   shot.is_complete ? "opacity-50" : ""
                                 }`}
                               >
                                 <div className="flex items-start gap-3">
-                                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-xs font-bold text-white/50">
-                                    {shot.shot_number}
-                                  </div>
+                                  {/* Mark-complete button or shot number */}
+                                  {canMarkShots ? (
+                                    <button
+                                      onClick={() => toggleShot(shot.id, shot.is_complete)}
+                                      disabled={togglingShot === shot.id}
+                                      className="mt-0.5 shrink-0 text-white/30 hover:text-emerald-400 transition-colors disabled:opacity-50"
+                                    >
+                                      {shot.is_complete
+                                        ? <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                                        : <Circle className="h-5 w-5" />
+                                      }
+                                    </button>
+                                  ) : (
+                                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-xs font-bold text-white/50">
+                                      {shot.shot_number}
+                                    </div>
+                                  )}
                                   <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                      {canMarkShots && (
+                                        <span className="text-[10px] font-bold text-white/30">#{shot.shot_number}</span>
+                                      )}
                                       <span className="text-[10px] font-semibold uppercase tracking-wide text-[#d4a853]/70">
                                         {SHOT_TYPE_LABELS[shot.shot_type] ?? shot.shot_type}
                                       </span>
@@ -487,6 +594,11 @@ export default function CollabProjectPage() {
           {/* ── Tasks ── */}
           {activeTab === "tasks" && (
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              {!canManageTasks && (
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                  <p className="text-xs text-white/30">View only — ask your project lead for task management access.</p>
+                </div>
+              )}
               {tasks.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
                   <CheckSquare className="h-8 w-8 text-white/10" />
@@ -504,6 +616,7 @@ export default function CollabProjectPage() {
                           <TaskRow
                             key={task.id}
                             task={task}
+                            canToggle={canManageTasks}
                             toggling={togglingTask === task.id}
                             onToggle={() => toggleTaskStatus(task)}
                           />
@@ -521,6 +634,7 @@ export default function CollabProjectPage() {
                           <TaskRow
                             key={task.id}
                             task={task}
+                            canToggle={canManageTasks}
                             toggling={togglingTask === task.id}
                             onToggle={() => toggleTaskStatus(task)}
                           />
@@ -533,10 +647,87 @@ export default function CollabProjectPage() {
             </div>
           )}
 
+          {/* ── Notes ── */}
+          {activeTab === "notes" && (
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              {/* Add note form */}
+              {canAddNotes && (
+                <div className="mb-4">
+                  {addingNote ? (
+                    <form onSubmit={handleAddNote} className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 space-y-2">
+                      <input
+                        type="text"
+                        value={noteTitle}
+                        onChange={(e) => setNoteTitle(e.target.value)}
+                        placeholder="Title (optional)"
+                        className="w-full rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-white/20 outline-none focus:border-[#d4a853]/30 transition-colors"
+                      />
+                      <textarea
+                        value={noteContent}
+                        onChange={(e) => setNoteContent(e.target.value)}
+                        placeholder="Write your note…"
+                        rows={3}
+                        required
+                        className="w-full rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-white/20 outline-none focus:border-[#d4a853]/30 transition-colors resize-none"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          disabled={!noteContent.trim() || savingNote}
+                          className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-40"
+                        >
+                          {savingNote ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-black/30 border-t-black" /> : null}
+                          Save note
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setAddingNote(false); setNoteContent(""); setNoteTitle(""); }}
+                          className="rounded-lg border border-white/10 px-4 py-1.5 text-xs text-white/40 hover:text-white transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button
+                      onClick={() => setAddingNote(true)}
+                      className="flex w-full items-center gap-2 rounded-xl border border-dashed border-white/[0.08] bg-transparent px-4 py-3 text-xs text-white/30 hover:border-[#d4a853]/30 hover:text-[#d4a853] transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add a note
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {notes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-2">
+                  <StickyNote className="h-8 w-8 text-white/10" />
+                  <p className="text-sm text-white/20">
+                    {canAddNotes ? "No notes yet — add the first one." : "No notes yet."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notes.map((note) => (
+                    <div key={note.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+                      {note.title && (
+                        <p className="text-sm font-semibold text-white mb-1">{note.title}</p>
+                      )}
+                      <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{note.content}</p>
+                      <p className="mt-2 text-[10px] text-white/25">
+                        {new Date(note.created_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ── Info ── */}
           {activeTab === "info" && (
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-6">
-              {/* Project details */}
               <div>
                 <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/30">Project</p>
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
@@ -559,7 +750,6 @@ export default function CollabProjectPage() {
                 </div>
               </div>
 
-              {/* Locations */}
               {locations.length > 0 && (
                 <div>
                   <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/30">
@@ -599,7 +789,6 @@ export default function CollabProjectPage() {
                 </div>
               )}
 
-              {/* Crew */}
               {crew.length > 0 && (
                 <div>
                   <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/30">
@@ -684,10 +873,12 @@ export default function CollabProjectPage() {
 
 function TaskRow({
   task,
+  canToggle,
   toggling,
   onToggle,
 }: {
   task: ProjectTask;
+  canToggle: boolean;
   toggling: boolean;
   onToggle: () => void;
 }) {
@@ -696,8 +887,12 @@ function TaskRow({
     <div className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5">
       <button
         onClick={onToggle}
-        disabled={toggling}
-        className="mt-0.5 shrink-0 text-white/30 hover:text-emerald-400 transition-colors disabled:opacity-50"
+        disabled={!canToggle || toggling}
+        className={`mt-0.5 shrink-0 transition-colors ${
+          canToggle
+            ? "text-white/30 hover:text-emerald-400 cursor-pointer"
+            : "text-white/15 cursor-default"
+        } disabled:opacity-50`}
       >
         {isDone
           ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />

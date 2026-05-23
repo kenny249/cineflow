@@ -63,16 +63,19 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const body = await req.json() as { email: string; name: string };
+    const body = await req.json() as { email: string; name: string; permissions?: string[] };
     const email = body.email?.trim().toLowerCase();
     const name = body.name?.trim();
     if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
     if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
+    const VALID_PERMS = new Set(["mark_shots", "add_notes", "manage_tasks"]);
+    const permissions = (body.permissions ?? []).filter((p) => VALID_PERMS.has(p));
+
     // Insert pending collaborator row
     const { data: collab, error: insertErr } = await supabase
       .from("project_collaborators")
-      .insert({ project_id: projectId, invited_by: user.id, email, name, status: "pending" })
+      .insert({ project_id: projectId, invited_by: user.id, email, name, status: "pending", permissions })
       .select()
       .single();
 
@@ -108,6 +111,37 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json(collab, { status: 201 });
   } catch (err) {
     console.error("[collaborators POST]", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}
+
+// PATCH — update collaborator permissions
+export async function PATCH(req: NextRequest, { params }: Params) {
+  try {
+    const { id: projectId } = await params;
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json() as { collaboratorId: string; permissions: string[] };
+    if (!body.collaboratorId) return NextResponse.json({ error: "collaboratorId required" }, { status: 400 });
+
+    const VALID_PERMS = new Set(["mark_shots", "add_notes", "manage_tasks"]);
+    const permissions = (body.permissions ?? []).filter((p) => VALID_PERMS.has(p));
+
+    const { error } = await supabase
+      .from("project_collaborators")
+      .update({ permissions })
+      .eq("id", body.collaboratorId)
+      .eq("project_id", projectId);
+
+    if (error) {
+      console.error("[collaborators PATCH]", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, permissions });
+  } catch (err) {
+    console.error("[collaborators PATCH]", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

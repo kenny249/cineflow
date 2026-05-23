@@ -139,6 +139,7 @@ export interface ProjectCollaborator {
   email: string;
   name: string;
   status: "pending" | "active";
+  permissions: string[];
   created_at: string;
 }
 

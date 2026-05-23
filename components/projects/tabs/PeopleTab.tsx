@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UserPlus, Trash2, Clock, CheckCircle2, Send, Users, X } from "lucide-react";
+import { UserPlus, Trash2, Send, Users, X, Settings2, Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { ProjectCollaborator, ProjectMessage, TeamMember } from "@/types";
@@ -35,6 +35,31 @@ function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
   );
 }
 
+const PERMISSION_OPTS = [
+  { id: "mark_shots", label: "Mark shots done" },
+  { id: "add_notes",  label: "Add notes" },
+  { id: "manage_tasks", label: "Manage tasks" },
+] as const;
+
+const PERM_CHIP: Record<string, string> = {
+  mark_shots:   "shots",
+  add_notes:    "notes",
+  manage_tasks: "tasks",
+};
+
+function PermissionChips({ permissions }: { permissions: string[] }) {
+  if (permissions.length === 0) return <span className="text-[9px] text-muted-foreground/40 italic">read only</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {permissions.map((p) => (
+        <span key={p} className="rounded px-1.5 py-0.5 text-[9px] font-semibold bg-[#d4a853]/10 text-[#d4a853]">
+          {PERM_CHIP[p] ?? p}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [collaborators, setCollaborators] = useState<ProjectCollaborator[]>([]);
@@ -44,14 +69,17 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
+  const [invitePerms, setInvitePerms] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [editingPermsId, setEditingPermsId] = useState<string | null>(null);
+  const [editPermsVal, setEditPermsVal] = useState<string[]>([]);
+  const [savingPerms, setSavingPerms] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const msgsContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load team members + collaborators
   useEffect(() => {
     const supabase = createClient();
     Promise.all([
@@ -64,7 +92,6 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
     }).catch(() => setLoadingPeople(false));
   }, [projectId]);
 
-  // Load messages
   useEffect(() => {
     fetch(`/api/projects/${projectId}/messages`)
       .then((r) => r.json())
@@ -72,13 +99,11 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
       .catch(() => setLoadingMsgs(false));
   }, [projectId]);
 
-  // Scroll to bottom on new messages (within the container, not the page)
   useEffect(() => {
     const el = msgsContainerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
-  // Realtime subscription
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -98,6 +123,10 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
     return () => { supabase.removeChannel(channel); };
   }, [projectId]);
 
+  function toggleInvitePerm(id: string) {
+    setInvitePerms((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
+  }
+
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     const email = inviteEmail.trim().toLowerCase();
@@ -108,7 +137,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
     const res = await fetch(`/api/projects/${projectId}/collaborators`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, name }),
+      body: JSON.stringify({ email, name, permissions: invitePerms }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -118,6 +147,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
       setCollaborators((prev) => [...prev, data]);
       setInviteEmail("");
       setInviteName("");
+      setInvitePerms([]);
       setShowInviteForm(false);
     }
     setInviting(false);
@@ -135,6 +165,32 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
     setRemovingId(null);
   }
 
+  function startEditPerms(collab: ProjectCollaborator) {
+    setEditingPermsId(collab.id);
+    setEditPermsVal(collab.permissions ?? []);
+  }
+
+  function toggleEditPerm(id: string) {
+    setEditPermsVal((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
+  }
+
+  async function savePerms(collabId: string) {
+    setSavingPerms(true);
+    const res = await fetch(`/api/projects/${projectId}/collaborators`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collaboratorId: collabId, permissions: editPermsVal }),
+    });
+    if (res.ok) {
+      setCollaborators((prev) => prev.map((c) => c.id === collabId ? { ...c, permissions: editPermsVal } : c));
+      toast.success("Permissions updated");
+      setEditingPermsId(null);
+    } else {
+      toast.error("Failed to update permissions");
+    }
+    setSavingPerms(false);
+  }
+
   async function handleSend() {
     const content = input.trim();
     if (!content || sending) return;
@@ -150,7 +206,6 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
     inputRef.current?.focus();
   }
 
-  // Group messages by date
   const grouped: { date: string; msgs: ProjectMessage[] }[] = [];
   for (const msg of messages) {
     const date = formatDate(msg.created_at);
@@ -186,11 +241,10 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
                     <p className="text-xs font-medium text-foreground truncate">{m.name || m.email.split("@")[0]}</p>
                     <p className="text-[10px] text-muted-foreground capitalize">{m.role}</p>
                   </div>
-                  {m.status === "active" ? (
-                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
-                  ) : (
-                    <div className="h-1.5 w-1.5 rounded-full bg-amber-400/60 shrink-0" />
-                  )}
+                  {m.status === "active"
+                    ? <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    : <div className="h-1.5 w-1.5 rounded-full bg-amber-400/60 shrink-0" />
+                  }
                 </div>
               ))}
             </div>
@@ -204,7 +258,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
           <div className="flex items-center justify-between mb-2.5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">External</p>
             <button
-              onClick={() => setShowInviteForm((v) => !v)}
+              onClick={() => { setShowInviteForm((v) => !v); setInvitePerms([]); }}
               className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
             >
               {showInviteForm ? <X className="h-2.5 w-2.5" /> : <UserPlus className="h-2.5 w-2.5" />}
@@ -231,6 +285,32 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
                 required
                 className="w-full rounded-lg border border-border bg-input px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-[#d4a853]/50"
               />
+
+              {/* Permissions */}
+              <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-2 space-y-1.5">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Permissions</p>
+                {PERMISSION_OPTS.map((opt) => (
+                  <label key={opt.id} className="flex items-center gap-2 cursor-pointer">
+                    <div
+                      onClick={() => toggleInvitePerm(opt.id)}
+                      className={`h-3.5 w-3.5 shrink-0 rounded border transition-colors flex items-center justify-center ${
+                        invitePerms.includes(opt.id)
+                          ? "border-[#d4a853] bg-[#d4a853]"
+                          : "border-border bg-transparent"
+                      }`}
+                    >
+                      {invitePerms.includes(opt.id) && <Check className="h-2 w-2 text-black" />}
+                    </div>
+                    <span
+                      onClick={() => toggleInvitePerm(opt.id)}
+                      className="text-[10px] text-muted-foreground select-none"
+                    >
+                      {opt.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
               <button
                 type="submit"
                 disabled={inviting || !inviteEmail.trim() || !inviteName.trim()}
@@ -245,31 +325,94 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
           {loadingPeople ? null : collaborators.length === 0 && !showInviteForm ? (
             <p className="text-xs text-muted-foreground italic">No external contributors yet.</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {activeCollabs.map((c) => (
-                <div key={c.id} className="group flex items-center gap-2.5">
-                  <Avatar name={c.name} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{c.email}</p>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    <button
-                      onClick={() => handleRemove(c)}
-                      disabled={removingId === c.id}
-                      className="hidden group-hover:flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-red-400 transition-colors"
-                    >
-                      {removingId === c.id
-                        ? <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />
-                        : <Trash2 className="h-2.5 w-2.5" />
-                      }
-                    </button>
-                  </div>
+                <div key={c.id} className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                  {editingPermsId === c.id ? (
+                    // Inline permission editor
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
+                        <button
+                          onClick={() => setEditingPermsId(null)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="space-y-1">
+                        {PERMISSION_OPTS.map((opt) => (
+                          <label key={opt.id} className="flex items-center gap-2 cursor-pointer">
+                            <div
+                              onClick={() => toggleEditPerm(opt.id)}
+                              className={`h-3.5 w-3.5 shrink-0 rounded border transition-colors flex items-center justify-center ${
+                                editPermsVal.includes(opt.id)
+                                  ? "border-[#d4a853] bg-[#d4a853]"
+                                  : "border-border bg-transparent"
+                              }`}
+                            >
+                              {editPermsVal.includes(opt.id) && <Check className="h-2 w-2 text-black" />}
+                            </div>
+                            <span
+                              onClick={() => toggleEditPerm(opt.id)}
+                              className="text-[10px] text-muted-foreground select-none"
+                            >
+                              {opt.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => savePerms(c.id)}
+                        disabled={savingPerms}
+                        className="w-full flex items-center justify-center gap-1 rounded-md bg-[#d4a853]/15 px-2 py-1 text-[10px] font-semibold text-[#d4a853] hover:bg-[#d4a853]/25 transition-colors disabled:opacity-40"
+                      >
+                        {savingPerms
+                          ? <span className="h-2.5 w-2.5 animate-spin rounded-full border border-[#d4a853]/40 border-t-[#d4a853]" />
+                          : <Check className="h-2.5 w-2.5" />
+                        }
+                        Save
+                      </button>
+                    </div>
+                  ) : (
+                    // Normal view
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Avatar name={c.name} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{c.email}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                          <button
+                            onClick={() => startEditPerms(c)}
+                            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground transition-colors"
+                            title="Edit permissions"
+                          >
+                            <Settings2 className="h-2.5 w-2.5" />
+                          </button>
+                          <button
+                            onClick={() => handleRemove(c)}
+                            disabled={removingId === c.id}
+                            className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-red-400 transition-colors"
+                          >
+                            {removingId === c.id
+                              ? <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-muted-foreground" />
+                              : <Trash2 className="h-2.5 w-2.5" />
+                            }
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-1.5 ml-8">
+                        <PermissionChips permissions={c.permissions ?? []} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {pendingCollabs.map((c) => (
-                <div key={c.id} className="group flex items-center gap-2.5 opacity-60">
+                <div key={c.id} className="group flex items-center gap-2.5 opacity-60 px-1">
                   <Avatar name={c.name} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
@@ -298,7 +441,6 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
           </span>
         </div>
 
-        {/* Messages */}
         <div ref={msgsContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-0.5">
           {loadingMsgs ? (
             <div className="flex h-full items-center justify-center">
@@ -321,7 +463,6 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
                   const isMe = msg.author_id === userId;
                   const prevMsg = i > 0 ? msgs[i - 1] : null;
                   const showAuthor = !prevMsg || prevMsg.author_id !== msg.author_id;
-
                   return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} ${showAuthor ? "mt-3" : "mt-0.5"}`}>
                       {showAuthor && (
@@ -352,7 +493,6 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
           )}
         </div>
 
-        {/* Input */}
         <div className="border-t border-border p-4">
           <div className="flex items-center gap-2">
             <input
