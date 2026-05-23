@@ -87,10 +87,55 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    // Send invite email via Supabase admin
     const admin = createAdminClient();
     const origin = (req.headers.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
 
+    // Check if this email already has a CineFlow account
+    const { data: { users: existingUsers } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const existingUser = existingUsers.find((u) => u.email?.toLowerCase() === email);
+
+    if (existingUser) {
+      // Returning collaborator — activate the row directly and notify via Resend (not account creation email)
+      const { error: activateErr } = await supabase
+        .from("project_collaborators")
+        .update({ user_id: existingUser.id, status: "active" })
+        .eq("id", collab.id);
+
+      if (activateErr) {
+        console.error("[collaborators POST] activate existing", activateErr.message);
+        await supabase.from("project_collaborators").delete().eq("id", collab.id);
+        return NextResponse.json({ error: activateErr.message }, { status: 500 });
+      }
+
+      // Send "you've been added" notification via Resend (fire-and-forget)
+      if (process.env.RESEND_API_KEY) {
+        const { Resend } = await import("resend");
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        const FROM = process.env.RESEND_FROM_EMAIL ?? "notifications@usecineflow.com";
+        const collabBase = `${origin}/collab`;
+        resend.emails.send({
+          from: FROM,
+          to: email,
+          subject: `You've been added to ${project.title}`,
+          html: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>New Project</title></head>
+<body style="margin:0;padding:0;background:#09090b;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#09090b;padding:40px 20px;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="background:#111113;border-radius:12px;border:1px solid #27272a;overflow:hidden;max-width:560px;width:100%;">
+<tr><td style="background:#d4a853;padding:24px 40px;"><p style="margin:0;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#000;opacity:0.6;">CineFlow</p><h1 style="margin:8px 0 0;font-size:22px;font-weight:800;color:#000;">New project: ${project.title}</h1></td></tr>
+<tr><td style="padding:28px 40px;">
+<p style="margin:0 0 16px;font-size:15px;color:#d4d4d8;line-height:1.6;">Hey ${name} — you've been added to <strong style="color:#fff;">${project.title}</strong>. Log in to view your tasks and collaborator tools.</p>
+<a href="${collabBase}" style="display:inline-block;background:#d4a853;color:#000;text-decoration:none;padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;">Open Project →</a>
+</td></tr>
+<tr><td style="padding:16px 40px;border-top:1px solid #27272a;text-align:center;"><p style="margin:0;font-size:11px;color:#52525b;">CineFlow · Production Management for Media Teams</p></td></tr>
+</table></td></tr></table></body></html>`,
+        }).catch(() => {});
+      }
+
+      return NextResponse.json({ ...collab, user_id: existingUser.id, status: "active" }, { status: 201 });
+    }
+
+    // New user — send standard Supabase invite email
     const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${origin}/auth/callback?type=collab_invite&project_id=${projectId}&next=/collab`,
       data: {

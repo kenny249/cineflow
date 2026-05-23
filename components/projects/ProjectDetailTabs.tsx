@@ -1021,6 +1021,11 @@ export default function ProjectDetailTabs({
       await updateProject(project.id, { status: newStatus });
       toast.success(`Status → ${PROJECT_STATUS_LABELS[newStatus]}`);
 
+      // Deactivate collaborators + send wrap emails when project is delivered
+      if (newStatus === "delivered") {
+        fetch(`/api/projects/${project.id}/wrap-collaborators`, { method: "POST" }).catch(() => {});
+      }
+
       // Fire stage notification email (same as full edit flow)
       const STAGE_EMAILS: Record<string, { event: string; stageName: string; stageDescription: string }> = {
         active:    { event: "stage_update",   stageName: "Production",      stageDescription: "Your team has started production. We'll keep you updated as the project progresses." },

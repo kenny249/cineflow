@@ -42,12 +42,17 @@ const PERMISSION_OPTS = [
 ] as const;
 
 const ROLE_PRESETS: { label: string; perms: string[] }[] = [
+  { label: "Director",   perms: ["mark_shots", "manage_tasks", "add_notes"] },
   { label: "DP",         perms: ["mark_shots", "add_notes"] },
-  { label: "Director",   perms: ["mark_shots", "add_notes"] },
-  { label: "1st AD",     perms: ["manage_tasks", "add_notes"] },
-  { label: "PA",         perms: ["manage_tasks", "add_notes"] },
+  { label: "1st AD",     perms: ["mark_shots", "manage_tasks", "add_notes"] },
+  { label: "2nd AD",     perms: ["manage_tasks", "add_notes"] },
+  { label: "PA",         perms: ["manage_tasks"] },
   { label: "Script Sup", perms: ["mark_shots", "add_notes"] },
+  { label: "Camera Op",  perms: ["mark_shots", "add_notes"] },
+  { label: "Gaffer",     perms: ["add_notes"] },
+  { label: "Sound",      perms: ["add_notes"] },
   { label: "Editor",     perms: ["add_notes"] },
+  { label: "Colorist",   perms: ["add_notes"] },
   { label: "Talent",     perms: [] },
 ];
 
@@ -80,6 +85,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [invitePerms, setInvitePerms] = useState<string[]>([]);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [editingPermsId, setEditingPermsId] = useState<string | null>(null);
@@ -134,6 +140,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
   }, [projectId]);
 
   function toggleInvitePerm(id: string) {
+    setActivePreset(null);
     setInvitePerms((prev) => prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]);
   }
 
@@ -158,6 +165,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
       setInviteEmail("");
       setInviteName("");
       setInvitePerms([]);
+      setActivePreset(null);
       setShowInviteForm(false);
     }
     setInviting(false);
@@ -268,7 +276,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
           <div className="flex items-center justify-between mb-2.5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">External</p>
             <button
-              onClick={() => { setShowInviteForm((v) => !v); setInvitePerms([]); }}
+              onClick={() => { setShowInviteForm((v) => !v); setInvitePerms([]); setActivePreset(null); }}
               className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
             >
               {showInviteForm ? <X className="h-2.5 w-2.5" /> : <UserPlus className="h-2.5 w-2.5" />}
@@ -299,24 +307,22 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
               {/* Role presets */}
               <div className="space-y-1.5">
                 <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Role</p>
+                <p className="text-[9px] text-muted-foreground/60 -mt-0.5">Pick a role to prefill — customize freely below</p>
                 <div className="flex flex-wrap gap-1">
-                  {ROLE_PRESETS.map((preset) => {
-                    const active = JSON.stringify([...invitePerms].sort()) === JSON.stringify([...preset.perms].sort());
-                    return (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => setInvitePerms(preset.perms)}
-                        className={`rounded-md px-2 py-1 text-[10px] font-semibold transition-colors ${
-                          active
-                            ? "bg-[#d4a853] text-black"
-                            : "border border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
-                        }`}
-                      >
-                        {preset.label}
-                      </button>
-                    );
-                  })}
+                  {ROLE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => { setActivePreset(preset.label); setInvitePerms(preset.perms); }}
+                      className={`rounded-md px-2 py-1 text-[10px] font-semibold transition-colors ${
+                        activePreset === preset.label
+                          ? "bg-[#d4a853] text-black"
+                          : "border border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
