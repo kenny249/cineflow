@@ -7,6 +7,7 @@ import {
   Film, LogOut, Send, ArrowLeft, Users, MessageSquare,
   List, CheckSquare, Info, MapPin, Phone, Clock,
   CheckCircle2, Circle, Camera, Mail, Globe, StickyNote, Plus,
+  CalendarDays, FileText, Download, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import type {
@@ -23,7 +24,27 @@ interface CollabProject {
   shoot_date?: string;
 }
 
-type Tab = "chat" | "shots" | "tasks" | "notes" | "info";
+type Tab = "chat" | "shots" | "tasks" | "notes" | "schedule" | "files" | "info";
+
+interface ShootDay {
+  id: string;
+  day_number: number;
+  date?: string;
+  general_call?: string;
+  location?: string;
+  notes?: string;
+  created_at: string;
+}
+
+interface CollabFile {
+  id: string;
+  name: string;
+  category?: string;
+  public_url?: string;
+  size?: number;
+  mime_type?: string;
+  created_at: string;
+}
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -77,6 +98,8 @@ export default function CollabProjectPage() {
   const [crew, setCrew] = useState<CrewContact[]>([]);
   const [locations, setLocations] = useState<ProjectLocation[]>([]);
   const [notes, setNotes] = useState<ProjectNote[]>([]);
+  const [shootDays, setShootDays] = useState<ShootDay[]>([]);
+  const [collabFiles, setCollabFiles] = useState<CollabFile[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -156,6 +179,13 @@ export default function CollabProjectPage() {
       // Load notes via API route (handles permission check server-side)
       const notesRes = await fetch(`/api/collab/${projectId}/notes`);
       if (notesRes.ok) setNotes(await notesRes.json());
+
+      const [scheduleRes, filesRes] = await Promise.all([
+        fetch(`/api/collab/${projectId}/schedule`),
+        fetch(`/api/collab/${projectId}/files`),
+      ]);
+      if (scheduleRes.ok) setShootDays(await scheduleRes.json());
+      if (filesRes.ok) setCollabFiles(await filesRes.json());
 
       setLoading(false);
     }
@@ -354,12 +384,14 @@ export default function CollabProjectPage() {
     );
   }
 
-  const TABS: { id: Tab; label: string; icon: React.ReactNode; hidden?: boolean }[] = [
-    { id: "chat",  label: "Chat",      icon: <MessageSquare className="h-3.5 w-3.5" /> },
-    { id: "shots", label: "Shot List", icon: <Camera className="h-3.5 w-3.5" /> },
-    { id: "tasks", label: "Tasks",     icon: <CheckSquare className="h-3.5 w-3.5" /> },
-    { id: "notes", label: "Notes",     icon: <StickyNote className="h-3.5 w-3.5" /> },
-    { id: "info",  label: "Info",      icon: <Info className="h-3.5 w-3.5" /> },
+  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "chat",     label: "Chat",      icon: <MessageSquare className="h-3.5 w-3.5" /> },
+    { id: "schedule", label: "Schedule",  icon: <CalendarDays className="h-3.5 w-3.5" /> },
+    { id: "shots",    label: "Shot List", icon: <Camera className="h-3.5 w-3.5" /> },
+    { id: "tasks",    label: "Tasks",     icon: <CheckSquare className="h-3.5 w-3.5" /> },
+    { id: "notes",    label: "Notes",     icon: <StickyNote className="h-3.5 w-3.5" /> },
+    { id: "files",    label: "Files",     icon: <FileText className="h-3.5 w-3.5" /> },
+    { id: "info",     label: "Info",      icon: <Info className="h-3.5 w-3.5" /> },
   ];
 
   return (
@@ -512,6 +544,61 @@ export default function CollabProjectPage() {
                 </div>
               </div>
             </>
+          )}
+
+          {/* ── Schedule ── */}
+          {activeTab === "schedule" && (
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              {shootDays.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
+                  <CalendarDays className="h-8 w-8 text-white/10" />
+                  <p className="text-sm text-white/20">No shoot days scheduled yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {shootDays.map((day) => {
+                    const dateStr = day.date
+                      ? new Date(day.date + "T12:00:00").toLocaleDateString("en-US", {
+                          weekday: "long", month: "long", day: "numeric", year: "numeric",
+                        })
+                      : null;
+                    return (
+                      <div key={day.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                        {/* Day header */}
+                        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#d4a853]/15 text-sm font-bold text-[#d4a853]">
+                            {day.day_number}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-white/80">Day {day.day_number}</p>
+                            {dateStr && <p className="text-[10px] text-white/40">{dateStr}</p>}
+                          </div>
+                        </div>
+                        {/* Day details */}
+                        <div className="px-4 py-3 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-lg bg-white/[0.03] px-3 py-2">
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-0.5">General Call</p>
+                              <p className="text-sm font-semibold text-[#d4a853]">{day.general_call || "TBD"}</p>
+                            </div>
+                            <div className="rounded-lg bg-white/[0.03] px-3 py-2">
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-0.5">Location</p>
+                              <p className="text-sm font-semibold text-white/80 truncate">{day.location || "TBD"}</p>
+                            </div>
+                          </div>
+                          {day.notes && (
+                            <div className="rounded-lg bg-white/[0.03] px-3 py-2">
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-1">Notes</p>
+                              <p className="text-xs text-white/60 leading-relaxed whitespace-pre-wrap">{day.notes}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── Shot List ── */}
@@ -771,6 +858,73 @@ export default function CollabProjectPage() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Files ── */}
+          {activeTab === "files" && (
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              {collabFiles.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
+                  <FileText className="h-8 w-8 text-white/10" />
+                  <p className="text-sm text-white/20">No files shared yet.</p>
+                </div>
+              ) : (
+                (() => {
+                  const CREW_FILE_CATS: { key: string; label: string }[] = [
+                    { key: "call-sheets",  label: "Call Sheets" },
+                    { key: "breakdowns",   label: "Breakdowns" },
+                    { key: "schedules",    label: "Schedules" },
+                    { key: "notes",        label: "Production Notes" },
+                    { key: "other",        label: "Other" },
+                  ];
+                  function fmtSize(bytes?: number) {
+                    if (!bytes) return "";
+                    if (bytes < 1024) return `${bytes} B`;
+                    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+                    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+                  }
+                  const populated = CREW_FILE_CATS.filter((cat) =>
+                    collabFiles.some((f) => (f.category ?? "other") === cat.key)
+                  );
+                  return (
+                    <div className="space-y-4">
+                      {populated.map((cat) => {
+                        const catFiles = collabFiles.filter((f) => (f.category ?? "other") === cat.key);
+                        return (
+                          <div key={cat.key}>
+                            <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-white/30">{cat.label}</p>
+                            <div className="space-y-1.5">
+                              {catFiles.map((file) => (
+                                <div key={file.id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+                                  <FileText className="h-4 w-4 shrink-0 text-[#d4a853]/60" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-medium text-white/80 truncate">{file.name}</p>
+                                    {file.size && (
+                                      <p className="text-[10px] text-white/30">{fmtSize(file.size)}</p>
+                                    )}
+                                  </div>
+                                  {file.public_url && (
+                                    <a
+                                      href={file.public_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1.5 text-[10px] font-semibold text-white/50 hover:border-[#d4a853]/40 hover:text-[#d4a853] transition-colors"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                      Open
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
               )}
             </div>
           )}
