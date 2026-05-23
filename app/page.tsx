@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { LandingPage } from "@/components/landing/LandingPage";
 
 export default async function RootPage({
   searchParams,
@@ -12,5 +13,5 @@ export default async function RootPage({
   if (user) redirect("/dashboard");
 
   const { ref } = await searchParams;
-  redirect(ref ? `/signup?ref=${ref}` : "/login");
+  return <LandingPage refCode={ref} />;
 }
