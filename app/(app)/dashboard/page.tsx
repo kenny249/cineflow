@@ -124,6 +124,8 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error("Error loading data:", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to load dashboard: ${msg}`);
     } finally {
       setLoading(false);
     }
