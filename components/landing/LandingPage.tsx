@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { Film } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
-import { SpotlightCanvas } from "./SpotlightCanvas";
 import { scrollState } from "./scrollState";
 
 interface Props { refCode?: string }
@@ -19,15 +18,27 @@ const APPS = [
 ];
 
 const PAIN_POINTS = [
-  "Shot lists buried in\nemail threads.",
-  "Invoices unpaid\nfor 60 days.",
-  "Clients texting at\n11pm.",
+  { line1: "Shot lists buried in",   line2: "email threads."  },
+  { line1: "Invoices chased",         line2: "for 60 days."   },
+  { line1: "Clients texting you",     line2: "at 11pm."       },
 ];
 
 const PANELS = [
-  { tag: "Dashboard", line1: "Every project.", line2: "Every status.", line3: "One view.", sub: "Your entire pipeline from brief to delivery — visible at a glance." },
-  { tag: "Collaboration", line1: "Your whole crew.", line2: "Fully in", line3: "the loop.", sub: "Individual call times, shot lists, schedule alerts — all in one place." },
-  { tag: "Clients & Finance", line1: "Get paid.", line2: "Get approved.", line3: "Move on.", sub: "Professional invoices, client portals, and digital sign-off." },
+  {
+    tag: "Dashboard",
+    line1: "Every project.", line2: "Every status.", line3: "One view.",
+    sub: "Your entire pipeline from brief to delivery — visible at a glance.",
+  },
+  {
+    tag: "Collaboration",
+    line1: "Your whole crew.", line2: "Fully in", line3: "the loop.",
+    sub: "Individual call times, shot lists, schedule alerts — all in one place.",
+  },
+  {
+    tag: "Clients & Finance",
+    line1: "Get paid.", line2: "Get approved.", line3: "Move on.",
+    sub: "Professional invoices, client portals, and digital sign-off.",
+  },
 ];
 
 export function LandingPage({ refCode }: Props) {
@@ -48,11 +59,11 @@ export function LandingPage({ refCode }: Props) {
       // ── Lenis smooth scroll ────────────────────────────────────────────────
       const lenis = new Lenis({ lerp: 0.082, smoothWheel: true });
       lenis.on("scroll", ScrollTrigger.update);
-      const tick = (time: number) => lenis.raf(time * 1000);
-      gsap.ticker.add(tick);
+      const lenisTick = (time: number) => lenis.raf(time * 1000);
+      gsap.ticker.add(lenisTick);
       gsap.ticker.lagSmoothing(0);
 
-      // ── Global scroll progress → scrollState (read by canvas) ─────────────
+      // ── Global scroll progress → shared state (read by canvas) ────────────
       const globalTrigger = ScrollTrigger.create({
         trigger: document.body,
         start: "top top",
@@ -60,8 +71,18 @@ export function LandingPage({ refCode }: Props) {
         onUpdate: (st) => { scrollState.prog = st.progress; },
       });
 
-      // ── Splitting.js on all [data-split] elements ─────────────────────────
+      // ── Splitting.js ──────────────────────────────────────────────────────
       Splitting({ target: "[data-split]", by: "chars" });
+
+      function smoothStep(e0: number, e1: number, x: number) {
+        const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+        return t * t * (3 - 2 * t);
+      }
+
+      // Track orbit ticker so we can clean it up explicitly
+      let orbitTickerFn: (() => void) | null = null;
+      let orbitTime = 0;
+      const orbit = { r: 0, opacity: 0 };
 
       const ctx = gsap.context(() => {
 
@@ -72,99 +93,74 @@ export function LandingPage({ refCode }: Props) {
             scrollTrigger: { trigger: "#s-hero", start: "top 60%", toggleActions: "play none none none" } }
         );
 
-        // Hero headline chars
         const heroChars = document.querySelectorAll<HTMLElement>("#hero-headline .char");
         if (heroChars.length) {
           gsap.set(heroChars, { y: 100, opacity: 0 });
           gsap.to(heroChars, {
-            y: 0, opacity: 1, duration: 1.1, ease: "expo.out", stagger: 0.028,
+            y: 0, opacity: 1, duration: 1.1, ease: "expo.out", stagger: 0.028, delay: 0.4,
             scrollTrigger: { trigger: "#s-hero", start: "top 55%", toggleActions: "play none none none" },
-            delay: 0.4,
           });
         }
 
-        // Hero subline
         gsap.fromTo("#hero-sub",
           { y: 30, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1, ease: "power3.out",
-            scrollTrigger: { trigger: "#s-hero", start: "top 40%", toggleActions: "play none none none" },
-            delay: 0.2,
-          }
+          { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.2,
+            scrollTrigger: { trigger: "#s-hero", start: "top 40%", toggleActions: "play none none none" } }
         );
 
-        // ── Chaos cards orbit ─────────────────────────────────────────────────
-        // Cards start invisible, fade in as chaos section enters
+        // ── Chaos: time-based orbit (elegant, not scroll-driven) ─────────────
         const cardEls = cardRefs.current.filter(Boolean) as HTMLDivElement[];
+        gsap.set(cardEls, { opacity: 0 });
 
-        gsap.set(cardEls, { opacity: 0, scale: 0.8 });
-
+        // ScrollTrigger only controls orbit.r and orbit.opacity — never positions
         ScrollTrigger.create({
           trigger: "#s-chaos",
-          start: "top 85%",
-          onEnter: () => {
-            gsap.to(cardEls, { opacity: 1, scale: 1, duration: 0.6, stagger: 0.06, ease: "back.out(1.4)" });
+          start: "top 90%",
+          end: "bottom 10%",
+          onUpdate: (st) => {
+            const p = st.progress;
+            orbit.opacity = smoothStep(0, 0.15, p) * (1 - smoothStep(0.88, 1.0, p));
+            orbit.r = smoothStep(0, 0.12, p);
           },
         });
 
-        // Cards driven by scroll progress within chaos section
+        // GSAP ticker drives the actual orbit — constant slow rotation
+        orbitTickerFn = () => {
+          if (orbit.opacity < 0.005) return;
+          orbitTime += 0.004; // ~25s per full revolution
+          const W = window.innerWidth;
+          const H = window.innerHeight;
+          const rx = Math.min(W, H) * 0.38 * orbit.r;
+          const ry = Math.min(W, H) * 0.24 * orbit.r;
+          cardEls.forEach((card, i) => {
+            const angle = (i / cardEls.length) * Math.PI * 2 + orbitTime;
+            const x = W / 2 + Math.cos(angle) * rx - card.offsetWidth / 2;
+            const y = H / 2 + Math.sin(angle) * ry - card.offsetHeight / 2;
+            gsap.set(card, { x, y, opacity: orbit.opacity });
+          });
+        };
+        gsap.ticker.add(orbitTickerFn);
+
+        // ── Pain points: single onUpdate, only one visible at a time ──────────
+        const painEls = Array.from(document.querySelectorAll<HTMLElement>("[data-pain]"));
+        gsap.set(painEls, { opacity: 0, y: 0 });
+
         ScrollTrigger.create({
           trigger: "#s-chaos",
           start: "top top",
           end: "bottom top",
           onUpdate: (st) => {
-            const prog = st.progress; // 0-1
-            const W = window.innerWidth;
-            const H = window.innerHeight;
-            const cx = W / 2;
-            const cy = H / 2;
-            const collapse = Math.max(0, (prog - 0.72) / 0.28);
-            const collapseEased = 1 - Math.pow(1 - collapse, 3);
-
-            cardEls.forEach((card, i) => {
-              const total = cardEls.length;
-              const baseAngle = (i / total) * Math.PI * 2;
-              // Rotation speed increases with chaos
-              const rotSpeed = 1.5 + prog * 6;
-              const angle = baseAngle + prog * Math.PI * rotSpeed;
-              // Elliptical orbit, radius shrinks on collapse
-              const orbitW = (W * 0.34) * (1 - collapseEased * 0.98);
-              const orbitH = (H * 0.24) * (1 - collapseEased * 0.98);
-              // Individual wobble
-              const wobble = prog * 28;
-              const wx = Math.sin(prog * 14 + i * 1.9) * wobble;
-              const wy = Math.cos(prog * 11 + i * 2.3) * wobble;
-
-              const x = cx + Math.cos(angle) * orbitW + wx;
-              const y = cy + Math.sin(angle) * orbitH + wy;
-              const rotation = prog * 540 * (i % 2 === 0 ? 1 : -1.3);
-              // Cards fade before collapse, then gone
-              const cardOpacity = Math.min(1, prog * 4) * (1 - collapseEased * 1.8);
-
-              gsap.set(card, {
-                x: x - card.offsetWidth / 2,
-                y: y - card.offsetHeight / 2,
-                rotation,
-                opacity: Math.max(0, cardOpacity),
-              });
+            const p = st.progress;
+            // Each pain point fades in then out — ranges never overlap
+            const v0 = smoothStep(0.08, 0.18, p) * (1 - smoothStep(0.30, 0.42, p));
+            const v1 = smoothStep(0.42, 0.52, p) * (1 - smoothStep(0.62, 0.74, p));
+            const v2 = smoothStep(0.74, 0.84, p) * (1 - smoothStep(0.90, 0.98, p));
+            const vals = [v0, v1, v2];
+            painEls.forEach((el, i) => {
+              const v = vals[i] ?? 0;
+              gsap.set(el, { opacity: v, y: (1 - v) * 22 });
             });
           },
-        });
-
-        // ── Pain points inside chaos ──────────────────────────────────────────
-        // Each pain point is tied to a specific scroll range within s-chaos
-        const painEls = document.querySelectorAll<HTMLElement>("[data-pain]");
-        painEls.forEach((el, i) => {
-          const startPct = 0.18 + i * 0.20;
-          const endPct   = startPct + 0.18;
-          ScrollTrigger.create({
-            trigger: "#s-chaos",
-            start: `top+=${startPct * 100}% top`,
-            end:   `top+=${endPct * 100}% top`,
-            onEnter: () => { gsap.fromTo(el, { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "power3.out" }); },
-            onLeave: () => { gsap.to(el, { y: -50, opacity: 0, duration: 0.6, ease: "power2.in" }); },
-            onEnterBack: () => { gsap.fromTo(el, { y: 60, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, ease: "power3.out" }); },
-            onLeaveBack: () => { gsap.to(el, { y: -50, opacity: 0, duration: 0.6, ease: "power2.in" }); },
-          });
         });
 
         // ── "ENOUGH." — Splitting.js char reveal ─────────────────────────────
@@ -173,20 +169,18 @@ export function LandingPage({ refCode }: Props) {
           gsap.set(enoughChars, { y: 140, opacity: 0, rotationX: -80 });
           gsap.to(enoughChars, {
             y: 0, opacity: 1, rotationX: 0,
-            duration: 1.1, ease: "expo.out", stagger: 0.06,
+            duration: 1.1, ease: "expo.out", stagger: 0.06, delay: 0.9,
             scrollTrigger: { trigger: "#s-explode", start: "top 30%", toggleActions: "play none none none" },
-            delay: 0.9,
           });
         }
 
-        // ── CineFlow gold line ────────────────────────────────────────────────
+        // ── CineFlow intro gold line ───────────────────────────────────────────
         gsap.fromTo("#intro-line",
           { scaleX: 0 },
           { scaleX: 1, duration: 1.7, ease: "expo.inOut",
             scrollTrigger: { trigger: "#s-intro", start: "top 68%", toggleActions: "play none none none" } }
         );
 
-        // ── "CineFlow" — char rise ────────────────────────────────────────────
         const cineChars = document.querySelectorAll<HTMLElement>("#cineflow-word .char");
         if (cineChars.length) {
           gsap.set(cineChars, { y: 180, opacity: 0, skewX: 12 });
@@ -197,33 +191,27 @@ export function LandingPage({ refCode }: Props) {
           });
         }
 
-        // Intro subtext
         gsap.fromTo("#intro-sub",
           { y: 36, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1, ease: "power3.out",
-            scrollTrigger: { trigger: "#s-intro", start: "top 44%", toggleActions: "play none none none" },
-            delay: 0.5,
-          }
+          { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.5,
+            scrollTrigger: { trigger: "#s-intro", start: "top 44%", toggleActions: "play none none none" } }
         );
 
-        // ── Product panels — each panel cross-fades ───────────────────────────
-        document.querySelectorAll<HTMLElement>("[data-panel]").forEach((el, i) => {
+        // ── Product panels ────────────────────────────────────────────────────
+        document.querySelectorAll<HTMLElement>("[data-panel]").forEach((el) => {
           gsap.fromTo(el,
-            { y: 50, opacity: 0 },
-            {
-              y: 0, opacity: 1, duration: 1, ease: "power3.out",
-              scrollTrigger: { trigger: el, start: "top 78%", toggleActions: "play none none reverse" },
-            }
+            { y: 60, opacity: 0 },
+            { y: 0, opacity: 1, duration: 1.1, ease: "power3.out",
+              scrollTrigger: { trigger: el, start: "top 80%", toggleActions: "play none none reverse" } }
           );
         });
 
-        // ── CTA section ───────────────────────────────────────────────────────
+        // ── CTA ───────────────────────────────────────────────────────────────
         const ctaChars = document.querySelectorAll<HTMLElement>("#cta-headline .char");
         if (ctaChars.length) {
           gsap.set(ctaChars, { y: 90, opacity: 0 });
           gsap.to(ctaChars, {
-            y: 0, opacity: 1,
-            duration: 1.0, ease: "expo.out", stagger: 0.032,
+            y: 0, opacity: 1, duration: 1.0, ease: "expo.out", stagger: 0.032,
             scrollTrigger: { trigger: "#s-cta", start: "top 72%", toggleActions: "play none none none" },
           });
         }
@@ -236,10 +224,12 @@ export function LandingPage({ refCode }: Props) {
             }
           );
         });
+
       });
 
       kill = () => {
-        gsap.ticker.remove(tick);
+        if (orbitTickerFn) gsap.ticker.remove(orbitTickerFn);
+        gsap.ticker.remove(lenisTick);
         lenis.destroy();
         ctx.revert();
         globalTrigger.kill();
@@ -254,7 +244,7 @@ export function LandingPage({ refCode }: Props) {
       {/* ── Atmospheric background canvas (fixed) ──────────────────────── */}
       <BackgroundCanvas />
 
-      {/* ── Chaos app cards (fixed, animated by GSAP) ─────────────────── */}
+      {/* ── App cards (fixed, driven by GSAP ticker) ────────────────────── */}
       <div className="fixed inset-0 z-10 pointer-events-none overflow-hidden">
         {APPS.map((app, i) => (
           <div
@@ -263,19 +253,22 @@ export function LandingPage({ refCode }: Props) {
             className="absolute flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white"
             style={{
               border: `1px solid ${app.color}55`,
-              background: `rgba(8,8,18,0.82)`,
+              background: "rgba(8,8,18,0.82)",
               backdropFilter: "blur(10px)",
               opacity: 0,
               whiteSpace: "nowrap",
             }}
           >
-            <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: app.color, boxShadow: `0 0 6px ${app.color}` }} />
+            <div
+              className="h-2 w-2 rounded-full flex-shrink-0"
+              style={{ background: app.color, boxShadow: `0 0 6px ${app.color}` }}
+            />
             {app.name}
           </div>
         ))}
       </div>
 
-      {/* ── Nav ───────────────────────────────────────────────────────── */}
+      {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-[#d4a853]/40 bg-[#d4a853]/10 backdrop-blur-sm">
@@ -291,15 +284,14 @@ export function LandingPage({ refCode }: Props) {
         </Link>
       </nav>
 
-      {/* ── Scrollable page ────────────────────────────────────────────── */}
+      {/* ── Scrollable page ──────────────────────────────────────────────── */}
       <div className="relative z-20" style={{ background: "transparent" }}>
 
-        {/* ══ S1: HERO ═══════════════════════════════════════════════════ */}
+        {/* ══ S1: HERO ════════════════════════════════════════════════════ */}
         <section
           id="s-hero"
           className="relative flex h-screen flex-col items-center justify-center px-8 text-center"
         >
-          {/* Gold sweep line */}
           <div className="mb-10 w-full max-w-3xl overflow-hidden">
             <div
               id="hero-line"
@@ -330,52 +322,39 @@ export function LandingPage({ refCode }: Props) {
             just to manage a single shoot. It shouldn&apos;t be this hard.
           </p>
 
-          {/* Scroll indicator */}
           <div className="absolute bottom-12 flex flex-col items-center gap-3">
             <div className="h-10 w-px bg-gradient-to-b from-transparent to-[#d4a853]/40" />
             <p className="text-[9px] font-semibold uppercase tracking-[0.3em] text-white/20">Scroll</p>
           </div>
         </section>
 
-        {/* ══ S2: CHAOS ══════════════════════════════════════════════════ */}
-        {/* 240vh wrapper = cards orbit for 140vh of scroll */}
-        <div id="s-chaos" style={{ height: "240vh" }}>
+        {/* ══ S2: CHAOS — cards orbit + sequential pain points ════════════ */}
+        <div id="s-chaos" style={{ height: "320vh" }}>
           <div className="sticky top-0 h-screen overflow-hidden">
-            {/* Pain points appear in the center as cards orbit */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center px-8 pointer-events-none">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               {PAIN_POINTS.map((pt, i) => (
                 <p
                   key={i}
                   data-pain
                   className="absolute text-center font-black leading-tight text-white"
-                  style={{
-                    fontSize: "clamp(1.6rem, 3.2vw, 2.8rem)",
-                    opacity: 0,
-                    maxWidth: "500px",
-                    whiteSpace: "pre-line",
-                    textShadow: "0 0 40px rgba(0,0,0,0.8)",
-                  }}
+                  style={{ fontSize: "clamp(2rem, 4vw, 3.5rem)", opacity: 0, maxWidth: "600px" }}
                 >
-                  <span className="text-[#d4a853]">"</span>{pt}
+                  {pt.line1}<br />
+                  <span className="text-[#d4a853]">{pt.line2}</span>
                 </p>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ══ S3: EXPLOSION ══════════════════════════════════════════════ */}
-        {/* 200vh wrapper = explosion can breathe */}
+        {/* ══ S3: EXPLOSION ═══════════════════════════════════════════════ */}
         <div id="s-explode" style={{ height: "200vh" }}>
           <div className="sticky top-0 h-screen overflow-hidden flex flex-col items-center justify-center px-8">
             <div
               id="enough"
               data-split
               className="font-black leading-none tracking-tighter text-white text-center"
-              style={{
-                fontSize: "clamp(5rem, 14vw, 11rem)",
-                overflow: "hidden",
-                perspective: "1000px",
-              }}
+              style={{ fontSize: "clamp(5rem, 14vw, 11rem)", overflow: "hidden", perspective: "1000px" }}
             >
               ENOUGH.
             </div>
@@ -383,11 +362,9 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ S4: CINEFLOW INTRO ══════════════════════════════════════════ */}
-        {/* 240vh wrapper = slow cinematic reveal */}
         <div id="s-intro" style={{ height: "240vh" }}>
           <div className="sticky top-0 h-screen overflow-hidden flex flex-col justify-center px-10 sm:px-20">
             <div className="max-w-5xl">
-              {/* Gold line */}
               <div className="mb-10 overflow-hidden">
                 <div
                   id="intro-line"
@@ -405,7 +382,6 @@ export function LandingPage({ refCode }: Props) {
                 Introducing
               </p>
 
-              {/* CineFlow — massive Splitting.js reveal */}
               <div
                 id="cineflow-word"
                 data-split
@@ -435,21 +411,18 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ S5: PRODUCT PANELS ══════════════════════════════════════════ */}
-        {/* Three editorial panels — each with bold typography and a gold accent */}
-        <div id="s-panels" style={{ height: "auto", paddingBottom: "8rem" }}>
+        <div id="s-panels" style={{ paddingBottom: "10rem" }}>
           {PANELS.map((panel, i) => (
             <div
               key={i}
               data-panel
-              className="mx-auto mb-40 max-w-4xl px-10 sm:px-20"
+              className="mx-auto mb-44 max-w-4xl px-10 sm:px-20"
               style={{ opacity: 0 }}
             >
-              {/* Index */}
               <p className="mb-6 text-[9px] font-bold uppercase tracking-[0.4em] text-[#d4a853]">
                 {String(i + 1).padStart(2, "0")} / {panel.tag}
               </p>
 
-              {/* Big editorial headline */}
               <div
                 className="mb-6 font-black leading-[1.0] tracking-tighter text-white"
                 style={{ fontSize: "clamp(2.8rem, 6vw, 5.5rem)" }}
@@ -459,7 +432,6 @@ export function LandingPage({ refCode }: Props) {
                 <span className="text-[#d4a853]">{panel.line3}</span>
               </div>
 
-              {/* Divider */}
               <div className="mb-6 h-px w-16 bg-[#d4a853]/50" />
 
               <p className="max-w-sm text-sm leading-relaxed text-white/35">
@@ -469,29 +441,34 @@ export function LandingPage({ refCode }: Props) {
           ))}
         </div>
 
-        {/* ══ S6: CTA SPOTLIGHT ══════════════════════════════════════════ */}
+        {/* ══ S6: CTA — clean dark, no spotlight ══════════════════════════ */}
         <div
           id="s-cta"
-          className="relative h-screen overflow-hidden flex flex-col items-center justify-center"
+          className="relative h-screen flex flex-col items-center justify-center overflow-hidden"
         >
-          <SpotlightCanvas />
+          {/* Subtle ambient gold bloom — static, no movement */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: "radial-gradient(ellipse 70% 50% at 50% 58%, rgba(212,168,83,0.06) 0%, transparent 70%)",
+            }}
+          />
 
           <div className="relative z-10 flex flex-col items-center gap-7 px-8 text-center">
-            {/* CTA headline — Splitting.js */}
             <div
               id="cta-headline"
               data-split
               className="max-w-2xl font-black leading-tight tracking-tight text-white"
-              style={{
-                fontSize: "clamp(2.2rem, 5vw, 4rem)",
-                overflow: "hidden",
-                textShadow: "0 0 80px rgba(212,168,83,0.2)",
-              }}
+              style={{ fontSize: "clamp(2.2rem, 5vw, 4rem)", overflow: "hidden" }}
             >
               Ready to direct your agency?
             </div>
 
-            <p data-cta className="text-sm text-white/30 max-w-xs leading-relaxed" style={{ opacity: 0 }}>
+            <p
+              data-cta
+              className="text-sm text-white/30 max-w-xs leading-relaxed"
+              style={{ opacity: 0 }}
+            >
               Join media agencies already running on CineFlow.
               One platform, total clarity.
             </p>
@@ -510,7 +487,6 @@ export function LandingPage({ refCode }: Props) {
             </p>
           </div>
 
-          {/* Footer */}
           <div className="absolute bottom-7 left-0 right-0 flex justify-center gap-8 text-[10px] text-white/20">
             <Link href="/privacy" className="hover:text-white/40 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-white/40 transition-colors">Terms</Link>
