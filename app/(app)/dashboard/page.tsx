@@ -114,8 +114,12 @@ export default function DashboardPage() {
       } catch {
         // invoices table may not exist yet
       }
-      const activityData = await getActivityLog(25);
-      setActivity(activityData);
+      try {
+        const activityData = await getActivityLog(25);
+        setActivity(activityData);
+      } catch {
+        // activity log failure is non-critical
+      }
       try {
         const eventsData = await getCalendarEvents();
         setCalendarEvents(eventsData);
@@ -124,8 +128,6 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error("Error loading data:", error);
-      const msg = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to load dashboard: ${msg}`);
     } finally {
       setLoading(false);
     }
