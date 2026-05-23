@@ -22,14 +22,30 @@ export async function GET(_req: NextRequest, { params }: Params) {
     if (!collab) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("shoot_days")
-      .select("id, day_number, date, general_call, location, notes, created_at")
-      .eq("project_id", projectId)
-      .order("day_number", { ascending: true });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data ?? []);
+    const [daysRes, crewCallsRes] = await Promise.all([
+      admin
+        .from("shoot_days")
+        .select("id, day_number, date, general_call, location, notes, created_at")
+        .eq("project_id", projectId)
+        .order("day_number", { ascending: true }),
+      admin
+        .from("shoot_day_crew_calls")
+        .select("*")
+        .eq("project_id", projectId)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+    ]);
+
+    if (daysRes.error) return NextResponse.json({ error: daysRes.error.message }, { status: 500 });
+
+    const crewCalls = crewCallsRes.data ?? [];
+    const shootDays = (daysRes.data ?? []).map((day) => ({
+      ...day,
+      crew_calls: crewCalls.filter((cc) => cc.shoot_day_id === day.id),
+    }));
+
+    return NextResponse.json({ my_collaborator_id: collab.id, shoot_days: shootDays });
   } catch (err) {
     console.error("[collab schedule GET]", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

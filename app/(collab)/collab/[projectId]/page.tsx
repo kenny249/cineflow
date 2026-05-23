@@ -26,6 +26,14 @@ interface CollabProject {
 
 type Tab = "chat" | "shots" | "tasks" | "notes" | "schedule" | "files" | "info";
 
+interface CrewCallEntry {
+  id: string;
+  collaborator_id?: string | null;
+  name: string;
+  role?: string | null;
+  call_time: string;
+}
+
 interface ShootDay {
   id: string;
   day_number: number;
@@ -33,6 +41,7 @@ interface ShootDay {
   general_call?: string;
   location?: string;
   notes?: string;
+  crew_calls: CrewCallEntry[];
   created_at: string;
 }
 
@@ -99,6 +108,8 @@ export default function CollabProjectPage() {
   const [locations, setLocations] = useState<ProjectLocation[]>([]);
   const [notes, setNotes] = useState<ProjectNote[]>([]);
   const [shootDays, setShootDays] = useState<ShootDay[]>([]);
+  const [myCollaboratorId, setMyCollaboratorId] = useState<string>("");
+  const [shotDayFilter, setShotDayFilter] = useState<string>("all");
   const [collabFiles, setCollabFiles] = useState<CollabFile[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [userId, setUserId] = useState("");
@@ -184,7 +195,11 @@ export default function CollabProjectPage() {
         fetch(`/api/collab/${projectId}/schedule`),
         fetch(`/api/collab/${projectId}/files`),
       ]);
-      if (scheduleRes.ok) setShootDays(await scheduleRes.json());
+      if (scheduleRes.ok) {
+        const sd = await scheduleRes.json();
+        setMyCollaboratorId(sd.my_collaborator_id ?? "");
+        setShootDays(sd.shoot_days ?? []);
+      }
       if (filesRes.ok) setCollabFiles(await filesRes.json());
 
       setLoading(false);
@@ -562,30 +577,103 @@ export default function CollabProjectPage() {
                           weekday: "long", month: "long", day: "numeric", year: "numeric",
                         })
                       : null;
+                    const myCall = day.crew_calls.find((cc) => cc.collaborator_id === myCollaboratorId);
+
+                    function downloadIcs() {
+                      if (!day.date) return;
+                      const d = day.date.replace(/-/g, "");
+                      const summary = `Day ${day.day_number} – ${project?.title ?? "Shoot"}`;
+                      const location = day.location ?? "";
+                      const desc = [
+                        day.general_call ? `General Call: ${day.general_call}` : "",
+                        myCall ? `Your Call: ${myCall.call_time}` : "",
+                        location ? `Location: ${location}` : "",
+                      ].filter(Boolean).join("\\n");
+                      const ics = [
+                        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//CineFlow//EN",
+                        "BEGIN:VEVENT",
+                        `DTSTART;VALUE=DATE:${d}`,
+                        `DTEND;VALUE=DATE:${d}`,
+                        `SUMMARY:${summary}`,
+                        `DESCRIPTION:${desc}`,
+                        `LOCATION:${location}`,
+                        "END:VEVENT", "END:VCALENDAR",
+                      ].join("\r\n");
+                      const blob = new Blob([ics], { type: "text/calendar" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url; a.download = `day-${day.day_number}.ics`; a.click();
+                      URL.revokeObjectURL(url);
+                    }
+
                     return (
                       <div key={day.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+                        {/* Personal call time banner */}
+                        {myCall && (
+                          <div className="flex items-center gap-3 px-4 py-2.5 bg-[#d4a853]/10 border-b border-[#d4a853]/20">
+                            <Clock className="h-3.5 w-3.5 shrink-0 text-[#d4a853]" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-[#d4a853]/60">Your Call Time</p>
+                              <p className="text-base font-bold text-[#d4a853]">{myCall.call_time}</p>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Day header */}
                         <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06]">
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#d4a853]/15 text-sm font-bold text-[#d4a853]">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-sm font-bold text-white/60">
                             {day.day_number}
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-semibold text-white/80">Day {day.day_number}</p>
                             {dateStr && <p className="text-[10px] text-white/40">{dateStr}</p>}
                           </div>
+                          {day.date && (
+                            <button
+                              onClick={downloadIcs}
+                              className="flex shrink-0 items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[10px] text-white/40 hover:text-[#d4a853] hover:border-[#d4a853]/30 transition-colors"
+                              title="Add to calendar"
+                            >
+                              <Download className="h-3 w-3" />
+                              Calendar
+                            </button>
+                          )}
                         </div>
+
                         {/* Day details */}
                         <div className="px-4 py-3 space-y-2">
                           <div className="grid grid-cols-2 gap-2">
                             <div className="rounded-lg bg-white/[0.03] px-3 py-2">
                               <p className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-0.5">General Call</p>
-                              <p className="text-sm font-semibold text-[#d4a853]">{day.general_call || "TBD"}</p>
+                              <p className="text-sm font-semibold text-white/80">{day.general_call || "TBD"}</p>
                             </div>
                             <div className="rounded-lg bg-white/[0.03] px-3 py-2">
                               <p className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-0.5">Location</p>
                               <p className="text-sm font-semibold text-white/80 truncate">{day.location || "TBD"}</p>
                             </div>
                           </div>
+
+                          {/* All crew call times */}
+                          {day.crew_calls.length > 0 && (
+                            <div className="rounded-lg bg-white/[0.03] px-3 py-2.5">
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-2">Call Times</p>
+                              <div className="space-y-1.5">
+                                {day.crew_calls.map((cc) => (
+                                  <div key={cc.id} className={`flex items-center gap-2 ${cc.collaborator_id === myCollaboratorId ? "opacity-100" : "opacity-70"}`}>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-xs text-white/80">{cc.name}</span>
+                                      {cc.role && <span className="ml-1.5 text-[10px] text-white/40">{cc.role}</span>}
+                                    </div>
+                                    <span className={`text-xs font-bold shrink-0 ${cc.collaborator_id === myCollaboratorId ? "text-[#d4a853]" : "text-white/60"}`}>
+                                      {cc.call_time}
+                                      {cc.collaborator_id === myCollaboratorId && <span className="ml-1 text-[9px] font-normal text-[#d4a853]/60">(you)</span>}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {day.notes && (
                             <div className="rounded-lg bg-white/[0.03] px-3 py-2">
                               <p className="text-[9px] font-bold uppercase tracking-widest text-white/30 mb-1">Notes</p>
@@ -605,11 +693,44 @@ export default function CollabProjectPage() {
           {activeTab === "shots" && (
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
               {canMarkShots && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2">
+                <div className="mb-3 flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2">
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                   <p className="text-xs text-emerald-400">You can mark shots as complete on this project.</p>
                 </div>
               )}
+
+              {/* Day filter — only show if shoot days exist */}
+              {shootDays.length > 0 && (
+                <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+                  <button
+                    onClick={() => setShotDayFilter("all")}
+                    className={`shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${shotDayFilter === "all" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"}`}
+                  >
+                    All Shots
+                  </button>
+                  <button
+                    onClick={() => setShotDayFilter("unassigned")}
+                    className={`shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${shotDayFilter === "unassigned" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"}`}
+                  >
+                    Unscheduled
+                  </button>
+                  {shootDays.map((day) => {
+                    const dateShort = day.date
+                      ? new Date(day.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                      : null;
+                    return (
+                      <button
+                        key={day.id}
+                        onClick={() => setShotDayFilter(day.id)}
+                        className={`shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-medium transition-colors ${shotDayFilter === day.id ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"}`}
+                      >
+                        Day {day.day_number}{dateShort ? ` · ${dateShort}` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {shotLists.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
                   <List className="h-8 w-8 text-white/10" />
@@ -618,7 +739,13 @@ export default function CollabProjectPage() {
               ) : (
                 <div className="space-y-6">
                   {shotLists.map((list) => {
-                    const items = (list.items ?? []).slice().sort((a, b) => a.shot_number - b.shot_number);
+                    const allItems = (list.items ?? []).slice().sort((a, b) => a.shot_number - b.shot_number);
+                    const items = shotDayFilter === "all"
+                      ? allItems
+                      : shotDayFilter === "unassigned"
+                      ? allItems.filter((s) => !s.shoot_day_id)
+                      : allItems.filter((s) => s.shoot_day_id === shotDayFilter);
+                    if (items.length === 0) return null;
                     return (
                       <div key={list.id}>
                         <div className="mb-3 flex items-center gap-2">
@@ -1060,6 +1187,9 @@ export default function CollabProjectPage() {
                           <p className="text-xs font-medium text-white/80 truncate">
                             {c.name}{isYou ? " (you)" : ""}
                           </p>
+                          {c.role && (
+                            <p className="text-[10px] text-[#d4a853]/60 truncate">{c.role}</p>
+                          )}
                         </div>
                         <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
                       </div>

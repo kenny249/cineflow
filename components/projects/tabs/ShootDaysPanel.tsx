@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Plus, CalendarDays, Clock, MapPin, Trash2, ChevronDown,
-  Printer, X, Film, Users, ListChecks, Loader2, Pencil, Check,
+  Printer, X, Film, Users, ListChecks, Loader2, Pencil, Check, AlarmClock,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import type { ShotListItem } from "@/types";
+import type { ShotListItem, ProjectCollaborator, CrewCall } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,12 +46,14 @@ function CallSheetModal({
   projectTitle,
   shots,
   crew,
+  crewCalls,
   onClose,
 }: {
   day: ShootDay;
   projectTitle: string;
   shots: ShotListItem[];
   crew: CrewMember[];
+  crewCalls: CrewCall[];
   onClose: () => void;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
@@ -213,6 +215,31 @@ function CallSheetModal({
               </table>
             )}
 
+            {/* Individual Call Times */}
+            {crewCalls.length > 0 && (
+              <>
+                <h2>Individual Call Times</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Role</th>
+                      <th>Call Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {crewCalls.map((cc) => (
+                      <tr key={cc.id}>
+                        <td style={{ fontWeight: 600 }}>{cc.name}</td>
+                        <td>{cc.role ?? "—"}</td>
+                        <td style={{ fontWeight: 700, color: "#d4a853" }}>{cc.call_time}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+
             {/* Notes */}
             {day.notes && (
               <>
@@ -238,6 +265,17 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<ShootDay | null>(null);
   const [crew, setCrew] = useState<CrewMember[]>([]);
+  const [collaborators, setCollaborators] = useState<ProjectCollaborator[]>([]);
+
+  // Individual call times
+  const [crewCalls, setCrewCalls] = useState<CrewCall[]>([]);
+  const [showCallForm, setShowCallForm] = useState(false);
+  const [callCollabId, setCallCollabId] = useState<string>("");
+  const [callName, setCallName] = useState("");
+  const [callRole, setCallRole] = useState("");
+  const [callTime, setCallTime] = useState("");
+  const [savingCall, setSavingCall] = useState(false);
+  const [removingCallId, setRemovingCallId] = useState<string | null>(null);
 
   // Add/edit day form
   const [showForm, setShowForm] = useState(false);
@@ -269,14 +307,29 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
     }
     load();
 
-    // Load crew for call sheet
     supabase
       .from("crew_contacts")
       .select("*")
       .eq("project_id", projectId)
       .order("department", { ascending: true })
       .then(({ data }) => setCrew((data ?? []) as CrewMember[]));
+
+    // Load active collaborators for the call time picker
+    fetch(`/api/projects/${projectId}/collaborators`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setCollaborators((data as ProjectCollaborator[]).filter((c) => c.status === "active"));
+      })
+      .catch(() => {});
   }, [projectId]);
+
+  useEffect(() => {
+    if (!selectedDay) { setCrewCalls([]); return; }
+    fetch(`/api/projects/${projectId}/shoot-days/${selectedDay.id}/crew-calls`)
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setCrewCalls(data as CrewCall[]); })
+      .catch(() => {});
+  }, [selectedDay?.id, projectId]);
 
   function openNewDay() {
     setEditingDay(null);
@@ -298,6 +351,11 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (editingDay) {
+        const changed =
+          fDate !== (editingDay.date ?? "") ||
+          fCall !== (editingDay.general_call ?? "") ||
+          fLocation !== (editingDay.location ?? "");
+
         const { data, error } = await supabase
           .from("shoot_days")
           .update({ date: fDate || null, general_call: fCall || null, location: fLocation || null, notes: fNotes || null, updated_at: new Date().toISOString() })
@@ -309,6 +367,21 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
         setDays((prev) => prev.map((d) => d.id === updated.id ? updated : d));
         setSelectedDay(updated);
         toast.success("Day updated");
+
+        // Notify active collaborators if key schedule details changed
+        if (changed) {
+          fetch(`/api/projects/${projectId}/shoot-days/${editingDay.id}/notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectTitle,
+              dayNumber: editingDay.day_number,
+              date: fDate || null,
+              generalCall: fCall || null,
+              location: fLocation || null,
+            }),
+          }).catch(() => {});
+        }
       } else {
         const nextNum = days.length > 0 ? Math.max(...days.map((d) => d.day_number)) + 1 : 1;
         const { data, error } = await supabase
@@ -336,6 +409,60 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
     setDays((prev) => prev.filter((d) => d.id !== day.id));
     if (selectedDay?.id === day.id) setSelectedDay(days.find((d) => d.id !== day.id) ?? null);
     toast.success("Day deleted");
+  }
+
+  function openCallForm() {
+    setCallCollabId(""); setCallName(""); setCallRole(""); setCallTime("");
+    setShowCallForm(true);
+  }
+
+  function handleCollabSelect(collabId: string) {
+    setCallCollabId(collabId);
+    if (!collabId) { setCallName(""); setCallRole(""); return; }
+    const c = collaborators.find((x) => x.id === collabId);
+    if (c) { setCallName(c.name); setCallRole(c.role ?? ""); }
+  }
+
+  async function handleAddCrewCall(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedDay || !callName.trim() || !callTime.trim()) return;
+    setSavingCall(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/shoot-days/${selectedDay.id}/crew-calls`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collaborator_id: callCollabId || null,
+          name: callName.trim(),
+          role: callRole.trim() || null,
+          call_time: callTime.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to add"); return; }
+      setCrewCalls((prev) => [...prev, data as CrewCall]);
+      setShowCallForm(false);
+      toast.success("Call time added");
+    } catch {
+      toast.error("Failed to add call time");
+    } finally {
+      setSavingCall(false);
+    }
+  }
+
+  async function handleRemoveCrewCall(crewCallId: string) {
+    if (!selectedDay) return;
+    setRemovingCallId(crewCallId);
+    const res = await fetch(
+      `/api/projects/${projectId}/shoot-days/${selectedDay.id}/crew-calls?crewCallId=${crewCallId}`,
+      { method: "DELETE" }
+    );
+    if (res.ok) {
+      setCrewCalls((prev) => prev.filter((cc) => cc.id !== crewCallId));
+    } else {
+      toast.error("Failed to remove");
+    }
+    setRemovingCallId(null);
   }
 
   async function assignShotToDay(shotId: string, dayId: string | null) {
@@ -438,6 +565,113 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
                   </>
                 )}
               </div>
+            </div>
+
+            {/* Individual Call Times */}
+            <div className="border-t border-border px-3 py-2.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5">
+                  <AlarmClock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Individual Call Times</p>
+                </div>
+                {canEdit && !showCallForm && (
+                  <button
+                    onClick={openCallForm}
+                    className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add
+                  </button>
+                )}
+              </div>
+
+              {showCallForm && canEdit && (
+                <form onSubmit={handleAddCrewCall} className="mb-2.5 space-y-2 rounded-lg border border-border bg-background p-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] text-muted-foreground">Pick collaborator or enter manually</label>
+                    <select
+                      value={callCollabId}
+                      onChange={(e) => handleCollabSelect(e.target.value)}
+                      className="w-full rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                    >
+                      <option value="">Custom name…</option>
+                      {collaborators.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}{c.role ? ` (${c.role})` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={callName}
+                      onChange={(e) => setCallName(e.target.value)}
+                      placeholder="Name"
+                      required
+                      className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                    />
+                    <input
+                      type="text"
+                      value={callRole}
+                      onChange={(e) => setCallRole(e.target.value)}
+                      placeholder="Role (optional)"
+                      className="rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={callTime}
+                    onChange={(e) => setCallTime(e.target.value)}
+                    placeholder="Call time (e.g. 5:30 AM)"
+                    required
+                    className="w-full rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={savingCall}
+                      className="flex items-center gap-1 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:opacity-90 disabled:opacity-50"
+                    >
+                      {savingCall ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCallForm(false)}
+                      className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {crewCalls.length === 0 && !showCallForm ? (
+                <p className="text-[10px] text-muted-foreground/50 italic">No individual call times set.</p>
+              ) : (
+                <div className="space-y-1">
+                  {crewCalls.map((cc) => (
+                    <div key={cc.id} className="flex items-center gap-2 rounded-md border border-border/50 bg-muted/10 px-2.5 py-1.5">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs font-medium text-foreground">{cc.name}</span>
+                        {cc.role && <span className="ml-1.5 text-[10px] text-muted-foreground">{cc.role}</span>}
+                      </div>
+                      <span className="shrink-0 text-xs font-bold text-[#d4a853]">{cc.call_time}</span>
+                      {canEdit && (
+                        <button
+                          onClick={() => handleRemoveCrewCall(cc.id)}
+                          disabled={removingCallId === cc.id}
+                          className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-red-400 transition-colors"
+                        >
+                          {removingCallId === cc.id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <X className="h-3 w-3" />
+                          }
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Shots assigned to this day */}
@@ -554,6 +788,7 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
           projectTitle={projectTitle}
           shots={shots.filter((s) => s.shoot_day_id === callSheetDay.id)}
           crew={crew}
+          crewCalls={crewCalls}
           onClose={() => setCallSheetDay(null)}
         />
       )}

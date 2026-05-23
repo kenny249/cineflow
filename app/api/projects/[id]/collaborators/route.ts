@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    const body = await req.json() as { email: string; name: string; permissions?: string[] };
+    const body = await req.json() as { email: string; name: string; permissions?: string[]; role?: string };
     const email = body.email?.trim().toLowerCase();
     const name = body.name?.trim();
     if (!email) return NextResponse.json({ error: "Email required" }, { status: 400 });
@@ -71,11 +71,12 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const VALID_PERMS = new Set(["mark_shots", "add_notes", "manage_tasks"]);
     const permissions = (body.permissions ?? []).filter((p) => VALID_PERMS.has(p));
+    const role = body.role?.trim() || null;
 
     // Insert pending collaborator row
     const { data: collab, error: insertErr } = await supabase
       .from("project_collaborators")
-      .insert({ project_id: projectId, invited_by: user.id, email, name, status: "pending", permissions })
+      .insert({ project_id: projectId, invited_by: user.id, email, name, role, status: "pending", permissions })
       .select()
       .single();
 

@@ -138,8 +138,21 @@ export interface ProjectCollaborator {
   user_id: string | null;
   email: string;
   name: string;
-  status: "pending" | "active";
+  role?: string | null;
+  status: "pending" | "active" | "inactive";
   permissions: string[];
+  created_at: string;
+}
+
+export interface CrewCall {
+  id: string;
+  shoot_day_id: string;
+  project_id: string;
+  collaborator_id?: string | null;
+  name: string;
+  role?: string | null;
+  call_time: string;
+  sort_order: number;
   created_at: string;
 }
 

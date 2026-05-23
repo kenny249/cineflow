@@ -88,6 +88,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
   const [editingPermsId, setEditingPermsId] = useState<string | null>(null);
   const [editPermsVal, setEditPermsVal] = useState<string[]>([]);
   const [savingPerms, setSavingPerms] = useState(false);
@@ -154,7 +155,7 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
     const res = await fetch(`/api/projects/${projectId}/collaborators`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, name, permissions: invitePerms }),
+      body: JSON.stringify({ email, name, permissions: invitePerms, role: activePreset }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -181,6 +182,23 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
       toast.error("Failed to remove");
     }
     setRemovingId(null);
+  }
+
+  async function handleResend(collab: ProjectCollaborator) {
+    setResendingId(collab.id);
+    const res = await fetch(`/api/projects/${projectId}/collaborators/${collab.id}/resend`, { method: "POST" });
+    const data = await res.json();
+    if (res.ok) {
+      if (data.activated) {
+        setCollaborators((prev) => prev.map((c) => c.id === collab.id ? { ...c, status: "active" } : c));
+        toast.success(`${collab.name} activated`);
+      } else {
+        toast.success(`Invite resent to ${collab.email}`);
+      }
+    } else {
+      toast.error(data.error ?? "Failed to resend");
+    }
+    setResendingId(null);
   }
 
   function startEditPerms(collab: ProjectCollaborator) {
@@ -421,7 +439,9 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
                         <Avatar name={c.name} size="sm" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
-                          <p className="text-[10px] text-muted-foreground truncate">{c.email}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">
+                            {c.role ? <span className="text-[#d4a853]/80 font-medium">{c.role} · </span> : null}{c.email}
+                          </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
                           <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -452,19 +472,37 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
                 </div>
               ))}
               {pendingCollabs.map((c) => (
-                <div key={c.id} className="group flex items-center gap-2.5 opacity-60 px-1">
-                  <Avatar name={c.name} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
-                    <p className="text-[10px] text-amber-400 truncate">Invite pending</p>
+                <div key={c.id} className="rounded-lg border border-border/50 bg-muted/20 p-2">
+                  <div className="flex items-center gap-2">
+                    <Avatar name={c.name} size="sm" />
+                    <div className="min-w-0 flex-1 opacity-60">
+                      <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
+                      <p className="text-[10px] text-amber-400 truncate">
+                        {c.role ? <span className="text-amber-400/70">{c.role} · </span> : null}Invite pending
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleResend(c)}
+                        disabled={resendingId === c.id}
+                        className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-semibold text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors disabled:opacity-40"
+                        title="Resend invite"
+                      >
+                        {resendingId === c.id
+                          ? <span className="h-2.5 w-2.5 animate-spin rounded-full border border-[#d4a853]/40 border-t-[#d4a853]" />
+                          : <Send className="h-2.5 w-2.5" />
+                        }
+                        Resend
+                      </button>
+                      <button
+                        onClick={() => handleRemove(c)}
+                        disabled={removingId === c.id}
+                        className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => handleRemove(c)}
-                    disabled={removingId === c.id}
-                    className="hidden group-hover:flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:text-red-400 transition-colors shrink-0"
-                  >
-                    <Trash2 className="h-2.5 w-2.5" />
-                  </button>
                 </div>
               ))}
             </div>
