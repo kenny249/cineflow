@@ -94,6 +94,9 @@ export default function CollabProjectPage() {
 
   // Shots
   const [togglingShot, setTogglingShot] = useState<string | null>(null);
+  const [pendingNoteForShot, setPendingNoteForShot] = useState<string | null>(null);
+  const [shotNoteInput, setShotNoteInput] = useState("");
+  const shotNoteRef = useRef<HTMLInputElement>(null);
 
   // Notes
   const [noteContent, setNoteContent] = useState("");
@@ -227,16 +230,16 @@ export default function CollabProjectPage() {
   const toggleShot = useCallback(async (itemId: string, current: boolean) => {
     if (!myPermissions.includes("mark_shots")) return;
     setTogglingShot(itemId);
-    // Optimistic update across all lists
+    const next = !current;
     setShotLists((prev) => prev.map((sl) => ({
       ...sl,
-      items: sl.items?.map((s) => s.id === itemId ? { ...s, is_complete: !current } : s),
+      items: sl.items?.map((s) => s.id === itemId ? { ...s, is_complete: next } : s),
     })));
     try {
       const res = await fetch(`/api/collab/${projectId}/shots/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_complete: !current }),
+        body: JSON.stringify({ is_complete: next }),
       });
       if (!res.ok) {
         setShotLists((prev) => prev.map((sl) => ({
@@ -244,6 +247,11 @@ export default function CollabProjectPage() {
           items: sl.items?.map((s) => s.id === itemId ? { ...s, is_complete: current } : s),
         })));
         toast.error("Failed to update shot");
+      } else if (next) {
+        // Marked done — prompt for a completion note
+        setPendingNoteForShot(itemId);
+        setShotNoteInput("");
+        setTimeout(() => shotNoteRef.current?.focus(), 50);
       }
     } catch {
       setShotLists((prev) => prev.map((sl) => ({
@@ -254,6 +262,22 @@ export default function CollabProjectPage() {
       setTogglingShot(null);
     }
   }, [projectId, myPermissions]);
+
+  const saveShotNote = useCallback(async (itemId: string) => {
+    const note = shotNoteInput.trim();
+    setPendingNoteForShot(null);
+    setShotNoteInput("");
+    if (!note) return;
+    setShotLists((prev) => prev.map((sl) => ({
+      ...sl,
+      items: sl.items?.map((s) => s.id === itemId ? { ...s, completion_note: note } : s),
+    })));
+    await fetch(`/api/collab/${projectId}/shots/${itemId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_complete: true, completion_note: note }),
+    });
+  }, [projectId, shotNoteInput]);
 
   async function handleAddNote(e: React.FormEvent) {
     e.preventDefault();
@@ -568,6 +592,26 @@ export default function CollabProjectPage() {
                                     {shot.notes && (
                                       <p className="mt-1 text-xs text-white/40">{shot.notes}</p>
                                     )}
+                                    {/* Completion note from collaborator */}
+                                    {pendingNoteForShot === shot.id ? (
+                                      <input
+                                        ref={shotNoteRef}
+                                        type="text"
+                                        value={shotNoteInput}
+                                        onChange={(e) => setShotNoteInput(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") saveShotNote(shot.id);
+                                          if (e.key === "Escape") { setPendingNoteForShot(null); setShotNoteInput(""); }
+                                        }}
+                                        onBlur={() => saveShotNote(shot.id)}
+                                        placeholder="Add a note… (Enter to save, Esc to skip)"
+                                        className="mt-2 w-full rounded-lg bg-emerald-400/5 border border-emerald-400/20 px-2.5 py-1.5 text-xs text-emerald-400 placeholder-emerald-400/30 outline-none focus:border-emerald-400/40 transition-colors"
+                                      />
+                                    ) : shot.completion_note ? (
+                                      <p className="mt-1.5 text-xs text-emerald-400/70 italic">
+                                        &ldquo;{shot.completion_note}&rdquo;
+                                      </p>
+                                    ) : null}
                                     <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-white/30">
                                       {shot.camera_movement && shot.camera_movement !== "static" && (
                                         <span>Movement: {shot.camera_movement}</span>
@@ -715,9 +759,15 @@ export default function CollabProjectPage() {
                         <p className="text-sm font-semibold text-white mb-1">{note.title}</p>
                       )}
                       <p className="text-sm text-white/70 leading-relaxed whitespace-pre-wrap">{note.content}</p>
-                      <p className="mt-2 text-[10px] text-white/25">
-                        {new Date(note.created_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
-                      </p>
+                      <div className="mt-2 flex items-center gap-2 text-[10px] text-white/25">
+                        {note.author_name && (
+                          <span className="font-medium text-white/40">{note.author_name}</span>
+                        )}
+                        {note.author_name && <span>·</span>}
+                        <span>
+                          {new Date(note.created_at).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>

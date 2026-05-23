@@ -24,12 +24,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
 
-    const body = await req.json() as { is_complete: boolean };
+    const body = await req.json() as { is_complete: boolean; completion_note?: string };
+
+    const patch: Record<string, unknown> = {
+      is_complete: body.is_complete,
+      updated_at: new Date().toISOString(),
+    };
+    if (typeof body.completion_note === "string") {
+      patch.completion_note = body.completion_note.trim() || null;
+    }
 
     const admin = createAdminClient();
     const { error } = await admin
       .from("shot_list_items")
-      .update({ is_complete: body.is_complete, updated_at: new Date().toISOString() })
+      .update(patch)
       .eq("id", itemId);
 
     if (error) {

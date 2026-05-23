@@ -68,6 +68,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         project_id: projectId,
         author_id: user.id,
         created_by: user.id,
+        author_name: collab.name,
         title: body.title?.trim() || null,
         content,
       })

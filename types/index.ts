@@ -157,6 +157,7 @@ export interface ProjectNote {
   project_id: string;
   author_id?: string;
   author?: Profile;
+  author_name?: string;
   title?: string;
   content: string;
   pinned?: boolean;
@@ -179,6 +180,7 @@ export interface ShotListItem {
   lens?: string;
   notes?: string;
   is_complete: boolean;
+  completion_note?: string;
   image_url?: string;
   duration_seconds?: number;
   camera_angle?: string;

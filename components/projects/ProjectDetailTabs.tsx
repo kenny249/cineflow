@@ -1690,6 +1690,9 @@ export default function ProjectDetailTabs({
                               <p className="mt-0.5 text-[10px] text-muted-foreground">
                                 {shot.location || "—"} · {shot.shot_type.replace("_", " ")} · {shot.camera_movement}
                               </p>
+                              {shot.completion_note && (
+                                <p className="mt-0.5 text-[10px] text-emerald-400/70 italic truncate">&ldquo;{shot.completion_note}&rdquo;</p>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -2078,6 +2081,9 @@ export default function ProjectDetailTabs({
                             <p className="text-sm text-foreground leading-snug">{shot.description}</p>
                             {shot.scene && <p className="mt-0.5 text-[10px] text-muted-foreground">{shot.scene}</p>}
                             {shot.notes && <p className="mt-0.5 text-xs text-muted-foreground italic truncate">{shot.notes}</p>}
+                            {shot.completion_note && (
+                              <p className="mt-0.5 text-xs text-emerald-400/70 italic truncate">&ldquo;{shot.completion_note}&rdquo;</p>
+                            )}
                           </td>
                           <td className="hidden sm:table-cell px-3 py-3"><span className="text-xs text-muted-foreground whitespace-nowrap">{shot.location || "—"}</span></td>
                           <td className="px-3 py-3"><Badge variant="outline" className="text-[10px] whitespace-nowrap">{shot.shot_type.replace("_", " ")}</Badge></td>

@@ -36,10 +36,20 @@ function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
 }
 
 const PERMISSION_OPTS = [
-  { id: "mark_shots", label: "Mark shots done" },
-  { id: "add_notes",  label: "Add notes" },
+  { id: "mark_shots",   label: "Mark shots done" },
+  { id: "add_notes",    label: "Add notes" },
   { id: "manage_tasks", label: "Manage tasks" },
 ] as const;
+
+const ROLE_PRESETS: { label: string; perms: string[] }[] = [
+  { label: "DP",         perms: ["mark_shots", "add_notes"] },
+  { label: "Director",   perms: ["mark_shots", "add_notes"] },
+  { label: "1st AD",     perms: ["manage_tasks", "add_notes"] },
+  { label: "PA",         perms: ["manage_tasks", "add_notes"] },
+  { label: "Script Sup", perms: ["mark_shots", "add_notes"] },
+  { label: "Editor",     perms: ["add_notes"] },
+  { label: "Talent",     perms: [] },
+];
 
 const PERM_CHIP: Record<string, string> = {
   mark_shots:   "shots",
@@ -285,6 +295,30 @@ export function PeopleTab({ projectId, userId, displayName }: PeopleTabProps) {
                 required
                 className="w-full rounded-lg border border-border bg-input px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-[#d4a853]/50"
               />
+
+              {/* Role presets */}
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Role</p>
+                <div className="flex flex-wrap gap-1">
+                  {ROLE_PRESETS.map((preset) => {
+                    const active = JSON.stringify([...invitePerms].sort()) === JSON.stringify([...preset.perms].sort());
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setInvitePerms(preset.perms)}
+                        className={`rounded-md px-2 py-1 text-[10px] font-semibold transition-colors ${
+                          active
+                            ? "bg-[#d4a853] text-black"
+                            : "border border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Permissions */}
               <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-2 space-y-1.5">
