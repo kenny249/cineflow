@@ -81,8 +81,8 @@ export function ChaosCanvas({ scrollProgress, explode }: Props) {
     mount.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, W / H, 0.1, 1000);
-    camera.position.z = 14;
+    const camera = new THREE.PerspectiveCamera(65, W / H, 0.1, 1000);
+    camera.position.z = 11;
 
     // Build card meshes
     const cards: typeof stateRef.current extends null ? never : NonNullable<typeof stateRef.current>["cards"] = [];
@@ -93,10 +93,10 @@ export function ChaosCanvas({ scrollProgress, explode }: Props) {
       const mesh = new THREE.Mesh(geo, mat);
 
       const angle = (i / APPS.length) * Math.PI * 2;
-      const radius = 5 + Math.random() * 2;
+      const radius = 4 + Math.random() * 1.5;
       const x = Math.cos(angle) * radius;
-      const y = (Math.random() - 0.5) * 8;
-      const z = (Math.random() - 0.5) * 4;
+      const y = (Math.random() - 0.5) * 4.5;
+      const z = (Math.random() - 0.5) * 3;
       mesh.position.set(x, y, z);
       mesh.rotation.z = (Math.random() - 0.5) * 0.4;
 
