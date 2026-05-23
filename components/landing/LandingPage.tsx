@@ -95,22 +95,19 @@ export function LandingPage({ refCode }: Props) {
             scrollTrigger: { trigger: "#s-hero", start: "top 65%", toggleActions: "play none none none" } }
         );
 
-        const heroChars = document.querySelectorAll<HTMLElement>("#hero-headline .char");
-        if (heroChars.length) {
-          gsap.set(heroChars, { y: 80, opacity: 0 });
-          gsap.to(heroChars, {
-            y: 0, opacity: 1, duration: 1.0, ease: "expo.out", stagger: 0.02, delay: 0.35,
-            scrollTrigger: { trigger: "#s-hero", start: "top 60%", toggleActions: "play none none none" },
-          });
-        }
-
-        gsap.fromTo("#hero-sub",
-          { y: 20, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1.1, ease: "power3.out", delay: 0.25,
-            scrollTrigger: { trigger: "#s-hero", start: "top 45%", toggleActions: "play none none none" } }
+        gsap.fromTo("#hero-kicker",
+          { opacity: 0 },
+          { opacity: 1, duration: 1.4, ease: "power2.out",
+            scrollTrigger: { trigger: "#s-hero", start: "top 62%", toggleActions: "play none none none" } }
         );
 
-        // ── Fragment orbit — driven by time, not scroll ───────────────────────
+        gsap.fromTo("#hero-headline",
+          { y: 32, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.5, ease: "power3.out", delay: 0.25,
+            scrollTrigger: { trigger: "#s-hero", start: "top 58%", toggleActions: "play none none none" } }
+        );
+
+        // ── Fragment orbit — time-based, not scroll-driven ────────────────────
         const cardEls = cardRefs.current.filter(Boolean) as HTMLDivElement[];
         gsap.set(cardEls, { opacity: 0 });
 
@@ -127,26 +124,23 @@ export function LandingPage({ refCode }: Props) {
 
         orbitTickerFn = () => {
           if (orbit.opacity < 0.005) return;
-          orbitTime += 0.003; // ~35s per base revolution
+          orbitTime += 0.003;
           const W = window.innerWidth;
           const H = window.innerHeight;
           const baseRx = Math.min(W, H) * 0.44 * orbit.r;
           const baseRy = Math.min(W, H) * 0.26 * orbit.r;
-
           cardEls.forEach((card, i) => {
-            const total = cardEls.length;
-            const spread = 0.68 + (i % 4) * 0.09;   // vary orbit radius
-            const speed  = 0.55 + (i % 3) * 0.15;   // vary angular speed
-            const angle  = (i / total) * Math.PI * 2 + orbitTime * speed;
+            const spread = 0.68 + (i % 4) * 0.09;
+            const speed  = 0.55 + (i % 3) * 0.15;
+            const angle  = (i / cardEls.length) * Math.PI * 2 + orbitTime * speed;
             const x = W / 2 + Math.cos(angle) * baseRx * spread - card.offsetWidth / 2;
             const y = H / 2 + Math.sin(angle) * baseRy * spread - card.offsetHeight / 2;
-            const depth = 0.38 + (i % 3) * 0.19;    // depth-based opacity
-            gsap.set(card, { x, y, opacity: orbit.opacity * depth });
+            gsap.set(card, { x, y, opacity: orbit.opacity * (0.38 + (i % 3) * 0.19) });
           });
         };
         gsap.ticker.add(orbitTickerFn);
 
-        // ── Pain points — one at a time via smoothStep ────────────────────────
+        // ── Pain points — one at a time ───────────────────────────────────────
         const painEls = Array.from(document.querySelectorAll<HTMLElement>("[data-pain]"));
         gsap.set(painEls, { opacity: 0, y: 0 });
 
@@ -168,47 +162,47 @@ export function LandingPage({ refCode }: Props) {
         // ── ENOUGH ───────────────────────────────────────────────────────────
         const enoughChars = document.querySelectorAll<HTMLElement>("#enough .char");
         if (enoughChars.length) {
-          gsap.set(enoughChars, { y: 90, opacity: 0, rotationX: -65 });
+          gsap.set(enoughChars, { y: 80, opacity: 0, rotationX: -55 });
           gsap.to(enoughChars, {
             y: 0, opacity: 1, rotationX: 0,
-            duration: 1.0, ease: "expo.out", stagger: 0.05, delay: 0.6,
-            scrollTrigger: { trigger: "#s-explode", start: "top 35%", toggleActions: "play none none none" },
+            duration: 0.9, ease: "expo.out", stagger: 0.045, delay: 0.5,
+            scrollTrigger: { trigger: "#s-explode", start: "top 40%", toggleActions: "play none none none" },
           });
         }
 
         gsap.fromTo("#enough-sub",
-          { y: 16, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.9, ease: "power2.out", delay: 1.3,
-            scrollTrigger: { trigger: "#s-explode", start: "top 35%", toggleActions: "play none none none" } }
+          { y: 14, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.8, ease: "power2.out", delay: 1.1,
+            scrollTrigger: { trigger: "#s-explode", start: "top 40%", toggleActions: "play none none none" } }
         );
 
         // ── CineFlow intro ────────────────────────────────────────────────────
         gsap.fromTo("#intro-line",
           { scaleX: 0 },
-          { scaleX: 1, duration: 1.6, ease: "expo.inOut",
+          { scaleX: 1, duration: 1.5, ease: "expo.inOut",
             scrollTrigger: { trigger: "#s-intro", start: "top 70%", toggleActions: "play none none none" } }
         );
 
         const cineChars = document.querySelectorAll<HTMLElement>("#cineflow-word .char");
         if (cineChars.length) {
-          gsap.set(cineChars, { y: 150, opacity: 0, skewX: 8 });
+          gsap.set(cineChars, { y: 130, opacity: 0, skewX: 8 });
           gsap.to(cineChars, {
             y: 0, opacity: 1, skewX: 0,
-            duration: 1.1, ease: "expo.out", stagger: 0.048,
+            duration: 1.1, ease: "expo.out", stagger: 0.045,
             scrollTrigger: { trigger: "#s-intro", start: "top 60%", toggleActions: "play none none none" },
           });
         }
 
         gsap.fromTo("#intro-sub",
-          { y: 24, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.5,
-            scrollTrigger: { trigger: "#s-intro", start: "top 46%", toggleActions: "play none none none" } }
+          { y: 22, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.45,
+            scrollTrigger: { trigger: "#s-intro", start: "top 48%", toggleActions: "play none none none" } }
         );
 
         // ── Product panels ────────────────────────────────────────────────────
         document.querySelectorAll<HTMLElement>("[data-panel]").forEach((el) => {
           gsap.fromTo(el,
-            { y: 44, opacity: 0 },
+            { y: 40, opacity: 0 },
             { y: 0, opacity: 1, duration: 1.0, ease: "power3.out",
               scrollTrigger: { trigger: el, start: "top 82%", toggleActions: "play none none reverse" } }
           );
@@ -225,7 +219,7 @@ export function LandingPage({ refCode }: Props) {
         }
         document.querySelectorAll<HTMLElement>("[data-cta]").forEach((el, i) => {
           gsap.fromTo(el,
-            { y: 20, opacity: 0 },
+            { y: 18, opacity: 0 },
             { y: 0, opacity: 1, duration: 0.8, ease: "power3.out",
               scrollTrigger: { trigger: "#s-cta", start: "top 66%", toggleActions: "play none none none" },
               delay: 0.55 + i * 0.12,
@@ -292,43 +286,45 @@ export function LandingPage({ refCode }: Props) {
         </Link>
       </nav>
 
-      {/* ── Scrollable page ──────────────────────────────────────────────── */}
       <div className="relative z-20" style={{ background: "transparent" }}>
 
         {/* ══ HERO ════════════════════════════════════════════════════════ */}
-        <section id="s-hero" className="relative flex h-screen flex-col items-center justify-center px-8 text-center">
-          <div className="mb-14 w-full max-w-5xl overflow-hidden">
+        <section
+          id="s-hero"
+          className="relative flex h-screen flex-col items-center justify-center px-8 text-center"
+        >
+          <div className="mb-12 w-full max-w-3xl overflow-hidden">
             <div
               id="hero-line"
               className="h-px w-full"
               style={{
-                background: "linear-gradient(90deg, transparent, rgba(212,168,83,0.5), transparent)",
+                background: "linear-gradient(90deg, transparent, rgba(212,168,83,0.4), transparent)",
                 transformOrigin: "left center",
                 transform: "scaleX(0)",
               }}
             />
           </div>
 
-          <div
-            id="hero-headline"
-            data-split
-            className="max-w-5xl font-black leading-[1.04] tracking-tighter text-white"
-            style={{ fontSize: "clamp(2.8rem, 4.8vw, 5rem)", overflow: "hidden" }}
-          >
-            Seven tools. One production. Zero clarity.
-          </div>
-
+          {/* Small kicker — specific, punchy */}
           <p
-            id="hero-sub"
-            className="mt-7 max-w-sm text-sm leading-relaxed text-white/28"
+            id="hero-kicker"
+            className="mb-5 text-[13px] font-semibold tracking-tight text-white/30"
             style={{ opacity: 0 }}
           >
+            Seven tools. One production. Zero clarity.
+          </p>
+
+          {/* Big statement — emotional, relatable */}
+          <p
+            id="hero-headline"
+            className="max-w-2xl font-bold leading-[1.1] tracking-tight text-white"
+            style={{ fontSize: "clamp(2rem, 3.6vw, 3.4rem)", opacity: 0 }}
+          >
             Production teams spend more time managing tools than making work.
-            There&apos;s a better way.
           </p>
 
           <div className="absolute bottom-10 flex flex-col items-center gap-3">
-            <div className="h-14 w-px bg-gradient-to-b from-transparent to-[#d4a853]/25" />
+            <div className="h-12 w-px bg-gradient-to-b from-transparent to-[#d4a853]/25" />
             <p className="font-mono text-[8px] tracking-[0.35em] text-white/15 uppercase">Scroll</p>
           </div>
         </section>
@@ -357,11 +353,11 @@ export function LandingPage({ refCode }: Props) {
 
         {/* ══ ENOUGH ══════════════════════════════════════════════════════ */}
         <div id="s-explode" style={{ height: "160vh" }}>
-          <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8">
+          <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
             <div
               id="enough"
               data-split
-              className="font-black leading-none tracking-tighter text-white text-center"
+              className="font-black leading-none tracking-tighter text-white"
               style={{ fontSize: "clamp(3.8rem, 9vw, 7.5rem)", overflow: "hidden", perspective: "800px" }}
             >
               ENOUGH.
@@ -376,11 +372,11 @@ export function LandingPage({ refCode }: Props) {
           </div>
         </div>
 
-        {/* ══ CINEFLOW INTRO ══════════════════════════════════════════════ */}
-        <div id="s-intro" style={{ height: "200vh" }}>
-          <div className="sticky top-0 h-screen flex flex-col justify-center px-10 sm:px-20">
-            <div className="max-w-5xl">
-              <div className="mb-7 overflow-hidden">
+        {/* ══ CINEFLOW INTRO — centered ════════════════════════════════════ */}
+        <div id="s-intro" style={{ height: "160vh" }}>
+          <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
+            <div className="max-w-4xl">
+              <div className="mb-7 flex justify-center">
                 <div
                   id="intro-line"
                   style={{
@@ -393,7 +389,7 @@ export function LandingPage({ refCode }: Props) {
                 />
               </div>
 
-              <p className="mb-4 font-mono text-[10px] tracking-[0.4em] uppercase text-[#d4a853]/60">
+              <p className="mb-4 font-mono text-[12px] tracking-[0.35em] uppercase text-[#d4a853]/60">
                 Introducing
               </p>
 
@@ -415,7 +411,7 @@ export function LandingPage({ refCode }: Props) {
 
               <p
                 id="intro-sub"
-                className="mt-6 max-w-xs text-sm leading-relaxed text-white/28"
+                className="mt-6 mx-auto max-w-xs text-sm leading-relaxed text-white/30"
                 style={{ opacity: 0 }}
               >
                 One platform. Every production. Total control.
@@ -424,13 +420,13 @@ export function LandingPage({ refCode }: Props) {
           </div>
         </div>
 
-        {/* ══ PRODUCT PANELS ══════════════════════════════════════════════ */}
-        <div id="s-panels" style={{ paddingBottom: "7rem" }}>
+        {/* ══ PRODUCT PANELS — centered ════════════════════════════════════ */}
+        <div id="s-panels" style={{ paddingBottom: "6rem" }}>
           {PANELS.map((panel, i) => (
             <div
               key={i}
               data-panel
-              className="mx-auto mb-28 max-w-4xl px-10 sm:px-20"
+              className="mx-auto mb-20 max-w-3xl px-8 text-center"
               style={{ opacity: 0 }}
             >
               <p className="mb-5 font-mono text-[10px] tracking-[0.35em] uppercase text-[#d4a853]/50">
@@ -446,9 +442,9 @@ export function LandingPage({ refCode }: Props) {
                 <span className="text-[#d4a853]">{panel.line3}</span>
               </div>
 
-              <div className="mb-5 h-px w-8 bg-[#d4a853]/25" />
+              <div className="mx-auto mb-5 h-px w-8 bg-[#d4a853]/25" />
 
-              <p className="max-w-xs text-[13px] leading-relaxed text-white/25">
+              <p className="mx-auto max-w-xs text-[13px] leading-relaxed text-white/30">
                 {panel.sub}
               </p>
             </div>
@@ -471,7 +467,7 @@ export function LandingPage({ refCode }: Props) {
             <div
               id="cta-headline"
               data-split
-              className="max-w-2xl font-black leading-[1.04] tracking-tighter text-white"
+              className="max-w-xl font-black leading-[1.04] tracking-tighter text-white"
               style={{ fontSize: "clamp(2.4rem, 5vw, 4.5rem)", overflow: "hidden" }}
             >
               One platform. Total clarity.
@@ -503,7 +499,7 @@ export function LandingPage({ refCode }: Props) {
             </p>
           </div>
 
-          <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-8 font-mono text-[9px] tracking-widest uppercase text-white/12">
+          <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-8 font-mono text-[9px] tracking-widest uppercase text-white/10">
             <Link href="/privacy" className="hover:text-white/30 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-white/30 transition-colors">Terms</Link>
             <span>© 2026 CineFlow</span>
