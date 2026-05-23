@@ -7,11 +7,18 @@ export const SEAT_LIMITS: Record<string, number> = {
   studio: 5,
   agency: 15,
   enterprise: 999,
-  lifetime: 5,
+  lifetime: 1,
 };
+
+// Plans that can invite project collaborators (Studio and above only)
+const COLLABORATOR_PLANS = new Set(["studio", "studio_beta", "agency", "enterprise"]);
 
 export function getSeatLimit(plan?: string | null): number {
   return SEAT_LIMITS[plan ?? ""] ?? 1;
+}
+
+export function canInviteCollaborators(plan?: string | null): boolean {
+  return COLLABORATOR_PLANS.has(plan ?? "");
 }
 
 export function isTrialing(profile: Pick<Profile, "plan_status" | "trial_ends_at">): boolean {

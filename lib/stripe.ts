@@ -31,7 +31,7 @@ export const PLANS = {
   },
   lifetime: {
     name: "Lifetime",
-    seats: 5,
+    seats: 1,
     monthly: null,
     annual: null,
     oneTime: process.env.STRIPE_PRICE_LIFETIME!,

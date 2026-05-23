@@ -13,7 +13,7 @@ const PLANS = [
     monthly: 39,
     annual: 29,
     annualTotal: 348,
-    seats: "1 seat",
+    seats: "1 seat · just you",
     color: "text-purple-400",
     border: "border-purple-500/20",
     bg: "bg-purple-500/5",
@@ -23,7 +23,7 @@ const PLANS = [
       "Client review portals",
       "Invoicing & contracts",
       "AI-powered tools",
-      "1 team member",
+      "1 seat, no collaborators",
     ],
   },
   {
@@ -40,10 +40,10 @@ const PLANS = [
     popular: true,
     features: [
       "Everything in Solo",
-      "Up to 5 team members",
+      "Up to 5 core team members",
+      "Unlimited project collaborators",
       "Revision workflows",
       "Retainer management",
-      "Call sheets",
       "Priority support",
     ],
   },
@@ -60,10 +60,10 @@ const PLANS = [
     bg: "bg-emerald-500/5",
     features: [
       "Everything in Studio",
-      "Up to 15 team members",
+      "Up to 15 core team members",
+      "Unlimited project collaborators",
       "Advanced analytics",
       "Multi-client management",
-      "Custom branding",
       "Dedicated support",
     ],
   },
@@ -74,14 +74,14 @@ const PLANS = [
     monthly: 299,
     annual: 249,
     annualTotal: 2988,
-    seats: "20+ seats",
+    seats: "Unlimited seats",
     color: "text-[#d4a853]",
     border: "border-[#d4a853]/20",
     bg: "bg-[#d4a853]/5",
     features: [
       "Everything in Agency",
       "Unlimited team members",
-      "Custom integrations",
+      "Unlimited collaborators",
       "SLA guarantee",
       "Onboarding support",
       "Custom contracts",
@@ -231,9 +231,9 @@ export default function UpgradePage() {
               <Crown className="h-5 w-5 text-[#d4a853]" />
             </div>
             <div>
-              <p className="font-semibold text-foreground">Lifetime Access — $499</p>
+              <p className="font-semibold text-foreground">Lifetime Access — $299</p>
               <p className="text-xs text-muted-foreground">
-                One-time payment · Studio-level features · 5 seats · Forever · Capped at 500 licenses
+                One-time payment · Solo-level features · 1 seat · No collaborators · Forever · Capped at 500 licenses
               </p>
             </div>
           </div>
