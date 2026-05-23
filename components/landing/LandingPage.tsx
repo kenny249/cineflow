@@ -110,6 +110,12 @@ export function LandingPage({ refCode }: Props) {
             scrollTrigger: { trigger: "#s-hero", start: "top 54%", toggleActions: "play none none none" } }
         );
 
+        gsap.fromTo("#hero-cta",
+          { y: 14, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.0, ease: "power3.out", delay: 0.8,
+            scrollTrigger: { trigger: "#s-hero", start: "top 54%", toggleActions: "play none none none" } }
+        );
+
         // ── Fragment orbit — time-based ───────────────────────────────────────
         const cardEls = cardRefs.current.filter(Boolean) as HTMLDivElement[];
         gsap.set(cardEls, { opacity: 0 });
@@ -320,7 +326,7 @@ export function LandingPage({ refCode }: Props) {
 
           <p
             id="hero-kicker"
-            className="mb-4 font-mono text-[11px] tracking-[0.35em] uppercase text-white/25"
+            className="mb-5 text-[13px] font-medium tracking-wide text-white/30"
             style={{ opacity: 0 }}
           >
             For filmmakers and video production teams
@@ -328,20 +334,29 @@ export function LandingPage({ refCode }: Props) {
 
           <h1
             id="hero-headline"
-            className="max-w-2xl font-black leading-[1.05] tracking-tighter text-white"
-            style={{ fontSize: "clamp(2.4rem, 4.2vw, 4rem)", opacity: 0 }}
+            className="max-w-3xl font-black leading-[1.05] tracking-tighter text-white"
+            style={{ fontSize: "clamp(2rem, 3.6vw, 3.4rem)", opacity: 0 }}
           >
             Stop stitching your<br />production together.
           </h1>
 
           <p
             id="hero-sub"
-            className="mt-6 max-w-sm text-[13px] leading-relaxed text-white/30"
+            className="mt-6 max-w-sm text-[13px] leading-relaxed text-white/35"
             style={{ opacity: 0 }}
           >
             Shot lists, client portals, invoicing, crew scheduling —<br />
             all flowing in one place. Finally.
           </p>
+
+          <Link
+            id="hero-cta"
+            href={signupHref}
+            className="mt-8 rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
+            style={{ opacity: 0 }}
+          >
+            Start for free →
+          </Link>
 
           <div className="absolute bottom-10 flex flex-col items-center gap-3">
             <div className="h-12 w-px bg-gradient-to-b from-transparent to-[#d4a853]/25" />
