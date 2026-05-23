@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Film, LogOut, Send, ArrowLeft, Users } from "lucide-react";
-import type { ProjectMessage, ProjectCollaborator } from "@/types";
+import {
+  Film, LogOut, Send, ArrowLeft, Users, MessageSquare,
+  List, CheckSquare, Info, MapPin, Phone, Clock,
+  CheckCircle2, Circle, Camera, Mail, Globe,
+} from "lucide-react";
+import { toast } from "sonner";
+import type {
+  ProjectMessage, ProjectCollaborator, ShotList,
+  ProjectTask, CrewContact, ProjectLocation,
+} from "@/types";
 
-interface CollabProjectDetail {
+interface CollabProject {
   id: string;
   title: string;
   client_name?: string;
@@ -14,6 +22,8 @@ interface CollabProjectDetail {
   description?: string;
   shoot_date?: string;
 }
+
+type Tab = "chat" | "shots" | "tasks" | "info";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -36,20 +46,43 @@ function statusStyle(status: string) {
   return "text-white/30 border-white/10 bg-white/5";
 }
 
+const SHOT_TYPE_LABELS: Record<string, string> = {
+  wide: "Wide", medium: "Medium", close_up: "Close-Up",
+  extreme_close_up: "ECU", overhead: "Overhead", drone: "Drone",
+  pov: "POV", other: "Other",
+};
+
+const TASK_PRIORITY_COLOR: Record<string, string> = {
+  high: "text-red-400 border-red-400/20 bg-red-400/10",
+  medium: "text-amber-400 border-amber-400/20 bg-amber-400/10",
+  low: "text-blue-400 border-blue-400/20 bg-blue-400/10",
+};
+
+const DEPT_ORDER = [
+  "Production", "Direction", "Camera", "Lighting", "Grip", "Sound",
+  "Art", "Wardrobe", "Hair & Makeup", "Talent", "Other",
+];
+
 export default function CollabProjectPage() {
   const router = useRouter();
   const params = useParams();
   const projectId = params.projectId as string;
 
-  const [project, setProject] = useState<CollabProjectDetail | null>(null);
+  const [project, setProject] = useState<CollabProject | null>(null);
   const [collaborators, setCollaborators] = useState<ProjectCollaborator[]>([]);
   const [messages, setMessages] = useState<ProjectMessage[]>([]);
+  const [shotLists, setShotLists] = useState<ShotList[]>([]);
+  const [tasks, setTasks] = useState<ProjectTask[]>([]);
+  const [crew, setCrew] = useState<CrewContact[]>([]);
+  const [locations, setLocations] = useState<ProjectLocation[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("chat");
+  const [showPeople, setShowPeople] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [showPeople, setShowPeople] = useState(false);
+  const [togglingTask, setTogglingTask] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -83,15 +116,23 @@ export default function CollabProjectPage() {
 
       if (!collab) { router.replace("/collab"); return; }
 
-      const [projRes, collabsRes, msgsRes] = await Promise.all([
+      const [projRes, collabsRes, msgsRes, shotRes, tasksRes, crewRes, locRes] = await Promise.all([
         supabase.from("projects").select("id, title, client_name, status, description, shoot_date").eq("id", projectId).single(),
         supabase.from("project_collaborators").select("*").eq("project_id", projectId).eq("status", "active"),
         supabase.from("project_messages").select("*").eq("project_id", projectId).order("created_at", { ascending: true }).limit(100),
+        supabase.from("shot_lists").select("*, shot_list_items(*)").eq("project_id", projectId).order("created_at", { ascending: true }),
+        supabase.from("project_tasks").select("*").eq("project_id", projectId).order("created_at", { ascending: true }),
+        supabase.from("crew_contacts").select("*").eq("project_id", projectId).order("sort_order", { ascending: true }),
+        supabase.from("project_locations").select("*").eq("project_id", projectId).order("sort_order", { ascending: true }),
       ]);
 
       setProject(projRes.data ?? null);
       setCollaborators((collabsRes.data as ProjectCollaborator[]) ?? []);
       setMessages((msgsRes.data as ProjectMessage[]) ?? []);
+      setShotLists((shotRes.data as ShotList[]) ?? []);
+      setTasks((tasksRes.data as ProjectTask[]) ?? []);
+      setCrew((crewRes.data as CrewContact[]) ?? []);
+      setLocations((locRes.data as ProjectLocation[]) ?? []);
       setLoading(false);
     }
 
@@ -99,8 +140,10 @@ export default function CollabProjectPage() {
   }, [projectId, router]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (activeTab === "chat") {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, activeTab]);
 
   useEffect(() => {
     if (!projectId) return;
@@ -137,6 +180,28 @@ export default function CollabProjectPage() {
     inputRef.current?.focus();
   }
 
+  const toggleTaskStatus = useCallback(async (task: ProjectTask) => {
+    const next = task.status === "done" ? "todo" : "done";
+    setTogglingTask(task.id);
+    setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: next as ProjectTask["status"] } : t));
+    try {
+      const res = await fetch(`/api/collab/${projectId}/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) {
+        setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: task.status } : t));
+        toast.error("Failed to update task");
+      }
+    } catch {
+      setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: task.status } : t));
+      toast.error("Something went wrong");
+    } finally {
+      setTogglingTask(null);
+    }
+  }, [projectId]);
+
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -151,7 +216,18 @@ export default function CollabProjectPage() {
     else grouped.push({ date, msgs: [msg] });
   }
 
-  const otherPeople = collaborators.filter((c) => c.user_id !== userId);
+  const crewByDept = new Map<string, CrewContact[]>();
+  for (const c of crew) {
+    const dept = c.department || "Other";
+    if (!crewByDept.has(dept)) crewByDept.set(dept, []);
+    crewByDept.get(dept)!.push(c);
+  }
+  const orderedDepts = new Map<string, CrewContact[]>();
+  for (const d of DEPT_ORDER) if (crewByDept.has(d)) orderedDepts.set(d, crewByDept.get(d)!);
+  for (const [d, v] of crewByDept) if (!orderedDepts.has(d)) orderedDepts.set(d, v);
+
+  const todoTasks = tasks.filter((t) => t.status !== "done");
+  const doneTasks = tasks.filter((t) => t.status === "done");
 
   if (loading) {
     return (
@@ -168,6 +244,13 @@ export default function CollabProjectPage() {
       </div>
     );
   }
+
+  const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "chat", label: "Chat", icon: <MessageSquare className="h-3.5 w-3.5" /> },
+    { id: "shots", label: "Shot List", icon: <Camera className="h-3.5 w-3.5" /> },
+    { id: "tasks", label: "Tasks", icon: <CheckSquare className="h-3.5 w-3.5" /> },
+    { id: "info", label: "Info", icon: <Info className="h-3.5 w-3.5" /> },
+  ];
 
   return (
     <div className="flex h-screen flex-col bg-[#0b0b0b] text-white overflow-hidden">
@@ -194,11 +277,6 @@ export default function CollabProjectPage() {
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {shoot_date(project) && (
-              <span className="hidden sm:block text-[10px] text-white/30">
-                Shoot {new Date(project.shoot_date!).toLocaleDateString([], { month: "short", day: "numeric" })}
-              </span>
-            )}
             <button
               onClick={() => setShowPeople((v) => !v)}
               className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
@@ -223,84 +301,350 @@ export default function CollabProjectPage() {
             </button>
           </div>
         </div>
+
+        {/* Tabs */}
+        <div className="mt-3 flex gap-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                activeTab === tab.id
+                  ? "bg-white/[0.08] text-white"
+                  : "text-white/40 hover:text-white/70"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+              {tab.id === "tasks" && todoTasks.length > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#d4a853]/20 px-1 text-[9px] font-bold text-[#d4a853]">
+                  {todoTasks.length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </header>
 
-      {/* Body: chat + optional people sidebar */}
+      {/* Body */}
       <div className="flex flex-1 min-h-0">
 
-        {/* Chat */}
-        <div className="flex flex-1 flex-col min-w-0">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-0.5">
-            {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
-                <p className="text-sm text-white/20">No messages yet — say hello!</p>
-              </div>
-            ) : (
-              grouped.map(({ date, msgs }) => (
-                <div key={date}>
-                  <div className="flex items-center gap-3 py-3">
-                    <div className="h-px flex-1 bg-white/[0.06]" />
-                    <span className="text-[10px] text-white/20">{date}</span>
-                    <div className="h-px flex-1 bg-white/[0.06]" />
+        {/* Main content */}
+        <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
+
+          {/* ── Chat ── */}
+          {activeTab === "chat" && (
+            <>
+              <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-0.5">
+                {messages.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
+                    <p className="text-sm text-white/20">No messages yet — say hello!</p>
                   </div>
-                  {msgs.map((msg, i) => {
-                    const isMe = msg.author_id === userId;
-                    const prevMsg = i > 0 ? msgs[i - 1] : null;
-                    const showAuthor = !prevMsg || prevMsg.author_id !== msg.author_id;
-                    return (
-                      <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} ${showAuthor ? "mt-3" : "mt-0.5"}`}>
-                        {showAuthor && (
-                          <span className={`mb-1 text-[10px] text-white/30 ${isMe ? "mr-1" : "ml-9"}`}>
-                            {isMe ? "You" : msg.author_name}
-                          </span>
-                        )}
-                        <div className="flex items-end gap-2">
-                          {!isMe && (
-                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-semibold text-white/50">
-                              {msg.author_name.charAt(0).toUpperCase()}
+                ) : (
+                  grouped.map(({ date, msgs }) => (
+                    <div key={date}>
+                      <div className="flex items-center gap-3 py-3">
+                        <div className="h-px flex-1 bg-white/[0.06]" />
+                        <span className="text-[10px] text-white/20">{date}</span>
+                        <div className="h-px flex-1 bg-white/[0.06]" />
+                      </div>
+                      {msgs.map((msg, i) => {
+                        const isMe = msg.author_id === userId;
+                        const prevMsg = i > 0 ? msgs[i - 1] : null;
+                        const showAuthor = !prevMsg || prevMsg.author_id !== msg.author_id;
+                        return (
+                          <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} ${showAuthor ? "mt-3" : "mt-0.5"}`}>
+                            {showAuthor && (
+                              <span className={`mb-1 text-[10px] text-white/30 ${isMe ? "mr-1" : "ml-9"}`}>
+                                {isMe ? "You" : msg.author_name}
+                              </span>
+                            )}
+                            <div className="flex items-end gap-2">
+                              {!isMe && (
+                                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.08] text-[10px] font-semibold text-white/50">
+                                  {msg.author_name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div className={`max-w-sm rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
+                                isMe
+                                  ? "bg-[#d4a853] text-black rounded-br-sm"
+                                  : "bg-white/[0.06] text-white/90 rounded-bl-sm"
+                              }`}>
+                                {msg.content}
+                              </div>
+                              <span className="text-[9px] text-white/15 shrink-0">{formatTime(msg.created_at)}</span>
                             </div>
-                          )}
-                          <div className={`max-w-sm rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
-                            isMe
-                              ? "bg-[#d4a853] text-black rounded-br-sm"
-                              : "bg-white/[0.06] text-white/90 rounded-bl-sm"
-                          }`}>
-                            {msg.content}
                           </div>
-                          <span className="text-[9px] text-white/15 shrink-0">{formatTime(msg.created_at)}</span>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+                <div ref={bottomRef} />
+              </div>
+              <div className="shrink-0 border-t border-white/[0.06] p-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                    placeholder="Message the team…"
+                    disabled={sending}
+                    className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-white/20 outline-none focus:border-[#d4a853]/30 transition-colors"
+                  />
+                  <button
+                    onClick={handleSend}
+                    disabled={!input.trim() || sending}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#d4a853] text-black transition-opacity disabled:opacity-30 hover:opacity-90"
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ── Shot List ── */}
+          {activeTab === "shots" && (
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              {shotLists.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
+                  <List className="h-8 w-8 text-white/10" />
+                  <p className="text-sm text-white/20">No shot lists yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {shotLists.map((list) => {
+                    const items = (list.items ?? []).slice().sort((a, b) => a.shot_number - b.shot_number);
+                    return (
+                      <div key={list.id}>
+                        <div className="mb-3 flex items-center gap-2">
+                          <div className="h-px flex-1 bg-white/[0.06]" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">{list.title}</p>
+                          <div className="h-px flex-1 bg-white/[0.06]" />
                         </div>
+                        {items.length === 0 ? (
+                          <p className="text-xs text-white/20 italic py-2">No shots added yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {items.map((shot) => (
+                              <div
+                                key={shot.id}
+                                className={`rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5 transition-colors ${
+                                  shot.is_complete ? "opacity-50" : ""
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-xs font-bold text-white/50">
+                                    {shot.shot_number}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[#d4a853]/70">
+                                        {SHOT_TYPE_LABELS[shot.shot_type] ?? shot.shot_type}
+                                      </span>
+                                      {shot.scene && (
+                                        <span className="text-[10px] text-white/30">· Scene {shot.scene}</span>
+                                      )}
+                                      {shot.location && (
+                                        <span className="text-[10px] text-white/30">· {shot.location}</span>
+                                      )}
+                                      {shot.is_complete && (
+                                        <span className="rounded-full bg-emerald-400/15 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-400">
+                                          Done
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-sm text-white/80">{shot.description}</p>
+                                    {shot.notes && (
+                                      <p className="mt-1 text-xs text-white/40">{shot.notes}</p>
+                                    )}
+                                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-white/30">
+                                      {shot.camera_movement && shot.camera_movement !== "static" && (
+                                        <span>Movement: {shot.camera_movement}</span>
+                                      )}
+                                      {shot.lens && <span>Lens: {shot.lens}</span>}
+                                      {shot.duration_seconds && (
+                                        <span>Duration: {shot.duration_seconds}s</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
-              ))
-            )}
-            <div ref={bottomRef} />
-          </div>
-
-          {/* Input */}
-          <div className="shrink-0 border-t border-white/[0.06] p-4">
-            <div className="flex items-center gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                placeholder="Message the team…"
-                disabled={sending}
-                className="flex-1 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-2 text-sm text-white placeholder-white/20 outline-none focus:border-[#d4a853]/30 transition-colors"
-              />
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || sending}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#d4a853] text-black transition-opacity disabled:opacity-30 hover:opacity-90"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* ── Tasks ── */}
+          {activeTab === "tasks" && (
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+              {tasks.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 py-16">
+                  <CheckSquare className="h-8 w-8 text-white/10" />
+                  <p className="text-sm text-white/20">No tasks yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {todoTasks.length > 0 && (
+                    <div>
+                      <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/30">
+                        Open · {todoTasks.length}
+                      </p>
+                      <div className="space-y-2">
+                        {todoTasks.map((task) => (
+                          <TaskRow
+                            key={task.id}
+                            task={task}
+                            toggling={togglingTask === task.id}
+                            onToggle={() => toggleTaskStatus(task)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {doneTasks.length > 0 && (
+                    <div>
+                      <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/30">
+                        Completed · {doneTasks.length}
+                      </p>
+                      <div className="space-y-2 opacity-50">
+                        {doneTasks.map((task) => (
+                          <TaskRow
+                            key={task.id}
+                            task={task}
+                            toggling={togglingTask === task.id}
+                            onToggle={() => toggleTaskStatus(task)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Info ── */}
+          {activeTab === "info" && (
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-6">
+              {/* Project details */}
+              <div>
+                <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/30">Project</p>
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-2">
+                  <p className="text-sm font-semibold text-white">{project.title}</p>
+                  {project.client_name && (
+                    <p className="text-xs text-white/50">Client: {project.client_name}</p>
+                  )}
+                  {project.shoot_date && (
+                    <div className="flex items-center gap-1.5 text-xs text-[#d4a853]">
+                      <Clock className="h-3 w-3 shrink-0" />
+                      Shoot:{" "}
+                      {new Date(project.shoot_date).toLocaleDateString([], {
+                        weekday: "long", month: "long", day: "numeric", year: "numeric",
+                      })}
+                    </div>
+                  )}
+                  {project.description && (
+                    <p className="text-xs text-white/40 leading-relaxed">{project.description}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Locations */}
+              {locations.length > 0 && (
+                <div>
+                  <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/30">
+                    Locations · {locations.length}
+                  </p>
+                  <div className="space-y-2">
+                    {locations.map((loc) => (
+                      <div key={loc.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5">
+                        <p className="text-sm font-medium text-white">{loc.name}</p>
+                        {loc.address && (
+                          <div className="mt-1 flex items-start gap-1.5">
+                            <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-white/30" />
+                            <p className="text-xs text-white/50">{loc.address}</p>
+                          </div>
+                        )}
+                        {loc.contact_name && (
+                          <p className="mt-1 text-xs text-white/40">Contact: {loc.contact_name}</p>
+                        )}
+                        {loc.contact_phone && (
+                          <a href={`tel:${loc.contact_phone}`} className="mt-0.5 flex items-center gap-1 text-xs text-[#d4a853] hover:underline">
+                            <Phone className="h-3 w-3" />
+                            {loc.contact_phone}
+                          </a>
+                        )}
+                        {loc.maps_url && (
+                          <a href={loc.maps_url} target="_blank" rel="noopener noreferrer" className="mt-1.5 flex items-center gap-1 text-xs text-blue-400 hover:underline">
+                            <Globe className="h-3 w-3" />
+                            Open in Maps
+                          </a>
+                        )}
+                        {loc.notes && (
+                          <p className="mt-1.5 text-xs text-white/30 leading-relaxed">{loc.notes}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Crew */}
+              {crew.length > 0 && (
+                <div>
+                  <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-white/30">
+                    Crew · {crew.length}
+                  </p>
+                  <div className="space-y-4">
+                    {Array.from(orderedDepts.entries()).map(([dept, members]) => (
+                      <div key={dept}>
+                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-white/20">{dept}</p>
+                        <div className="space-y-1.5">
+                          {members.map((c) => (
+                            <div key={c.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.04] bg-white/[0.02] px-3 py-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-white/80 truncate">{c.name}</p>
+                                <p className="text-[10px] text-white/30 truncate">{c.role}</p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {c.phone && (
+                                  <a href={`tel:${c.phone}`} className="text-white/30 hover:text-[#d4a853] transition-colors">
+                                    <Phone className="h-3 w-3" />
+                                  </a>
+                                )}
+                                {c.email && (
+                                  <a href={`mailto:${c.email}`} className="text-white/30 hover:text-[#d4a853] transition-colors">
+                                    <Mail className="h-3 w-3" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {locations.length === 0 && crew.length === 0 && !project.shoot_date && (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <Info className="h-8 w-8 text-white/10" />
+                  <p className="mt-2 text-sm text-white/20">No additional info yet.</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* People sidebar */}
@@ -331,26 +675,6 @@ export default function CollabProjectPage() {
                 </div>
               )}
             </div>
-            {project.description && (
-              <>
-                <div className="mx-4 border-t border-white/[0.06]" />
-                <div className="px-4 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1.5">About</p>
-                  <p className="text-xs text-white/40 leading-relaxed">{project.description}</p>
-                </div>
-              </>
-            )}
-            {project.shoot_date && (
-              <>
-                <div className="mx-4 border-t border-white/[0.06]" />
-                <div className="px-4 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-1">Shoot Date</p>
-                  <p className="text-xs text-white/60">
-                    {new Date(project.shoot_date).toLocaleDateString([], { weekday: "short", month: "long", day: "numeric", year: "numeric" })}
-                  </p>
-                </div>
-              </>
-            )}
           </div>
         )}
       </div>
@@ -358,6 +682,50 @@ export default function CollabProjectPage() {
   );
 }
 
-function shoot_date(project: CollabProjectDetail): boolean {
-  return !!project.shoot_date;
+function TaskRow({
+  task,
+  toggling,
+  onToggle,
+}: {
+  task: ProjectTask;
+  toggling: boolean;
+  onToggle: () => void;
+}) {
+  const isDone = task.status === "done";
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5">
+      <button
+        onClick={onToggle}
+        disabled={toggling}
+        className="mt-0.5 shrink-0 text-white/30 hover:text-emerald-400 transition-colors disabled:opacity-50"
+      >
+        {isDone
+          ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          : <Circle className="h-4 w-4" />
+        }
+      </button>
+      <div className="min-w-0 flex-1">
+        <p className={`text-sm ${isDone ? "line-through text-white/30" : "text-white/80"}`}>
+          {task.title}
+        </p>
+        {task.description && (
+          <p className="mt-0.5 text-xs text-white/30 leading-relaxed">{task.description}</p>
+        )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          {task.assignee_name && (
+            <span className="text-[10px] text-white/30">→ {task.assignee_name}</span>
+          )}
+          {task.due_date && (
+            <span className="flex items-center gap-0.5 text-[10px] text-white/30">
+              <Clock className="h-2.5 w-2.5" />
+              {new Date(task.due_date).toLocaleDateString([], { month: "short", day: "numeric" })}
+            </span>
+          )}
+          <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold capitalize ${TASK_PRIORITY_COLOR[task.priority]}`}>
+            {task.priority}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 }
