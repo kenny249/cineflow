@@ -1,9 +1,16 @@
 // ─── Shared Types ───────────────────────────────────────────────────────────
 
-export type PlanType = "solo_beta" | "studio_beta" | "solo_pro" | "studio_pro";
+export type PlanType =
+  | "solo_beta"
+  | "studio_beta"
+  | "solo"
+  | "studio"
+  | "agency"
+  | "enterprise"
+  | "lifetime";
 
 export function isSoloPlan(plan?: PlanType | string | null): boolean {
-  return plan === "solo_beta" || plan === "solo_pro";
+  return plan === "solo_beta" || plan === "solo";
 }
 
 export interface PaymentSettings {
@@ -50,6 +57,13 @@ export interface Profile {
   referral_code?: string | null;
   referred_by?: string | null;
   is_admin?: boolean;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  plan_interval?: "month" | "year" | "lifetime" | null;
+  plan_status?: "trialing" | "active" | "past_due" | "canceled" | null;
+  trial_ends_at?: string | null;
+  current_period_end?: string | null;
+  seat_count?: number | null;
   created_at: string;
   updated_at?: string;
 }

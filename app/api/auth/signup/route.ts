@@ -67,8 +67,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
     }
 
-    // Build profile patch: plan, referred_by, and a unique referral code
-    const profilePatch: Record<string, unknown> = {};
+    // Build profile patch: plan, trial, referred_by, and a unique referral code
+    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const profilePatch: Record<string, unknown> = {
+      plan_status: "trialing",
+      trial_ends_at: trialEndsAt,
+    };
     if (invitePlan) profilePatch.plan = invitePlan;
     if (referredBy) profilePatch.referred_by = (referredBy as string).toUpperCase();
 

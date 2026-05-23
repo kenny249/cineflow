@@ -97,6 +97,10 @@ export default function SettingsClient() {
 
   // Plan
   const [plan, setPlan] = useState<string>("studio_beta");
+  const [planStatus, setPlanStatus] = useState<string | null>(null);
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [planInterval, setPlanInterval] = useState<string | null>(null);
+  const [isManagingBilling, setIsManagingBilling] = useState(false);
   const [storageUsed, setStorageUsed] = useState<number | null>(null);
 
   // Referral
@@ -143,6 +147,9 @@ export default function SettingsClient() {
           setBusinessWebsite(profile.business_website ?? "");
           setPaySettings((profile.payment_settings as PaymentSettings) ?? {});
           if (profile.plan) setPlan(profile.plan);
+          if (profile.plan_status) setPlanStatus(profile.plan_status);
+          if (profile.trial_ends_at) setTrialEndsAt(profile.trial_ends_at);
+          if (profile.plan_interval) setPlanInterval(profile.plan_interval);
           // Fetch (or generate) referral code via API
           const codeRes = await fetch("/api/referrals/code");
           if (codeRes.ok) {
@@ -894,134 +901,197 @@ export default function SettingsClient() {
           </section>
 
           {/* ── Plan ─────────────────────────────────────────────── */}
-          {plan !== "lifetime" && <section>
+          <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Plan</h2>
 
             {plan === "lifetime" ? (
+              /* Lifetime / Founding Member */
               <div className="group relative overflow-hidden rounded-xl border border-[#d4a853]/30 bg-[#d4a853]/5 p-5">
-                {/* Ambient shimmer sweep on hover */}
                 <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#d4a853]/10 to-transparent transition-transform duration-1000 ease-in-out group-hover:translate-x-full" />
-
                 <div className="relative flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/15 shadow-[0_0_16px_rgba(212,168,83,0.2)]">
                       <Sparkles className="h-5 w-5 text-[#d4a853]" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-bold text-foreground">Founding Member</p>
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Full lifetime access · Every feature · Forever
-                      </p>
+                      <p className="text-sm font-bold text-foreground">Founding Member</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">Full lifetime access · Every feature · Forever</p>
                     </div>
                   </div>
                 </div>
-
                 <p className="relative mt-4 text-xs text-[#d4a853]/70 leading-relaxed">
                   You&apos;re one of the founding members of Cineflow — you helped shape what this became.
                   Your access never expires, and every feature we ship is yours, always.
                 </p>
-
                 <div className="relative mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                  {[
-                    "Unlimited projects",
-                    "Invoice & finance",
-                    "Client portals",
-                    "Storyboards & shot lists",
-                    "Retainers",
-                    "Team collaboration",
-                    "Contracts & forms",
-                    "Calendar & scheduling",
-                    "Revision review",
-                  ].map((feat) => (
+                  {["Unlimited projects","Invoice & finance","Client portals","Storyboards & shot lists","Retainers","Team collaboration","Contracts & forms","Calendar & scheduling","Revision review"].map((feat) => (
                     <div key={feat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Check className="h-3 w-3 shrink-0 text-[#d4a853]" />
-                      {feat}
+                      <Check className="h-3 w-3 shrink-0 text-[#d4a853]" />{feat}
                     </div>
                   ))}
                 </div>
               </div>
-            ) : (
-            <div className="rounded-xl border border-border bg-card p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#d4a853]/10">
-                    <Sparkles className="h-4 w-4 text-[#d4a853]" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-foreground">
-                        {plan === "solo" || plan === "solo_beta" ? "Solo Creator" : "Film Studio"}
-                      </p>
-                      <span className="rounded-full bg-[#d4a853]/15 px-2 py-0.5 text-[10px] font-bold text-[#d4a853]">
-                        Beta
-                      </span>
+            ) : planStatus === "trialing" || (trialEndsAt && new Date(trialEndsAt) > new Date()) ? (
+              /* Active trial */
+              (() => {
+                const daysLeft = trialEndsAt
+                  ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - Date.now()) / 86400000))
+                  : 30;
+                return (
+                  <div className="rounded-xl border border-border bg-card p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                          <Sparkles className="h-4 w-4 text-emerald-400" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-foreground">Free Trial</p>
+                            <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                              {daysLeft} day{daysLeft !== 1 ? "s" : ""} left
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">All features included — no card required yet</p>
+                        </div>
+                      </div>
+                      <a
+                        href="/upgrade"
+                        className="shrink-0 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 transition-colors"
+                      >
+                        Choose a plan
+                      </a>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">Early access — all features included</p>
+                    <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                        style={{ width: `${Math.min((daysLeft / 30) * 100, 100)}%` }}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground/60">
+                      Trial ends {trialEndsAt ? new Date(trialEndsAt).toLocaleDateString("en-US", { month: "long", day: "numeric" }) : "soon"} — pick a plan to keep full access.
+                    </p>
                   </div>
-                </div>
-                <a
-                  href="mailto:support@usecineflow.com?subject=Plan Question"
-                  className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-[#d4a853]/40 transition-colors"
-                >
-                  Contact us
-                </a>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-                {[
-                  "Unlimited projects",
-                  "Invoice & finance",
-                  "Client portals",
-                  "Storyboards & shot lists",
-                  "Retainers",
-                  "Team collaboration",
-                  "Contracts & forms",
-                  "Calendar & scheduling",
-                  "Revision review",
-                ].map((feat) => (
-                  <div key={feat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Check className="h-3 w-3 shrink-0 text-[#d4a853]" />
-                    {feat}
+                );
+              })()
+            ) : planStatus === "active" ? (
+              /* Paid subscriber */
+              <div className="rounded-xl border border-border bg-card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#d4a853]/10">
+                      <Sparkles className="h-4 w-4 text-[#d4a853]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-foreground capitalize">
+                          {plan.replace("_", " ")} Plan
+                        </p>
+                        <span className="rounded-full bg-[#d4a853]/15 px-2 py-0.5 text-[10px] font-bold text-[#d4a853] capitalize">
+                          {planInterval === "year" ? "Annual" : "Monthly"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">Active subscription</p>
+                    </div>
                   </div>
-                ))}
-              </div>
-
-              {/* Storage meter */}
-              <div className="mt-5 space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Storage</span>
-                  {storageUsed === null ? (
-                    <span>Loading…</span>
-                  ) : (
-                    <span>
-                      {storageUsed < 1024 * 1024 * 1024
-                        ? `${(storageUsed / (1024 * 1024)).toFixed(1)} MB`
-                        : `${(storageUsed / (1024 * 1024 * 1024)).toFixed(2)} GB`}
-                      {" "}of 10 GB used
-                    </span>
-                  )}
+                  <button
+                    onClick={async () => {
+                      setIsManagingBilling(true);
+                      try {
+                        const res = await fetch("/api/stripe/portal", { method: "POST" });
+                        const { url, error } = await res.json();
+                        if (url) window.location.href = url;
+                        else toast.error(error ?? "Could not open billing portal");
+                      } catch { toast.error("Something went wrong"); }
+                      finally { setIsManagingBilling(false); }
+                    }}
+                    disabled={isManagingBilling}
+                    className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-[#d4a853]/40 transition-colors disabled:opacity-60"
+                  >
+                    {isManagingBilling ? "Loading…" : "Manage billing"}
+                  </button>
                 </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  {storageUsed !== null && (
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min((storageUsed / BETA_STORAGE_LIMIT_BYTES) * 100, 100).toFixed(1)}%`,
-                        background: storageUsed / BETA_STORAGE_LIMIT_BYTES > 0.85
-                          ? "#ef4444"
-                          : storageUsed / BETA_STORAGE_LIMIT_BYTES > 0.65
-                          ? "#f59e0b"
-                          : "#d4a853",
-                      }}
-                    />
-                  )}
-                </div>
-                <p className="text-[11px] text-muted-foreground/60">Beta cap — 10 GB per account. Increases at launch.</p>
               </div>
-            </div>
+            ) : planStatus === "past_due" ? (
+              /* Payment failed */
+              <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Payment failed</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Your last payment didn&apos;t go through. Update your card to keep access.</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setIsManagingBilling(true);
+                      try {
+                        const res = await fetch("/api/stripe/portal", { method: "POST" });
+                        const { url } = await res.json();
+                        if (url) window.location.href = url;
+                      } catch { toast.error("Something went wrong"); }
+                      finally { setIsManagingBilling(false); }
+                    }}
+                    disabled={isManagingBilling}
+                    className="shrink-0 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-60"
+                  >
+                    {isManagingBilling ? "Loading…" : "Fix payment"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Beta / no billing yet — legacy fallback */
+              <div className="rounded-xl border border-border bg-card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#d4a853]/10">
+                      <Sparkles className="h-4 w-4 text-[#d4a853]" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-foreground">
+                          {plan === "solo" || plan === "solo_beta" ? "Solo" : "Studio"} Plan
+                        </p>
+                        <span className="rounded-full bg-[#d4a853]/15 px-2 py-0.5 text-[10px] font-bold text-[#d4a853]">Beta</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">Early access — all features included</p>
+                    </div>
+                  </div>
+                  <a
+                    href="mailto:support@usecineflow.com?subject=Plan Question"
+                    className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-[#d4a853]/40 transition-colors"
+                  >
+                    Contact us
+                  </a>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                  {["Unlimited projects","Invoice & finance","Client portals","Storyboards & shot lists","Retainers","Team collaboration","Contracts & forms","Calendar & scheduling","Revision review"].map((feat) => (
+                    <div key={feat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Check className="h-3 w-3 shrink-0 text-[#d4a853]" />{feat}
+                    </div>
+                  ))}
+                </div>
+                {/* Storage meter */}
+                <div className="mt-5 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Storage</span>
+                    {storageUsed === null ? <span>Loading…</span> : (
+                      <span>{storageUsed < 1024 * 1024 * 1024 ? `${(storageUsed / (1024 * 1024)).toFixed(1)} MB` : `${(storageUsed / (1024 * 1024 * 1024)).toFixed(2)} GB`} of 10 GB used</span>
+                    )}
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    {storageUsed !== null && (
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.min((storageUsed / BETA_STORAGE_LIMIT_BYTES) * 100, 100).toFixed(1)}%`,
+                          background: storageUsed / BETA_STORAGE_LIMIT_BYTES > 0.85 ? "#ef4444" : storageUsed / BETA_STORAGE_LIMIT_BYTES > 0.65 ? "#f59e0b" : "#d4a853",
+                        }}
+                      />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/60">Beta cap — 10 GB per account. Increases at launch.</p>
+                </div>
+              </div>
             )}
-          </section>}
+          </section>
 
           {/* ── Referrals ────────────────────────────────────────── */}
           <section>

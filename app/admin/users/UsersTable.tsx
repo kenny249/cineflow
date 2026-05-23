@@ -22,14 +22,15 @@ type User = {
 
 const PLAN_COLORS: Record<string, string> = {
   lifetime:     "bg-[#d4a853]/15 text-[#d4a853] border-[#d4a853]/30",
+  enterprise:   "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  agency:       "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   studio:       "bg-blue-500/10 text-blue-400 border-blue-500/20",
   studio_beta:  "bg-blue-500/10 text-blue-400 border-blue-500/20",
   solo:         "bg-purple-500/10 text-purple-400 border-purple-500/20",
   solo_beta:    "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  agency:       "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
 };
 
-const PLANS = ["solo", "studio", "agency", "lifetime", "solo_beta", "studio_beta"];
+const PLANS = ["solo", "studio", "agency", "enterprise", "lifetime", "solo_beta", "studio_beta"];
 
 function timeAgo(iso: string | null) {
   if (!iso) return "Never";

@@ -37,6 +37,7 @@
     "recharts": "^3.8.1",
     "resend": "^6.11.0",
     "sonner": "^1.7.2",
+    "stripe": "^22.1.1",
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
