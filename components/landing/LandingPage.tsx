@@ -59,7 +59,7 @@ export function LandingPage({ refCode }: Props) {
 
       gsap.registerPlugin(ScrollTrigger);
 
-      const lenis = new Lenis({ lerp: 0.06, smoothWheel: true });
+      const lenis = new Lenis({ lerp: 0.08, smoothWheel: true });
       lenis.on("scroll", ScrollTrigger.update);
       const lenisTick = (time: number) => lenis.raf(time * 1000);
       gsap.ticker.add(lenisTick);
@@ -122,18 +122,18 @@ export function LandingPage({ refCode }: Props) {
 
         ScrollTrigger.create({
           trigger: "#s-chaos",
-          start: "top 90%",
+          start: "top 95%",
           end: "bottom 10%",
           onUpdate: (st) => {
             const p = st.progress;
-            orbit.opacity = smoothStep(0, 0.12, p) * (1 - smoothStep(0.86, 1.0, p));
-            orbit.r = smoothStep(0, 0.10, p);
+            orbit.opacity = smoothStep(0, 0.08, p) * (1 - smoothStep(0.88, 1.0, p));
+            orbit.r = smoothStep(0, 0.08, p);
           },
         });
 
         orbitTickerFn = () => {
           if (orbit.opacity < 0.005) return;
-          orbitTime += 0.003;
+          orbitTime += 0.004;
           const W = window.innerWidth;
           const H = window.innerHeight;
           const baseRx = Math.min(W, H) * 0.44 * orbit.r;
@@ -159,9 +159,9 @@ export function LandingPage({ refCode }: Props) {
           end: "bottom top",
           onUpdate: (st) => {
             const p = st.progress;
-            const v0 = smoothStep(0.06, 0.17, p) * (1 - smoothStep(0.30, 0.40, p));
-            const v1 = smoothStep(0.40, 0.51, p) * (1 - smoothStep(0.62, 0.72, p));
-            const v2 = smoothStep(0.72, 0.82, p) * (1 - smoothStep(0.90, 0.97, p));
+            const v0 = smoothStep(0.03, 0.12, p) * (1 - smoothStep(0.28, 0.38, p));
+            const v1 = smoothStep(0.38, 0.48, p) * (1 - smoothStep(0.60, 0.70, p));
+            const v2 = smoothStep(0.70, 0.80, p) * (1 - smoothStep(0.88, 0.96, p));
             [v0, v1, v2].forEach((v, i) => {
               gsap.set(painEls[i], { opacity: v, filter: `blur(${(1 - v) * 7}px)` });
             });
@@ -174,22 +174,22 @@ export function LandingPage({ refCode }: Props) {
           gsap.set(enoughChars, { y: 80, opacity: 0, rotationX: -55 });
           gsap.to(enoughChars, {
             y: 0, opacity: 1, rotationX: 0,
-            duration: 0.9, ease: "expo.out", stagger: 0.045, delay: 0.5,
-            scrollTrigger: { trigger: "#s-explode", start: "top 40%", toggleActions: "play none none none" },
+            duration: 0.9, ease: "expo.out", stagger: 0.045, delay: 0.2,
+            scrollTrigger: { trigger: "#s-explode", start: "top 55%", toggleActions: "play none none none" },
           });
         }
 
         gsap.fromTo("#enough-sub",
           { y: 12, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.9, ease: "power2.out", delay: 1.1,
-            scrollTrigger: { trigger: "#s-explode", start: "top 40%", toggleActions: "play none none none" } }
+          { y: 0, opacity: 1, duration: 0.9, ease: "power2.out", delay: 0.8,
+            scrollTrigger: { trigger: "#s-explode", start: "top 55%", toggleActions: "play none none none" } }
         );
 
         // ── CineFlow intro ────────────────────────────────────────────────────
         gsap.fromTo("#intro-line",
           { scaleX: 0 },
           { scaleX: 1, duration: 1.5, ease: "expo.inOut",
-            scrollTrigger: { trigger: "#s-intro", start: "top 70%", toggleActions: "play none none none" } }
+            scrollTrigger: { trigger: "#s-intro", start: "top 75%", toggleActions: "play none none none" } }
         );
 
         const cineChars = document.querySelectorAll<HTMLElement>("#cineflow-word .char");
@@ -198,14 +198,14 @@ export function LandingPage({ refCode }: Props) {
           gsap.to(cineChars, {
             y: 0, opacity: 1, skewX: 0,
             duration: 1.1, ease: "expo.out", stagger: 0.045,
-            scrollTrigger: { trigger: "#s-intro", start: "top 60%", toggleActions: "play none none none" },
+            scrollTrigger: { trigger: "#s-intro", start: "top 65%", toggleActions: "play none none none" },
           });
         }
 
         gsap.fromTo("#intro-sub",
           { y: 20, opacity: 0 },
           { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.45,
-            scrollTrigger: { trigger: "#s-intro", start: "top 48%", toggleActions: "play none none none" } }
+            scrollTrigger: { trigger: "#s-intro", start: "top 55%", toggleActions: "play none none none" } }
         );
 
         // ── Sticky cycling panels ─────────────────────────────────────────────
@@ -247,6 +247,9 @@ export function LandingPage({ refCode }: Props) {
         });
 
       });
+
+      // Refresh after Splitting.js alters DOM so ScrollTrigger positions are accurate
+      requestAnimationFrame(() => ScrollTrigger.refresh());
 
       kill = () => {
         if (orbitTickerFn) gsap.ticker.remove(orbitTickerFn);
@@ -334,7 +337,7 @@ export function LandingPage({ refCode }: Props) {
 
           <h1
             id="hero-headline"
-            className="max-w-3xl font-black leading-[1.05] tracking-tighter text-white"
+            className="max-w-3xl font-sans font-black leading-[1.05] tracking-tighter text-white"
             style={{ fontSize: "clamp(2rem, 3.6vw, 3.4rem)", opacity: 0 }}
           >
             Stop stitching your<br />production together.
@@ -358,14 +361,14 @@ export function LandingPage({ refCode }: Props) {
             Start for free →
           </Link>
 
-          <div className="absolute bottom-10 flex flex-col items-center gap-3">
+          <div className="absolute bottom-10 flex flex-col items-center gap-3 animate-float-slow">
             <div className="h-12 w-px bg-gradient-to-b from-transparent to-[#d4a853]/25" />
             <p className="font-mono text-[8px] tracking-[0.35em] text-white/15 uppercase">Scroll</p>
           </div>
         </section>
 
         {/* ══ CHAOS — fragments orbit + pain points ════════════════════════ */}
-        <div id="s-chaos" style={{ height: "220vh" }}>
+        <div id="s-chaos" style={{ height: "180vh" }}>
           <div className="sticky top-0 h-screen overflow-hidden">
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
 
@@ -423,7 +426,7 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ ENOUGH ══════════════════════════════════════════════════════ */}
-        <div id="s-explode" style={{ height: "160vh" }}>
+        <div id="s-explode" style={{ height: "120vh" }}>
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
             <div
               id="enough"
@@ -444,7 +447,7 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ CINEFLOW INTRO ══════════════════════════════════════════════ */}
-        <div id="s-intro" style={{ height: "160vh" }}>
+        <div id="s-intro" style={{ height: "120vh" }}>
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
             <div className="max-w-4xl">
               <div className="mb-7 flex justify-center">
