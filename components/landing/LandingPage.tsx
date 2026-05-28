@@ -85,35 +85,27 @@ export function LandingPage({ refCode }: Props) {
 
       const ctx = gsap.context(() => {
 
-        // ── Hero ─────────────────────────────────────────────────────────────
+        // ── Hero — cascade in on load (section is at top so triggers fire immediately) ──
         gsap.fromTo("#hero-line",
           { scaleX: 0 },
-          { scaleX: 1, duration: 2.0, ease: "expo.inOut",
-            scrollTrigger: { trigger: "#s-hero", start: "top 65%", toggleActions: "play none none none" } }
+          { scaleX: 1, duration: 1.8, ease: "expo.inOut",
+            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
         );
-
-        gsap.fromTo("#hero-kicker",
-          { opacity: 0 },
-          { opacity: 1, duration: 1.4, ease: "power2.out",
-            scrollTrigger: { trigger: "#s-hero", start: "top 62%", toggleActions: "play none none none" } }
+        gsap.fromTo("#hero-kicker", { opacity: 0 },
+          { opacity: 1, duration: 1.1, ease: "power2.out",
+            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
         );
-
-        gsap.fromTo("#hero-headline",
-          { y: 30, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1.5, ease: "power3.out", delay: 0.2,
-            scrollTrigger: { trigger: "#s-hero", start: "top 58%", toggleActions: "play none none none" } }
+        gsap.fromTo("#hero-headline", { y: 22, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 0.15,
+            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
         );
-
-        gsap.fromTo("#hero-sub",
-          { y: 18, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 0.5,
-            scrollTrigger: { trigger: "#s-hero", start: "top 54%", toggleActions: "play none none none" } }
+        gsap.fromTo("#hero-sub", { y: 14, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.1, ease: "power3.out", delay: 0.35,
+            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
         );
-
-        gsap.fromTo("#hero-cta",
-          { y: 14, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1.0, ease: "power3.out", delay: 0.8,
-            scrollTrigger: { trigger: "#s-hero", start: "top 54%", toggleActions: "play none none none" } }
+        gsap.fromTo("#hero-cta", { y: 10, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.9, ease: "power3.out", delay: 0.55,
+            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
         );
 
         // ── Fragment orbit — time-based ───────────────────────────────────────
@@ -149,9 +141,11 @@ export function LandingPage({ refCode }: Props) {
         };
         gsap.ticker.add(orbitTickerFn);
 
-        // ── Pain points — blur + opacity crossfade, no Y movement ─────────────
+        // ── Pain points — blur + opacity + continuous Y drift ─────────────────
+        // Each pain point drifts from y=+12 → y=−12 across its entire window so
+        // there is always visible motion while the user is scrolling.
         const painEls = Array.from(document.querySelectorAll<HTMLElement>("[data-pain]"));
-        gsap.set(painEls, { opacity: 0, filter: "blur(8px)" });
+        gsap.set(painEls, { opacity: 0, filter: "blur(8px)", y: 12 });
 
         ScrollTrigger.create({
           trigger: "#s-chaos",
@@ -159,54 +153,52 @@ export function LandingPage({ refCode }: Props) {
           end: "bottom top",
           onUpdate: (st) => {
             const p = st.progress;
-            const v0 = smoothStep(0.03, 0.12, p) * (1 - smoothStep(0.28, 0.38, p));
-            const v1 = smoothStep(0.38, 0.48, p) * (1 - smoothStep(0.60, 0.70, p));
-            const v2 = smoothStep(0.70, 0.80, p) * (1 - smoothStep(0.88, 0.96, p));
-            [v0, v1, v2].forEach((v, i) => {
-              gsap.set(painEls[i], { opacity: v, filter: `blur(${(1 - v) * 7}px)` });
-            });
+            const v0 = smoothStep(0.02, 0.10, p) * (1 - smoothStep(0.27, 0.35, p));
+            const v1 = smoothStep(0.35, 0.43, p) * (1 - smoothStep(0.62, 0.70, p));
+            const v2 = smoothStep(0.70, 0.78, p) * (1 - smoothStep(0.92, 0.98, p));
+            // Y travels 24px upward over each pain point's full window
+            const y0 = 12 - smoothStep(0.02, 0.35, p) * 24;
+            const y1 = 12 - smoothStep(0.35, 0.70, p) * 24;
+            const y2 = 12 - smoothStep(0.70, 0.98, p) * 24;
+            gsap.set(painEls[0], { opacity: v0, filter: `blur(${(1 - v0) * 6}px)`, y: y0 });
+            gsap.set(painEls[1], { opacity: v1, filter: `blur(${(1 - v1) * 6}px)`, y: y1 });
+            gsap.set(painEls[2], { opacity: v2, filter: `blur(${(1 - v2) * 6}px)`, y: y2 });
           },
         });
 
-        // ── ENOUGH ───────────────────────────────────────────────────────────
+        // ── ENOUGH — scrub reveal: plays AS section scrolls into view ─────────
+        // Animation is fully complete by the time the section pins.
+        // No black gap, no waiting.
         const enoughChars = document.querySelectorAll<HTMLElement>("#enough .char");
         if (enoughChars.length) {
-          gsap.set(enoughChars, { y: 80, opacity: 0, rotationX: -55 });
-          gsap.to(enoughChars, {
-            y: 0, opacity: 1, rotationX: 0,
-            duration: 0.9, ease: "expo.out", stagger: 0.045, delay: 0.2,
-            scrollTrigger: { trigger: "#s-explode", start: "top 55%", toggleActions: "play none none none" },
+          gsap.set(enoughChars, { y: 48, opacity: 0, rotationX: -40 });
+          const enoughTl = gsap.timeline({ paused: true });
+          enoughTl.to(enoughChars, {
+            y: 0, opacity: 1, rotationX: 0, stagger: 0.06, duration: 0.8, ease: "none",
+          });
+          enoughTl.to("#enough-sub", { y: 0, opacity: 1, duration: 0.3, ease: "none" }, "-=0.15");
+          ScrollTrigger.create({
+            trigger: "#s-explode", start: "top bottom", end: "top top",
+            scrub: 0.5, animation: enoughTl,
           });
         }
 
-        gsap.fromTo("#enough-sub",
-          { y: 12, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.9, ease: "power2.out", delay: 0.8,
-            scrollTrigger: { trigger: "#s-explode", start: "top 55%", toggleActions: "play none none none" } }
-        );
-
-        // ── CineFlow intro ────────────────────────────────────────────────────
-        gsap.fromTo("#intro-line",
-          { scaleX: 0 },
-          { scaleX: 1, duration: 1.5, ease: "expo.inOut",
-            scrollTrigger: { trigger: "#s-intro", start: "top 75%", toggleActions: "play none none none" } }
-        );
-
+        // ── CineFlow intro — scrub reveal: plays AS section scrolls into view ──
         const cineChars = document.querySelectorAll<HTMLElement>("#cineflow-word .char");
         if (cineChars.length) {
-          gsap.set(cineChars, { y: 130, opacity: 0, skewX: 8 });
-          gsap.to(cineChars, {
-            y: 0, opacity: 1, skewX: 0,
-            duration: 1.1, ease: "expo.out", stagger: 0.045,
-            scrollTrigger: { trigger: "#s-intro", start: "top 65%", toggleActions: "play none none none" },
+          gsap.set(cineChars, { y: 70, opacity: 0, skewX: 5 });
+          gsap.set("#intro-sub", { y: 10, opacity: 0 });
+          const introTl = gsap.timeline({ paused: true });
+          introTl.fromTo("#intro-line", { scaleX: 0 }, { scaleX: 1, duration: 0.15, ease: "none" }, 0);
+          introTl.to(cineChars, {
+            y: 0, opacity: 1, skewX: 0, stagger: 0.05, duration: 0.75, ease: "none",
+          }, 0.1);
+          introTl.to("#intro-sub", { y: 0, opacity: 1, duration: 0.25, ease: "none" }, 0.85);
+          ScrollTrigger.create({
+            trigger: "#s-intro", start: "top bottom", end: "top top",
+            scrub: 0.5, animation: introTl,
           });
         }
-
-        gsap.fromTo("#intro-sub",
-          { y: 20, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1, ease: "power3.out", delay: 0.45,
-            scrollTrigger: { trigger: "#s-intro", start: "top 55%", toggleActions: "play none none none" } }
-        );
 
         // ── Sticky cycling panels ─────────────────────────────────────────────
         gsap.set("#panel-0", { opacity: 1, filter: "blur(0px)" });
@@ -218,9 +210,9 @@ export function LandingPage({ refCode }: Props) {
           end: "bottom top",
           onUpdate: (st) => {
             const p = st.progress;
-            const op0 = 1 - smoothStep(0.28, 0.37, p);
-            const op1 = smoothStep(0.28, 0.37, p) * (1 - smoothStep(0.62, 0.71, p));
-            const op2 = smoothStep(0.62, 0.71, p);
+            const op0 = 1 - smoothStep(0.22, 0.32, p);
+            const op1 = smoothStep(0.22, 0.32, p) * (1 - smoothStep(0.58, 0.68, p));
+            const op2 = smoothStep(0.58, 0.68, p);
             gsap.set("#panel-0", { opacity: op0, filter: `blur(${(1 - op0) * 5}px)` });
             gsap.set("#panel-1", { opacity: op1, filter: `blur(${(1 - op1) * 5}px)` });
             gsap.set("#panel-2", { opacity: op2, filter: `blur(${(1 - op2) * 5}px)` });
@@ -230,26 +222,29 @@ export function LandingPage({ refCode }: Props) {
         // ── CTA ───────────────────────────────────────────────────────────────
         const ctaChars = document.querySelectorAll<HTMLElement>("#cta-headline .char");
         if (ctaChars.length) {
-          gsap.set(ctaChars, { y: 70, opacity: 0 });
+          gsap.set(ctaChars, { y: 50, opacity: 0 });
           gsap.to(ctaChars, {
-            y: 0, opacity: 1, duration: 0.9, ease: "expo.out", stagger: 0.022,
-            scrollTrigger: { trigger: "#s-cta", start: "top 74%", toggleActions: "play none none none" },
+            y: 0, opacity: 1, duration: 0.9, ease: "expo.out", stagger: 0.02,
+            scrollTrigger: { trigger: "#s-cta", start: "top 80%", toggleActions: "play none none none" },
           });
         }
         document.querySelectorAll<HTMLElement>("[data-cta]").forEach((el, i) => {
           gsap.fromTo(el,
-            { y: 18, opacity: 0 },
+            { y: 14, opacity: 0 },
             { y: 0, opacity: 1, duration: 0.8, ease: "power3.out",
-              scrollTrigger: { trigger: "#s-cta", start: "top 66%", toggleActions: "play none none none" },
-              delay: 0.55 + i * 0.12,
+              scrollTrigger: { trigger: "#s-cta", start: "top 72%", toggleActions: "play none none none" },
+              delay: 0.38 + i * 0.12,
             }
           );
         });
 
       });
 
-      // Refresh after Splitting.js alters DOM so ScrollTrigger positions are accurate
-      requestAnimationFrame(() => ScrollTrigger.refresh());
+      // Two-pass refresh: first catches Splitting DOM changes, second catches font-load layout shift
+      requestAnimationFrame(() => {
+        ScrollTrigger.refresh();
+        setTimeout(() => ScrollTrigger.refresh(), 300);
+      });
 
       kill = () => {
         if (orbitTickerFn) gsap.ticker.remove(orbitTickerFn);
@@ -368,7 +363,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ CHAOS — fragments orbit + pain points ════════════════════════ */}
-        <div id="s-chaos" style={{ height: "180vh" }}>
+        <div id="s-chaos" style={{ height: "150vh" }}>
           <div className="sticky top-0 h-screen overflow-hidden">
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
 
@@ -426,7 +421,7 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ ENOUGH ══════════════════════════════════════════════════════ */}
-        <div id="s-explode" style={{ height: "120vh" }}>
+        <div id="s-explode" style={{ height: "115vh" }}>
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
             <div
               id="enough"
@@ -447,7 +442,7 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ CINEFLOW INTRO ══════════════════════════════════════════════ */}
-        <div id="s-intro" style={{ height: "120vh" }}>
+        <div id="s-intro" style={{ height: "115vh" }}>
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
             <div className="max-w-4xl">
               <div className="mb-7 flex justify-center">
@@ -495,7 +490,7 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ PRODUCT PANELS — sticky cycling ═════════════════════════════ */}
-        <div id="s-panels" style={{ height: "280vh" }}>
+        <div id="s-panels" style={{ height: "220vh" }}>
           <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
             {PANELS.map((panel, i) => (
               <div
