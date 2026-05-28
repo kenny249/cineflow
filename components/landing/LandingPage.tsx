@@ -18,7 +18,7 @@ const FRAGMENTS = [
   { text: '"what time is call time again?"',   mono: false, x: "12%", y: "38%", rot: -5, d: 1.5,  dur: 3.6 },
   { text: "call_sheet_saturday_v4.pdf",        mono: true,  x: "58%", y: "24%", rot:  3, d: 0.9,  dur: 4.3 },
   { text: '"I never got the invoice 🙏"',      mono: false, x: "76%", y: "60%", rot: -3, d: 1.3,  dur: 3.7 },
-  { text: '"just checking in again..."',       mono: false, x: "28%", y: "11%", rot:  2, d: 1.6,  dur: 4.0 },
+  { text: '"just checking in again..."',       mono: false, x: "28%", y: "19%", rot:  2, d: 1.6,  dur: 4.0 },
 ] as const;
 
 const PANELS = [
@@ -174,7 +174,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ PAIN ══════════════════════════════════════════════════════ */}
-        <section className="relative flex flex-col items-center gap-40 py-52 px-8">
+        <section className="relative flex flex-col items-center gap-20 py-28 px-8">
 
           <div data-reveal className="max-w-2xl text-center">
             <p className="mb-5 font-mono text-[10px] tracking-[0.42em] uppercase text-white/20">The problem</p>
@@ -200,7 +200,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ ENOUGH ════════════════════════════════════════════════════ */}
-        <section className="relative flex min-h-screen items-center justify-center px-8 text-center">
+        <section className="relative flex min-h-[65vh] items-center justify-center px-8 text-center">
           <div data-reveal="clip">
             <div
               className="lp-clip font-black leading-none tracking-tighter text-white"
@@ -218,7 +218,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ CINEFLOW INTRO ════════════════════════════════════════════ */}
-        <section className="relative flex min-h-screen flex-col items-center justify-center px-8 text-center">
+        <section className="relative flex min-h-[75vh] flex-col items-center justify-center px-8 text-center">
           <div data-reveal="clip" className="flex flex-col items-center">
             <div className="lp-clip mb-8">
               <div className="lp-clip-inner h-px w-10 bg-[#d4a853]" style={{ "--di": "0s" } as React.CSSProperties} />
@@ -229,17 +229,18 @@ export function LandingPage({ refCode }: Props) {
                 Introducing
               </p>
             </div>
-            <div
-              className="lp-clip font-black leading-none tracking-tighter"
-              style={{
-                fontSize: "clamp(4.5rem,14vw,12rem)",
-                background: "linear-gradient(135deg,#ffffff 34%,#d4a853 63%,#fff3c4 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-              }}
-            >
-              <div className="lp-clip-inner" style={{ "--di": "0.14s" } as React.CSSProperties}>CineFlow</div>
+            <div className="lp-clip" style={{ fontSize: "clamp(4.5rem,14vw,12rem)" }}>
+              <div
+                className="lp-clip-inner font-black leading-none tracking-tighter"
+                style={{
+                  "--di": "0.14s",
+                  background: "linear-gradient(135deg,#ffffff 34%,#d4a853 63%,#fff3c4 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  display: "block",
+                } as React.CSSProperties}
+              >CineFlow</div>
             </div>
             <div className="lp-clip mt-7">
               <p className="lp-clip-inner mx-auto max-w-sm text-[13px] leading-relaxed text-white/28"
@@ -251,8 +252,8 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ PANELS ════════════════════════════════════════════════════ */}
-        <section className="relative py-44 px-8">
-          <div className="mx-auto max-w-xl flex flex-col items-center gap-44">
+        <section className="relative py-20 px-8">
+          <div className="mx-auto max-w-xl flex flex-col items-center gap-20">
             {PANELS.map((panel, i) => (
               <div
                 key={i}

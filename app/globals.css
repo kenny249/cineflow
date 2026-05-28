@@ -404,10 +404,12 @@
 /* data-reveal="clip" container — only fades in (children handle Y) */
 [data-reveal="clip"] {
   opacity: 0;
-  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0s);
+  transform: none !important;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0s);
 }
 [data-reveal="clip"].is-visible {
   opacity: 1;
+  transform: none !important;
 }
 
 /* Scroll reveal — base */
