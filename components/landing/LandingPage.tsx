@@ -112,17 +112,6 @@ export function LandingPage({ refCode }: Props) {
         const cardEls = cardRefs.current.filter(Boolean) as HTMLDivElement[];
         gsap.set(cardEls, { opacity: 0 });
 
-        ScrollTrigger.create({
-          trigger: "#s-chaos",
-          start: "top 95%",
-          end: "bottom 10%",
-          onUpdate: (st) => {
-            const p = st.progress;
-            orbit.opacity = smoothStep(0, 0.08, p) * (1 - smoothStep(0.88, 1.0, p));
-            orbit.r = smoothStep(0, 0.08, p);
-          },
-        });
-
         orbitTickerFn = () => {
           if (orbit.opacity < 0.005) return;
           orbitTime += 0.004;
@@ -141,9 +130,9 @@ export function LandingPage({ refCode }: Props) {
         };
         gsap.ticker.add(orbitTickerFn);
 
-        // ── Pain points — blur + opacity + continuous Y drift ─────────────────
-        // Each pain point drifts from y=+12 → y=−12 across its entire window so
-        // there is always visible motion while the user is scrolling.
+        // ── Chaos: orbit + pain points driven by a single trigger ─────────────
+        // Orbit starts only once chaos pins — no bleed into the hero.
+        // Pain 0 appears immediately; each point gets generous dwell (section is 200vh).
         const painEls = Array.from(document.querySelectorAll<HTMLElement>("[data-pain]"));
         gsap.set(painEls, { opacity: 0, filter: "blur(8px)", y: 12 });
 
@@ -153,13 +142,17 @@ export function LandingPage({ refCode }: Props) {
           end: "bottom top",
           onUpdate: (st) => {
             const p = st.progress;
-            const v0 = smoothStep(0.02, 0.10, p) * (1 - smoothStep(0.27, 0.35, p));
-            const v1 = smoothStep(0.35, 0.43, p) * (1 - smoothStep(0.62, 0.70, p));
-            const v2 = smoothStep(0.70, 0.78, p) * (1 - smoothStep(0.92, 0.98, p));
-            // Y travels 24px upward over each pain point's full window
-            const y0 = 12 - smoothStep(0.02, 0.35, p) * 24;
-            const y1 = 12 - smoothStep(0.35, 0.70, p) * 24;
-            const y2 = 12 - smoothStep(0.70, 0.98, p) * 24;
+            // Orbit fades in immediately when pinned, fades out at the very end
+            orbit.opacity = smoothStep(0, 0.06, p) * (1 - smoothStep(0.90, 1.0, p));
+            orbit.r = smoothStep(0, 0.08, p);
+            // Pain 0: appears right away, long hold before exit
+            const v0 = smoothStep(0.00, 0.04, p) * (1 - smoothStep(0.28, 0.35, p));
+            // Pain 1 + 2: generous dwell windows with clean crossfades
+            const v1 = smoothStep(0.35, 0.40, p) * (1 - smoothStep(0.62, 0.68, p));
+            const v2 = smoothStep(0.68, 0.73, p) * (1 - smoothStep(0.94, 0.99, p));
+            const y0 = 12 - smoothStep(0.00, 0.35, p) * 24;
+            const y1 = 12 - smoothStep(0.35, 0.68, p) * 24;
+            const y2 = 12 - smoothStep(0.68, 0.99, p) * 24;
             gsap.set(painEls[0], { opacity: v0, filter: `blur(${(1 - v0) * 6}px)`, y: y0 });
             gsap.set(painEls[1], { opacity: v1, filter: `blur(${(1 - v1) * 6}px)`, y: y1 });
             gsap.set(painEls[2], { opacity: v2, filter: `blur(${(1 - v2) * 6}px)`, y: y2 });
@@ -191,7 +184,7 @@ export function LandingPage({ refCode }: Props) {
           const introTl = gsap.timeline({ paused: true });
           introTl.fromTo("#intro-line", { scaleX: 0 }, { scaleX: 1, duration: 0.15, ease: "none" }, 0);
           introTl.to(cineChars, {
-            y: 0, opacity: 1, skewX: 0, stagger: 0.05, duration: 0.75, ease: "none",
+            y: 0, opacity: 1, skewX: 0, stagger: 0.01, duration: 0.75, ease: "none",
           }, 0.1);
           introTl.to("#intro-sub", { y: 0, opacity: 1, duration: 0.25, ease: "none" }, 0.85);
           ScrollTrigger.create({
@@ -200,9 +193,12 @@ export function LandingPage({ refCode }: Props) {
           });
         }
 
-        // ── Sticky cycling panels ─────────────────────────────────────────────
-        gsap.set("#panel-0", { opacity: 1, filter: "blur(0px)" });
-        gsap.set(["#panel-1", "#panel-2"], { opacity: 0, filter: "blur(6px)" });
+        // ── Sticky cycling panels — scroll-driven with Y drift ───────────────
+        // Panel 0 is visible immediately (opacity 1 from JSX). GSAP drifts it
+        // upward and crossfades to panel 1, then 2. Section is 300vh so each
+        // panel gets ~80vh of uninterrupted read time.
+        gsap.set("#panel-0", { opacity: 1, y: 0 });
+        gsap.set(["#panel-1", "#panel-2"], { opacity: 0, filter: "blur(6px)", y: 20 });
 
         ScrollTrigger.create({
           trigger: "#s-panels",
@@ -210,12 +206,19 @@ export function LandingPage({ refCode }: Props) {
           end: "bottom top",
           onUpdate: (st) => {
             const p = st.progress;
-            const op0 = 1 - smoothStep(0.22, 0.32, p);
-            const op1 = smoothStep(0.22, 0.32, p) * (1 - smoothStep(0.58, 0.68, p));
-            const op2 = smoothStep(0.58, 0.68, p);
-            gsap.set("#panel-0", { opacity: op0, filter: `blur(${(1 - op0) * 5}px)` });
-            gsap.set("#panel-1", { opacity: op1, filter: `blur(${(1 - op1) * 5}px)` });
-            gsap.set("#panel-2", { opacity: op2, filter: `blur(${(1 - op2) * 5}px)` });
+            // Panel 0: holds 0-28%, crossfades out 28-38%
+            const op0 = 1 - smoothStep(0.28, 0.38, p);
+            // Panel 1: crossfades in 28-38%, holds 38-60%, exits 60-72%
+            const op1 = smoothStep(0.28, 0.38, p) * (1 - smoothStep(0.60, 0.72, p));
+            // Panel 2: enters 60-72%, holds to end
+            const op2 = smoothStep(0.60, 0.72, p);
+            // Y drift — panels float upward as the user scrolls
+            const y0 = -smoothStep(0, 0.38, p) * 20;
+            const y1 = 20 - smoothStep(0.28, 0.72, p) * 40;
+            const y2 = 20 - smoothStep(0.60, 1.0, p) * 40;
+            gsap.set("#panel-0", { opacity: op0, filter: `blur(${(1 - op0) * 5}px)`, y: y0 });
+            gsap.set("#panel-1", { opacity: op1, filter: `blur(${(1 - op1) * 5}px)`, y: y1 });
+            gsap.set("#panel-2", { opacity: op2, filter: `blur(${(1 - op2) * 5}px)`, y: y2 });
           },
         });
 
@@ -363,7 +366,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ CHAOS — fragments orbit + pain points ════════════════════════ */}
-        <div id="s-chaos" style={{ height: "150vh" }}>
+        <div id="s-chaos" style={{ height: "200vh" }}>
           <div className="sticky top-0 h-screen overflow-hidden">
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
 
@@ -421,7 +424,7 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ ENOUGH ══════════════════════════════════════════════════════ */}
-        <div id="s-explode" style={{ height: "115vh" }}>
+        <div id="s-explode" style={{ height: "108vh" }}>
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
             <div
               id="enough"
@@ -442,7 +445,7 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ CINEFLOW INTRO ══════════════════════════════════════════════ */}
-        <div id="s-intro" style={{ height: "115vh" }}>
+        <div id="s-intro" style={{ height: "108vh" }}>
           <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
             <div className="max-w-4xl">
               <div className="mb-7 flex justify-center">
@@ -490,7 +493,7 @@ export function LandingPage({ refCode }: Props) {
         </div>
 
         {/* ══ PRODUCT PANELS — sticky cycling ═════════════════════════════ */}
-        <div id="s-panels" style={{ height: "220vh" }}>
+        <div id="s-panels" style={{ height: "300vh" }}>
           <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
             {PANELS.map((panel, i) => (
               <div
