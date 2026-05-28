@@ -85,7 +85,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Searc
             ) : (
               <>
                 <h2 className="text-xl font-bold text-foreground">Start your free trial</h2>
-                <p className="text-sm text-muted-foreground mt-1">14 days free. No credit card. Cancel anytime.</p>
+                <p className="text-sm text-muted-foreground mt-1">30 days free. No credit card. Cancel anytime.</p>
               </>
             )}
           </div>
