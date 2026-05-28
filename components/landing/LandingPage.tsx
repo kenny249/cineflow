@@ -145,17 +145,13 @@ export function LandingPage({ refCode }: Props) {
             // Orbit fades in immediately when pinned, fades out at the very end
             orbit.opacity = smoothStep(0, 0.06, p) * (1 - smoothStep(0.90, 1.0, p));
             orbit.r = smoothStep(0, 0.08, p);
-            // Pain 0: appears right away, long hold before exit
-            const v0 = smoothStep(0.00, 0.04, p) * (1 - smoothStep(0.28, 0.35, p));
-            // Pain 1 + 2: generous dwell windows with clean crossfades
-            const v1 = smoothStep(0.35, 0.40, p) * (1 - smoothStep(0.62, 0.68, p));
-            const v2 = smoothStep(0.68, 0.73, p) * (1 - smoothStep(0.94, 0.99, p));
-            const y0 = 12 - smoothStep(0.00, 0.35, p) * 24;
-            const y1 = 12 - smoothStep(0.35, 0.68, p) * 24;
-            const y2 = 12 - smoothStep(0.68, 0.99, p) * 24;
+            // Two pain points — each gets ~half the 200vh section (~100vh hold)
+            const v0 = smoothStep(0.00, 0.04, p) * (1 - smoothStep(0.42, 0.50, p));
+            const v1 = smoothStep(0.50, 0.55, p) * (1 - smoothStep(0.92, 0.98, p));
+            const y0 = 12 - smoothStep(0.00, 0.50, p) * 24;
+            const y1 = 12 - smoothStep(0.50, 0.98, p) * 24;
             gsap.set(painEls[0], { opacity: v0, filter: `blur(${(1 - v0) * 6}px)`, y: y0 });
             gsap.set(painEls[1], { opacity: v1, filter: `blur(${(1 - v1) * 6}px)`, y: y1 });
-            gsap.set(painEls[2], { opacity: v2, filter: `blur(${(1 - v2) * 6}px)`, y: y2 });
           },
         });
 
@@ -193,12 +189,13 @@ export function LandingPage({ refCode }: Props) {
           });
         }
 
-        // ── Sticky cycling panels — scroll-driven with Y drift ───────────────
-        // Panel 0 is visible immediately (opacity 1 from JSX). GSAP drifts it
-        // upward and crossfades to panel 1, then 2. Section is 300vh so each
-        // panel gets ~80vh of uninterrupted read time.
+        // ── Sticky cycling panels — directional scroll transitions ─────────────
+        // Old panel exits UPWARD while new panel rises from BELOW, matching the
+        // natural scroll direction. No blur on text — clean sharp crossfade.
+        // 300vh total: each panel gets ~90vh of read time before transition.
         gsap.set("#panel-0", { opacity: 1, y: 0 });
-        gsap.set(["#panel-1", "#panel-2"], { opacity: 0, filter: "blur(6px)", y: 20 });
+        gsap.set("#panel-1", { opacity: 0, y: 45 });
+        gsap.set("#panel-2", { opacity: 0, y: 45 });
 
         ScrollTrigger.create({
           trigger: "#s-panels",
@@ -206,19 +203,23 @@ export function LandingPage({ refCode }: Props) {
           end: "bottom top",
           onUpdate: (st) => {
             const p = st.progress;
-            // Panel 0: holds 0-28%, crossfades out 28-38%
-            const op0 = 1 - smoothStep(0.28, 0.38, p);
-            // Panel 1: crossfades in 28-38%, holds 38-60%, exits 60-72%
-            const op1 = smoothStep(0.28, 0.38, p) * (1 - smoothStep(0.60, 0.72, p));
-            // Panel 2: enters 60-72%, holds to end
-            const op2 = smoothStep(0.60, 0.72, p);
-            // Y drift — panels float upward as the user scrolls
-            const y0 = -smoothStep(0, 0.38, p) * 20;
-            const y1 = 20 - smoothStep(0.28, 0.72, p) * 40;
-            const y2 = 20 - smoothStep(0.60, 1.0, p) * 40;
-            gsap.set("#panel-0", { opacity: op0, filter: `blur(${(1 - op0) * 5}px)`, y: y0 });
-            gsap.set("#panel-1", { opacity: op1, filter: `blur(${(1 - op1) * 5}px)`, y: y1 });
-            gsap.set("#panel-2", { opacity: op2, filter: `blur(${(1 - op2) * 5}px)`, y: y2 });
+            // t01: panel 0→1 crossfade at 30-40%  (90vh hold before, 30vh transition)
+            // t12: panel 1→2 crossfade at 65-75%  (75vh hold, 30vh transition, 75vh hold)
+            const t01 = smoothStep(0.30, 0.40, p);
+            const t12 = smoothStep(0.65, 0.75, p);
+
+            const op0 = 1 - t01;
+            const op1 = t01 * (1 - t12);
+            const op2 = t12;
+
+            // Directional Y: exiting panel floats up (-40px), entering rises from below (+45px)
+            const y0 = -t01 * 40;
+            const y1 = 45 * (1 - t01) - 35 * t12;
+            const y2 = 45 * (1 - t12);
+
+            gsap.set("#panel-0", { opacity: op0, y: y0 });
+            gsap.set("#panel-1", { opacity: op1, y: y1 });
+            gsap.set("#panel-2", { opacity: op2, y: y2 });
           },
         });
 
@@ -390,34 +391,6 @@ export function LandingPage({ refCode }: Props) {
                 <span className="text-white/45">Something&apos;s always falling through the cracks.</span>
               </p>
 
-              {/* Pain 3 — the client text, as a chat bubble */}
-              <div
-                data-pain
-                className="absolute flex flex-col items-center gap-3"
-                style={{ opacity: 0 }}
-              >
-                <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-white/30">
-                  Sarah M.
-                </p>
-                <div
-                  className="rounded-2xl rounded-tl-md px-6 py-4"
-                  style={{
-                    background: "rgba(255,255,255,0.07)",
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    backdropFilter: "blur(12px)",
-                  }}
-                >
-                  <p
-                    className="font-semibold text-white"
-                    style={{ fontSize: "clamp(1.2rem, 2.4vw, 2rem)" }}
-                  >
-                    &ldquo;hey are the videos done yet?&nbsp;👀&rdquo;
-                  </p>
-                </div>
-                <p className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/22 mt-1">
-                  No portal. Just your inbox.
-                </p>
-              </div>
 
             </div>
           </div>
