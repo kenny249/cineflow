@@ -46,24 +46,49 @@ export function LandingPage({ refCode }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
 
   useEffect(() => {
-    // Keep canvas scroll-progress in sync — no GSAP needed
-    const onScroll = () => {
-      const max = document.body.scrollHeight - window.innerHeight;
-      scrollState.prog = max > 0 ? window.scrollY / max : 0;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    let teardown: (() => void) | undefined;
 
-    // Reveal elements as they enter the viewport
-    const io = new IntersectionObserver(
-      (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("is-visible"); }),
-      { threshold: 0.18, rootMargin: "0px 0px -40px 0px" }
-    );
-    document.querySelectorAll("[data-reveal]").forEach(el => io.observe(el));
+    (async () => {
+      const { default: Lenis } = await import("lenis");
 
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      io.disconnect();
-    };
+      // Smooth scroll — no GSAP, no triggers, just buttery deceleration
+      const lenis = new Lenis({ lerp: 0.10, smoothWheel: true });
+      lenis.on("scroll", ({ progress }: { progress: number }) => {
+        scrollState.prog = progress;
+      });
+      let rafId: number;
+      function tick(t: number) { lenis.raf(t); rafId = requestAnimationFrame(tick); }
+      rafId = requestAnimationFrame(tick);
+
+      // Mouse parallax — makes the hero feel alive without any scroll dependency
+      const frags = Array.from(document.querySelectorAll<HTMLElement>(".lp-frag-wrap"));
+      function onMove(e: MouseEvent) {
+        const x = e.clientX / window.innerWidth  - 0.5;
+        const y = e.clientY / window.innerHeight - 0.5;
+        frags.forEach((el, i) => {
+          const d = 0.28 + (i % 4) * 0.18;
+          el.style.setProperty("--mpx", `${x * d * 18}px`);
+          el.style.setProperty("--mpy", `${y * d * 12}px`);
+        });
+      }
+      window.addEventListener("mousemove", onMove);
+
+      // Scroll reveals — IntersectionObserver adds .is-visible, CSS does the rest
+      const io = new IntersectionObserver(
+        (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("is-visible"); }),
+        { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+      );
+      document.querySelectorAll("[data-reveal]").forEach(el => io.observe(el));
+
+      teardown = () => {
+        cancelAnimationFrame(rafId);
+        lenis.destroy();
+        window.removeEventListener("mousemove", onMove);
+        io.disconnect();
+      };
+    })();
+
+    return () => teardown?.();
   }, []);
 
   return (
@@ -176,28 +201,36 @@ export function LandingPage({ refCode }: Props) {
 
         {/* ══ ENOUGH ════════════════════════════════════════════════════ */}
         <section className="relative flex min-h-screen items-center justify-center px-8 text-center">
-          <div data-reveal="dramatic">
-            <p
-              className="font-black leading-none tracking-tighter text-white"
+          <div data-reveal="clip">
+            <div
+              className="lp-clip font-black leading-none tracking-tighter text-white"
               style={{ fontSize: "clamp(5rem,13vw,10rem)" }}
             >
-              ENOUGH.
-            </p>
-            <p className="mt-7 text-[12px] font-light tracking-[0.34em] uppercase text-white/24">
-              There&apos;s a better way.
-            </p>
+              <div className="lp-clip-inner" style={{ "--di": "0s" } as React.CSSProperties}>ENOUGH.</div>
+            </div>
+            <div className="lp-clip mt-7">
+              <p className="lp-clip-inner text-[12px] font-light tracking-[0.34em] uppercase text-white/24"
+                style={{ "--di": "0.18s" } as React.CSSProperties}>
+                There&apos;s a better way.
+              </p>
+            </div>
           </div>
         </section>
 
         {/* ══ CINEFLOW INTRO ════════════════════════════════════════════ */}
         <section className="relative flex min-h-screen flex-col items-center justify-center px-8 text-center">
-          <div data-reveal className="flex flex-col items-center">
-            <div className="mb-8 h-px w-10 bg-[#d4a853]" />
-            <p className="mb-5 font-mono text-[11px] tracking-[0.42em] uppercase text-[#d4a853]/55">
-              Introducing
-            </p>
+          <div data-reveal="clip" className="flex flex-col items-center">
+            <div className="lp-clip mb-8">
+              <div className="lp-clip-inner h-px w-10 bg-[#d4a853]" style={{ "--di": "0s" } as React.CSSProperties} />
+            </div>
+            <div className="lp-clip mb-5">
+              <p className="lp-clip-inner font-mono text-[11px] tracking-[0.42em] uppercase text-[#d4a853]/55"
+                style={{ "--di": "0.06s" } as React.CSSProperties}>
+                Introducing
+              </p>
+            </div>
             <div
-              className="font-black leading-none tracking-tighter"
+              className="lp-clip font-black leading-none tracking-tighter"
               style={{
                 fontSize: "clamp(4.5rem,14vw,12rem)",
                 background: "linear-gradient(135deg,#ffffff 34%,#d4a853 63%,#fff3c4 100%)",
@@ -206,11 +239,14 @@ export function LandingPage({ refCode }: Props) {
                 backgroundClip: "text",
               }}
             >
-              CineFlow
+              <div className="lp-clip-inner" style={{ "--di": "0.14s" } as React.CSSProperties}>CineFlow</div>
             </div>
-            <p className="mx-auto mt-7 max-w-sm text-[13px] leading-relaxed text-white/28">
-              Everything your production runs on — finally in one place.
-            </p>
+            <div className="lp-clip mt-7">
+              <p className="lp-clip-inner mx-auto max-w-sm text-[13px] leading-relaxed text-white/28"
+                style={{ "--di": "0.30s" } as React.CSSProperties}>
+                Everything your production runs on — finally in one place.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -220,22 +256,34 @@ export function LandingPage({ refCode }: Props) {
             {PANELS.map((panel, i) => (
               <div
                 key={i}
-                data-reveal
+                data-reveal="clip"
                 className="flex flex-col items-center text-center"
               >
-                <p className="mb-6 font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48">
-                  {panel.num} — {panel.tag}
-                </p>
+                <div className="lp-clip mb-6">
+                  <p className="lp-clip-inner font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48"
+                    style={{ "--di": "0s" } as React.CSSProperties}>
+                    {panel.num} — {panel.tag}
+                  </p>
+                </div>
                 <div
-                  className="font-black leading-[1.02] tracking-tighter text-white"
+                  className="font-black leading-[1.06] tracking-tighter text-white"
                   style={{ fontSize: "clamp(3rem,6.5vw,5.8rem)" }}
                 >
-                  {panel.h[0]}<br />{panel.h[1]}<br />
-                  <span className="text-[#d4a853]">{panel.h[2]}</span>
+                  <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.08s" } as React.CSSProperties}>{panel.h[0]}</div></div>
+                  <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.16s" } as React.CSSProperties}>{panel.h[1]}</div></div>
+                  <div className="lp-clip"><div className="lp-clip-inner text-[#d4a853]" style={{ "--di": "0.24s" } as React.CSSProperties}>{panel.h[2]}</div></div>
                 </div>
-                <div className="my-7 h-px w-8 bg-[#d4a853]/22" />
-                <p className="max-w-xs text-[13px] leading-relaxed text-white/28">{panel.sub}</p>
-                <p className="mt-5 font-mono text-[9px] tracking-[0.32em] uppercase text-white/14">{panel.note}</p>
+                <div className="lp-clip my-7">
+                  <div className="lp-clip-inner h-px w-8 bg-[#d4a853]/22" style={{ "--di": "0.30s" } as React.CSSProperties} />
+                </div>
+                <div className="lp-clip">
+                  <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/28"
+                    style={{ "--di": "0.36s" } as React.CSSProperties}>{panel.sub}</p>
+                </div>
+                <div className="lp-clip mt-5">
+                  <p className="lp-clip-inner font-mono text-[9px] tracking-[0.32em] uppercase text-white/14"
+                    style={{ "--di": "0.42s" } as React.CSSProperties}>{panel.note}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -247,25 +295,35 @@ export function LandingPage({ refCode }: Props) {
             className="pointer-events-none absolute inset-0"
             style={{ background: "radial-gradient(ellipse 52% 40% at 50% 52%,rgba(212,168,83,0.055) 0%,transparent 70%)" }}
           />
-          <div data-reveal className="relative z-10 flex flex-col items-center gap-5">
+          <div data-reveal="clip" className="relative z-10 flex flex-col items-center gap-0">
             <div
-              className="max-w-xl font-black leading-[1.04] tracking-tighter text-white"
+              className="mb-5 font-black leading-[1.04] tracking-tighter text-white"
               style={{ fontSize: "clamp(2.4rem,5vw,4.5rem)" }}
             >
-              Everything in one place.<br />Finally.
+              <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0s" } as React.CSSProperties}>Everything in one place.</div></div>
+              <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.10s" } as React.CSSProperties}>Finally.</div></div>
             </div>
-            <p className="max-w-xs text-[13px] leading-relaxed text-white/24">
-              Join filmmakers and video teams already running their productions on CineFlow.
-            </p>
-            <Link
-              href={href}
-              className="mt-1 rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(212,168,83,0.35)]"
-            >
-              Start for free →
-            </Link>
-            <p className="font-mono text-[9px] tracking-[0.32em] uppercase text-white/18">
-              Replaces a ton of subscriptions. Starts at $39/mo.
-            </p>
+            <div className="lp-clip mb-5">
+              <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/24"
+                style={{ "--di": "0.20s" } as React.CSSProperties}>
+                Join filmmakers and video teams already running their productions on CineFlow.
+              </p>
+            </div>
+            <div className="lp-clip mb-5 mt-1">
+              <Link
+                href={href}
+                className="lp-clip-inner block rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(212,168,83,0.35)]"
+                style={{ "--di": "0.30s" } as React.CSSProperties}
+              >
+                Start for free →
+              </Link>
+            </div>
+            <div className="lp-clip">
+              <p className="lp-clip-inner font-mono text-[9px] tracking-[0.32em] uppercase text-white/18"
+                style={{ "--di": "0.38s" } as React.CSSProperties}>
+                Replaces a ton of subscriptions. Starts at $39/mo.
+              </p>
+            </div>
           </div>
 
           <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-8 font-mono text-[9px] tracking-widest uppercase text-white/10">
