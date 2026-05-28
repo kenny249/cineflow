@@ -95,18 +95,11 @@ export default async function SignupPage({ searchParams }: { searchParams: Searc
       </div>
 
       {/* Right: Premium Visual Panel */}
-      <div className="relative hidden flex-1 flex-col items-center justify-center overflow-hidden border-l border-border bg-[#070707] px-10 py-10 md:flex">
-        <div className="pointer-events-none absolute left-1/2 top-1/4 h-96 w-96 -translate-x-1/2 rounded-full bg-[#d4a853]/7 blur-[120px]" />
-        <div className="pointer-events-none absolute right-0 bottom-0 h-64 w-64 rounded-full bg-[#d4a853]/5 blur-[80px]" />
-
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.035]"
-          style={{
-            backgroundImage:
-              "linear-gradient(hsl(0 0% 100%) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100%) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
+      <div className="relative hidden flex-1 flex-col items-center justify-center overflow-hidden border-l border-white/[0.06] px-10 py-10 md:flex">
+        {/* Soft gold atmosphere */}
+        <div className="pointer-events-none absolute left-1/2 top-1/4 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-[#d4a853]/8 blur-[140px]" />
+        <div className="pointer-events-none absolute right-0 bottom-0 h-80 w-80 rounded-full bg-[#d4a853]/6 blur-[100px]" />
+        <div className="pointer-events-none absolute left-0 top-0 h-64 w-64 rounded-full bg-[#d4a853]/4 blur-[80px]" />
 
         <div className="relative z-10 max-w-sm w-full">
           <p className="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#d4a853]">
