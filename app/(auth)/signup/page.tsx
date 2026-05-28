@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Film, Clapperboard, GitBranch, Users, Star, Ticket } from "lucide-react";
+import { Film, Clapperboard, GitBranch, Users, DollarSign, Ticket } from "lucide-react";
 import { SignupForm } from "./SignupForm";
 import { PageParticles } from "../login/PageParticles";
 
@@ -9,26 +9,25 @@ export const metadata: Metadata = { title: "Create Account" };
 const FEATURES = [
   {
     icon: Clapperboard,
-    label: "Shot Lists & Storyboards",
-    desc: "Build frame-perfect shot lists and visual storyboards in minutes.",
+    label: "Shot Lists & Call Sheets",
+    desc: "Build frame-perfect shot lists and call sheets your crew can actually use.",
   },
   {
     icon: GitBranch,
-    label: "Revision Workflows",
-    desc: "Track every cut, note, and approval, with no more email chains.",
+    label: "Client Portals",
+    desc: "Clients review, approve, and sign off — without texting you.",
   },
   {
     icon: Users,
-    label: "Client Portals",
-    desc: "Give clients a private space to review and approve deliverables.",
+    label: "Crew Scheduling",
+    desc: "Multi-day shoot scheduling with locations, roles, and notes in one place.",
+  },
+  {
+    icon: DollarSign,
+    label: "Invoicing & Payments",
+    desc: "Professional invoices, deposits, and automated reminders — right next to the project.",
   },
 ];
-
-const TESTIMONIAL = {
-  quote: "We delivered 3 campaigns last quarter without a single missed deadline.",
-  author: "Marcus Reid",
-  title: "Director, Focal Point Films",
-};
 
 const PLAN_LABELS: Record<string, string> = {
   solo: "Solo",
@@ -117,7 +116,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Searc
             Everything you need to run a production.
           </h2>
 
-          <div className="space-y-3 mb-8">
+          <div className="space-y-3">
             {FEATURES.map(({ icon: Icon, label, desc }, i) => (
               <div
                 key={label}
@@ -133,26 +132,6 @@ export default async function SignupPage({ searchParams }: { searchParams: Searc
                 </div>
               </div>
             ))}
-          </div>
-
-          <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-5">
-            <div className="mb-3 flex gap-0.5">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="h-3.5 w-3.5 fill-[#d4a853] text-[#d4a853]" />
-              ))}
-            </div>
-            <p className="font-display text-sm font-semibold leading-relaxed text-foreground">
-              &ldquo;{TESTIMONIAL.quote}&rdquo;
-            </p>
-            <div className="mt-3 flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#d4a853]/15 border border-[#d4a853]/20">
-                <span className="text-[0.6rem] font-bold text-[#d4a853]">MR</span>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-foreground">{TESTIMONIAL.author}</p>
-                <p className="text-[0.65rem] text-muted-foreground">{TESTIMONIAL.title}</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
