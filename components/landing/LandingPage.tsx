@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { Film } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
@@ -8,290 +8,69 @@ import { scrollState } from "./scrollState";
 
 interface Props { refCode?: string }
 
-const FRAGMENTS: { text: string; mono?: boolean }[] = [
-  { text: '"where are we at?" · 11:47pm' },
-  { text: "Invoice_v4_FINAL_FINAL.pdf",          mono: true },
-  { text: '"did you get the rough cut link?"' },
-  { text: "shot_list_REVISED_use_this.xlsx",     mono: true },
-  { text: '"can you resend the contract?"' },
-  { text: "Client approval: pending 14d" },
-  { text: '"what time is call time again?"' },
-  { text: "call_sheet_saturday_v4.pdf",          mono: true },
-  { text: '"who has the location notes?"' },
-  { text: "Schedule_FINAL_v7_USE_THIS.pdf",      mono: true },
-  { text: '"I never got the invoice 🙏"' },
-  { text: '"just checking in again..."' },
-];
+const FRAGMENTS = [
+  { text: '"where are we at?" · 11:47pm',     mono: false, x: "4%",  y: "20%", rot: -3, d: 0.6,  dur: 3.8 },
+  { text: "Invoice_v4_FINAL_FINAL.pdf",        mono: true,  x: "70%", y: "16%", rot:  4, d: 1.0,  dur: 4.2 },
+  { text: '"did you get the rough cut link?"', mono: false, x: "3%",  y: "60%", rot: -2, d: 1.2,  dur: 3.5 },
+  { text: "shot_list_REVISED_use_this.xlsx",   mono: true,  x: "68%", y: "72%", rot:  5, d: 0.8,  dur: 4.5 },
+  { text: '"can you resend the contract?"',    mono: false, x: "74%", y: "42%", rot: -4, d: 1.4,  dur: 3.9 },
+  { text: "Client approval: pending 14d",      mono: false, x: "8%",  y: "80%", rot:  3, d: 1.0,  dur: 4.1 },
+  { text: '"what time is call time again?"',   mono: false, x: "12%", y: "38%", rot: -5, d: 1.5,  dur: 3.6 },
+  { text: "call_sheet_saturday_v4.pdf",        mono: true,  x: "58%", y: "24%", rot:  3, d: 0.9,  dur: 4.3 },
+  { text: '"I never got the invoice 🙏"',      mono: false, x: "76%", y: "60%", rot: -3, d: 1.3,  dur: 3.7 },
+  { text: '"just checking in again..."',       mono: false, x: "28%", y: "11%", rot:  2, d: 1.6,  dur: 4.0 },
+] as const;
 
 const PANELS = [
   {
-    tag: "Production",
-    line1: "Your whole", line2: "production.", line3: "One view.",
+    num: "01", tag: "Production",
+    h: ["Your whole", "production.", "One view."] as const,
     sub: "Shot lists, call sheets, and scheduling — everything your crew needs, right where your project lives.",
     note: "Replaces StudioBinder + Notion",
   },
   {
-    tag: "Client Portal",
-    line1: "Clients stay", line2: "in the loop.", line3: "Automatically.",
+    num: "02", tag: "Client Portal",
+    h: ["Clients stay", "in the loop.", "Automatically."] as const,
     sub: "Every client gets their own portal. They see progress, approve cuts, and sign off — without texting you.",
     note: 'No more "hey, are the videos done yet?"',
   },
   {
-    tag: "Payments",
-    line1: "Stop chasing", line2: "your own", line3: "money.",
+    num: "03", tag: "Payments",
+    h: ["Stop chasing", "your own", "money."] as const,
     sub: "Professional invoices, deposit collection, and automated reminders — right next to the project.",
     note: "Replaces HoneyBook + DocuSign",
   },
-];
+] as const;
 
 export function LandingPage({ refCode }: Props) {
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const signupHref = refCode ? `/signup?ref=${refCode}` : "/signup";
+  const href = refCode ? `/signup?ref=${refCode}` : "/signup";
 
   useEffect(() => {
-    let kill: (() => void) | undefined;
+    // Keep canvas scroll-progress in sync — no GSAP needed
+    const onScroll = () => {
+      const max = document.body.scrollHeight - window.innerHeight;
+      scrollState.prog = max > 0 ? window.scrollY / max : 0;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
 
-    (async () => {
-      const { default: gsap } = await import("gsap");
-      const { ScrollTrigger } = await import("gsap/ScrollTrigger");
-      const { default: Lenis } = await import("lenis");
-      const Splitting = (await import("splitting")).default;
+    // Reveal elements as they enter the viewport
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("is-visible"); }),
+      { threshold: 0.18, rootMargin: "0px 0px -40px 0px" }
+    );
+    document.querySelectorAll("[data-reveal]").forEach(el => io.observe(el));
 
-      gsap.registerPlugin(ScrollTrigger);
-
-      const lenis = new Lenis({ lerp: 0.08, smoothWheel: true });
-      lenis.on("scroll", ScrollTrigger.update);
-      const lenisTick = (time: number) => lenis.raf(time * 1000);
-      gsap.ticker.add(lenisTick);
-      gsap.ticker.lagSmoothing(0);
-
-      const globalTrigger = ScrollTrigger.create({
-        trigger: document.body,
-        start: "top top",
-        end: "bottom bottom",
-        onUpdate: (st) => { scrollState.prog = st.progress; },
-      });
-
-      Splitting({ target: "[data-split]", by: "chars" });
-
-      function smoothStep(e0: number, e1: number, x: number) {
-        const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
-        return t * t * (3 - 2 * t);
-      }
-
-      let orbitTickerFn: (() => void) | null = null;
-      let orbitTime = 0;
-      const orbit = { r: 0, opacity: 0 };
-
-      const ctx = gsap.context(() => {
-
-        // ── Hero — cascade in on load (section is at top so triggers fire immediately) ──
-        gsap.fromTo("#hero-line",
-          { scaleX: 0 },
-          { scaleX: 1, duration: 1.8, ease: "expo.inOut",
-            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
-        );
-        gsap.fromTo("#hero-kicker", { opacity: 0 },
-          { opacity: 1, duration: 1.1, ease: "power2.out",
-            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
-        );
-        gsap.fromTo("#hero-headline", { y: 22, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1.2, ease: "power3.out", delay: 0.15,
-            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
-        );
-        gsap.fromTo("#hero-sub", { y: 14, opacity: 0 },
-          { y: 0, opacity: 1, duration: 1.1, ease: "power3.out", delay: 0.35,
-            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
-        );
-        gsap.fromTo("#hero-cta", { y: 10, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.9, ease: "power3.out", delay: 0.55,
-            scrollTrigger: { trigger: "#s-hero", start: "top 80%", toggleActions: "play none none none" } }
-        );
-
-        // ── Fragment orbit — time-based ───────────────────────────────────────
-        const cardEls = cardRefs.current.filter(Boolean) as HTMLDivElement[];
-        gsap.set(cardEls, { opacity: 0 });
-
-        orbitTickerFn = () => {
-          if (orbit.opacity < 0.005) return;
-          orbitTime += 0.004;
-          const W = window.innerWidth;
-          const H = window.innerHeight;
-          const baseRx = Math.min(W, H) * 0.44 * orbit.r;
-          const baseRy = Math.min(W, H) * 0.26 * orbit.r;
-          cardEls.forEach((card, i) => {
-            const spread = 0.68 + (i % 4) * 0.09;
-            const speed  = 0.55 + (i % 3) * 0.15;
-            const angle  = (i / cardEls.length) * Math.PI * 2 + orbitTime * speed;
-            const x = W / 2 + Math.cos(angle) * baseRx * spread - card.offsetWidth / 2;
-            const y = H / 2 + Math.sin(angle) * baseRy * spread - card.offsetHeight / 2;
-            gsap.set(card, { x, y, opacity: orbit.opacity * (0.38 + (i % 3) * 0.19) });
-          });
-        };
-        gsap.ticker.add(orbitTickerFn);
-
-        // ── Chaos: orbit + pain points driven by a single trigger ─────────────
-        // Orbit starts only once chaos pins — no bleed into the hero.
-        // Pain 0 appears immediately; each point gets generous dwell (section is 200vh).
-        const painEls = Array.from(document.querySelectorAll<HTMLElement>("[data-pain]"));
-        gsap.set(painEls, { opacity: 0, filter: "blur(8px)", y: 12 });
-
-        ScrollTrigger.create({
-          trigger: "#s-chaos",
-          start: "top top",
-          end: "bottom top",
-          onUpdate: (st) => {
-            const p = st.progress;
-            // Orbit fades in immediately when pinned, fades out at the very end
-            orbit.opacity = smoothStep(0, 0.06, p) * (1 - smoothStep(0.90, 1.0, p));
-            orbit.r = smoothStep(0, 0.08, p);
-            // Two pain points — each gets ~half the 200vh section (~100vh hold)
-            const v0 = smoothStep(0.00, 0.04, p) * (1 - smoothStep(0.42, 0.50, p));
-            const v1 = smoothStep(0.50, 0.55, p) * (1 - smoothStep(0.92, 0.98, p));
-            const y0 = 12 - smoothStep(0.00, 0.50, p) * 24;
-            const y1 = 12 - smoothStep(0.50, 0.98, p) * 24;
-            gsap.set(painEls[0], { opacity: v0, filter: `blur(${(1 - v0) * 6}px)`, y: y0 });
-            gsap.set(painEls[1], { opacity: v1, filter: `blur(${(1 - v1) * 6}px)`, y: y1 });
-          },
-        });
-
-        // ── ENOUGH — scrub reveal: plays AS section scrolls into view ─────────
-        // Animation is fully complete by the time the section pins.
-        // No black gap, no waiting.
-        const enoughChars = document.querySelectorAll<HTMLElement>("#enough .char");
-        if (enoughChars.length) {
-          gsap.set(enoughChars, { y: 48, opacity: 0, rotationX: -40 });
-          const enoughTl = gsap.timeline({ paused: true });
-          enoughTl.to(enoughChars, {
-            y: 0, opacity: 1, rotationX: 0, stagger: 0.06, duration: 0.8, ease: "none",
-          });
-          enoughTl.to("#enough-sub", { y: 0, opacity: 1, duration: 0.3, ease: "none" }, "-=0.15");
-          ScrollTrigger.create({
-            trigger: "#s-explode", start: "top bottom", end: "top top",
-            scrub: 0.5, animation: enoughTl,
-          });
-        }
-
-        // ── CineFlow intro — scrub reveal: plays AS section scrolls into view ──
-        const cineChars = document.querySelectorAll<HTMLElement>("#cineflow-word .char");
-        if (cineChars.length) {
-          gsap.set(cineChars, { y: 70, opacity: 0, skewX: 5 });
-          gsap.set("#intro-sub", { y: 10, opacity: 0 });
-          const introTl = gsap.timeline({ paused: true });
-          introTl.fromTo("#intro-line", { scaleX: 0 }, { scaleX: 1, duration: 0.15, ease: "none" }, 0);
-          introTl.to(cineChars, {
-            y: 0, opacity: 1, skewX: 0, stagger: 0.01, duration: 0.75, ease: "none",
-          }, 0.1);
-          introTl.to("#intro-sub", { y: 0, opacity: 1, duration: 0.25, ease: "none" }, 0.85);
-          ScrollTrigger.create({
-            trigger: "#s-intro", start: "top bottom", end: "top top",
-            scrub: 0.5, animation: introTl,
-          });
-        }
-
-        // ── Sticky cycling panels — directional scroll transitions ─────────────
-        // Old panel exits UPWARD while new panel rises from BELOW, matching the
-        // natural scroll direction. No blur on text — clean sharp crossfade.
-        // 300vh total: each panel gets ~90vh of read time before transition.
-        gsap.set("#panel-0", { opacity: 1, y: 0 });
-        gsap.set("#panel-1", { opacity: 0, y: 45 });
-        gsap.set("#panel-2", { opacity: 0, y: 45 });
-
-        ScrollTrigger.create({
-          trigger: "#s-panels",
-          start: "top top",
-          end: "bottom top",
-          onUpdate: (st) => {
-            const p = st.progress;
-            // t01: panel 0→1 crossfade at 30-40%  (90vh hold before, 30vh transition)
-            // t12: panel 1→2 crossfade at 65-75%  (75vh hold, 30vh transition, 75vh hold)
-            const t01 = smoothStep(0.30, 0.40, p);
-            const t12 = smoothStep(0.65, 0.75, p);
-
-            const op0 = 1 - t01;
-            const op1 = t01 * (1 - t12);
-            const op2 = t12;
-
-            // Directional Y: exiting panel floats up (-40px), entering rises from below (+45px)
-            const y0 = -t01 * 40;
-            const y1 = 45 * (1 - t01) - 35 * t12;
-            const y2 = 45 * (1 - t12);
-
-            gsap.set("#panel-0", { opacity: op0, y: y0 });
-            gsap.set("#panel-1", { opacity: op1, y: y1 });
-            gsap.set("#panel-2", { opacity: op2, y: y2 });
-          },
-        });
-
-        // ── CTA ───────────────────────────────────────────────────────────────
-        const ctaChars = document.querySelectorAll<HTMLElement>("#cta-headline .char");
-        if (ctaChars.length) {
-          gsap.set(ctaChars, { y: 50, opacity: 0 });
-          gsap.to(ctaChars, {
-            y: 0, opacity: 1, duration: 0.9, ease: "expo.out", stagger: 0.02,
-            scrollTrigger: { trigger: "#s-cta", start: "top 80%", toggleActions: "play none none none" },
-          });
-        }
-        document.querySelectorAll<HTMLElement>("[data-cta]").forEach((el, i) => {
-          gsap.fromTo(el,
-            { y: 14, opacity: 0 },
-            { y: 0, opacity: 1, duration: 0.8, ease: "power3.out",
-              scrollTrigger: { trigger: "#s-cta", start: "top 72%", toggleActions: "play none none none" },
-              delay: 0.38 + i * 0.12,
-            }
-          );
-        });
-
-      });
-
-      // Two-pass refresh: first catches Splitting DOM changes, second catches font-load layout shift
-      requestAnimationFrame(() => {
-        ScrollTrigger.refresh();
-        setTimeout(() => ScrollTrigger.refresh(), 300);
-      });
-
-      kill = () => {
-        if (orbitTickerFn) gsap.ticker.remove(orbitTickerFn);
-        gsap.ticker.remove(lenisTick);
-        lenis.destroy();
-        ctx.revert();
-        globalTrigger.kill();
-      };
-    })();
-
-    return () => kill?.();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      io.disconnect();
+    };
   }, []);
 
   return (
     <>
       <BackgroundCanvas />
 
-      {/* ── Chaos fragments (fixed, time-driven orbit) ───────────────────── */}
-      <div className="fixed inset-0 z-10 pointer-events-none overflow-hidden">
-        {FRAGMENTS.map((frag, i) => (
-          <div
-            key={i}
-            ref={el => { cardRefs.current[i] = el; }}
-            className="absolute rounded-md px-3 py-1.5 text-white/60"
-            style={{
-              fontSize: "11px",
-              fontFamily: frag.mono
-                ? "'SF Mono', 'Fira Code', 'Courier New', monospace"
-                : "inherit",
-              border: "1px solid rgba(255,255,255,0.07)",
-              background: "rgba(6,6,14,0.72)",
-              backdropFilter: "blur(8px)",
-              opacity: 0,
-              whiteSpace: "nowrap",
-              letterSpacing: frag.mono ? "0.01em" : "-0.01em",
-            }}
-          >
-            {frag.text}
-          </div>
-        ))}
-      </div>
-
-      {/* ── Nav ─────────────────────────────────────────────────────────── */}
+      {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#d4a853]/40 bg-[#d4a853]/10">
@@ -300,252 +79,191 @@ export function LandingPage({ refCode }: Props) {
           <span className="text-sm font-semibold tracking-tight text-white/90">CineFlow</span>
         </div>
         <Link
-          href={signupHref}
+          href={href}
           className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 backdrop-blur-sm transition-all hover:border-[#d4a853]/50 hover:text-[#d4a853]"
         >
           Get early access
         </Link>
       </nav>
 
-      <div className="relative z-20" style={{ background: "transparent" }}>
+      <div className="relative z-20">
 
-        {/* ══ HERO ════════════════════════════════════════════════════════ */}
-        <section
-          id="s-hero"
-          className="relative flex h-screen flex-col items-center justify-center px-8 text-center"
-        >
-          <div className="mb-12 w-full max-w-3xl overflow-hidden">
+        {/* ══ HERO ══════════════════════════════════════════════════════ */}
+        <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 text-center">
+
+          {/* Chaos fragments — CSS float, no JS per frame */}
+          {FRAGMENTS.map((f, i) => (
             <div
-              id="hero-line"
-              className="h-px w-full"
-              style={{
-                background: "linear-gradient(90deg, transparent, rgba(212,168,83,0.4), transparent)",
-                transformOrigin: "left center",
-                transform: "scaleX(0)",
-              }}
-            />
-          </div>
-
-          <p
-            id="hero-kicker"
-            className="mb-5 text-[13px] font-medium tracking-wide text-white/30"
-            style={{ opacity: 0 }}
-          >
-            For filmmakers and video production teams
-          </p>
-
-          <h1
-            id="hero-headline"
-            className="max-w-3xl font-sans font-black leading-[1.05] tracking-tighter text-white"
-            style={{ fontSize: "clamp(2rem, 3.6vw, 3.4rem)", opacity: 0 }}
-          >
-            Stop stitching your<br />production together.
-          </h1>
-
-          <p
-            id="hero-sub"
-            className="mt-6 max-w-sm text-[13px] leading-relaxed text-white/35"
-            style={{ opacity: 0 }}
-          >
-            Shot lists, client portals, invoicing, crew scheduling —<br />
-            all flowing in one place. Finally.
-          </p>
-
-          <Link
-            id="hero-cta"
-            href={signupHref}
-            className="mt-8 rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
-            style={{ opacity: 0 }}
-          >
-            Start for free →
-          </Link>
-
-          <div className="absolute bottom-10 flex flex-col items-center gap-3 animate-float-slow">
-            <div className="h-12 w-px bg-gradient-to-b from-transparent to-[#d4a853]/25" />
-            <p className="font-mono text-[8px] tracking-[0.35em] text-white/15 uppercase">Scroll</p>
-          </div>
-        </section>
-
-        {/* ══ CHAOS — fragments orbit + pain points ════════════════════════ */}
-        <div id="s-chaos" style={{ height: "200vh" }}>
-          <div className="sticky top-0 h-screen overflow-hidden">
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-
-              {/* Pain 1 — fragmentation */}
-              <p
-                data-pain
-                className="absolute text-center font-black leading-[1.15] tracking-tighter text-white"
-                style={{ fontSize: "clamp(1.7rem, 3.2vw, 3rem)", opacity: 0, maxWidth: "660px" }}
-              >
-                StudioBinder. Frame.io. HoneyBook. Slack.<br />
-                <span className="text-white/45">Not one of them talks to the other.</span>
-              </p>
-
-              {/* Pain 2 — the financial drain */}
-              <p
-                data-pain
-                className="absolute text-center font-black leading-[1.15] tracking-tighter text-white"
-                style={{ fontSize: "clamp(1.7rem, 3.2vw, 3rem)", opacity: 0, maxWidth: "620px" }}
-              >
-                Subscription after subscription.<br />
-                <span className="text-white/45">Something&apos;s always falling through the cracks.</span>
-              </p>
-
-
-            </div>
-          </div>
-        </div>
-
-        {/* ══ ENOUGH ══════════════════════════════════════════════════════ */}
-        <div id="s-explode" style={{ height: "108vh" }}>
-          <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
-            <div
-              id="enough"
-              data-split
-              className="font-black leading-none tracking-tighter text-white"
-              style={{ fontSize: "clamp(3.8rem, 9vw, 7.5rem)", overflow: "hidden", perspective: "800px" }}
+              key={i}
+              className="lp-frag-wrap absolute pointer-events-none"
+              style={{ left: f.x, top: f.y, "--fd": `${f.d}s`, "--fdur": `${f.dur}s` } as React.CSSProperties}
             >
-              ENOUGH.
-            </div>
-            <p
-              id="enough-sub"
-              className="mt-6 text-base font-light tracking-wide text-white/30"
-              style={{ opacity: 0 }}
-            >
-              There&apos;s a better way.
-            </p>
-          </div>
-        </div>
-
-        {/* ══ CINEFLOW INTRO ══════════════════════════════════════════════ */}
-        <div id="s-intro" style={{ height: "108vh" }}>
-          <div className="sticky top-0 h-screen flex flex-col items-center justify-center px-8 text-center">
-            <div className="max-w-4xl">
-              <div className="mb-7 flex justify-center">
-                <div
-                  id="intro-line"
-                  style={{
-                    width: "36px",
-                    height: "1px",
-                    background: "#d4a853",
-                    transformOrigin: "left center",
-                    transform: "scaleX(0)",
-                  }}
-                />
-              </div>
-
-              <p className="mb-4 font-mono text-[12px] tracking-[0.35em] uppercase text-[#d4a853]/60">
-                Introducing
-              </p>
-
               <div
-                id="cineflow-word"
-                data-split
-                className="font-black leading-none tracking-tighter"
+                className="lp-frag-card rounded-md px-3 py-1.5 text-white/35"
                 style={{
-                  fontSize: "clamp(4.5rem, 12vw, 10rem)",
-                  overflow: "hidden",
-                  background: "linear-gradient(135deg, #ffffff 38%, #d4a853 68%, #fff3c4 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
+                  "--rot": `${f.rot}deg`,
+                  fontSize: "11px",
+                  fontFamily: f.mono ? "'SF Mono','Fira Code',monospace" : "inherit",
+                  border: "1px solid rgba(255,255,255,0.055)",
+                  background: "rgba(5,5,12,0.70)",
+                  backdropFilter: "blur(8px)",
+                  whiteSpace: "nowrap",
+                  letterSpacing: f.mono ? "0.02em" : "-0.01em",
+                } as React.CSSProperties}
               >
-                CineFlow
+                {f.text}
               </div>
-
-              <p
-                id="intro-sub"
-                className="mt-6 mx-auto max-w-sm text-sm leading-relaxed text-white/30"
-                style={{ opacity: 0 }}
-              >
-                Everything your production runs on — finally in one place.
-              </p>
             </div>
-          </div>
-        </div>
+          ))}
 
-        {/* ══ PRODUCT PANELS — sticky cycling ═════════════════════════════ */}
-        <div id="s-panels" style={{ height: "300vh" }}>
-          <div className="sticky top-0 h-screen flex items-center justify-center overflow-hidden">
-            {PANELS.map((panel, i) => (
-              <div
-                key={i}
-                id={`panel-${i}`}
-                className="absolute max-w-3xl px-8 text-center"
-                style={{ opacity: i === 0 ? 1 : 0 }}
-              >
-                <p className="mb-5 font-mono text-[10px] tracking-[0.35em] uppercase text-[#d4a853]/50">
-                  {String(i + 1).padStart(2, "0")} — {panel.tag}
-                </p>
-
-                <div
-                  className="mb-5 font-black leading-[1.0] tracking-tighter text-white"
-                  style={{ fontSize: "clamp(2.6rem, 5.5vw, 5rem)" }}
-                >
-                  {panel.line1}<br />
-                  {panel.line2}<br />
-                  <span className="text-[#d4a853]">{panel.line3}</span>
-                </div>
-
-                <div className="mx-auto mb-5 h-px w-8 bg-[#d4a853]/25" />
-
-                <p className="mx-auto max-w-xs text-[13px] leading-relaxed text-white/30">
-                  {panel.sub}
-                </p>
-
-                <p className="mt-5 font-mono text-[9px] tracking-[0.3em] uppercase text-white/15">
-                  {panel.note}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ══ CTA ═════════════════════════════════════════════════════════ */}
-        <div
-          id="s-cta"
-          className="relative h-screen flex flex-col items-center justify-center overflow-hidden"
-        >
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background: "radial-gradient(ellipse 55% 42% at 50% 54%, rgba(212,168,83,0.055) 0%, transparent 70%)",
-            }}
-          />
-
-          <div className="relative z-10 flex flex-col items-center gap-5 px-8 text-center">
+          {/* Hero content — staggered CSS keyframe load-in */}
+          <div className="relative z-10 flex flex-col items-center">
             <div
-              id="cta-headline"
-              data-split
-              className="max-w-xl font-black leading-[1.04] tracking-tighter text-white"
-              style={{ fontSize: "clamp(2.4rem, 5vw, 4.5rem)", overflow: "hidden" }}
-            >
-              Everything in one place. Finally.
-            </div>
-
-            <p
-              data-cta
-              className="text-[13px] text-white/25 max-w-xs leading-relaxed"
-              style={{ opacity: 0 }}
-            >
-              Join filmmakers and video teams already running their productions on CineFlow.
+              className="lp-hero-line mb-12 h-px w-56"
+              style={{ background: "linear-gradient(90deg,transparent,rgba(212,168,83,0.42),transparent)" }}
+            />
+            <p className="lp-hero-kicker mb-5 text-[11px] font-medium tracking-[0.32em] uppercase text-white/28">
+              For filmmakers and video production teams
             </p>
-
+            <h1
+              className="lp-hero-headline max-w-3xl font-sans font-black leading-[1.04] tracking-tighter text-white"
+              style={{ fontSize: "clamp(2.2rem,4.2vw,3.8rem)" }}
+            >
+              Stop stitching your<br />production together.
+            </h1>
+            <p className="lp-hero-sub mt-6 max-w-sm text-[13px] leading-relaxed text-white/32">
+              Shot lists, client portals, invoicing, crew scheduling —<br />all flowing in one place. Finally.
+            </p>
             <Link
-              data-cta
-              href={signupHref}
-              className="mt-1 rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(212,168,83,0.35)]"
-              style={{ opacity: 0 }}
+              href={href}
+              className="lp-hero-cta mt-8 rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
             >
               Start for free →
             </Link>
+          </div>
 
+          <div className="lp-hero-scroll absolute bottom-10 flex flex-col items-center gap-3">
+            <div className="h-12 w-px bg-gradient-to-b from-transparent to-[#d4a853]/22" />
+            <p className="font-mono text-[8px] tracking-[0.35em] text-white/14 uppercase">Scroll</p>
+          </div>
+        </section>
+
+        {/* ══ PAIN ══════════════════════════════════════════════════════ */}
+        <section className="relative flex flex-col items-center gap-40 py-52 px-8">
+
+          <div data-reveal className="max-w-2xl text-center">
+            <p className="mb-5 font-mono text-[10px] tracking-[0.42em] uppercase text-white/20">The problem</p>
             <p
-              data-cta
-              className="font-mono text-[9px] tracking-[0.3em] uppercase text-white/20"
-              style={{ opacity: 0 }}
+              className="font-black leading-[1.14] tracking-tighter text-white"
+              style={{ fontSize: "clamp(1.9rem,3.6vw,3.2rem)" }}
             >
+              StudioBinder. Frame.io.<br />HoneyBook. Slack.
+              <br /><span className="text-white/38">Not one of them talks to the other.</span>
+            </p>
+          </div>
+
+          <div data-reveal className="max-w-2xl text-center">
+            <p
+              className="font-black leading-[1.14] tracking-tighter text-white"
+              style={{ fontSize: "clamp(1.9rem,3.6vw,3.2rem)" }}
+            >
+              Subscription after subscription.
+              <br /><span className="text-white/38">Something&apos;s always falling through the cracks.</span>
+            </p>
+          </div>
+
+        </section>
+
+        {/* ══ ENOUGH ════════════════════════════════════════════════════ */}
+        <section className="relative flex min-h-screen items-center justify-center px-8 text-center">
+          <div data-reveal="dramatic">
+            <p
+              className="font-black leading-none tracking-tighter text-white"
+              style={{ fontSize: "clamp(5rem,13vw,10rem)" }}
+            >
+              ENOUGH.
+            </p>
+            <p className="mt-7 text-[12px] font-light tracking-[0.34em] uppercase text-white/24">
+              There&apos;s a better way.
+            </p>
+          </div>
+        </section>
+
+        {/* ══ CINEFLOW INTRO ════════════════════════════════════════════ */}
+        <section className="relative flex min-h-screen flex-col items-center justify-center px-8 text-center">
+          <div data-reveal className="flex flex-col items-center">
+            <div className="mb-8 h-px w-10 bg-[#d4a853]" />
+            <p className="mb-5 font-mono text-[11px] tracking-[0.42em] uppercase text-[#d4a853]/55">
+              Introducing
+            </p>
+            <div
+              className="font-black leading-none tracking-tighter"
+              style={{
+                fontSize: "clamp(4.5rem,14vw,12rem)",
+                background: "linear-gradient(135deg,#ffffff 34%,#d4a853 63%,#fff3c4 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              CineFlow
+            </div>
+            <p className="mx-auto mt-7 max-w-sm text-[13px] leading-relaxed text-white/28">
+              Everything your production runs on — finally in one place.
+            </p>
+          </div>
+        </section>
+
+        {/* ══ PANELS ════════════════════════════════════════════════════ */}
+        <section className="relative py-44 px-8">
+          <div className="mx-auto max-w-xl flex flex-col items-center gap-44">
+            {PANELS.map((panel, i) => (
+              <div
+                key={i}
+                data-reveal
+                className="flex flex-col items-center text-center"
+              >
+                <p className="mb-6 font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48">
+                  {panel.num} — {panel.tag}
+                </p>
+                <div
+                  className="font-black leading-[1.02] tracking-tighter text-white"
+                  style={{ fontSize: "clamp(3rem,6.5vw,5.8rem)" }}
+                >
+                  {panel.h[0]}<br />{panel.h[1]}<br />
+                  <span className="text-[#d4a853]">{panel.h[2]}</span>
+                </div>
+                <div className="my-7 h-px w-8 bg-[#d4a853]/22" />
+                <p className="max-w-xs text-[13px] leading-relaxed text-white/28">{panel.sub}</p>
+                <p className="mt-5 font-mono text-[9px] tracking-[0.32em] uppercase text-white/14">{panel.note}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ══ CTA ═══════════════════════════════════════════════════════ */}
+        <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 text-center">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ background: "radial-gradient(ellipse 52% 40% at 50% 52%,rgba(212,168,83,0.055) 0%,transparent 70%)" }}
+          />
+          <div data-reveal className="relative z-10 flex flex-col items-center gap-5">
+            <div
+              className="max-w-xl font-black leading-[1.04] tracking-tighter text-white"
+              style={{ fontSize: "clamp(2.4rem,5vw,4.5rem)" }}
+            >
+              Everything in one place.<br />Finally.
+            </div>
+            <p className="max-w-xs text-[13px] leading-relaxed text-white/24">
+              Join filmmakers and video teams already running their productions on CineFlow.
+            </p>
+            <Link
+              href={href}
+              className="mt-1 rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(212,168,83,0.35)]"
+            >
+              Start for free →
+            </Link>
+            <p className="font-mono text-[9px] tracking-[0.32em] uppercase text-white/18">
               Replaces a ton of subscriptions. Starts at $39/mo.
             </p>
           </div>
@@ -555,7 +273,7 @@ export function LandingPage({ refCode }: Props) {
             <Link href="/terms" className="hover:text-white/30 transition-colors">Terms</Link>
             <span>© 2026 CineFlow</span>
           </div>
-        </div>
+        </section>
 
       </div>
     </>

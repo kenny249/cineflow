@@ -349,6 +349,67 @@
   animation: float-up-down 10s ease-in-out infinite;
 }
 
+/* ── Landing page ─────────────────────────────────────────────────────── */
+
+/* Hero staggered load-in */
+@keyframes lp-slide-up {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.lp-hero-line     { animation: lp-slide-up 1.3s cubic-bezier(0.16,1,0.3,1) 0.08s  both; }
+.lp-hero-kicker   { animation: lp-slide-up 1.0s cubic-bezier(0.16,1,0.3,1) 0.26s  both; }
+.lp-hero-headline { animation: lp-slide-up 1.0s cubic-bezier(0.16,1,0.3,1) 0.42s  both; }
+.lp-hero-sub      { animation: lp-slide-up 0.9s cubic-bezier(0.16,1,0.3,1) 0.58s  both; }
+.lp-hero-cta      { animation: lp-slide-up 0.9s cubic-bezier(0.16,1,0.3,1) 0.74s  both; }
+.lp-hero-scroll   {
+  animation:
+    lp-slide-up   0.9s cubic-bezier(0.16,1,0.3,1) 1.05s both,
+    float-up-down 10s  ease-in-out                 2.0s  infinite;
+}
+
+/* Fragment: wrapper drifts (translateY only), inner card rotates + fades in */
+@keyframes lp-frag-float {
+  to { transform: translateY(-11px); }
+}
+@keyframes lp-frag-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.lp-frag-wrap {
+  /* delay float until after the fade-in so it doesn't start from translateY 0 mid-animation */
+  animation: lp-frag-float var(--fdur, 4s) ease-in-out calc(var(--fd, 0s) + 0.9s) infinite alternate;
+}
+.lp-frag-card {
+  rotate: var(--rot, 0deg);
+  animation: lp-frag-in 0.85s cubic-bezier(0.16,1,0.3,1) var(--fd, 0s) both;
+}
+
+/* Scroll reveal — base */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(36px);
+  transition:
+    opacity   0.9s cubic-bezier(0.16,1,0.3,1) var(--delay, 0s),
+    transform 0.9s cubic-bezier(0.16,1,0.3,1) var(--delay, 0s);
+}
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Scroll reveal — dramatic (ENOUGH) with subtle scale */
+[data-reveal="dramatic"] {
+  opacity: 0;
+  transform: translateY(28px) scale(0.96);
+  transition:
+    opacity   0.85s cubic-bezier(0.16,1,0.3,1) var(--delay, 0s),
+    transform 0.85s cubic-bezier(0.16,1,0.3,1) var(--delay, 0s);
+}
+[data-reveal="dramatic"].is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
 /* Scrubber comment dot — silver shimmer */
 .dot-silver-shimmer {
   background: linear-gradient(90deg, #9ca3af 0%, #c4c9cf 30%, #e8eaec 50%, #c4c9cf 70%, #9ca3af 100%);
