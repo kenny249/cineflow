@@ -92,6 +92,12 @@ const ROLES = [
   "Small Production Studios",
 ] as const;
 
+const TESTIMONIALS = [
+  { quote: "Dude this is a game changer.", role: "Freelance DP" },
+  { quote: "This makes my life so much easier.", role: "Wedding Filmmaker" },
+  { quote: "I genuinely needed this.", role: "Commercial Director" },
+] as const;
+
 export function LandingPage({ refCode }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
 
@@ -284,7 +290,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ ENOUGH ════════════════════════════════════════════════════ */}
-        <section className="relative flex min-h-[65vh] items-center justify-center px-8 text-center">
+        <section className="relative flex items-center justify-center px-8 py-24 text-center">
           <div data-reveal="clip">
             <div
               className="lp-clip font-black leading-none tracking-tighter text-white"
@@ -311,7 +317,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ CINEFLOW INTRO ════════════════════════════════════════════ */}
-        <section className="relative flex min-h-[75vh] flex-col items-center justify-center px-8 text-center">
+        <section className="relative flex flex-col items-center justify-center px-8 py-20 text-center">
           <div data-reveal="clip" className="flex flex-col items-center">
             <div className="lp-clip mb-8">
               <div className="lp-clip-inner h-px w-10 bg-[#d4a853]" style={{ "--di": "0s" } as React.CSSProperties} />
@@ -414,6 +420,24 @@ export function LandingPage({ refCode }: Props) {
                 </span>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* ══ TESTIMONIALS ══════════════════════════════════════════════ */}
+        <section className="relative py-16 px-8">
+          <div className="mx-auto max-w-3xl grid gap-10 sm:grid-cols-3">
+            {TESTIMONIALS.map(({ quote, role }) => (
+              <div key={role} data-reveal className="flex flex-col items-center text-center">
+                <p
+                  className="font-black leading-[1.18] tracking-tight text-white/75"
+                  style={{ fontSize: "clamp(1rem,1.8vw,1.25rem)" }}
+                >
+                  &ldquo;{quote}&rdquo;
+                </p>
+                <div className="mt-4 h-px w-6 bg-[#d4a853]/30" />
+                <p className="mt-3 font-mono text-[10px] tracking-[0.32em] uppercase text-white/25">{role}</p>
+              </div>
+            ))}
           </div>
         </section>
 
