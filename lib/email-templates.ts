@@ -1,7 +1,8 @@
 // ─── CineFlow Email Templates ─────────────────────────────────────────────────
 // Clean, black-background HTML emails for client notifications.
 
-function base(subject: string, body: string): string {
+function base(subject: string, body: string, footer?: string): string {
+  const footerHtml = footer ?? "You're receiving this because your production team shared a project portal with you.<br/>If you have questions, reply to this email.";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30,8 +31,7 @@ function base(subject: string, body: string): string {
           <tr>
             <td style="padding-top:24px;">
               <p style="margin:0;font-size:11px;color:#444444;">
-                You're receiving this because your production team shared a project portal with you.<br/>
-                If you have questions, reply to this email.
+                ${footerHtml}
               </p>
             </td>
           </tr>
@@ -245,6 +245,36 @@ export function emailStageUpdate({
     ${btn("View your project portal", portalUrl)}
   `;
   return { subject, html: base(subject, body) };
+}
+
+// ─── Template: Lifetime gift (admin grants lifetime access) ───────────────────
+export function emailLifetimeGift({
+  recipientName,
+  loginUrl,
+}: {
+  recipientName: string;
+  loginUrl: string;
+}): { subject: string; html: string } {
+  const subject = "You've been given lifetime access to CineFlow.";
+  const body = `
+    <p style="margin:0 0 20px;font-size:11px;font-weight:700;letter-spacing:0.2em;color:#d4a853;text-transform:uppercase;font-family:monospace;">Lifetime Access</p>
+    ${h1("Welcome to CineFlow.")}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;">Hi ${recipientName}, you've been gifted <strong style="color:#f0f0f0;">lifetime access</strong> to CineFlow — every feature, every future update, forever. No subscription required.</p>
+    ${divider()}
+    <table cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:4px;">
+      ${meta("Plan", "Lifetime")}
+      ${meta("Access level", "Full Studio")}
+      ${meta("Duration", "Forever")}
+    </table>
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#666666;">Log in now to explore everything CineFlow has to offer. Your account is ready.</p>
+    ${btn("Open CineFlow", loginUrl)}
+    <p style="margin:20px 0 0;font-size:12px;color:#444444;">No action required — your access is already active.</p>
+  `;
+  return {
+    subject,
+    html: base(subject, body, "You received this because you were granted lifetime access to CineFlow.<br/>If you have questions, reply to this email."),
+  };
 }
 
 // ─── Template: Owner — client requested changes ───────────────────────────────

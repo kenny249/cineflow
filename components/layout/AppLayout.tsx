@@ -15,6 +15,7 @@ import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
 import { OnboardingIntro } from "./OnboardingIntro";
 import { DemoBanner } from "./DemoBanner";
+import { LifetimeWelcome } from "@/components/shared/LifetimeWelcome";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -181,6 +182,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     <div className="relative flex h-screen overflow-hidden bg-background">
       <MobileSplash />
       <OnboardingIntro />
+      <LifetimeWelcome plan={plan} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <FeedbackButton />
       {/* ── Ambient grain overlay across entire app ── */}

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { Resend } from "resend";
+import { emailLifetimeGift } from "@/lib/email-templates";
 
 function getAdmin() {
   return createAdminClient(
@@ -40,14 +42,51 @@ export async function PATCH(req: NextRequest) {
   }
 
   const admin = getAdmin();
+
+  // Normalize lifetime plan updates so status and interval are always correct
+  const normalizedUpdates = updates.plan === "lifetime"
+    ? { ...updates, plan_status: "active", plan_interval: "lifetime" }
+    : updates;
+
   const { error } = await admin
     .from("profiles")
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update({ ...normalizedUpdates, updated_at: new Date().toISOString() })
     .eq("id", userId);
 
   if (error) {
     console.error("[api/admin/users PATCH]", error.message);
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
+  }
+
+  // Send lifetime gift email (non-blocking — DB update already succeeded)
+  if (updates.plan === "lifetime" && process.env.RESEND_API_KEY) {
+    (async () => {
+      try {
+        const [{ data: authData }, { data: profile }] = await Promise.all([
+          admin.auth.admin.getUserById(userId),
+          admin.from("profiles").select("first_name, last_name").eq("id", userId).single(),
+        ]);
+        const email = authData?.user?.email;
+        if (email) {
+          const name =
+            [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+            email.split("@")[0];
+          const resend = new Resend(process.env.RESEND_API_KEY);
+          const { subject, html } = emailLifetimeGift({
+            recipientName: name,
+            loginUrl: "https://app.usecineflow.com/dashboard",
+          });
+          await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL ?? "CineFlow <notifications@usecineflow.com>",
+            to: email,
+            subject,
+            html,
+          });
+        }
+      } catch (err) {
+        console.error("[api/admin/users PATCH] lifetime email error:", err);
+      }
+    })();
   }
 
   return NextResponse.json({ success: true });
