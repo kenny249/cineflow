@@ -69,6 +69,7 @@ export default function DashboardPage() {
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
   );
+  const [planStatus, setPlanStatus] = useState<string>("trialing");
   const router = useRouter();
 
   useEffect(() => {
@@ -83,10 +84,13 @@ export default function DashboardPage() {
 
       // Load plan — awaited so the correct mode renders before loading clears
       if (user) {
-        const { data: profile } = await supabase.from("profiles").select("plan, first_name, last_name, quick_actions").eq("id", user.id).single();
+        const { data: profile } = await supabase.from("profiles").select("plan, plan_status, first_name, last_name, quick_actions").eq("id", user.id).single();
         if (profile?.plan) {
           setPlan(profile.plan);
           sessionStorage.setItem("cf_plan", profile.plan);
+        }
+        if (profile?.plan_status) {
+          setPlanStatus(profile.plan_status);
         }
         if (profile?.first_name || profile?.last_name) {
           setDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
@@ -275,7 +279,7 @@ export default function DashboardPage() {
                     <span className="animate-fade-in-name">{displayName}</span>
                   )}
                 </h1>
-                {plan === "lifetime" ? (
+                {(plan === "lifetime" || planStatus === "founding") ? (
                   <span className="group relative inline-flex cursor-default select-none items-center gap-1.5 overflow-hidden rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-[0.2em]"
                     style={{
                       background: "linear-gradient(135deg, #1c1a0f 0%, #0e0d08 55%, #1a180e 100%)",
@@ -299,7 +303,11 @@ export default function DashboardPage() {
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/25 bg-[#d4a853]/10 px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-[#d4a853] uppercase">
                     <Sparkles className="h-2.5 w-2.5" />
-                    Early Tester
+                    {plan === "solo" || plan === "solo_beta" ? "Solo" :
+                     plan === "agency" ? "Agency" :
+                     plan === "enterprise" ? "Enterprise" :
+                     planStatus === "trialing" ? "Free Trial" :
+                     "Studio"}
                   </span>
                 )}
               </div>
