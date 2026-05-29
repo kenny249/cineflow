@@ -22,7 +22,7 @@ export default async function AnalyticsPage() {
     { data: demos },
   ] = await Promise.all([
     supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-    supabase.from("profiles").select("id, plan, created_at"),
+    supabase.from("profiles").select("id, plan, plan_status, trial_ends_at, created_at"),
     supabase.from("projects").select("created_by, created_at"),
     supabase.from("invoices").select("created_by, status, amount, created_at"),
     supabase.from("contracts").select("created_by, status, created_at"),
@@ -80,10 +80,21 @@ export default async function AnalyticsPage() {
     .filter((i) => i.status === "paid")
     .reduce((sum, i) => sum + (i.amount ?? 0), 0);
 
+  // Trial health
+  const now7days = new Date(now + 7 * 86400000).toISOString();
+  const trialsActive   = (profiles ?? []).filter((p) => p.plan_status === "trialing" && p.trial_ends_at && new Date(p.trial_ends_at) > new Date()).length;
+  const trialsExpiring = (profiles ?? []).filter((p) => p.plan_status === "trialing" && p.trial_ends_at && new Date(p.trial_ends_at) > new Date() && p.trial_ends_at < now7days).length;
+  const trialsExpired  = (profiles ?? []).filter((p) => p.plan_status === "trialing" && (!p.trial_ends_at || new Date(p.trial_ends_at) <= new Date())).length;
+  const paidUsers      = (profiles ?? []).filter((p) => p.plan_status === "active" || p.plan === "lifetime" || p.plan_status === "founding").length;
+
   const stats = [
     { label: "Total real users", value: realUsers.length },
     { label: "Active (7 days)", value: active7 },
     { label: "Active (30 days)", value: active30 },
+    { label: "Paid / Founding / Lifetime", value: paidUsers },
+    { label: "Trials active", value: trialsActive },
+    { label: "Trials expiring (7 days)", value: trialsExpiring },
+    { label: "Trials expired (no conversion)", value: trialsExpired },
     { label: "Demo sessions today", value: demoUsers.filter((u) => u.created_at > new Date(now - 86400000).toISOString()).length },
     { label: "Total projects", value: (projects ?? []).length },
     { label: "Total invoices sent", value: (invoices ?? []).filter((i) => i.status !== "draft").length },
@@ -99,7 +110,7 @@ export default async function AnalyticsPage() {
       </div>
 
       {/* Stats grid */}
-      <div className="mb-8 grid grid-cols-4 gap-4">
+      <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
         {stats.map(({ label, value }) => (
           <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
             <p className="text-xs text-zinc-500">{label}</p>

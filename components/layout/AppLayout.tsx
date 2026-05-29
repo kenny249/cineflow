@@ -16,6 +16,7 @@ import { FeedbackButton } from "./FeedbackButton";
 import { OnboardingIntro } from "./OnboardingIntro";
 import { DemoBanner } from "./DemoBanner";
 import { LifetimeWelcome } from "@/components/shared/LifetimeWelcome";
+import { TrialExpiredGate } from "@/components/shared/TrialExpiredGate";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -84,6 +85,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
   const [planStatus, setPlanStatus] = useState<string>("");
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
   const [workspaceRole, setWorkspaceRole] = useState<"owner" | "admin" | "member">("owner");
@@ -96,7 +98,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       Promise.all([
-        supabase.from("profiles").select("plan, plan_status, first_name, last_name, avatar_url, workspace_id").eq("id", user.id).single(),
+        supabase.from("profiles").select("plan, plan_status, trial_ends_at, first_name, last_name, avatar_url, workspace_id").eq("id", user.id).single(),
         supabase.rpc("get_member_role"),
       ]).then(([{ data }, { data: role }]) => {
           if (data?.plan) {
@@ -104,6 +106,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
             sessionStorage.setItem("cf_plan", data.plan);
           }
           if (data?.plan_status) setPlanStatus(data.plan_status);
+          if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at);
           if (data?.first_name || data?.last_name) {
             setProfileName([data.first_name, data.last_name].filter(Boolean).join(" "));
           } else {
@@ -218,7 +221,11 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
         </Suspense>
         <DemoBanner />
         {/* pb-20 on mobile for bottom nav clearance (nav is ~68px + safe area) */}
-        <main className="flex-1 overflow-hidden pb-20 md:pb-0">{children}</main>
+        <main className="flex-1 overflow-hidden pb-20 md:pb-0">
+          <TrialExpiredGate plan={plan} planStatus={planStatus} trialEndsAt={trialEndsAt}>
+            {children}
+          </TrialExpiredGate>
+        </main>
       </div>
 
       {/* ── Mobile bottom navigation ── */}
