@@ -107,7 +107,7 @@ export function LandingPage({ refCode }: Props) {
           href={href}
           className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 backdrop-blur-sm transition-all hover:border-[#d4a853]/50 hover:text-[#d4a853]"
         >
-          Get early access
+          Start free trial
         </Link>
       </nav>
 

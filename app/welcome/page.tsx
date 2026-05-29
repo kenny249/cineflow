@@ -590,7 +590,7 @@ export default function WelcomePage() {
         <div className="relative mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10 shadow-[0_0_40px_rgba(212,168,83,0.2)]">
           <Film className="h-7 w-7 text-[#d4a853]" />
         </div>
-        <p className="mb-1 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">CineFlow Beta</p>
+        <p className="mb-1 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">CineFlow</p>
         <h2 className="mb-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
           What should we<br />call you?
         </h2>
