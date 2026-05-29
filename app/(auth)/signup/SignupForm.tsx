@@ -47,7 +47,7 @@ export function SignupForm({
       const res = await fetch("/api/demo/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: "studio_beta" }),
+        body: JSON.stringify({ plan: "studio" }),
       });
       const json = await res.json();
       if (!res.ok || !json.email || !json.password) {

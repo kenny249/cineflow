@@ -67,7 +67,7 @@ export default function DashboardPage() {
   const [nameSaving, setNameSaving] = useState(false);
   const [savedQuickActions, setSavedQuickActions] = useState<string[] | null>(null);
   const [plan, setPlan] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
   const [planStatus, setPlanStatus] = useState<string>("trialing");
   const router = useRouter();

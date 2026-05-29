@@ -96,7 +96,7 @@ export default function SettingsClient() {
   const [paymentOpen, setPaymentOpen] = useState<PaymentTab | null>("stripe");
 
   // Plan
-  const [plan, setPlan] = useState<string>("studio_beta");
+  const [plan, setPlan] = useState<string>("studio");
   const [planStatus, setPlanStatus] = useState<string | null>(null);
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [planInterval, setPlanInterval] = useState<string | null>(null);

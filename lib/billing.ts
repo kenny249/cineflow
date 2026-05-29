@@ -22,7 +22,7 @@ export function canInviteCollaborators(plan?: string | null): boolean {
 }
 
 export function isTrialing(profile: Pick<Profile, "plan_status" | "trial_ends_at">): boolean {
-  if (profile.plan_status === "trialing") return true;
+  if (profile.plan_status !== "trialing") return false;
   if (!profile.trial_ends_at) return false;
   return new Date(profile.trial_ends_at) > new Date();
 }

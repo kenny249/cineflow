@@ -72,7 +72,7 @@ function CallbackInner() {
       // Upsert profile — persist plan from user_metadata (non-fatal if it fails)
       try {
         const meta = user.user_metadata ?? {};
-        const plan = (meta.plan as string) ?? "studio_beta";
+        const plan = (meta.plan as string) ?? "studio";
 
         if (isInvite && meta.is_collaborator && meta.project_id) {
           // ── Project collaborator invite ──────────────────────────────────
@@ -129,9 +129,13 @@ function CallbackInner() {
         } else {
           // ── Owner signup ─────────────────────────────────────────────────
           const effectivePlan = invitePlan ?? plan;
-          const planStatusPatch = accessType === "founding"
-            ? { plan_status: "founding", trial_ends_at: null }
-            : {};
+          const planStatusPatch =
+            accessType === "founding"
+              ? { plan_status: "founding", trial_ends_at: null }
+              : {
+                  plan_status: "trialing",
+                  trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                };
 
           await supabase.from("profiles").upsert(
             { id: user.id, email: user.email, plan: effectivePlan, workspace_id: user.id, updated_at: new Date().toISOString(), ...planStatusPatch },

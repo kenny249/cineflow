@@ -344,7 +344,7 @@ export default function WelcomePage() {
   const [resolvedName, setResolvedName] = useState("");
   const [featureIdx, setFeatureIdx] = useState(0);
   const [plan, setPlan]           = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
   const inputRef      = useRef<HTMLInputElement>(null);
   const isReturning   = useRef(false);

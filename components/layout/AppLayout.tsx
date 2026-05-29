@@ -20,7 +20,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { isSoloPlan } from "@/types";
 
-type MobileNavItem = { label: string; href: string; icon: LucideIcon; special?: boolean };
+type MobileNavItem = { label: string; href: string; icon: LucideIcon };
 
 // ── Solo: shoot-day focused bottom bar ──────────────────────────────────────
 const MOBILE_SOLO_PRIMARY: MobileNavItem[] = [
@@ -40,7 +40,7 @@ const MOBILE_SOLO_MORE: MobileNavItem[] = [
   { label: "Review",        href: "/revisions",     icon: Film },
   { label: "Finance",       href: "/finance",       icon: DollarSign },
   { label: "Settings",      href: "/settings",      icon: Settings },
-  { label: "Beta Feedback", href: "/beta-feedback", icon: FlaskConical, special: true },
+  { label: "Feedback", href: "/beta-feedback", icon: FlaskConical },
 ];
 
 // ── Studio: project management focused bottom bar ───────────────────────────
@@ -63,7 +63,7 @@ const MOBILE_STUDIO_MORE: MobileNavItem[] = [
   { label: "Finance",       href: "/finance",       icon: DollarSign },
   { label: "Team",          href: "/team",          icon: UsersRound },
   { label: "Settings",      href: "/settings",      icon: Settings },
-  { label: "Beta Feedback", href: "/beta-feedback", icon: FlaskConical, special: true },
+  { label: "Feedback", href: "/beta-feedback", icon: FlaskConical },
 ];
 
 interface AppLayoutProps {
@@ -80,7 +80,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [plan, setPlan] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
@@ -317,8 +317,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
               {/* Nav grid — 3 columns for comfortable tapping */}
               <div className="grid grid-cols-3 gap-2 px-4 pb-3">
                 {moreItems.map((item) => {
-                  const active  = isActive(item.href);
-                  const special = item.special;
+                  const active = isActive(item.href);
                   return (
                     <Link
                       key={item.href}
@@ -326,27 +325,18 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
                       onClick={() => setMoreOpen(false)}
                       className={cn(
                         "flex flex-col items-center justify-center gap-2.5 rounded-2xl border py-5 px-2 transition-all duration-150 active:scale-95",
-                        special
-                          ? "border-[#d4a853]/35 bg-[#d4a853]/[0.07] text-[#d4a853]"
-                          : active
-                            ? "border-[#d4a853]/25 bg-[#d4a853]/[0.06] text-[#d4a853]"
-                            : "border-border/60 bg-white/[0.03] text-muted-foreground hover:border-border hover:bg-white/[0.05]"
+                        active
+                          ? "border-[#d4a853]/25 bg-[#d4a853]/[0.06] text-[#d4a853]"
+                          : "border-border/60 bg-white/[0.03] text-muted-foreground hover:border-border hover:bg-white/[0.05]"
                       )}
                     >
-                      {special ? (
-                        <span className="relative flex items-center justify-center">
-                          <span className="absolute inset-0 animate-ping rounded-full bg-[#d4a853]/20 duration-1000" />
-                          <item.icon className="relative h-[1.35rem] w-[1.35rem] text-[#d4a853] drop-shadow-[0_0_8px_rgba(212,168,83,0.65)]" />
-                        </span>
-                      ) : (
-                        <item.icon className={cn(
-                          "h-[1.35rem] w-[1.35rem]",
-                          active ? "text-[#d4a853]" : "text-muted-foreground"
-                        )} />
-                      )}
+                      <item.icon className={cn(
+                        "h-[1.35rem] w-[1.35rem]",
+                        active ? "text-[#d4a853]" : "text-muted-foreground"
+                      )} />
                       <span className={cn(
                         "text-center text-[11px] font-semibold leading-tight tracking-wide",
-                        special ? "text-[#d4a853]" : active ? "text-[#d4a853]" : "text-muted-foreground"
+                        active ? "text-[#d4a853]" : "text-muted-foreground"
                       )}>
                         {item.label}
                       </span>

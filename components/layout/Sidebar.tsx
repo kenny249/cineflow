@@ -148,7 +148,7 @@ function NavLink({
   return link;
 }
 
-// ── BetaNavItem ──────────────────────────────────────────────────────────────
+// ── FeedbackNavItem ──────────────────────────────────────────────────────────
 
 function BetaNavItem({ collapsed, isActive }: { collapsed: boolean; isActive: boolean }) {
   const link = (
@@ -158,18 +158,15 @@ function BetaNavItem({ collapsed, isActive }: { collapsed: boolean; isActive: bo
         "group relative flex h-9 items-center gap-3 rounded-md px-2.5 text-sm transition-all duration-150 mb-1",
         collapsed ? "justify-center w-9 px-0" : "",
         isActive
-          ? "bg-[#d4a853]/[0.07] text-[#d4a853] font-medium ring-[0.5px] ring-inset ring-[#d4a853]/10"
-          : "text-[#d4a853]/70 hover:bg-[#d4a853]/[0.05] hover:text-[#d4a853]"
+          ? "bg-white/[0.06] text-foreground font-medium"
+          : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
       )}
     >
       {isActive && (
         <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[#d4a853]" />
       )}
-      <span className="relative shrink-0">
-        <span className="absolute inset-0 animate-ping rounded-full bg-[#d4a853]/25 duration-1000" />
-        <FlaskConical className="relative h-4 w-4 text-[#d4a853] drop-shadow-[0_0_6px_rgba(212,168,83,0.7)]" />
-      </span>
-      {!collapsed && <span className="truncate">Beta Feedback</span>}
+      <FlaskConical className="h-4 w-4 shrink-0" />
+      {!collapsed && <span className="truncate">Feedback</span>}
     </Link>
   );
 
@@ -177,7 +174,7 @@ function BetaNavItem({ collapsed, isActive }: { collapsed: boolean; isActive: bo
     return (
       <Tooltip>
         <TooltipTrigger asChild>{link}</TooltipTrigger>
-        <TooltipContent side="right" sideOffset={12}>Beta Feedback</TooltipContent>
+        <TooltipContent side="right" sideOffset={12}>Feedback</TooltipContent>
       </Tooltip>
     );
   }
@@ -285,7 +282,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState("Studio User");
   const [plan, setPlan] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio_beta"
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
   const [isAdmin, setIsAdmin] = useState(false);
 
