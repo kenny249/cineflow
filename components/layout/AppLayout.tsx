@@ -83,6 +83,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
+  const [planStatus, setPlanStatus] = useState<string>("");
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
   const [workspaceRole, setWorkspaceRole] = useState<"owner" | "admin" | "member">("owner");
@@ -95,13 +96,14 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       Promise.all([
-        supabase.from("profiles").select("plan, first_name, last_name, avatar_url, workspace_id").eq("id", user.id).single(),
+        supabase.from("profiles").select("plan, plan_status, first_name, last_name, avatar_url, workspace_id").eq("id", user.id).single(),
         supabase.rpc("get_member_role"),
       ]).then(([{ data }, { data: role }]) => {
           if (data?.plan) {
             setPlan(data.plan);
             sessionStorage.setItem("cf_plan", data.plan);
           }
+          if (data?.plan_status) setPlanStatus(data.plan_status);
           if (data?.first_name || data?.last_name) {
             setProfileName([data.first_name, data.last_name].filter(Boolean).join(" "));
           } else {
@@ -212,7 +214,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
-          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} />
+          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} plan={plan} planStatus={planStatus} />
         </Suspense>
         <DemoBanner />
         {/* pb-20 on mobile for bottom nav clearance (nav is ~68px + safe area) */}

@@ -46,9 +46,21 @@ interface TopBarProps {
   onToggleTheme?: () => void;
   userAvatarUrl?: string;
   userFullName?: string;
+  plan?: string;
+  planStatus?: string;
 }
 
-export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userAvatarUrl, userFullName }: TopBarProps) {
+function planLabel(plan?: string, planStatus?: string): string {
+  if (planStatus === "founding") return "Founding Member";
+  if (plan === "lifetime")       return "Lifetime Member";
+  if (plan === "agency")         return "Agency Plan";
+  if (plan === "enterprise")     return "Enterprise Plan";
+  if (plan === "studio" || plan === "studio_beta") return "Studio Plan";
+  if (plan === "solo"   || plan === "solo_beta")   return "Solo Plan";
+  return "CineFlow Member";
+}
+
+export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userAvatarUrl, userFullName, plan, planStatus }: TopBarProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("Studio User");
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -265,7 +277,7 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
             <DropdownMenuLabel className="font-normal">
               <div className="flex flex-col space-y-0.5">
                 <p className="text-xs font-medium text-foreground">{displayName}</p>
-                <p className="text-[10px] text-muted-foreground">Beta User</p>
+                <p className="text-[10px] text-muted-foreground">{planLabel(plan, planStatus)}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
