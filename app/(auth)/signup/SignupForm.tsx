@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ export function SignupForm({
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
 
   async function handleGoogleSignUp() {
     setIsGoogleLoading(true);
@@ -37,6 +39,36 @@ export function SignupForm({
       setIsGoogleLoading(false);
     }
     // If no error, browser is redirecting — leave spinner on
+  }
+
+  async function handleDemo() {
+    setIsDemoLoading(true);
+    try {
+      const res = await fetch("/api/demo/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: "studio_beta" }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.email || !json.password) {
+        toast.error("Could not start demo. Please try again.");
+        setIsDemoLoading(false);
+        return;
+      }
+      const { data, error } = await createClient().auth.signInWithPassword({
+        email: json.email,
+        password: json.password,
+      });
+      if (error || !data.session) {
+        toast.error("Could not start demo. Please try again.");
+        setIsDemoLoading(false);
+        return;
+      }
+      window.location.assign("/welcome");
+    } catch {
+      toast.error("Demo failed. Please try again.");
+      setIsDemoLoading(false);
+    }
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -195,11 +227,36 @@ export function SignupForm({
       </Button>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Already have an account? {" "}
+        Already have an account?{" "}
         <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
           Sign in
         </Link>
       </p>
+
+      <div className="mt-5 border-t border-border pt-5">
+        <button
+          type="button"
+          onClick={handleDemo}
+          disabled={isDemoLoading || isLoading || isGoogleLoading}
+          className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-[#d4a853] py-3.5 text-sm font-bold text-black transition-all hover:bg-[#e0b55e] active:scale-[0.98] disabled:opacity-60"
+        >
+          {isDemoLoading ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+              Opening demo…
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4" />
+              Preview the app, no signup
+              <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            </>
+          )}
+        </button>
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          Full Studio experience. No account needed.
+        </p>
+      </div>
     </form>
   );
 }
