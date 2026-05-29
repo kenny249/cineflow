@@ -83,13 +83,10 @@ const LP_PLANS = [
   },
 ] as const;
 
-const ROLES = [
-  "Independent DPs",
-  "Wedding Filmmakers",
-  "Commercial Directors",
-  "Music Video Producers",
-  "Freelance Editors",
-  "Small Production Studios",
+const OUTCOMES = [
+  { stat: "More bookings.",   sub: "Less time on admin means more time selling." },
+  { stat: "Happier clients.", sub: "A portal that keeps them informed, not your DMs." },
+  { stat: "Zero chaos.",      sub: "Everything in one place. Nothing falls through." },
 ] as const;
 
 const TESTIMONIALS = [
@@ -434,26 +431,28 @@ export function LandingPage({ refCode }: Props) {
           </div>
         </section>
 
-        {/* ══ WHO IT'S FOR ══════════════════════════════════════════════ */}
-        <section className="relative py-24 px-8 text-center">
-          <div data-reveal className="mx-auto max-w-2xl">
-            <p className="mb-6 font-mono text-[10px] tracking-[0.42em] uppercase text-white/20">Who it&apos;s for</p>
-            <p
-              className="mb-10 font-black leading-[1.1] tracking-tighter text-white"
-              style={{ fontSize: "clamp(1.6rem,3vw,2.6rem)" }}
-            >
-              Built for everyone who makes<br />
-              <span className="text-white/35">things happen on set.</span>
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {ROLES.map(role => (
-                <span
-                  key={role}
-                  className="rounded-full border border-white/[0.09] px-4 py-1.5 font-mono text-[11px] text-white/40"
-                  style={{ background: "rgba(255,255,255,0.02)" }}
+        {/* ══ OUTCOMES ══════════════════════════════════════════════════ */}
+        <section className="relative py-24 px-8">
+          <div className="mx-auto max-w-3xl">
+            <div data-reveal className="mb-14 text-center">
+              <p className="font-mono text-[10px] tracking-[0.42em] uppercase text-white/20">The result</p>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-3">
+              {OUTCOMES.map(({ stat, sub }) => (
+                <div
+                  key={stat}
+                  data-reveal
+                  className="rounded-2xl px-6 py-7"
+                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
                 >
-                  {role}
-                </span>
+                  <p
+                    className="mb-3 font-black leading-tight tracking-tighter text-white"
+                    style={{ fontSize: "clamp(1.3rem,2.2vw,1.7rem)" }}
+                  >
+                    {stat}
+                  </p>
+                  <p className="text-[12px] leading-relaxed text-white/38">{sub}</p>
+                </div>
               ))}
             </div>
           </div>
