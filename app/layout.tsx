@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Syne } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { AdPixels } from "@/components/shared/AdPixels";
+import { UtmCapture } from "@/components/shared/UtmCapture";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -62,6 +65,10 @@ export default function RootLayout({
       <body className={`${inter.variable} ${syne.variable} font-sans antialiased`}>
         {children}
         <Toaster />
+        <AdPixels />
+        <Suspense fallback={null}>
+          <UtmCapture />
+        </Suspense>
       </body>
     </html>
   );

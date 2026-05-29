@@ -17,6 +17,7 @@ import { OnboardingIntro } from "./OnboardingIntro";
 import { DemoBanner } from "./DemoBanner";
 import { LifetimeWelcome } from "@/components/shared/LifetimeWelcome";
 import { TrialExpiredGate } from "@/components/shared/TrialExpiredGate";
+import { AnnouncementBanner } from "@/components/shared/AnnouncementBanner";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -89,6 +90,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
   const [workspaceRole, setWorkspaceRole] = useState<"owner" | "admin" | "member">("owner");
+  const [announcements, setAnnouncements] = useState<{ id: string; message: string; type: string }[]>([]);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -117,6 +119,16 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
           if (role) setWorkspaceRole(role as "owner" | "admin" | "member");
         });
     });
+  }, []);
+
+  // Fetch active announcements
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("announcements")
+      .select("id, message, type")
+      .eq("is_active", true)
+      .then(({ data }) => { if (data) setAnnouncements(data); });
   }, []);
 
   // Apply theme to document
@@ -220,6 +232,9 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
           <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} plan={plan} planStatus={planStatus} />
         </Suspense>
         <DemoBanner />
+        {announcements.map((a) => (
+          <AnnouncementBanner key={a.id} message={a.message} type={a.type} />
+        ))}
         {/* pb-20 on mobile for bottom nav clearance (nav is ~68px + safe area) */}
         <main className="flex-1 overflow-hidden pb-20 md:pb-0">
           <TrialExpiredGate plan={plan} planStatus={planStatus} trialEndsAt={trialEndsAt}>

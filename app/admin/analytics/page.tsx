@@ -21,6 +21,7 @@ export default async function AnalyticsPage() {
     { data: invoices },
     { data: contracts },
     { data: forms },
+    { data: utmProfiles },
   ] = await Promise.all([
     supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     supabase.from("profiles").select("id, plan, plan_status, trial_ends_at, created_at"),
@@ -28,6 +29,7 @@ export default async function AnalyticsPage() {
     supabase.from("invoices").select("created_by, status, amount, created_at"),
     supabase.from("contracts").select("created_by, status, created_at"),
     supabase.from("forms").select("created_by, response_count, created_at"),
+    supabase.from("profiles").select("utm_source, utm_medium, utm_campaign").not("utm_source", "is", null),
   ]);
 
   const realUsers = (authUsers ?? []).filter((u) => !u.email?.endsWith("@demo.usecineflow.com"));
@@ -87,11 +89,39 @@ export default async function AnalyticsPage() {
   const trialsExpired  = (profiles ?? []).filter((p) => p.plan_status === "trialing" && (!p.trial_ends_at || new Date(p.trial_ends_at) <= new Date())).length;
   const paidUsers      = (profiles ?? []).filter((p) => p.plan_status === "active" || p.plan === "lifetime" || p.plan_status === "founding").length;
 
+  // Trial → paid conversion rate
+  const totalTrialers = paidUsers + trialsActive + trialsExpired;
+  const conversionRate = totalTrialers > 0 ? ((paidUsers / totalTrialers) * 100).toFixed(1) : "0.0";
+
+  // Activation rate: users created in last 30 days who created at least 1 project
+  const cutoff30iso = new Date(now - 30 * 86400000).toISOString();
+  const recentUserIds = new Set(realUsers.filter((u) => u.created_at > cutoff30iso).map((u) => u.id));
+  const activatedUserIds = new Set((projects ?? []).map((p) => p.created_by).filter((id) => recentUserIds.has(id)));
+  const activationRate = recentUserIds.size > 0 ? ((activatedUserIds.size / recentUserIds.size) * 100).toFixed(1) : "0.0";
+
+  // Signups per month — last 6 months
+  const months6 = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - (5 - i));
+    return d.toISOString().slice(0, 7); // YYYY-MM
+  });
+  const signupsByMonth = Object.fromEntries(months6.map((m) => [m, 0]));
+  for (const u of realUsers) {
+    const month = u.created_at.slice(0, 7);
+    if (month in signupsByMonth) signupsByMonth[month]++;
+  }
+  const monthlySignupChart = months6.map((m) => ({
+    month: new Date(m + "-01").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+    signups: signupsByMonth[m],
+  }));
+
   const stats = [
     { label: "Total real users", value: realUsers.length },
     { label: "Active (7 days)", value: active7 },
     { label: "Active (30 days)", value: active30 },
     { label: "Paid / Founding / Lifetime", value: paidUsers },
+    { label: "Trial → paid conversion", value: `${conversionRate}%` },
+    { label: "Activation rate (30d)", value: `${activationRate}%` },
     { label: "Trials active", value: trialsActive },
     { label: "Trials expiring (7 days)", value: trialsExpiring },
     { label: "Trials expired (no conversion)", value: trialsExpired },
@@ -101,6 +131,16 @@ export default async function AnalyticsPage() {
     { label: "Invoice value paid", value: `$${totalInvoiceValue.toLocaleString()}` },
     { label: "Contracts signed", value: (contracts ?? []).filter((c) => c.status === "signed").length },
   ];
+
+  // UTM source breakdown
+  const utmSources: Record<string, number> = {};
+  for (const p of utmProfiles ?? []) {
+    const src = p.utm_source ?? "unknown";
+    utmSources[src] = (utmSources[src] ?? 0) + 1;
+  }
+  const utmRows = Object.entries(utmSources)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
 
   return (
     <div className="p-8">
@@ -123,7 +163,41 @@ export default async function AnalyticsPage() {
         signupChart={signupChart}
         planChart={planChart}
         featureUsage={featureUsage}
+        monthlySignupChart={monthlySignupChart}
       />
+
+      {/* UTM attribution */}
+      {utmRows.length > 0 && (
+        <div className="mt-6 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <h2 className="mb-4 text-sm font-semibold text-zinc-300">Traffic sources (UTM)</h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/[0.06] text-left">
+                <th className="pb-2 text-xs font-medium text-zinc-500">Source</th>
+                <th className="pb-2 text-right text-xs font-medium text-zinc-500">Signups</th>
+                <th className="pb-2 text-right text-xs font-medium text-zinc-500">Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {utmRows.map(([src, count]) => {
+                const total = (utmProfiles ?? []).length;
+                return (
+                  <tr key={src} className="border-b border-white/[0.04] last:border-0">
+                    <td className="py-2 font-mono text-xs text-zinc-300">{src}</td>
+                    <td className="py-2 text-right text-zinc-400">{count}</td>
+                    <td className="py-2 text-right text-zinc-500">
+                      {total > 0 ? `${((count / total) * 100).toFixed(0)}%` : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="mt-3 text-xs text-zinc-600">
+            {(utmProfiles ?? []).length} of {realUsers.length} users have UTM data captured.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

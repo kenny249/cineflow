@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft } from "lucide-react";
+import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -11,10 +11,19 @@ const NAV = [
   { href: "/admin/finances",     label: "Finances",     icon: DollarSign },
   { href: "/admin/invite-links", label: "Invite Links", icon: Link2 },
   { href: "/admin/referrals",    label: "Referrals",    icon: Share2 },
+  { href: "/admin/audit-log",    label: "Audit Log",    icon: ScrollText },
+  { href: "/admin/feature-flags",label: "Feature Flags",icon: Flag },
+  { href: "/admin/announcements",label: "Announcements",icon: Megaphone },
   { href: "/admin/system",       label: "System",       icon: Settings2 },
 ];
 
-export function AdminSidebar() {
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: "Super Admin",
+  finance:     "Finance",
+  support:     "Support",
+};
+
+export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adminRole?: string | null }) {
   const pathname = usePathname();
 
   return (
@@ -29,6 +38,16 @@ export function AdminSidebar() {
           <p className="text-[0.55rem] text-zinc-600 uppercase tracking-wider">Admin</p>
         </div>
       </div>
+
+      {/* Admin identity */}
+      {adminName && (
+        <div className="border-b border-white/[0.04] px-4 py-3">
+          <p className="text-xs font-medium text-zinc-300 truncate">{adminName}</p>
+          <p className="text-[10px] text-zinc-600">
+            {adminRole ? ROLE_LABELS[adminRole] ?? adminRole : "Super Admin"}
+          </p>
+        </div>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 space-y-0.5 p-3">

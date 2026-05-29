@@ -76,6 +76,13 @@ export function SignupForm({
     setIsLoading(true);
 
     try {
+      // Read UTM params saved by landing page / any page that captured them
+      let utm: Record<string, string> | undefined;
+      try {
+        const raw = sessionStorage.getItem("cf_utm");
+        if (raw) utm = JSON.parse(raw);
+      } catch {}
+
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,6 +94,7 @@ export function SignupForm({
           company,
           inviteCode: inviteCode ?? null,
           referredBy: referredBy ?? null,
+          utm: utm ?? null,
         }),
       });
 
@@ -110,6 +118,7 @@ export function SignupForm({
       }
 
       toast.success("Welcome to CineFlow!");
+      try { (window as any).fbq?.("track","CompleteRegistration"); (window as any).gtag?.("event","sign_up"); (window as any).ttq?.track("CompleteRegistration"); } catch {}
       window.location.assign("/dashboard");
     } finally {
       setIsLoading(false);

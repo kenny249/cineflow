@@ -16,7 +16,7 @@ function generateReferralCode(): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, firstName, lastName, company, inviteCode, referredBy } = await req.json();
+    const { email, password, firstName, lastName, company, inviteCode, referredBy, utm } = await req.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
@@ -96,6 +96,11 @@ export async function POST(req: NextRequest) {
 
     if (invitePlan) profilePatch.plan = invitePlan;
     if (referredBy) profilePatch.referred_by = (referredBy as string).toUpperCase();
+    if (utm?.source)   profilePatch.utm_source   = utm.source;
+    if (utm?.medium)   profilePatch.utm_medium   = utm.medium;
+    if (utm?.campaign) profilePatch.utm_campaign = utm.campaign;
+    if (utm?.content)  profilePatch.utm_content  = utm.content;
+    if (utm?.term)     profilePatch.utm_term      = utm.term;
 
     // Attempt to assign a unique referral code (retry on collision)
     for (let attempt = 0; attempt < 5; attempt++) {

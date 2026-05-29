@@ -22,10 +22,12 @@ export function AnalyticsCharts({
   signupChart,
   planChart,
   featureUsage,
+  monthlySignupChart,
 }: {
   signupChart: { date: string; signups: number }[];
   planChart: { plan: string; count: number }[];
   featureUsage: { feature: string; users: number }[];
+  monthlySignupChart: { month: string; signups: number }[];
 }) {
   return (
     <div className="grid grid-cols-2 gap-6">
@@ -79,6 +81,22 @@ export function AnalyticsCharts({
               itemStyle={{ color: GOLD }}
             />
             <Bar dataKey="users" fill={GOLD} radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
+
+      <ChartCard title="Monthly signups — last 6 months">
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={monthlySignupChart} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
+            <XAxis dataKey="month" tick={{ fill: AXIS, fontSize: 10 }} tickLine={false} axisLine={false} />
+            <YAxis tick={{ fill: AXIS, fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
+            <Tooltip
+              contentStyle={{ background: "#141414", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: "#a1a1aa" }}
+              itemStyle={{ color: GOLD }}
+            />
+            <Bar dataKey="signups" fill={GOLD} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>

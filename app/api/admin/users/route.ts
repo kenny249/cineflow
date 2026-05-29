@@ -4,6 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { Resend } from "resend";
 import { emailLifetimeGift } from "@/lib/email-templates";
+import { logAdminAction } from "@/lib/admin-audit";
 
 function getAdmin() {
   return createAdminClient(
@@ -106,6 +107,14 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
+  await logAdminAction({
+    actorId: caller.id,
+    action: "update_user",
+    targetId: userId,
+    targetType: "user",
+    metadata: { fields: Object.keys(updates) },
+  });
+
   return NextResponse.json({ success: true, email: emailResult });
 }
 
@@ -128,6 +137,13 @@ export async function DELETE(req: NextRequest) {
     console.error("[api/admin/users DELETE]", error.message);
     return NextResponse.json({ error: "Delete failed" }, { status: 500 });
   }
+
+  await logAdminAction({
+    actorId: caller.id,
+    action: "delete_user",
+    targetId: userId,
+    targetType: "user",
+  });
 
   return NextResponse.json({ success: true });
 }

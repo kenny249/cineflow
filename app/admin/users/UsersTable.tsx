@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Search, Shield, ShieldCheck, ShieldOff, MoreHorizontal, Check, Trash2, Crown, Clock, AlertCircle, CheckCircle2, Star } from "lucide-react";
+import { Search, Shield, ShieldCheck, ShieldOff, MoreHorizontal, Check, Trash2, Crown, Clock, AlertCircle, CheckCircle2, Star, Download, Mail, LogIn, StickyNote, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +102,115 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
   const [statusFilter, setStatusFilter] = useState("all");
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [emailModal, setEmailModal] = useState<{ userId: string; email: string; name: string } | null>(null);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [impersonateModal, setImpersonateModal] = useState<{ link: string; email: string } | null>(null);
+  const [notesModal, setNotesModal] = useState<{ userId: string; name: string } | null>(null);
+  const [notesList, setNotesList] = useState<{ id: string; body: string; created_at: string; author_name: string }[]>([]);
+  const [newNote, setNewNote] = useState("");
+  const [notesLoading, setNotesLoading] = useState(false);
+
+  function exportCSV() {
+    const rows = [
+      ["Name", "Email", "Company", "Plan", "Status", "Trial Ends", "Projects", "Invoices", "Joined", "Last Seen"],
+      ...filtered.map((u) => [
+        u.name ?? "",
+        u.email,
+        u.company ?? "",
+        PLAN_LABELS[u.plan] ?? u.plan,
+        u.plan_status,
+        u.trial_ends_at ? new Date(u.trial_ends_at).toLocaleDateString() : "",
+        u.projects,
+        u.invoices,
+        new Date(u.created_at).toLocaleDateString(),
+        u.last_sign_in ? new Date(u.last_sign_in).toLocaleDateString() : "Never",
+      ]),
+    ];
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cineflow-users-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function sendEmail() {
+    if (!emailModal || !emailSubject.trim() || !emailBody.trim()) return;
+    setEmailSending(true);
+    const res = await fetch("/api/admin/email-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: emailModal.userId, subject: emailSubject, message: emailBody }),
+    });
+    setEmailSending(false);
+    if (res.ok) {
+      toast.success(`Email sent to ${emailModal.email}`);
+      setEmailModal(null);
+      setEmailSubject("");
+      setEmailBody("");
+    } else {
+      const j = await res.json();
+      toast.error(j.error ?? "Failed to send email");
+    }
+  }
+
+  async function impersonateUser(userId: string, email: string) {
+    startTransition(async () => {
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const json = await res.json();
+      if (res.ok && json.link) {
+        setImpersonateModal({ link: json.link, email });
+        setOpenMenu(null);
+      } else {
+        toast.error(json.error ?? "Failed to generate login link");
+      }
+    });
+  }
+
+  async function openNotesModal(userId: string, name: string) {
+    setNotesModal({ userId, name });
+    setNotesList([]);
+    setNewNote("");
+    setNotesLoading(true);
+    setOpenMenu(null);
+    const res = await fetch(`/api/admin/notes?userId=${userId}`);
+    const json = await res.json();
+    setNotesLoading(false);
+    if (res.ok) setNotesList(json.notes ?? []);
+  }
+
+  async function addNote() {
+    if (!notesModal || !newNote.trim()) return;
+    const res = await fetch("/api/admin/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: notesModal.userId, body: newNote.trim() }),
+    });
+    const json = await res.json();
+    if (res.ok && json.note) {
+      setNotesList((prev) => [{ ...json.note, author_name: "You" }, ...prev]);
+      setNewNote("");
+    } else {
+      toast.error(json.error ?? "Failed to add note");
+    }
+  }
+
+  async function deleteNote(noteId: string) {
+    const res = await fetch(`/api/admin/notes?id=${noteId}`, { method: "DELETE" });
+    if (res.ok) {
+      setNotesList((prev) => prev.filter((n) => n.id !== noteId));
+    } else {
+      toast.error("Failed to delete note");
+    }
+  }
 
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
@@ -229,6 +338,12 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
           <option value="founding">Founding</option>
         </select>
         <span className="text-xs text-zinc-600">{filtered.length} users</span>
+        <button
+          onClick={exportCSV}
+          className="flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2 text-xs text-zinc-400 transition-colors hover:text-white"
+        >
+          <Download className="h-3.5 w-3.5" /> Export CSV
+        </button>
       </div>
 
       {/* Table */}
@@ -338,6 +453,28 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                           </button>
                         ))}
 
+                        {/* Support actions */}
+                        <div className="my-1 border-t border-white/[0.06]" />
+                        <button
+                          onClick={() => { setEmailModal({ userId: u.id, email: u.email, name: u.name ?? u.email }); setOpenMenu(null); }}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-blue-400 transition-colors hover:bg-blue-500/10"
+                        >
+                          <Mail className="h-3.5 w-3.5" /> Email user
+                        </button>
+                        <button
+                          onClick={() => openNotesModal(u.id, u.name ?? u.email)}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-white/[0.05]"
+                        >
+                          <StickyNote className="h-3.5 w-3.5" /> Notes
+                        </button>
+                        <button
+                          onClick={() => impersonateUser(u.id, u.email)}
+                          disabled={isPending || u.id === currentUserId}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-white/[0.05] disabled:opacity-40"
+                        >
+                          <LogIn className="h-3.5 w-3.5" /> Login as user
+                        </button>
+
                         {/* Admin */}
                         <div className="my-1 border-t border-white/[0.06]" />
                         {u.is_admin ? (
@@ -388,6 +525,106 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
           </tbody>
         </table>
       </div>
+
+      {/* ── Email user modal ── */}
+      {emailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setEmailModal(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#111] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 text-sm font-bold text-white">Email {emailModal.name}</h3>
+            <p className="mb-4 text-xs text-zinc-500">{emailModal.email}</p>
+            <input
+              type="text"
+              placeholder="Subject"
+              value={emailSubject}
+              onChange={(e) => setEmailSubject(e.target.value)}
+              className="mb-3 w-full rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#d4a853]/40"
+            />
+            <textarea
+              placeholder="Message…"
+              value={emailBody}
+              onChange={(e) => setEmailBody(e.target.value)}
+              rows={5}
+              className="mb-4 w-full rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#d4a853]/40 resize-none"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setEmailModal(null)} className="flex-1 rounded-lg border border-white/[0.08] py-2 text-sm text-zinc-400 hover:text-white transition-colors">Cancel</button>
+              <button onClick={sendEmail} disabled={emailSending || !emailSubject.trim() || !emailBody.trim()} className="flex-1 rounded-lg bg-[#d4a853] py-2 text-sm font-bold text-black transition-all hover:bg-[#e0b55e] disabled:opacity-50">
+                {emailSending ? "Sending…" : "Send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Notes modal ── */}
+      {notesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setNotesModal(null)}>
+          <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#111] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white">Notes · {notesModal.name}</h3>
+              <button onClick={() => setNotesModal(null)} className="text-zinc-600 hover:text-white"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="mb-4 flex gap-2">
+              <textarea
+                placeholder="Add a note…"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                rows={2}
+                className="flex-1 rounded-lg border border-white/[0.08] bg-black/30 px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-[#d4a853]/40 resize-none"
+              />
+              <button
+                onClick={addNote}
+                disabled={!newNote.trim()}
+                className="rounded-lg bg-[#d4a853] px-4 text-sm font-bold text-black transition-all hover:bg-[#e0b55e] disabled:opacity-40"
+              >
+                Add
+              </button>
+            </div>
+            <div className="max-h-64 space-y-2 overflow-y-auto">
+              {notesLoading ? (
+                <p className="text-center text-sm text-zinc-600">Loading…</p>
+              ) : notesList.length === 0 ? (
+                <p className="text-center text-sm text-zinc-600">No notes yet.</p>
+              ) : notesList.map((note) => (
+                <div key={note.id} className="group flex items-start justify-between gap-3 rounded-lg border border-white/[0.05] bg-white/[0.02] p-3">
+                  <div className="flex-1">
+                    <p className="text-sm text-zinc-300 leading-relaxed">{note.body}</p>
+                    <p className="mt-1 text-[11px] text-zinc-600">{note.author_name} · {new Date(note.created_at).toLocaleString()}</p>
+                  </div>
+                  <button
+                    onClick={() => deleteNote(note.id)}
+                    className="mt-0.5 shrink-0 text-zinc-700 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Impersonate modal ── */}
+      {impersonateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setImpersonateModal(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#111] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="mb-1 text-sm font-bold text-white">Login as {impersonateModal.email}</h3>
+            <p className="mb-4 text-xs text-zinc-500 leading-relaxed">Open this link in an <strong className="text-white">incognito / private window</strong> so you don&apos;t get logged out of your admin account.</p>
+            <div className="mb-4 rounded-lg border border-white/[0.06] bg-black/30 p-3">
+              <p className="break-all text-[11px] font-mono text-zinc-400">{impersonateModal.link}</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setImpersonateModal(null)} className="flex-1 rounded-lg border border-white/[0.08] py-2 text-sm text-zinc-400 hover:text-white transition-colors">Close</button>
+              <button
+                onClick={() => { navigator.clipboard.writeText(impersonateModal.link); toast.success("Link copied"); }}
+                className="flex-1 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/10 py-2 text-sm font-semibold text-[#d4a853] transition-all hover:bg-[#d4a853]/20"
+              >
+                Copy link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

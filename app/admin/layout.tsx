@@ -28,7 +28,7 @@ async function getAdminUser() {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("is_admin, first_name, last_name")
+    .select("is_admin, first_name, last_name, admin_role")
     .eq("id", user.id)
     .single();
 
@@ -40,9 +40,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const user = await getAdminUser();
   if (!user) redirect("/dashboard");
 
+  const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email?.split("@")[0] || "Admin";
+  const role = (user as any).admin_role as string | null;
+
   return (
     <div className="flex min-h-screen bg-[#080808]">
-      <AdminSidebar />
+      <AdminSidebar adminName={name} adminRole={role} />
       <main className="flex-1 overflow-auto">
         {children}
       </main>

@@ -1,5 +1,7 @@
 import { DollarSign, TrendingUp, TrendingDown, Users, AlertCircle, ArrowUpRight, ArrowDownRight, Minus, FlaskConical } from "lucide-react";
 import { stripe, PLANS, getPlanByPriceId } from "@/lib/stripe";
+import { requireAdminPage } from "@/lib/admin-guard";
+import { MrrChart } from "./FinancesCharts";
 import type Stripe from "stripe";
 
 const fmt = (n: number) =>
@@ -88,6 +90,43 @@ async function fetchFinancials() {
     limit: 20,
   });
 
+  // ARPU per plan
+  const arpu: Record<string, number> = {};
+  for (const [key, { count, mrr: planMrr }] of Object.entries(planCounts)) {
+    arpu[key] = count > 0 ? planMrr / count : 0;
+  }
+  const totalArpu = paidSubs.length > 0 ? mrr / paidSubs.length : 0;
+
+  // Monthly revenue — last 6 months (paid invoices, cents → dollars)
+  const monthlyRevenue: { month: string; revenue: number }[] = [];
+  const now = Date.now();
+  for (let i = 5; i >= 0; i--) {
+    const start = new Date(now);
+    start.setDate(1);
+    start.setMonth(start.getMonth() - i);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setMonth(end.getMonth() + 1);
+
+    let total = 0;
+    let hasCursor: string | undefined;
+    do {
+      const page = await stripe.invoices.list({
+        status: "paid",
+        created: { gte: Math.floor(start.getTime() / 1000), lt: Math.floor(end.getTime() / 1000) },
+        limit: 100,
+        starting_after: hasCursor,
+      });
+      for (const inv of page.data) total += (inv.amount_paid ?? 0) / 100;
+      hasCursor = page.has_more ? page.data[page.data.length - 1].id : undefined;
+    } while (hasCursor);
+
+    monthlyRevenue.push({
+      month: start.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+      revenue: total,
+    });
+  }
+
   return {
     isTestMode,
     mrr,
@@ -98,6 +137,9 @@ async function fetchFinancials() {
     planCounts,
     skippedCount,
     events: events.data,
+    arpu,
+    totalArpu,
+    monthlyRevenue,
   };
 }
 
@@ -106,6 +148,7 @@ function planLabel(key: string) {
 }
 
 export default async function FinancesPage() {
+  await requireAdminPage();
   const data = await fetchFinancials();
 
   if (!data) {
@@ -195,7 +238,7 @@ export default async function FinancesPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-4 gap-6">
 
         {/* Plan breakdown */}
         <div className="col-span-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
@@ -236,6 +279,26 @@ export default async function FinancesPage() {
           )}
         </div>
 
+        {/* ARPU */}
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <h2 className="text-sm font-semibold text-zinc-300 mb-4">ARPU</h2>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-zinc-500 mb-1">Overall ARPU</p>
+              <p className="text-2xl font-bold text-[#d4a853]">{fmtFull(data.totalArpu)}</p>
+              <p className="text-xs text-zinc-600 mt-0.5">avg revenue per paid user / mo</p>
+            </div>
+            <div className="pt-2 space-y-2 border-t border-white/[0.04]">
+              {planOrder.filter(k => data.planCounts[k]?.count > 0).map(k => (
+                <div key={k} className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-400">{planLabel(k)}</span>
+                  <span className="text-xs font-mono text-zinc-300">{fmtFull(data.arpu[k] ?? 0)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Churn / cancellations */}
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
           <h2 className="text-sm font-semibold text-zinc-300 mb-4">Churn (30d)</h2>
@@ -260,8 +323,14 @@ export default async function FinancesPage() {
           </div>
         </div>
 
+        {/* Monthly revenue chart */}
+        <div className="col-span-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <h2 className="text-sm font-semibold text-zinc-300 mb-4">Revenue — last 6 months</h2>
+          <MrrChart data={data.monthlyRevenue} />
+        </div>
+
         {/* Recent subscription events */}
-        <div className="col-span-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <div className="col-span-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
           <h2 className="text-sm font-semibold text-zinc-300 mb-4">Recent Subscription Events</h2>
           {data.events.length === 0 ? (
             <p className="text-sm text-zinc-600">No recent events.</p>
