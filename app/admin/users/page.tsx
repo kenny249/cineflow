@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { UsersTable } from "./UsersTable";
+import { requireAdminPage } from "@/lib/admin-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ async function getCurrentUserId(): Promise<string | null> {
 }
 
 export default async function UsersPage() {
+  await requireAdminPage();
   const supabase = getAdmin();
   const currentUserId = await getCurrentUserId();
 

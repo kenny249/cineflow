@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Activity, Users, Clock, Trash2 } from "lucide-react";
 import { SystemDemoActions } from "./SystemDemoActions";
+import { requireAdminPage } from "@/lib/admin-guard";
 
 function getAdmin() {
   return createClient(
@@ -11,6 +12,7 @@ function getAdmin() {
 }
 
 export default async function SystemPage() {
+  await requireAdminPage();
   const supabase = getAdmin();
 
   const { data: { users: allUsers } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });

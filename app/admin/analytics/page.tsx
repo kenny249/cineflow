@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { AnalyticsCharts } from "./AnalyticsCharts";
+import { requireAdminPage } from "@/lib/admin-guard";
 
 function getAdmin() {
   return createClient(
@@ -10,6 +11,7 @@ function getAdmin() {
 }
 
 export default async function AnalyticsPage() {
+  await requireAdminPage();
   const supabase = getAdmin();
 
   const [

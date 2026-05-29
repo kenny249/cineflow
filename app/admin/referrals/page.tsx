@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { requireAdminPage } from "@/lib/admin-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,7 @@ function getAdmin() {
 }
 
 export default async function ReferralsPage() {
+  await requireAdminPage();
   const supabase = getAdmin();
 
   const { data: { users: authUsers } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
