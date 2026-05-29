@@ -358,7 +358,7 @@ export default function SettingsClient() {
                   <Input value={company} onChange={(e) => setCompany(e.target.value)} />
                 </div>
               </div>
-              {plan === "lifetime" && (
+              {(plan === "lifetime" || planStatus === "founding") && (
                 <>
                   <Separator />
                   {/* Gradient border wrapper */}
@@ -904,7 +904,7 @@ export default function SettingsClient() {
           <section>
             <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Plan</h2>
 
-            {plan === "lifetime" ? (
+            {plan === "lifetime" || planStatus === "founding" ? (
               /* Lifetime / Founding Member */
               <div className="group relative overflow-hidden rounded-xl border border-[#d4a853]/30 bg-[#d4a853]/5 p-5">
                 <div className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#d4a853]/10 to-transparent transition-transform duration-1000 ease-in-out group-hover:translate-x-full" />
