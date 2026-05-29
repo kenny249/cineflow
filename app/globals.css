@@ -351,6 +351,29 @@
 
 /* ── Landing page ─────────────────────────────────────────────────────── */
 
+/* CineFlow wordmark — scale+blur reveal, more cinematic than standard clip */
+.lp-cf-wordmark {
+  opacity: 0;
+  transform: scale(0.88) translateY(16px);
+  filter: blur(14px);
+  transition:
+    opacity  1.1s cubic-bezier(0.16,1,0.3,1) 0.22s,
+    transform 1.3s cubic-bezier(0.16,1,0.3,1) 0.22s,
+    filter   1.0s cubic-bezier(0.16,1,0.3,1) 0.22s;
+}
+[data-reveal="clip"].is-visible .lp-cf-wordmark {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  filter: blur(0);
+}
+.lp-cf-glow {
+  opacity: 0;
+  transition: opacity 1.6s ease 0.5s;
+}
+[data-reveal="clip"].is-visible .lp-cf-glow {
+  opacity: 1;
+}
+
 /* Hero staggered load-in */
 @keyframes lp-slide-up {
   from { opacity: 0; transform: translateY(22px); }

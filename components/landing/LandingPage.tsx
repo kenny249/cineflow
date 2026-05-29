@@ -187,6 +187,41 @@ export function LandingPage({ refCode }: Props) {
             </p>
           </div>
 
+          {/* Receipt card — cost comparison */}
+          <div data-reveal className="w-full max-w-[300px]">
+            <div
+              className="rounded-2xl border border-white/[0.07] px-6 py-5"
+              style={{ background: "rgba(5,5,12,0.9)", backdropFilter: "blur(16px)" }}
+            >
+              <p className="mb-4 font-mono text-[9px] tracking-[0.38em] uppercase text-white/18">What you&apos;re already paying</p>
+              <div className="space-y-2.5">
+                {[
+                  { name: "StudioBinder", price: "29" },
+                  { name: "Frame.io",     price: "15" },
+                  { name: "HoneyBook",    price: "40" },
+                  { name: "Slack",        price: "7"  },
+                ].map(({ name, price }) => (
+                  <div key={name} className="flex items-baseline justify-between">
+                    <span className="font-mono text-[11px] text-white/30">{name}</span>
+                    <span className="font-mono text-[11px] text-white/22">${price}<span className="text-[9px] text-white/14">/mo</span></span>
+                  </div>
+                ))}
+              </div>
+              <div className="my-4 border-t border-dashed border-white/[0.08]" />
+              <div className="flex items-baseline justify-between">
+                <span className="font-mono text-[11px] text-white/35">Total</span>
+                <span className="font-mono text-sm font-semibold text-red-400/55 line-through">$91/mo</span>
+              </div>
+              <div className="mt-4 rounded-xl border border-[#d4a853]/18 bg-[#d4a853]/[0.04] px-4 py-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="font-mono text-[11px] text-[#d4a853]/70">CineFlow</span>
+                  <span className="font-mono text-sm font-bold text-[#d4a853]">from $39<span className="text-xs text-[#d4a853]/55">/mo</span></span>
+                </div>
+                <p className="mt-1 font-mono text-[9px] text-[#d4a853]/30">one subscription. everything.</p>
+              </div>
+            </div>
+          </div>
+
           <div data-reveal className="max-w-2xl text-center">
             <p
               className="font-black leading-[1.14] tracking-tighter text-white"
@@ -229,19 +264,28 @@ export function LandingPage({ refCode }: Props) {
                 Introducing
               </p>
             </div>
-            <div className="lp-clip" style={{ fontSize: "clamp(4.5rem,14vw,12rem)" }}>
+
+            {/* Wordmark — dramatic scale+blur reveal instead of clip slide */}
+            <div className="relative" style={{ fontSize: "clamp(4.5rem,14vw,12rem)" }}>
               <div
-                className="lp-clip-inner font-black leading-none tracking-tighter"
+                className="lp-cf-glow pointer-events-none absolute inset-0 -z-10"
                 style={{
-                  "--di": "0.14s",
+                  background: "radial-gradient(ellipse 90% 70% at 50% 55%, rgba(212,168,83,0.14) 0%, transparent 70%)",
+                  filter: "blur(32px)",
+                }}
+              />
+              <div
+                className="lp-cf-wordmark font-black leading-none tracking-tighter"
+                style={{
                   background: "linear-gradient(135deg,#ffffff 34%,#d4a853 63%,#fff3c4 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
                   display: "block",
-                } as React.CSSProperties}
+                }}
               >CineFlow</div>
             </div>
+
             <div className="lp-clip mt-7">
               <p className="lp-clip-inner mx-auto max-w-sm text-[13px] leading-relaxed text-white/28"
                 style={{ "--di": "0.30s" } as React.CSSProperties}>
