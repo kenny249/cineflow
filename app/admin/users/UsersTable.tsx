@@ -61,7 +61,8 @@ function trialDaysLeft(trialEndsAt: string | null): number {
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
-function TrialBadge({ planStatus, trialEndsAt }: { planStatus: string; trialEndsAt: string | null }) {
+function TrialBadge({ plan, planStatus, trialEndsAt }: { plan: string; planStatus: string; trialEndsAt: string | null }) {
+  if (plan === "lifetime") return null; // plan badge already communicates this
   if (planStatus === "founding") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/30 bg-[#d4a853]/10 px-2 py-0.5 text-[10px] font-medium text-[#d4a853]">
@@ -267,7 +268,7 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
 
                 {/* Status */}
                 <td className="px-4 py-3">
-                  <TrialBadge planStatus={u.plan_status} trialEndsAt={u.trial_ends_at} />
+                  <TrialBadge plan={u.plan} planStatus={u.plan_status} trialEndsAt={u.trial_ends_at} />
                 </td>
 
                 {/* Activity */}

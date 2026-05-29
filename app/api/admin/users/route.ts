@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest) {
 
   // Normalize lifetime plan updates so status and interval are always correct
   const normalizedUpdates = updates.plan === "lifetime"
-    ? { ...updates, plan_status: "active", plan_interval: "lifetime" }
+    ? { ...updates, plan_status: "active", plan_interval: "lifetime", trial_ends_at: null }
     : updates;
 
   const { error } = await admin
