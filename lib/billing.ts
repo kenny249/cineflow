@@ -29,6 +29,7 @@ export function isTrialing(profile: Pick<Profile, "plan_status" | "trial_ends_at
 
 export function hasActiveAccess(profile: Pick<Profile, "plan" | "plan_status" | "trial_ends_at">): boolean {
   if (profile.plan === "lifetime") return true;
+  if (profile.plan_status === "founding") return true;
   if (profile.plan_status === "active") return true;
   if (isTrialing(profile)) return true;
   return false;

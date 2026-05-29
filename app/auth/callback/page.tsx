@@ -14,10 +14,13 @@ function CallbackInner() {
     if (ran.current) return;
     ran.current = true;
 
-    const tokenHash = searchParams.get("token_hash");
-    const code      = searchParams.get("code");
-    const type      = searchParams.get("type") ?? "email";
-    const next      = searchParams.get("next") ?? "/welcome";
+    const tokenHash   = searchParams.get("token_hash");
+    const code        = searchParams.get("code");
+    const type        = searchParams.get("type") ?? "email";
+    const next        = searchParams.get("next") ?? "/welcome";
+    const inviteCode  = searchParams.get("invite_code");
+    const accessType  = searchParams.get("access_type") ?? "standard";
+    const invitePlan  = searchParams.get("invite_plan");
 
     if (!tokenHash && !code) {
       setErrorMsg("No authentication token found. Please request a new magic link.");
@@ -125,11 +128,29 @@ function CallbackInner() {
           }
         } else {
           // ── Owner signup ─────────────────────────────────────────────────
+          const effectivePlan = invitePlan ?? plan;
+          const planStatusPatch = accessType === "founding"
+            ? { plan_status: "founding", trial_ends_at: null }
+            : {};
+
           await supabase.from("profiles").upsert(
-            { id: user.id, email: user.email, plan, workspace_id: user.id, updated_at: new Date().toISOString() },
+            { id: user.id, email: user.email, plan: effectivePlan, workspace_id: user.id, updated_at: new Date().toISOString(), ...planStatusPatch },
             { onConflict: "id" }
           );
-          sessionStorage.setItem("cf_plan", plan);
+          sessionStorage.setItem("cf_plan", effectivePlan);
+
+          // Record invite link use if signed up via Google on an invite page
+          if (inviteCode) {
+            const { data: invite } = await supabase
+              .from("invite_links")
+              .select("id, uses")
+              .eq("code", inviteCode.toUpperCase())
+              .single();
+            if (invite) {
+              await supabase.from("invite_links").update({ uses: (invite.uses as number) + 1 }).eq("id", invite.id);
+              await supabase.from("invite_link_uses").insert({ invite_link_id: invite.id, user_id: user.id, email: user.email });
+            }
+          }
 
           const { data: profile } = await supabase
             .from("profiles")
