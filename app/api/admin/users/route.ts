@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse, after } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -58,38 +58,55 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
 
-  // Send lifetime gift email after the response returns (after() survives serverless termination)
-  if (updates.plan === "lifetime" && process.env.RESEND_API_KEY) {
-    after(async () => {
-      try {
-        const [{ data: authData }, { data: profile }] = await Promise.all([
+  // Send lifetime gift email inline — awaited so it completes before the response
+  let emailResult: { sent: boolean; to?: string; error?: string } = { sent: false };
+  if (updates.plan === "lifetime") {
+    try {
+      if (!process.env.RESEND_API_KEY) {
+        emailResult = { sent: false, error: "RESEND_API_KEY not set" };
+      } else {
+        const [{ data: authData, error: authErr }, { data: profile }] = await Promise.all([
           admin.auth.admin.getUserById(userId),
           admin.from("profiles").select("first_name, last_name").eq("id", userId).single(),
         ]);
-        const email = authData?.user?.email;
-        if (email) {
-          const name =
-            [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
-            email.split("@")[0];
-          const resend = new Resend(process.env.RESEND_API_KEY);
-          const { subject, html } = emailLifetimeGift({
-            recipientName: name,
-            loginUrl: "https://app.usecineflow.com/dashboard",
-          });
-          await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL ?? "CineFlow <notifications@usecineflow.com>",
-            to: email,
-            subject,
-            html,
-          });
+        if (authErr) {
+          emailResult = { sent: false, error: `auth lookup failed: ${authErr.message}` };
+        } else {
+          const email = authData?.user?.email;
+          if (!email) {
+            emailResult = { sent: false, error: "no email on auth user" };
+          } else {
+            const name =
+              [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
+              email.split("@")[0];
+            const resend = new Resend(process.env.RESEND_API_KEY);
+            const { subject, html } = emailLifetimeGift({
+              recipientName: name,
+              loginUrl: "https://app.usecineflow.com/dashboard",
+            });
+            const { data: sent, error: sendErr } = await resend.emails.send({
+              from: "CineFlow <notifications@usecineflow.com>",
+              to: email,
+              subject,
+              html,
+            });
+            if (sendErr) {
+              console.error("[api/admin/users PATCH] Resend error:", sendErr);
+              emailResult = { sent: false, to: email, error: sendErr.message };
+            } else {
+              emailResult = { sent: true, to: email };
+            }
+          }
         }
-      } catch (err) {
-        console.error("[api/admin/users PATCH] lifetime email error:", err);
       }
-    });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[api/admin/users PATCH] lifetime email exception:", msg);
+      emailResult = { sent: false, error: msg };
+    }
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, email: emailResult });
 }
 
 // DELETE — permanently delete a user and all their data
