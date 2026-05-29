@@ -93,9 +93,9 @@ const ROLES = [
 ] as const;
 
 const TESTIMONIALS = [
-  { quote: "Dude this is a game changer.", role: "Freelance DP" },
-  { quote: "This makes my life so much easier.", role: "Wedding Filmmaker" },
-  { quote: "I genuinely needed this.", role: "Commercial Director" },
+  "Dude this is a game changer.",
+  "This makes my life so much easier.",
+  "I genuinely needed this.",
 ] as const;
 
 export function LandingPage({ refCode }: Props) {
@@ -316,6 +316,42 @@ export function LandingPage({ refCode }: Props) {
           </div>
         </section>
 
+        {/* ══ SCATTER TRANSITION ════════════════════════════════════════ */}
+        <section className="relative overflow-hidden py-10">
+          <div className="relative mx-auto h-28 max-w-2xl">
+            {([
+              { left: "6%",  top: "15%", w: 28, rot: -22, dur: 3.8, del: 0.0 },
+              { left: "78%", top: "25%", w: 16, rot:  41, dur: 4.2, del: 0.5 },
+              { left: "42%", top: "6%",  w: 22, rot:  -9, dur: 3.5, del: 0.9 },
+              { left: "22%", top: "74%", w: 14, rot:  56, dur: 4.5, del: 0.3 },
+              { left: "64%", top: "78%", w: 20, rot: -38, dur: 3.9, del: 0.7 },
+              { left: "88%", top: "52%", w: 12, rot:  18, dur: 4.1, del: 1.1 },
+              { left: "2%",  top: "58%", w: 18, rot: -52, dur: 3.6, del: 0.4 },
+            ] as const).map((m, i) => (
+              <div
+                key={i}
+                className="absolute h-px"
+                style={{
+                  left: m.left,
+                  top: m.top,
+                  width: m.w,
+                  rotate: `${m.rot}deg`,
+                  background: "rgba(212,168,83,0.20)",
+                  animation: `float-up-down ${m.dur}s ease-in-out ${m.del}s infinite`,
+                } as React.CSSProperties}
+              />
+            ))}
+            <div
+              className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={{
+                background: "rgba(212,168,83,0.45)",
+                boxShadow: "0 0 16px rgba(212,168,83,0.20)",
+                animation: "float-up-down 4.2s ease-in-out infinite",
+              }}
+            />
+          </div>
+        </section>
+
         {/* ══ CINEFLOW INTRO ════════════════════════════════════════════ */}
         <section className="relative flex flex-col items-center justify-center px-8 py-20 text-center">
           <div data-reveal="clip" className="flex flex-col items-center">
@@ -426,16 +462,14 @@ export function LandingPage({ refCode }: Props) {
         {/* ══ TESTIMONIALS ══════════════════════════════════════════════ */}
         <section className="relative py-16 px-8">
           <div className="mx-auto max-w-3xl grid gap-10 sm:grid-cols-3">
-            {TESTIMONIALS.map(({ quote, role }) => (
-              <div key={role} data-reveal className="flex flex-col items-center text-center">
+            {TESTIMONIALS.map((quote) => (
+              <div key={quote} data-reveal className="flex flex-col items-center text-center">
                 <p
                   className="font-black leading-[1.18] tracking-tight text-white/75"
                   style={{ fontSize: "clamp(1rem,1.8vw,1.25rem)" }}
                 >
                   &ldquo;{quote}&rdquo;
                 </p>
-                <div className="mt-4 h-px w-6 bg-[#d4a853]/30" />
-                <p className="mt-3 font-mono text-[10px] tracking-[0.32em] uppercase text-white/25">{role}</p>
               </div>
             ))}
           </div>
