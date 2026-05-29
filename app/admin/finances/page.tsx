@@ -1,4 +1,4 @@
-import { DollarSign, TrendingUp, TrendingDown, Users, AlertCircle, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Users, AlertCircle, ArrowUpRight, ArrowDownRight, Minus, FlaskConical } from "lucide-react";
 import { stripe, PLANS, getPlanByPriceId } from "@/lib/stripe";
 import type Stripe from "stripe";
 
@@ -11,27 +11,38 @@ const fmtFull = (n: number) =>
 async function fetchFinancials() {
   if (!process.env.STRIPE_SECRET_KEY) return null;
 
-  // Paginate all active subscriptions
+  const isTestMode = process.env.STRIPE_SECRET_KEY.startsWith("sk_test_");
+
+  // Paginate all active subscriptions, expanding latest_invoice to verify real payment
   const activeSubs: Stripe.Subscription[] = [];
   let cursor: string | undefined;
   do {
-    const page = await stripe.subscriptions.list({ status: "active", limit: 100, starting_after: cursor, expand: ["data.items.data.price"] });
+    const page = await stripe.subscriptions.list({
+      status: "active",
+      limit: 100,
+      starting_after: cursor,
+      expand: ["data.items.data.price", "data.latest_invoice"],
+    });
     activeSubs.push(...page.data);
     cursor = page.has_more ? page.data[page.data.length - 1].id : undefined;
   } while (cursor);
 
-  // Fetch recently canceled subs and filter in-memory by canceled_at
-  const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
-  const recentCanceled = await stripe.subscriptions.list({ status: "canceled", limit: 100 });
-  const canceledSubs = recentCanceled.data.filter(
-    (s) => s.canceled_at != null && s.canceled_at >= thirtyDaysAgo
-  );
+  // Filter to only subscriptions with actual collected payment — excludes:
+  //   • $0 coupons / gifted accounts
+  //   • test subscriptions that were never charged
+  //   • free trials that haven't converted
+  const paidSubs = activeSubs.filter((sub) => {
+    const invoice = sub.latest_invoice as Stripe.Invoice | null;
+    if (!invoice) return false;
+    // Must have collected at least $1 (amount_paid is in cents)
+    return invoice.amount_paid != null && invoice.amount_paid >= 100;
+  });
 
-  // MRR: monthly equivalent of each active sub
+  // MRR: monthly equivalent of each verified-paid sub
   let mrr = 0;
   const planCounts: Record<string, { count: number; mrr: number }> = {};
 
-  for (const sub of activeSubs) {
+  for (const sub of paidSubs) {
     const item = sub.items.data[0];
     if (!item) continue;
     const price = item.price as Stripe.Price;
@@ -47,17 +58,47 @@ async function fetchFinancials() {
     planCounts[planKey].mrr += monthlyAmount;
   }
 
-  // Churn: canceled last 30d / (active + canceled last 30d)
-  const churnBase = activeSubs.length + canceledSubs.length;
+  // Canceled in last 30 days (verified: had real payment before canceling)
+  const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
+  const recentCanceled = await stripe.subscriptions.list({
+    status: "canceled",
+    limit: 100,
+    expand: ["data.latest_invoice"],
+  });
+  const canceledSubs = recentCanceled.data.filter((s) => {
+    if (s.canceled_at == null || s.canceled_at < thirtyDaysAgo) return false;
+    const invoice = s.latest_invoice as Stripe.Invoice | null;
+    return invoice?.amount_paid != null && invoice.amount_paid >= 100;
+  });
+
+  // Churn: canceled verified-paid / (active verified-paid + canceled verified-paid)
+  const churnBase = paidSubs.length + canceledSubs.length;
   const churnRate = churnBase > 0 ? (canceledSubs.length / churnBase) * 100 : 0;
 
-  // Recent events: last 20 subscription-related events
+  // Skipped subs: active but $0 / unverified (gifted, test, coupon-to-zero)
+  const skippedCount = activeSubs.length - paidSubs.length;
+
+  // Recent subscription events (real payment events only)
   const events = await stripe.events.list({
-    types: ["customer.subscription.created", "customer.subscription.deleted", "customer.subscription.updated"],
+    types: [
+      "customer.subscription.created",
+      "customer.subscription.deleted",
+      "customer.subscription.updated",
+    ],
     limit: 20,
   });
 
-  return { mrr, arr: mrr * 12, paidUsers: activeSubs.length, canceledLast30: canceledSubs.length, churnRate, planCounts, events: events.data };
+  return {
+    isTestMode,
+    mrr,
+    arr: mrr * 12,
+    paidUsers: paidSubs.length,
+    canceledLast30: canceledSubs.length,
+    churnRate,
+    planCounts,
+    skippedCount,
+    events: events.data,
+  };
 }
 
 function planLabel(key: string) {
@@ -99,10 +140,46 @@ export default async function FinancesPage() {
 
   return (
     <div className="p-8">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-white">Finances</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">Live Stripe revenue data</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-white">Finances</h1>
+          <p className="text-sm text-zinc-500 mt-0.5">
+            Live Stripe revenue data · verified paid only
+          </p>
+        </div>
+        {data.isTestMode && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5">
+            <FlaskConical className="h-3.5 w-3.5 text-amber-400" />
+            <span className="text-xs font-semibold text-amber-300">TEST MODE — not real revenue</span>
+          </div>
+        )}
       </div>
+
+      {/* Test mode banner */}
+      {data.isTestMode && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+          <div>
+            <p className="text-sm font-medium text-amber-300">Stripe is in test mode</p>
+            <p className="mt-0.5 text-xs text-amber-400/70">
+              Your <code className="font-mono">STRIPE_SECRET_KEY</code> starts with <code className="font-mono">sk_test_</code>.
+              All numbers below are fake test data. Switch to your live key (<code className="font-mono">sk_live_</code>) to see real revenue.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Skipped/gifted accounts notice */}
+      {data.skippedCount > 0 && (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
+          <p className="text-xs text-zinc-500">
+            <span className="font-medium text-zinc-400">{data.skippedCount} active Stripe subscription{data.skippedCount > 1 ? "s" : ""} excluded</span>
+            {" "}— no verified payment on record (gifted accounts, $0 coupons, or unconverted trials).
+            These are not counted in MRR or paid user totals.
+          </p>
+        </div>
+      )}
 
       {/* KPI row */}
       <div className="mb-8 grid grid-cols-4 gap-4">
@@ -124,7 +201,7 @@ export default async function FinancesPage() {
         <div className="col-span-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
           <h2 className="text-sm font-semibold text-zinc-300 mb-4">Revenue by Plan</h2>
           {planRows.length === 0 ? (
-            <p className="text-sm text-zinc-600">No active subscriptions yet.</p>
+            <p className="text-sm text-zinc-600">No verified paid subscriptions yet.</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -177,7 +254,7 @@ export default async function FinancesPage() {
               <p className="text-[11px] text-zinc-600 leading-relaxed">
                 {data.canceledLast30 === 0
                   ? "No cancellations in the last 30 days."
-                  : `${data.canceledLast30} subscription${data.canceledLast30 > 1 ? "s" : ""} canceled in the last 30 days out of ${data.paidUsers + data.canceledLast30} total.`}
+                  : `${data.canceledLast30} verified-paid subscription${data.canceledLast30 > 1 ? "s" : ""} canceled in the last 30 days.`}
               </p>
             </div>
           </div>
@@ -196,7 +273,9 @@ export default async function FinancesPage() {
                 const planKey = priceId ? getPlanByPriceId(priceId) : null;
                 const isNew = ev.type === "customer.subscription.created";
                 const isCanceled = ev.type === "customer.subscription.deleted";
-                const date = new Date(ev.created * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                const date = new Date(ev.created * 1000).toLocaleDateString("en-US", {
+                  month: "short", day: "numeric", year: "numeric",
+                });
 
                 return (
                   <div key={ev.id} className="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-white/[0.03] transition-colors">
@@ -222,6 +301,9 @@ export default async function FinancesPage() {
               })}
             </div>
           )}
+          <p className="mt-4 text-[11px] text-zinc-700">
+            Note: event log shows all Stripe subscription activity. MRR and paid-user counts above only include subscriptions with verified collected payments.
+          </p>
         </div>
 
       </div>
