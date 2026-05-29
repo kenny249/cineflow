@@ -139,6 +139,17 @@ function CallbackInner() {
           if (profile?.first_name || profile?.last_name) {
             const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
             localStorage.setItem("cf_display_name", fullName);
+          } else {
+            // Backfill name from OAuth provider metadata (e.g. Google given_name/family_name)
+            const firstName = (meta.given_name || meta.first_name || "").trim();
+            const lastName  = (meta.family_name || meta.last_name  || "").trim();
+            if (firstName || lastName) {
+              await supabase.from("profiles").update({
+                first_name: firstName || null,
+                last_name:  lastName  || null,
+              }).eq("id", user.id);
+              localStorage.setItem("cf_display_name", [firstName, lastName].filter(Boolean).join(" "));
+            }
           }
         }
       } catch { /* non-fatal */ }
