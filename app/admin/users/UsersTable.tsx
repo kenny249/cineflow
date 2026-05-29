@@ -126,8 +126,16 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, updates: { plan } }),
       });
+      const json = await res.json();
       if (res.ok) {
         toast.success(`Plan updated to ${PLAN_LABELS[plan] ?? plan}`);
+        if (plan === "lifetime") {
+          if (json.email?.sent) {
+            toast.success(`Lifetime gift email sent to ${json.email.to}`);
+          } else {
+            toast.error(`Lifetime email failed: ${json.email?.error ?? "unknown error"}`);
+          }
+        }
         setOpenMenu(null);
         window.location.reload();
       } else {
