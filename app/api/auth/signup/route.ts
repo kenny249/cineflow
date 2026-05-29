@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     if (inviteCode) {
       const { data: invite } = await supabase
         .from("invite_links")
-        .select("id, plan, uses, max_uses, access_type, trial_days, is_active")
+        .select("id, plan, uses, max_uses, access_type, trial_days, is_active, expires_at")
         .eq("code", (inviteCode as string).toUpperCase())
         .single();
 
@@ -42,6 +42,9 @@ export async function POST(req: NextRequest) {
       }
       if (invite.max_uses !== null && invite.uses >= invite.max_uses) {
         return NextResponse.json({ error: "This invite link has reached its maximum uses." }, { status: 400 });
+      }
+      if (invite.expires_at !== null && new Date(invite.expires_at as string) < new Date()) {
+        return NextResponse.json({ error: "This invite link has expired." }, { status: 400 });
       }
       invitePlan = invite.plan as string;
       inviteAccessType = (invite.access_type as string) ?? "standard";

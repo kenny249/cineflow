@@ -16,6 +16,14 @@ export async function POST(req: NextRequest) {
 
   const { project, profile, formData, crew, locations, sheet } = await req.json();
 
+  // Verify the caller owns the project before writing any files
+  const { count } = await supabase
+    .from("projects")
+    .select("id", { count: "exact", head: true })
+    .eq("id", project?.id)
+    .eq("created_by", user.id);
+  if (!count || count === 0) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   try {
     const element = createElement(CallSheetPDFDocument, {
       project, profile, formData, crew, locations, sheet,

@@ -391,6 +391,7 @@ export async function GET(req: NextRequest) {
   ]);
 
   if (invErr || !invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+  if (invoice.created_by !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   let logoBase64: string | undefined;
   if (profile?.logo_url) {

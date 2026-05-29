@@ -3,12 +3,24 @@ import { createClient } from "@/lib/supabase/server";
 
 type Params = { params: Promise<{ id: string }> };
 
+async function hasProjectAccess(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string, userId: string): Promise<boolean> {
+  const [{ count: ownerCount }, { count: collabCount }] = await Promise.all([
+    supabase.from("projects").select("id", { count: "exact", head: true }).eq("id", projectId).eq("created_by", userId),
+    supabase.from("project_collaborators").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("user_id", userId).eq("status", "active"),
+  ]);
+  return (ownerCount ?? 0) > 0 || (collabCount ?? 0) > 0;
+}
+
 // GET — fetch messages for a project (last 100)
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id: projectId } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!(await hasProjectAccess(supabase, projectId, user.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data, error } = await supabase
     .from("project_messages")
@@ -27,6 +39,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!(await hasProjectAccess(supabase, projectId, user.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await req.json() as { content: string; author_name: string };
   const content = body.content?.trim();

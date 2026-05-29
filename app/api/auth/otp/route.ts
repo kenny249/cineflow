@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { email, plan } = await req.json();
+    const { email } = await req.json();
 
     if (!email || typeof email !== "string") {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.auth.admin.createUser({
         email: trimmedEmail,
         email_confirm: true,
-        user_metadata: { plan: plan ?? "studio" },
+        user_metadata: { plan: "studio" },
       });
       if (error && !error.message.includes("already registered")) {
         console.error("[api/auth/otp] createUser:", error.message);

@@ -17,10 +17,12 @@ function CallbackInner() {
     const tokenHash   = searchParams.get("token_hash");
     const code        = searchParams.get("code");
     const type        = searchParams.get("type") ?? "email";
-    const next        = searchParams.get("next") ?? "/welcome";
+    const rawNext     = searchParams.get("next") ?? "/welcome";
+    // Only allow relative paths to prevent open-redirect attacks
+    const next        = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/welcome";
     const inviteCode  = searchParams.get("invite_code");
-    const accessType  = searchParams.get("access_type") ?? "standard";
-    const invitePlan  = searchParams.get("invite_plan");
+    // accessType and invitePlan from URL are intentionally ignored —
+    // plan is resolved from the invite_links table when inviteCode is present.
 
     if (!tokenHash && !code) {
       setErrorMsg("No authentication token found. Please request a new magic link.");
@@ -128,33 +130,44 @@ function CallbackInner() {
           }
         } else {
           // ── Owner signup ─────────────────────────────────────────────────
-          const effectivePlan = invitePlan ?? plan;
-          const planStatusPatch =
-            accessType === "founding"
-              ? { plan_status: "founding", trial_ends_at: null }
-              : {
+          // Always look up plan/access_type from DB when an invite code is present —
+          // never trust URL params which can be forged by the user.
+          let effectivePlan = plan; // user_metadata.plan (set server-side during regular signup)
+          let planStatusPatch: Record<string, unknown> = {
+            plan_status: "trialing",
+            trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          };
+
+          if (inviteCode) {
+            const { data: invite } = await supabase
+              .from("invite_links")
+              .select("id, uses, plan, access_type, trial_days, is_active, max_uses")
+              .eq("code", inviteCode.toUpperCase())
+              .single();
+
+            if (invite && invite.is_active !== false && (invite.max_uses === null || (invite.uses as number) < (invite.max_uses as number))) {
+              // Use DB values only — ignore client-supplied accessType / invitePlan
+              if (invite.access_type === "founding") {
+                planStatusPatch = { plan_status: "founding", trial_ends_at: null };
+              } else if (invite.access_type === "trial") {
+                const days = (invite.trial_days as number) ?? 30;
+                planStatusPatch = {
                   plan_status: "trialing",
-                  trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                  trial_ends_at: new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString(),
                 };
+              }
+              if (invite.plan) effectivePlan = invite.plan as string;
+
+              await supabase.from("invite_links").update({ uses: (invite.uses as number) + 1 }).eq("id", invite.id);
+              await supabase.from("invite_link_uses").insert({ invite_link_id: invite.id, user_id: user.id, email: user.email });
+            }
+          }
 
           await supabase.from("profiles").upsert(
             { id: user.id, email: user.email, plan: effectivePlan, workspace_id: user.id, updated_at: new Date().toISOString(), ...planStatusPatch },
             { onConflict: "id" }
           );
           sessionStorage.setItem("cf_plan", effectivePlan);
-
-          // Record invite link use if signed up via Google on an invite page
-          if (inviteCode) {
-            const { data: invite } = await supabase
-              .from("invite_links")
-              .select("id, uses")
-              .eq("code", inviteCode.toUpperCase())
-              .single();
-            if (invite) {
-              await supabase.from("invite_links").update({ uses: (invite.uses as number) + 1 }).eq("id", invite.id);
-              await supabase.from("invite_link_uses").insert({ invite_link_id: invite.id, user_id: user.id, email: user.email });
-            }
-          }
 
           const { data: profile } = await supabase
             .from("profiles")
