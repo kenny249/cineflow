@@ -351,8 +351,9 @@
 
 /* ── Landing page ─────────────────────────────────────────────────────── */
 
-/* CineFlow wordmark — scale+blur reveal, more cinematic than standard clip */
-.lp-cf-wordmark {
+/* CineFlow wordmark — apply blur/scale to the wrapper so gradient text renders correctly */
+.lp-cf-wordmark-wrap {
+  position: relative;
   opacity: 0;
   transform: scale(0.88) translateY(16px);
   filter: blur(14px);
@@ -361,7 +362,7 @@
     transform 1.3s cubic-bezier(0.16,1,0.3,1) 0.22s,
     filter   1.0s cubic-bezier(0.16,1,0.3,1) 0.22s;
 }
-[data-reveal="clip"].is-visible .lp-cf-wordmark {
+[data-reveal="clip"].is-visible .lp-cf-wordmark-wrap {
   opacity: 1;
   transform: scale(1) translateY(0);
   filter: blur(0);
@@ -392,22 +393,36 @@
 
 /* Fragment: wrapper drifts (translateY only), inner card rotates + fades in */
 @keyframes lp-frag-float {
-  to { transform: translateY(-11px); }
+  to { transform: translateY(-20px); }
 }
 @keyframes lp-frag-in {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 .lp-frag-wrap {
-  /* delay float until after the fade-in so it doesn't start from translateY 0 mid-animation */
   animation: lp-frag-float var(--fdur, 4s) ease-in-out calc(var(--fd, 0s) + 0.9s) infinite alternate;
-  /* mouse parallax — translate composites with the float transform */
   translate: var(--mpx, 0px) var(--mpy, 0px);
   transition: translate 0.55s cubic-bezier(0.25, 0, 0, 1);
 }
 .lp-frag-card {
+  pointer-events: auto;
+  cursor: default;
   rotate: var(--rot, 0deg);
+  scale: 1;
   animation: lp-frag-in 0.85s cubic-bezier(0.16,1,0.3,1) var(--fd, 0s) both;
+  transition:
+    background 0.22s ease,
+    border-color 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease,
+    scale 0.22s ease;
+}
+.lp-frag-card:hover {
+  scale: 1.07;
+  background: rgba(14,14,26,0.95) !important;
+  border-color: rgba(212,168,83,0.28) !important;
+  color: rgba(255,255,255,0.72) !important;
+  box-shadow: 0 0 20px rgba(212,168,83,0.07), 0 4px 14px rgba(0,0,0,0.45);
 }
 
 /* Clip text reveal — overflow:hidden wrapper + child slides up on trigger */

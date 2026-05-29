@@ -25,19 +25,19 @@ const PANELS = [
   {
     num: "01", tag: "Production",
     h: ["Your whole", "production.", "One view."] as const,
-    sub: "Shot lists, call sheets, and scheduling — everything your crew needs, right where your project lives.",
+    sub: "Shot lists, call sheets, and scheduling. Everything your crew needs, right where your project lives.",
     note: "Replaces StudioBinder + Notion",
   },
   {
     num: "02", tag: "Client Portal",
     h: ["Clients stay", "in the loop.", "Automatically."] as const,
-    sub: "Every client gets their own portal. They see progress, approve cuts, and sign off — without texting you.",
+    sub: "Every client gets their own portal. They see progress, approve cuts, and sign off. Without texting you.",
     note: 'No more "hey, are the videos done yet?"',
   },
   {
     num: "03", tag: "Payments",
     h: ["Stop chasing", "your own", "money."] as const,
-    sub: "Professional invoices, deposit collection, and automated reminders — right next to the project.",
+    sub: "Professional invoices, deposit collection, and automated reminders, right next to the project.",
     note: "Replaces HoneyBook + DocuSign",
   },
 ] as const;
@@ -157,7 +157,7 @@ export function LandingPage({ refCode }: Props) {
               Stop stitching your<br />production together.
             </h1>
             <p className="lp-hero-sub mt-6 max-w-sm text-[13px] leading-relaxed text-white/32">
-              Shot lists, client portals, invoicing, crew scheduling —<br />all flowing in one place. Finally.
+              Shot lists, client portals, invoicing, crew scheduling.<br />All flowing in one place. Finally.
             </p>
             <Link
               href={href}
@@ -183,7 +183,7 @@ export function LandingPage({ refCode }: Props) {
               style={{ fontSize: "clamp(1.9rem,3.6vw,3.2rem)" }}
             >
               StudioBinder. Frame.io.<br />HoneyBook. Slack.
-              <br /><span className="text-white/38">Not one of them talks to the other.</span>
+              <br /><span className="text-red-400/70">Not one of them talks to the other.</span>
             </p>
           </div>
 
@@ -228,7 +228,7 @@ export function LandingPage({ refCode }: Props) {
               style={{ fontSize: "clamp(1.9rem,3.6vw,3.2rem)" }}
             >
               Subscription after subscription.
-              <br /><span className="text-white/38">Something&apos;s always falling through the cracks.</span>
+              <br /><span className="text-red-400/70">Something&apos;s always falling through the cracks.</span>
             </p>
           </div>
 
@@ -265,8 +265,8 @@ export function LandingPage({ refCode }: Props) {
               </p>
             </div>
 
-            {/* Wordmark — dramatic scale+blur reveal instead of clip slide */}
-            <div className="relative" style={{ fontSize: "clamp(4.5rem,14vw,12rem)" }}>
+            {/* Wordmark — blur/scale applied to wrapper so gradient text animates correctly */}
+            <div className="lp-cf-wordmark-wrap" style={{ fontSize: "clamp(4.5rem,14vw,12rem)" }}>
               <div
                 className="lp-cf-glow pointer-events-none absolute inset-0 -z-10"
                 style={{
@@ -275,7 +275,7 @@ export function LandingPage({ refCode }: Props) {
                 }}
               />
               <div
-                className="lp-cf-wordmark font-black leading-none tracking-tighter"
+                className="font-black leading-none tracking-tighter"
                 style={{
                   background: "linear-gradient(135deg,#ffffff 34%,#d4a853 63%,#fff3c4 100%)",
                   WebkitBackgroundClip: "text",
@@ -289,7 +289,7 @@ export function LandingPage({ refCode }: Props) {
             <div className="lp-clip mt-7">
               <p className="lp-clip-inner mx-auto max-w-sm text-[13px] leading-relaxed text-white/28"
                 style={{ "--di": "0.30s" } as React.CSSProperties}>
-                Everything your production runs on — finally in one place.
+                Everything your production runs on. Finally in one place.
               </p>
             </div>
           </div>
@@ -307,7 +307,7 @@ export function LandingPage({ refCode }: Props) {
                 <div className="lp-clip mb-6">
                   <p className="lp-clip-inner font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48"
                     style={{ "--di": "0s" } as React.CSSProperties}>
-                    {panel.num} — {panel.tag}
+                    {panel.num} · {panel.tag}
                   </p>
                 </div>
                 <div
