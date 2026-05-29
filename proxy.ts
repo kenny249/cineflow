@@ -23,6 +23,7 @@ const PUBLIC_PREFIXES = [
 
 function isPublic(pathname: string): boolean {
   if (pathname === "/") return true;
+  if (pathname.startsWith("/_next/")) return true;
   return PUBLIC_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + "?")
   );
