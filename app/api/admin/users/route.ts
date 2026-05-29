@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
@@ -58,9 +58,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
 
-  // Send lifetime gift email (non-blocking — DB update already succeeded)
+  // Send lifetime gift email after the response returns (after() survives serverless termination)
   if (updates.plan === "lifetime" && process.env.RESEND_API_KEY) {
-    (async () => {
+    after(async () => {
       try {
         const [{ data: authData }, { data: profile }] = await Promise.all([
           admin.auth.admin.getUserById(userId),
@@ -86,7 +86,7 @@ export async function PATCH(req: NextRequest) {
       } catch (err) {
         console.error("[api/admin/users PATCH] lifetime email error:", err);
       }
-    })();
+    });
   }
 
   return NextResponse.json({ success: true });
