@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.auth.admin.createUser({
         email: trimmedEmail,
         email_confirm: true,
-        user_metadata: { plan: plan ?? "studio_beta" },
+        user_metadata: { plan: plan ?? "studio" },
       });
       if (error && !error.message.includes("already registered")) {
         console.error("[api/auth/otp] createUser:", error.message);

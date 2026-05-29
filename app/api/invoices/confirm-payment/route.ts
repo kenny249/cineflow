@@ -14,7 +14,6 @@ function getAdmin() {
 // Verifies the Stripe checkout session is actually paid, then marks the invoice paid.
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  console.log("[confirm-payment] POST ip:", ip);
   if (isRateLimited(`confirm-payment:${ip}`, 20, 60_000)) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -71,6 +70,5 @@ export async function POST(req: NextRequest) {
     })
     .eq("id", invoiceId);
 
-  console.log("[confirm-payment] invoice marked paid:", invoiceId);
   return NextResponse.json({ ok: true, paid: true });
 }

@@ -68,8 +68,6 @@ export async function GET(
     deliverables = dels ?? [];
   }
 
-  console.log(`[retainer-portal] GET token=${token.slice(0, 8)}… retainer=${retainer.id} activeMonth=${activeMonth?.id ?? "none"}`);
-
   return NextResponse.json({
     retainer: {
       client_name: retainer.client_name,
@@ -129,7 +127,6 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  console.log(`[retainer-portal] month ${monthId} approved via portal`);
   return NextResponse.json({ approved: true });
 }
 

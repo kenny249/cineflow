@@ -133,7 +133,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "token required" }, { status: 400 });
     }
 
-    console.log("[quotes/accept] token:", token.slice(0, 8), "declined:", !!declined);
     const supabase = getAdminClient();
 
     const { data: quote } = await supabase
@@ -163,7 +162,6 @@ export async function POST(req: NextRequest) {
         .from("quotes")
         .update({ status: "declined", declined_at: new Date().toISOString() })
         .eq("id", quote.id);
-      console.log("[quotes/accept] declined quote:", quote.id);
       return NextResponse.json({ ok: true, status: "declined" });
     }
 
@@ -184,8 +182,6 @@ export async function POST(req: NextRequest) {
         ...(selectedPackageId ? { accepted_package_id: selectedPackageId } : {}),
       })
       .eq("id", quote.id);
-
-    console.log("[quotes/accept] accepted quote:", quote.id, "by:", trimmedName);
 
     // Auto-create retainer record when a retainer quote is accepted
     if (quote.quote_type === "retainer" && quote.client_name && quote.created_by) {

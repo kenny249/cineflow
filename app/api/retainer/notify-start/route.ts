@@ -104,7 +104,6 @@ export async function POST(req: NextRequest) {
       html,
     });
 
-    console.log(`[retainer/notify-start] kickoff email sent to ${retainer.client_email} for retainer ${retainerId}`);
     return NextResponse.json({ sent: 1 });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Failed to send";

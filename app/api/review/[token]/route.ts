@@ -17,7 +17,6 @@ export async function GET(
   }
 
   const { token } = await params;
-  console.log("[review/GET] token:", token.slice(0, 8), "ip:", ip);
   const supabase = await createClient();
 
   const { data: tokenRow, error: tokenError } = await supabase
@@ -84,7 +83,6 @@ export async function POST(
   }
 
   const { token } = await params;
-  console.log("[review/POST] comment submission, token:", token.slice(0, 8));
   const supabase = await createClient();
 
   const { data: tokenRow, error: tokenError } = await supabase
@@ -161,7 +159,6 @@ export async function PATCH(
   }
 
   const { token } = await params;
-  console.log("[review/PATCH] client action, token:", token.slice(0, 8));
   const supabase = await createClient();
 
   // Validate token
@@ -225,8 +222,6 @@ export async function PATCH(
     console.error("[review/PATCH] failed to update revision:", updateError.message);
     return NextResponse.json({ error: "Failed to update revision" }, { status: 500 });
   }
-
-  console.log("[review/PATCH] action:", action, "revision:", revision_id, "new status:", newStatus);
 
   // Create in-app notification for the project owner
   const notifTitle = action === "approve"

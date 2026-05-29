@@ -11,6 +11,5 @@ export async function GET() {
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com").trim();
   const url = `${base}/api/calendar/${token}`;
 
-  console.log(`[calendar/token] generated feed URL for user ${user.id.slice(0, 8)}…`);
   return NextResponse.json({ url });
 }

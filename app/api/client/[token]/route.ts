@@ -21,7 +21,6 @@ export async function GET(
   }
 
   const { token } = await params;
-  console.log("[client/portal] GET token:", token.slice(0, 8));
   const supabaseAdmin = getAdmin();
 
   // Look up portal by token
@@ -60,7 +59,6 @@ export async function GET(
     deliverables = data ?? [];
   }
 
-  console.log("[client/portal] served", (projects ?? []).length, "projects,", deliverables.length, "deliverables for", portal.client_name);
   return NextResponse.json({
     client_name: portal.client_name,
     projects: projects ?? [],

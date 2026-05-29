@@ -112,8 +112,6 @@ export async function GET(
     "END:VCALENDAR",
   ].join("\r\n");
 
-  console.log(`[calendar/feed] served ${(events ?? []).length} events for user ${userId.slice(0, 8)}…`);
-
   return new NextResponse(ics, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",

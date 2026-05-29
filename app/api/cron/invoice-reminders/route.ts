@@ -273,6 +273,5 @@ export async function GET(req: Request) {
     }
   }
 
-  console.log(`[cron/invoice-reminders] flipped=${overdueFlipped} reminders_sent=${remindersSent}`);
   return NextResponse.json({ processed: invoices.length, overdueFlipped, remindersSent });
 }

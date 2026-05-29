@@ -219,8 +219,6 @@ export async function POST(req: NextRequest) {
     );
 
     const sent = results.filter((r) => r.status === "fulfilled").length;
-    console.log(`[calendar/notify] sent ${sent}/${recipientEmails.length} client notification(s) for event ${eventId}`);
-
     return NextResponse.json({ sent, total: recipientEmails.length });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Failed to send notifications";

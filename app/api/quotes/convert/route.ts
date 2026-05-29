@@ -12,7 +12,6 @@ function getAdminClient() {
 }
 
 export async function POST(req: NextRequest) {
-  console.log("[quotes/convert] POST");
   try {
     // Auth check — only the quote owner can convert
     const cookieStore = await cookies();
