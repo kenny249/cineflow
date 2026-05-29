@@ -13,10 +13,11 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AvatarGroup } from "@/components/shared/AvatarGroup";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText } from "lucide-react";
 import { CallSheetGenerator } from "@/components/call-sheet/CallSheetGenerator";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
@@ -329,6 +330,10 @@ export default function ProjectDetailTabs({
   const [portalToken, setPortalToken] = useState<ReviewToken | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [portalCreating, setPortalCreating] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
+  const [archivingProject, setArchivingProject] = useState(false);
+  const [savingTemplateFromMenu, setSavingTemplateFromMenu] = useState(false);
   const [portalClientName, setPortalClientName] = useState(project.client_name ?? "");
   const [portalClientEmail, setPortalClientEmail] = useState(project.client_email ?? "");
   const [portalShowForm, setPortalShowForm] = useState(false);
@@ -337,7 +342,13 @@ export default function ProjectDetailTabs({
   const deliverablesLoadedRef = useRef(false);
   const [newDeliverable, setNewDeliverable] = useState("");
 
-  // Load existing token when portal tab is first mounted
+  // Eagerly load portal token so it's available in the "..." menu without opening the portal tab
+  useEffect(() => {
+    getProjectReviewToken(project.id).then(setPortalToken).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id]);
+
+  // Load existing token when portal tab is first mounted (also loads deliverables)
   const portalLoadedRef = useRef(false);
   function loadPortalToken() {
     if (portalLoadedRef.current) return;
@@ -414,6 +425,58 @@ export default function ProjectDetailTabs({
     navigator.clipboard.writeText(portalUrl(portalToken.token));
     setPortalCopied(true);
     setTimeout(() => setPortalCopied(false), 2000);
+  }
+
+  function handleCopyProjectLink() {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success("Project link copied");
+  }
+
+  async function handleArchiveProject() {
+    setArchivingProject(true);
+    try {
+      await updateProject(project.id, { status: "archived" });
+      setStatus("archived");
+      toast.success("Project archived");
+      router.push("/projects");
+    } catch {
+      toast.error("Failed to archive project");
+    } finally {
+      setArchivingProject(false);
+    }
+  }
+
+  async function handleDeleteProject() {
+    setDeletingProject(true);
+    try {
+      await softDeleteProject(project.id);
+      toast.success("Project deleted");
+      router.push("/projects");
+    } catch {
+      toast.error("Failed to delete project");
+    } finally {
+      setDeletingProject(false);
+      setShowDeleteConfirm(false);
+    }
+  }
+
+  async function handleSaveAsTemplateFromMenu() {
+    setSavingTemplateFromMenu(true);
+    try {
+      await createProjectTemplate({
+        name: title,
+        description: description,
+        type: project.type,
+        tasks: [],
+        deliverables: [],
+        tags: project.tags ?? [],
+      });
+      toast.success("Saved as template");
+    } catch {
+      toast.error("Failed to save template");
+    } finally {
+      setSavingTemplateFromMenu(false);
+    }
   }
 
   async function addDeliverable() {
@@ -1262,15 +1325,87 @@ export default function ProjectDetailTabs({
                 <span className="hidden sm:inline">Edit</span>
               </Button>
             )}
-            <Button variant="ghost" size="icon-sm" type="button" onClick={() => toast(`More actions coming soon.`)}>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon-sm" type="button">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={handleCopyProjectLink}>
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Copy project link
+                </DropdownMenuItem>
+                {portalToken ? (
+                  <DropdownMenuItem onClick={() => window.open(portalUrl(portalToken.token), "_blank")}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    View client portal
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => setActiveTab("portal")}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Set up client portal
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSaveAsTemplateFromMenu} disabled={savingTemplateFromMenu}>
+                  <LayoutTemplate className="mr-2 h-4 w-4" />
+                  {savingTemplateFromMenu ? "Saving…" : "Save as template"}
+                </DropdownMenuItem>
+                {isAdmin && (
+                  <DropdownMenuItem
+                    onClick={handleArchiveProject}
+                    disabled={archivingProject || status === "archived"}
+                  >
+                    <Archive className="mr-2 h-4 w-4" />
+                    {archivingProject ? "Archiving…" : status === "archived" ? "Archived" : "Archive project"}
+                  </DropdownMenuItem>
+                )}
+                {isAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="text-red-400 focus:bg-red-500/10 focus:text-red-400"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete project
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {callSheetOpen && (
             <CallSheetGenerator project={project} onClose={() => setCallSheetOpen(false)} />
           )}
         </div>
+
+        {/* Delete confirmation */}
+        <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Delete project?</DialogTitle>
+              <DialogDescription>
+                <span className="font-semibold text-foreground">&ldquo;{title}&rdquo;</span> and all its data will be permanently deleted. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)} disabled={deletingProject}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleDeleteProject}
+                disabled={deletingProject}
+              >
+                {deletingProject ? "Deleting…" : "Delete project"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="relative h-28 sm:h-36 w-full overflow-hidden" data-cover>
           {coverUrl ? (
