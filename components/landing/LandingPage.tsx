@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { Film } from "lucide-react";
+import { Film, Check } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
 import { scrollState } from "./scrollState";
 
@@ -42,6 +42,56 @@ const PANELS = [
   },
 ] as const;
 
+const LP_PLANS = [
+  {
+    name: "Solo",
+    price: 39,
+    seats: "1 filmmaker",
+    features: [
+      "Unlimited projects",
+      "Shot lists + storyboards",
+      "Client review portals",
+      "Invoicing + contracts",
+      "AI-powered tools",
+    ],
+    popular: false,
+  },
+  {
+    name: "Studio",
+    price: 79,
+    seats: "Up to 5 team members",
+    features: [
+      "Everything in Solo",
+      "Team collaboration",
+      "Revision workflows",
+      "Retainer management",
+      "Priority support",
+    ],
+    popular: true,
+  },
+  {
+    name: "Agency",
+    price: 159,
+    seats: "Up to 15 team members",
+    features: [
+      "Everything in Studio",
+      "Advanced analytics",
+      "Multi-client management",
+      "Dedicated support",
+    ],
+    popular: false,
+  },
+] as const;
+
+const ROLES = [
+  "Independent DPs",
+  "Wedding Filmmakers",
+  "Commercial Directors",
+  "Music Video Producers",
+  "Freelance Editors",
+  "Small Production Studios",
+] as const;
+
 export function LandingPage({ refCode }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
 
@@ -51,7 +101,6 @@ export function LandingPage({ refCode }: Props) {
     (async () => {
       const { default: Lenis } = await import("lenis");
 
-      // Smooth scroll — no GSAP, no triggers, just buttery deceleration
       const lenis = new Lenis({ lerp: 0.10, smoothWheel: true });
       lenis.on("scroll", ({ progress }: { progress: number }) => {
         scrollState.prog = progress;
@@ -60,7 +109,6 @@ export function LandingPage({ refCode }: Props) {
       function tick(t: number) { lenis.raf(t); rafId = requestAnimationFrame(tick); }
       rafId = requestAnimationFrame(tick);
 
-      // Mouse parallax — makes the hero feel alive without any scroll dependency
       const frags = Array.from(document.querySelectorAll<HTMLElement>(".lp-frag-wrap"));
       function onMove(e: MouseEvent) {
         const x = e.clientX / window.innerWidth  - 0.5;
@@ -73,7 +121,6 @@ export function LandingPage({ refCode }: Props) {
       }
       window.addEventListener("mousemove", onMove);
 
-      // Scroll reveals — IntersectionObserver adds .is-visible, CSS does the rest
       const io = new IntersectionObserver(
         (entries) => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("is-visible"); }),
         { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
@@ -116,11 +163,11 @@ export function LandingPage({ refCode }: Props) {
         {/* ══ HERO ══════════════════════════════════════════════════════ */}
         <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 text-center">
 
-          {/* Chaos fragments — CSS float, no JS per frame */}
+          {/* Hidden on mobile — overlap hero content on small screens */}
           {FRAGMENTS.map((f, i) => (
             <div
               key={i}
-              className="lp-frag-wrap absolute pointer-events-none"
+              className="lp-frag-wrap absolute pointer-events-none hidden sm:block"
               style={{ left: f.x, top: f.y, "--fd": `${f.d}s`, "--fdur": `${f.dur}s` } as React.CSSProperties}
             >
               <div
@@ -141,14 +188,13 @@ export function LandingPage({ refCode }: Props) {
             </div>
           ))}
 
-          {/* Hero content — staggered CSS keyframe load-in */}
           <div className="relative z-10 flex flex-col items-center">
             <div
               className="lp-hero-line mb-12 h-px w-56"
               style={{ background: "linear-gradient(90deg,transparent,rgba(212,168,83,0.42),transparent)" }}
             />
-            <p className="lp-hero-kicker mb-5 text-[11px] font-medium tracking-[0.32em] uppercase text-white/28">
-              For filmmakers and video production teams
+            <p className="lp-hero-kicker mb-5 text-[11px] font-medium tracking-[0.32em] uppercase text-white/40">
+              The all-in-one studio platform
             </p>
             <h1
               className="lp-hero-headline max-w-3xl font-sans font-black leading-[1.04] tracking-tighter text-white"
@@ -156,7 +202,7 @@ export function LandingPage({ refCode }: Props) {
             >
               Stop stitching your<br />production together.
             </h1>
-            <p className="lp-hero-sub mt-6 max-w-sm text-[13px] leading-relaxed text-white/32">
+            <p className="lp-hero-sub mt-6 max-w-sm text-[13px] leading-relaxed text-white/48">
               Shot lists, client portals, invoicing, crew scheduling.<br />All flowing in one place. Finally.
             </p>
             <Link
@@ -165,6 +211,9 @@ export function LandingPage({ refCode }: Props) {
             >
               Start for free →
             </Link>
+            <p className="lp-hero-trust mt-3 font-mono text-[9px] tracking-[0.28em] uppercase text-white/22">
+              No credit card required · Cancel anytime
+            </p>
           </div>
 
           <div className="lp-hero-scroll absolute bottom-10 flex flex-col items-center gap-3">
@@ -190,10 +239,10 @@ export function LandingPage({ refCode }: Props) {
           {/* Receipt card — cost comparison */}
           <div data-reveal className="w-full max-w-[300px]">
             <div
-              className="rounded-2xl border border-white/[0.07] px-6 py-5"
+              className="rounded-2xl border border-white/[0.08] px-6 py-5"
               style={{ background: "rgba(5,5,12,0.9)", backdropFilter: "blur(16px)" }}
             >
-              <p className="mb-4 font-mono text-[9px] tracking-[0.38em] uppercase text-white/18">What you&apos;re already paying</p>
+              <p className="mb-4 font-mono text-[9px] tracking-[0.38em] uppercase text-white/40">What you&apos;re already paying</p>
               <div className="space-y-2.5">
                 {[
                   { name: "StudioBinder", price: "29" },
@@ -202,22 +251,22 @@ export function LandingPage({ refCode }: Props) {
                   { name: "Slack",        price: "7"  },
                 ].map(({ name, price }) => (
                   <div key={name} className="flex items-baseline justify-between">
-                    <span className="font-mono text-[11px] text-white/30">{name}</span>
-                    <span className="font-mono text-[11px] text-white/22">${price}<span className="text-[9px] text-white/14">/mo</span></span>
+                    <span className="font-mono text-[11px] text-white/55">{name}</span>
+                    <span className="font-mono text-[11px] text-white/45">${price}<span className="text-[9px] text-white/28">/mo</span></span>
                   </div>
                 ))}
               </div>
-              <div className="my-4 border-t border-dashed border-white/[0.08]" />
+              <div className="my-4 border-t border-dashed border-white/[0.10]" />
               <div className="flex items-baseline justify-between">
-                <span className="font-mono text-[11px] text-white/35">Total</span>
-                <span className="font-mono text-sm font-semibold text-red-400/55 line-through">$91/mo</span>
+                <span className="font-mono text-[11px] text-white/55">Total</span>
+                <span className="font-mono text-sm font-semibold text-red-400/80 line-through">$91/mo</span>
               </div>
-              <div className="mt-4 rounded-xl border border-[#d4a853]/18 bg-[#d4a853]/[0.04] px-4 py-3">
+              <div className="mt-4 rounded-xl border border-[#d4a853]/25 bg-[#d4a853]/[0.06] px-4 py-3">
                 <div className="flex items-baseline justify-between">
-                  <span className="font-mono text-[11px] text-[#d4a853]/70">CineFlow</span>
-                  <span className="font-mono text-sm font-bold text-[#d4a853]">from $39<span className="text-xs text-[#d4a853]/55">/mo</span></span>
+                  <span className="font-mono text-[11px] text-[#d4a853]/90">CineFlow</span>
+                  <span className="font-mono text-sm font-bold text-[#d4a853]">from $39<span className="text-xs text-[#d4a853]/60">/mo</span></span>
                 </div>
-                <p className="mt-1 font-mono text-[9px] text-[#d4a853]/30">one subscription. everything.</p>
+                <p className="mt-1 font-mono text-[9px] text-[#d4a853]/50">one subscription. everything.</p>
               </div>
             </div>
           </div>
@@ -249,6 +298,15 @@ export function LandingPage({ refCode }: Props) {
                 There&apos;s a better way.
               </p>
             </div>
+            <div className="lp-clip mt-8">
+              <Link
+                href={href}
+                className="lp-clip-inner inline-block rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
+                style={{ "--di": "0.34s" } as React.CSSProperties}
+              >
+                Start for free →
+              </Link>
+            </div>
           </div>
         </section>
 
@@ -265,7 +323,7 @@ export function LandingPage({ refCode }: Props) {
               </p>
             </div>
 
-            {/* Wordmark — blur/scale applied to wrapper so gradient text animates correctly */}
+            {/* Wordmark — blur/scale applied to wrapper so gradient text renders correctly */}
             <div className="lp-cf-wordmark-wrap" style={{ fontSize: "clamp(4.5rem,14vw,12rem)" }}>
               <div
                 className="lp-cf-glow pointer-events-none absolute inset-0 -z-10"
@@ -322,15 +380,146 @@ export function LandingPage({ refCode }: Props) {
                   <div className="lp-clip-inner h-px w-8 bg-[#d4a853]/22" style={{ "--di": "0.30s" } as React.CSSProperties} />
                 </div>
                 <div className="lp-clip">
-                  <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/28"
+                  <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/48"
                     style={{ "--di": "0.36s" } as React.CSSProperties}>{panel.sub}</p>
                 </div>
                 <div className="lp-clip mt-5">
-                  <p className="lp-clip-inner font-mono text-[9px] tracking-[0.32em] uppercase text-white/14"
+                  <p className="lp-clip-inner font-mono text-[9px] tracking-[0.32em] uppercase text-white/18"
                     style={{ "--di": "0.42s" } as React.CSSProperties}>{panel.note}</p>
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* ══ WHO IT'S FOR ══════════════════════════════════════════════ */}
+        <section className="relative py-24 px-8 text-center">
+          <div data-reveal className="mx-auto max-w-2xl">
+            <p className="mb-6 font-mono text-[10px] tracking-[0.42em] uppercase text-white/20">Who it&apos;s for</p>
+            <p
+              className="mb-10 font-black leading-[1.1] tracking-tighter text-white"
+              style={{ fontSize: "clamp(1.6rem,3vw,2.6rem)" }}
+            >
+              Built for everyone who makes<br />
+              <span className="text-white/35">things happen on set.</span>
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {ROLES.map(role => (
+                <span
+                  key={role}
+                  className="rounded-full border border-white/[0.09] px-4 py-1.5 font-mono text-[11px] text-white/40"
+                  style={{ background: "rgba(255,255,255,0.02)" }}
+                >
+                  {role}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ══ PRICING ═══════════════════════════════════════════════════ */}
+        <section className="relative py-24 px-8">
+          <div className="mx-auto max-w-4xl">
+
+            <div data-reveal className="mb-14 text-center">
+              <p className="mb-4 font-mono text-[10px] tracking-[0.42em] uppercase text-white/20">Pricing</p>
+              <h2
+                className="font-black leading-[1.06] tracking-tighter text-white"
+                style={{ fontSize: "clamp(2rem,4vw,3.2rem)" }}
+              >
+                Simple, honest pricing.
+              </h2>
+              <p className="mt-4 text-[13px] text-white/40">
+                30-day free trial on every plan. No credit card required.
+              </p>
+              <p className="mt-1.5 font-mono text-[10px] text-[#d4a853]/55 tracking-wide">
+                Save ~20% with annual billing
+              </p>
+            </div>
+
+            <div data-reveal className="grid gap-4 sm:grid-cols-3">
+              {LP_PLANS.map((plan) => (
+                <div
+                  key={plan.name}
+                  className="relative flex flex-col rounded-2xl p-6"
+                  style={{
+                    background: plan.popular ? "rgba(212,168,83,0.05)" : "rgba(255,255,255,0.02)",
+                    border: plan.popular ? "1px solid rgba(212,168,83,0.25)" : "1px solid rgba(255,255,255,0.06)",
+                  }}
+                >
+                  {plan.popular && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                      <span className="rounded-full bg-[#d4a853] px-3 py-0.5 font-mono text-[9px] font-bold uppercase tracking-widest text-black">
+                        Most popular
+                      </span>
+                    </div>
+                  )}
+
+                  <p className={`mb-1 text-sm font-semibold ${plan.popular ? "text-[#d4a853]" : "text-white/80"}`}>
+                    {plan.name}
+                  </p>
+                  <p className="mb-5 font-mono text-[11px] text-white/28">{plan.seats}</p>
+
+                  <div className="mb-6">
+                    <span className={`text-3xl font-black ${plan.popular ? "text-[#d4a853]" : "text-white"}`}>
+                      ${plan.price}
+                    </span>
+                    <span className="ml-1 text-xs text-white/28">/mo</span>
+                  </div>
+
+                  <ul className="mb-8 flex-1 space-y-2.5">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5 text-xs text-white/45">
+                        <Check className={`mt-0.5 h-3 w-3 shrink-0 ${plan.popular ? "text-[#d4a853]" : "text-white/28"}`} />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Link
+                    href={href}
+                    className={`block w-full rounded-xl py-2.5 text-center text-xs font-bold transition-all ${
+                      plan.popular
+                        ? "bg-[#d4a853] text-black hover:bg-[#d4a853]/90 hover:shadow-[0_0_28px_rgba(212,168,83,0.22)]"
+                        : "border border-white/[0.08] text-white/55 hover:border-[#d4a853]/30 hover:text-[#d4a853]"
+                    }`}
+                  >
+                    Start free trial
+                  </Link>
+                </div>
+              ))}
+            </div>
+
+            {/* Lifetime */}
+            <div
+              data-reveal
+              className="mt-5 flex flex-col items-center justify-between gap-4 rounded-2xl px-6 py-5 sm:flex-row"
+              style={{ border: "1px solid rgba(212,168,83,0.15)", background: "rgba(212,168,83,0.03)" }}
+            >
+              <div>
+                <p className="text-sm font-semibold text-white/65">
+                  Lifetime Access · $299
+                  <span className="ml-2 font-mono text-[10px] text-white/22">one-time payment</span>
+                </p>
+                <p className="mt-0.5 font-mono text-[11px] text-white/28">
+                  Solo-level features · 1 seat · forever · limited to 500 licenses
+                </p>
+              </div>
+              <Link
+                href={href}
+                className="shrink-0 rounded-xl border border-[#d4a853]/30 bg-[#d4a853]/[0.08] px-5 py-2.5 font-mono text-xs font-semibold text-[#d4a853] transition-all hover:bg-[#d4a853]/[0.15]"
+              >
+                Get lifetime access
+              </Link>
+            </div>
+
+            <p data-reveal className="mt-8 text-center font-mono text-[10px] text-white/18">
+              Need more? Enterprise (unlimited seats) starts at $299/mo ·{" "}
+              <a href="mailto:hello@usecineflow.com" className="text-[#d4a853]/50 transition-colors hover:text-[#d4a853]/80">
+                hello@usecineflow.com
+              </a>
+            </p>
+
           </div>
         </section>
 
@@ -349,12 +538,12 @@ export function LandingPage({ refCode }: Props) {
               <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.10s" } as React.CSSProperties}>Finally.</div></div>
             </div>
             <div className="lp-clip mb-5">
-              <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/24"
+              <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/40"
                 style={{ "--di": "0.20s" } as React.CSSProperties}>
                 Join filmmakers and video teams already running their productions on CineFlow.
               </p>
             </div>
-            <div className="lp-clip mb-5 mt-1">
+            <div className="lp-clip mb-2 mt-1">
               <Link
                 href={href}
                 className="lp-clip-inner block rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(212,168,83,0.35)]"
@@ -363,10 +552,16 @@ export function LandingPage({ refCode }: Props) {
                 Start for free →
               </Link>
             </div>
+            <div className="lp-clip mb-5">
+              <p className="lp-clip-inner font-mono text-[9px] tracking-[0.28em] uppercase text-white/22"
+                style={{ "--di": "0.36s" } as React.CSSProperties}>
+                No credit card required · Cancel anytime
+              </p>
+            </div>
             <div className="lp-clip">
               <p className="lp-clip-inner font-mono text-[9px] tracking-[0.32em] uppercase text-white/18"
-                style={{ "--di": "0.38s" } as React.CSSProperties}>
-                Replaces a ton of subscriptions. Starts at $39/mo.
+                style={{ "--di": "0.44s" } as React.CSSProperties}>
+                Replaces 4+ subscriptions. Starts at $39/mo.
               </p>
             </div>
           </div>

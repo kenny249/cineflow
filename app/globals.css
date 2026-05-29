@@ -385,6 +385,7 @@
 .lp-hero-headline { animation: lp-slide-up 1.0s cubic-bezier(0.16,1,0.3,1) 0.42s  both; }
 .lp-hero-sub      { animation: lp-slide-up 0.9s cubic-bezier(0.16,1,0.3,1) 0.58s  both; }
 .lp-hero-cta      { animation: lp-slide-up 0.9s cubic-bezier(0.16,1,0.3,1) 0.74s  both; }
+.lp-hero-trust    { animation: lp-slide-up 0.9s cubic-bezier(0.16,1,0.3,1) 0.88s  both; }
 .lp-hero-scroll   {
   animation:
     lp-slide-up   0.9s cubic-bezier(0.16,1,0.3,1) 1.05s both,
