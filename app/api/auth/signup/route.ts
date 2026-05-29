@@ -84,10 +84,11 @@ export async function POST(req: NextRequest) {
       profilePatch.plan_status = "trialing";
       profilePatch.trial_ends_at = trialEndsAt;
     } else {
-      // Standard 30-day trial
+      // Standard 30-day trial on Studio
       const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       profilePatch.plan_status = "trialing";
       profilePatch.trial_ends_at = trialEndsAt;
+      profilePatch.plan = "studio";
     }
 
     if (invitePlan) profilePatch.plan = invitePlan;

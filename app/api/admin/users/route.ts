@@ -82,7 +82,7 @@ export async function PATCH(req: NextRequest) {
             const resend = new Resend(process.env.RESEND_API_KEY);
             const { subject, html } = emailLifetimeGift({
               recipientName: name,
-              loginUrl: "https://app.usecineflow.com/dashboard",
+              loginUrl: "https://www.usecineflow.com/dashboard",
             });
             const { data: sent, error: sendErr } = await resend.emails.send({
               from: "CineFlow <notifications@usecineflow.com>",
