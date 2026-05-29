@@ -130,11 +130,11 @@ export function InviteSignupForm({ inviteCode, accessType, invitePlan }: Props) 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="first-name" className="text-xs">First name</Label>
-              <Input id="first-name" placeholder="Kenneth" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+              <Input id="first-name" placeholder="First name" autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="last-name" className="text-xs">Last name</Label>
-              <Input id="last-name" placeholder="Garcia" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+              <Input id="last-name" placeholder="Last name" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
             </div>
           </div>
           <div className="space-y-1.5">

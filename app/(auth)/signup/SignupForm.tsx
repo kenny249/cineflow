@@ -123,7 +123,7 @@ export function SignupForm({
           <Label htmlFor="first-name">First name</Label>
           <Input
             id="first-name"
-            placeholder="Kenneth"
+            placeholder="First name"
             autoComplete="given-name"
             value={firstName}
             onChange={(event) => setFirstName(event.target.value)}
@@ -134,7 +134,7 @@ export function SignupForm({
           <Label htmlFor="last-name">Last name</Label>
           <Input
             id="last-name"
-            placeholder="Garcia"
+            placeholder="Last name"
             autoComplete="family-name"
             value={lastName}
             onChange={(event) => setLastName(event.target.value)}
@@ -160,7 +160,7 @@ export function SignupForm({
         <Label htmlFor="company">Studio / Company</Label>
         <Input
           id="company"
-          placeholder="Maltav Media"
+          placeholder="Your studio name"
           autoComplete="organization"
           value={company}
           onChange={(event) => setCompany(event.target.value)}
