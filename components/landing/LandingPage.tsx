@@ -92,7 +92,7 @@ export function LandingPage({ refCode }: Props) {
   }, []);
 
   return (
-    <>
+    <div style={{ background: "#050508" }}>
       <BackgroundCanvas />
 
       {/* Nav */}
@@ -335,6 +335,6 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
       </div>
-    </>
+    </div>
   );
 }
