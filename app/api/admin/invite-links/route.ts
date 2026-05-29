@@ -138,9 +138,16 @@ async function handleSendEmail(body: {
   const badgeText = body.badge_text ?? "Founding Member";
   const headline = body.headline ?? `You've been personally invited to CineFlow`;
   const subtext = body.subtext ?? "Exclusive access. Free forever. No credit card.";
-  const planLabel = body.plan === "solo" ? "Solo" : body.plan === "agency" ? "Agency" : "Studio";
-  const accessLabel = body.access_type === "founding" ? "Free forever — no card, no catch"
-    : body.access_type === "trial" ? `Extended ${body.access_type} trial`
+  const planLabelMap: Record<string, string> = {
+    solo: "Solo", studio: "Studio", agency: "Agency",
+    enterprise: "Enterprise", lifetime: "Lifetime",
+    solo_beta: "Solo", studio_beta: "Studio",
+  };
+  const planLabel = planLabelMap[body.plan ?? ""] ?? "Studio";
+  const accessLabel = body.access_type === "founding"
+    ? "Free forever — no card, no catch"
+    : body.access_type === "trial"
+    ? "Extended trial access"
     : "30-day free trial";
 
   const html = `<!DOCTYPE html>

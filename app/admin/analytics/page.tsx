@@ -19,7 +19,6 @@ export default async function AnalyticsPage() {
     { data: invoices },
     { data: contracts },
     { data: forms },
-    { data: demos },
   ] = await Promise.all([
     supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     supabase.from("profiles").select("id, plan, plan_status, trial_ends_at, created_at"),
@@ -27,7 +26,6 @@ export default async function AnalyticsPage() {
     supabase.from("invoices").select("created_by, status, amount, created_at"),
     supabase.from("contracts").select("created_by, status, created_at"),
     supabase.from("forms").select("created_by, response_count, created_at"),
-    supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
   ]);
 
   const realUsers = (authUsers ?? []).filter((u) => !u.email?.endsWith("@demo.usecineflow.com"));

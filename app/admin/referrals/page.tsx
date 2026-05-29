@@ -51,7 +51,7 @@ export default async function ReferralsPage() {
     if (!p?.referred_by || !referralMap[p.referred_by]) continue;
     const row = referralMap[p.referred_by];
     row.signups++;
-    if (["solo", "studio", "agency", "lifetime"].includes(p.plan ?? "")) row.converted++;
+    if (["solo", "studio", "agency", "enterprise", "lifetime"].includes(p.plan ?? "")) row.converted++;
     row.referredUsers.push({
       name: [p.first_name, p.last_name].filter(Boolean).join(" ") || "—",
       email: emailMap[u.id] || "—",
