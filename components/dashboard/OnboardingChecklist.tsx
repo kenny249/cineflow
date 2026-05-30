@@ -45,14 +45,23 @@ interface Props {
   hasRevisions?: boolean;
   isSolo: boolean;
   onCreateProject: () => void;
+  userCreatedAt?: string | null;
 }
 
-export function OnboardingChecklist({ hasProjects, hasClients, hasInvoices, hasRevisions, isSolo, onCreateProject }: Props) {
+export function OnboardingChecklist({ hasProjects, hasClients, hasInvoices, hasRevisions, isSolo, onCreateProject, userCreatedAt }: Props) {
   const [done, setDone] = useState<Record<string, boolean>>({});
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (localStorage.getItem("cf_welcomed") === "true") return;
+    // Never show to accounts older than 7 days — they're not new users
+    if (userCreatedAt) {
+      const ageMs = Date.now() - new Date(userCreatedAt).getTime();
+      if (ageMs > 7 * 24 * 60 * 60 * 1000) {
+        localStorage.setItem("cf_welcomed", "true");
+        return;
+      }
+    }
     const saved: Record<string, boolean> = JSON.parse(
       localStorage.getItem("cf_onboard_done") ?? "{}"
     );
@@ -62,7 +71,7 @@ export function OnboardingChecklist({ hasProjects, hasClients, hasInvoices, hasR
     if (hasInvoices) saved.invoice = true;
     setDone(saved);
     setVisible(true);
-  }, [hasProjects, hasClients, hasInvoices, hasRevisions]);
+  }, [hasProjects, hasClients, hasInvoices, hasRevisions, userCreatedAt]);
 
   if (!visible) return null;
 

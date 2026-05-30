@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Film, ListChecks, Layers, UploadCloud, X, ArrowRight } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 const STORAGE_KEY = "cf_onboarded_v3";
 const TRANSITION_MS = 500;
@@ -57,9 +58,20 @@ export function OnboardingIntro({ onDone }: OnboardingIntroProps) {
   const [fading, setFading] = useState(false); // overlay fading out
 
   useEffect(() => {
-    // Runs only in the browser — safe to access localStorage
-    const seen = window.localStorage.getItem(STORAGE_KEY);
-    setShow(!seen);
+    // Already dismissed
+    if (window.localStorage.getItem(STORAGE_KEY)) { setShow(false); return; }
+    // Check account age — never show to existing users (account > 1 hour old)
+    createClient().auth.getUser().then(({ data: { user } }) => {
+      if (!user) { setShow(false); return; }
+      const ageMs = Date.now() - new Date(user.created_at).getTime();
+      if (ageMs > 60 * 60 * 1000) {
+        // Existing user — silently mark as seen and skip
+        window.localStorage.setItem(STORAGE_KEY, "1");
+        setShow(false);
+      } else {
+        setShow(true);
+      }
+    });
   }, []);
 
   const dismiss = useCallback(() => {

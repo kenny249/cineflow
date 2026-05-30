@@ -97,7 +97,11 @@ export default function DashboardPage() {
         } else {
           const emailName = user.email?.split("@")[0] ?? "";
           if (emailName) setDisplayName(emailName);
-          setNameSetupOpen(true);
+          // Only prompt for name if account is less than 2 hours old — never show to existing users
+          const accountAgeMs = Date.now() - new Date(user.created_at).getTime();
+          if (accountAgeMs < 2 * 60 * 60 * 1000) {
+            setNameSetupOpen(true);
+          }
         }
         if (profile?.quick_actions) {
           setSavedQuickActions(profile.quick_actions as string[]);
@@ -454,6 +458,7 @@ export default function DashboardPage() {
                   hasRevisions={activity.some((a) => a.type === "revision_uploaded")}
                   isSolo={solo}
                   onCreateProject={() => setModalOpen(true)}
+                  userCreatedAt={user?.created_at ?? null}
                 />
               )}
 
