@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone } from "lucide-react";
+import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/admin/audit-log",    label: "Audit Log",    icon: ScrollText },
   { href: "/admin/feature-flags",label: "Feature Flags",icon: Flag },
   { href: "/admin/announcements",label: "Announcements",icon: Megaphone },
+  { href: "/admin/brand",        label: "Brand",        icon: Palette },
   { href: "/admin/system",       label: "System",       icon: Settings2 },
 ];
 
