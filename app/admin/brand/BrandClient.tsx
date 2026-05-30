@@ -6,59 +6,42 @@ import { Upload, Trash2, Download, ImageIcon, FileIcon, X } from "lucide-react";
 
 // ─── Logo mark SVGs ──────────────────────────────────────────────────────────
 
-function MarkFrame({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  const s = size / 64;
-  const sw = 4 * s;
-  const arm = 16;
+// A — Arc: The camera move. A 270° sweep — the gesture of cinema.
+function MarkArc({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  // Center (32,32), r=26. Start: top (32,6) → sweep CW 270° → left (6,32)
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <g stroke={color} strokeWidth={sw} strokeLinecap="square">
-        <path d={`M8,${8 + arm} L8,8 L${8 + arm},8`} />
-        <path d={`M${64 - 8 - arm},8 L${64 - 8},8 L${64 - 8},${8 + arm}`} />
-        <path d={`M8,${64 - 8 - arm} L8,${64 - 8} L${8 + arm},${64 - 8}`} />
-        <path d={`M${64 - 8 - arm},${64 - 8} L${64 - 8},${64 - 8} L${64 - 8},${64 - 8 - arm}`} />
-      </g>
+      <path
+        d="M 32 6 A 26 26 0 1 1 6 32"
+        stroke={color} strokeWidth="4.5" strokeLinecap="round" fill="none"
+      />
+      <circle cx="6" cy="32" r="6" fill={color} />
     </svg>
   );
 }
 
-function MarkFlow({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+// B — Perf: The film perforation. The hole every frame of cinema passes through.
+function MarkPerf({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <polyline
-        points="10,14 28,32 10,50"
-        stroke={color} strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round"
-      />
-      <polyline
-        points="26,14 44,32 26,50"
-        stroke={color} strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round"
-        opacity="0.55"
-      />
-      <polyline
-        points="42,14 60,32 42,50"
-        stroke={color} strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round"
-        opacity="0.2"
+      <rect
+        x="21" y="8" width="22" height="48"
+        rx="7"
+        stroke={color} strokeWidth="4" fill="none"
       />
     </svg>
   );
 }
 
-function MarkIris({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  const blades = [0, 60, 120, 180, 240, 300];
+// C — Leader: The SMPTE film countdown mark. Registration, precision, the start of every film.
+function MarkLeader({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <g transform="translate(32,32)">
-        {blades.map((angle) => (
-          <rect
-            key={angle}
-            x="-3.5" y="-22" width="7" height="17" rx="3.5"
-            fill={color}
-            transform={`rotate(${angle})`}
-            opacity={0.85}
-          />
-        ))}
-        <circle cx="0" cy="0" r="4" fill={color} />
-      </g>
+      <circle cx="32" cy="32" r="27" stroke={color} strokeWidth="3.5" fill="none" />
+      <line x1="32" y1="5" x2="32" y2="59" stroke={color} strokeWidth="1.5" />
+      <line x1="5" y1="32" x2="59" y2="32" stroke={color} strokeWidth="1.5" />
+      <circle cx="32" cy="32" r="12" stroke={color} strokeWidth="2" fill="none" />
+      <circle cx="32" cy="32" r="4.5" fill={color} />
     </svg>
   );
 }
@@ -242,23 +225,23 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
       <section>
         <div className="mb-5">
           <h2 className="text-base font-bold text-white">Logo Candidates</h2>
-          <p className="text-xs text-zinc-500 mt-1">Three direction options. Screenshot + tell me which to develop further or what to adjust.</p>
+          <p className="text-xs text-zinc-500 mt-1">Three ownable directions — each uses visual territory no competitor in this space occupies.</p>
         </div>
         <div className="grid grid-cols-3 gap-5">
           <LogoCard
-            label="A — Frame"
-            description="Camera viewfinder / director's frame. Minimal, cinematic, scales to any size."
-            mark={<MarkFrame size={64} />}
+            label="A — Arc"
+            description="The gesture of cinema. A 270° camera move — the pan, the dolly, the arc shot. No competitor lives here."
+            mark={<MarkArc size={64} />}
           />
           <LogoCard
-            label="B — Flow"
-            description="Triple chevron suggesting motion, play, and forward momentum. Energetic."
-            mark={<MarkFlow size={64} />}
+            label="B — Perf"
+            description="The sprocket hole every frame of cinema passes through. One shape. Pure function. Unmistakable to anyone who's touched film."
+            mark={<MarkPerf size={64} />}
           />
           <LogoCard
-            label="C — Iris"
-            description="Camera lens aperture / iris. 6-blade geometry. Precision and craft."
-            mark={<MarkIris size={64} />}
+            label="C — Leader"
+            description="The SMPTE countdown mark that plays before every film in a cinema. Registration. Precision. The beginning of something."
+            mark={<MarkLeader size={64} />}
           />
         </div>
       </section>
