@@ -5,58 +5,47 @@ import { toast } from "sonner";
 import { Upload, Trash2, Download, ImageIcon, FileIcon, X } from "lucide-react";
 
 // ─── Logo mark SVGs ──────────────────────────────────────────────────────────
+// Apple-level rule: filled shapes only. Each mark reads as a pure silhouette.
 
-// Route 1 — Lens (Refined): refined stroke hierarchy, tighter inner ratio, specular dot on the glass.
-function MarkLensR({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="32" cy="32" r="27" stroke={color} strokeWidth="4" fill="none" />
-      <circle cx="32" cy="32" r="13" stroke={color} strokeWidth="2" fill="none" />
-      <circle cx="43" cy="22" r="3" fill={color} />
-    </svg>
-  );
-}
-
-// Route 2 — C Mark: bold geometric C + lens in its negative space.
-// C proportions: r=22, ±30° opening. Lens circle floats inside. Specular dot between them.
-function MarkCMark({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Bold geometric C — flat terminal cuts */}
-      <path d="M 51,43 A 22,22 0 1,0 51,21" stroke={color} strokeWidth="12" strokeLinecap="butt" fill="none" />
-      {/* Lens glass element in C's negative space */}
-      <circle cx="32" cy="32" r="10" stroke={color} strokeWidth="2" fill="none" />
-      {/* Specular highlight — sits between C inner edge and lens circle */}
-      <circle cx="41" cy="23" r="2.5" fill={color} />
-    </svg>
-  );
-}
-
-// Route 3 — Aperture: 5-blade iris with circular center void.
-// Blades sized to stay within r=26 without clipping. Mask carves the center opening.
-function MarkApertureR({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  const maskId = `ap-mask-${size}`;
+// Route 1 — Heavy Lens: bold solid ring + center dot. Mass, not outlines.
+function MarkHeavyLens({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  const id = `hl-${size}`;
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <mask id={maskId}>
-          <rect width="64" height="64" fill="white" />
-          <circle cx="32" cy="32" r="9" fill="black" />
+        <mask id={id}>
+          <circle cx="32" cy="32" r="30" fill="white" />
+          <circle cx="32" cy="32" r="16" fill="black" />
         </mask>
       </defs>
-      <g transform="translate(32,32)" mask={`url(#${maskId})`}>
-        {[0, 72, 144, 216, 288].map((angle) => (
-          <rect
-            key={angle}
-            x="-9" y="-24" width="18" height="30"
-            rx="4"
-            fill={color}
-            transform={`rotate(${angle})`}
-          />
-        ))}
-      </g>
-      {/* Thin boundary ring */}
-      <circle cx="32" cy="32" r="27" stroke={color} strokeWidth="1.5" fill="none" />
+      <circle cx="32" cy="32" r="30" fill={color} mask={`url(#${id})`} />
+      <circle cx="32" cy="32" r="5" fill={color} />
+    </svg>
+  );
+}
+
+// Route 2 — Letterbox: two solid bars at exact 2.39:1 cinemascope proportions.
+function MarkLetterbox({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="10" width="58" height="10" rx="2" fill={color} />
+      <rect x="3" y="44" width="58" height="10" rx="2" fill={color} />
+    </svg>
+  );
+}
+
+// Route 3 — C Mark: bold filled geometric C. Ring open on the right at a precise arm angle.
+// Opening angle ±30° — the same geometry as an iris at f/2.8.
+function MarkBoldC({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  // Outer r=28, inner r=16, center (32,32). Arms at ±30° from horizontal.
+  // Outer arm tips: (56,18) top, (56,46) bottom
+  // Inner arm tips: (46,24) top, (46,40) bottom
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path
+        d="M 56,18 A 28,28 0 1,0 56,46 L 46,40 A 16,16 0 0,1 46,24 Z"
+        fill={color}
+      />
     </svg>
   );
 }
@@ -240,23 +229,23 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
       <section>
         <div className="mb-5">
           <h2 className="text-base font-bold text-white">Logo Candidates</h2>
-          <p className="text-xs text-zinc-500 mt-1">Three strategic routes. Pick one — then we lock it, refine it, and ship it everywhere.</p>
+          <p className="text-xs text-zinc-500 mt-1">Reset. Three filled shapes — no outlines. Each reads as a pure silhouette. The Apple approach.</p>
         </div>
         <div className="grid grid-cols-3 gap-5">
           <LogoCard
-            label="Route 1 — Lens"
-            description="The strongest mark from the last round, dialed in. Heavier outer ring, thinner inner glass, specular dot repositioned to sit naturally on the curve. Ready to ship as-is."
-            mark={<MarkLensR size={64} />}
+            label="Route 1 — Heavy Lens"
+            description="A bold solid ring and center dot. Barrel, glass, light — three things that read as one. Flip it to pure black: still perfect."
+            mark={<MarkHeavyLens size={64} />}
           />
           <LogoCard
-            label="Route 2 — C Mark"
-            description="Letter-first. A bold geometric C — not a typeface, a custom shape. A lens circle floats in its negative space. Read the C first. Notice the camera second."
-            mark={<MarkCMark size={64} />}
+            label="Route 2 — Letterbox"
+            description="Two solid bars. The exact proportions of cinemascope 2.39:1 — the bars every filmmaker knows. Made gold. The gap between them is the cinema screen."
+            mark={<MarkLetterbox size={64} />}
           />
           <LogoCard
-            label="Route 3 — Aperture"
-            description="Five iris blades with a circular center void. The mechanics of how a camera controls light, reduced to pure geometry. Highest visual energy of the three."
-            mark={<MarkApertureR size={64} />}
+            label="Route 3 — C Mark"
+            description="A bold filled geometric C. Not a typeface — a custom ring shape. The opening angle is the geometry of a camera iris at f/2.8. Letter at small size. Lens at large."
+            mark={<MarkBoldC size={64} />}
           />
         </div>
       </section>
