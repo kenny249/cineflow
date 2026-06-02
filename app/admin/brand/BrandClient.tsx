@@ -6,42 +6,50 @@ import { Upload, Trash2, Download, ImageIcon, FileIcon, X } from "lucide-react";
 
 // ─── Logo mark SVGs ──────────────────────────────────────────────────────────
 
-// A — Arc: The camera move. A 270° sweep — the gesture of cinema.
-function MarkArc({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  // Center (32,32), r=26. Start: top (32,6) → sweep CW 270° → left (6,32)
+// A — Diagonal: The edit. One 45° cut. Two states. The fundamental act of filmmaking.
+// Hook: filled triangle vs. empty triangle — solid/negative contrast in one shape.
+function MarkDiagonal({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  const id = `diag-clip-${size}`;
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M 32 6 A 26 26 0 1 1 6 32"
-        stroke={color} strokeWidth="4.5" strokeLinecap="round" fill="none"
-      />
-      <circle cx="6" cy="32" r="6" fill={color} />
+      <defs>
+        <clipPath id={id}>
+          <rect x="5" y="5" width="54" height="54" rx="4" />
+        </clipPath>
+      </defs>
+      {/* Upper-right triangle — filled solid */}
+      <polygon points="5,5 59,5 59,59" fill={color} clipPath={`url(#${id})`} />
+      {/* Square border drawn on top */}
+      <rect x="5" y="5" width="54" height="54" rx="4" stroke={color} strokeWidth="3.5" fill="none" />
     </svg>
   );
 }
 
-// B — Perf: The film perforation. The hole every frame of cinema passes through.
-function MarkPerf({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+// B — Lens: A camera lens front-on. Two concentric elements + one specular highlight.
+// Hook: the offset dot at top-right transforms two plain circles into a camera lens.
+function MarkLens({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect
-        x="21" y="8" width="22" height="48"
-        rx="7"
-        stroke={color} strokeWidth="4" fill="none"
-      />
-    </svg>
-  );
-}
-
-// C — Leader: The SMPTE film countdown mark. Registration, precision, the start of every film.
-function MarkLeader({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Outer barrel */}
       <circle cx="32" cy="32" r="27" stroke={color} strokeWidth="3.5" fill="none" />
-      <line x1="32" y1="5" x2="32" y2="59" stroke={color} strokeWidth="1.5" />
-      <line x1="5" y1="32" x2="59" y2="32" stroke={color} strokeWidth="1.5" />
-      <circle cx="32" cy="32" r="12" stroke={color} strokeWidth="2" fill="none" />
-      <circle cx="32" cy="32" r="4.5" fill={color} />
+      {/* Inner glass element */}
+      <circle cx="32" cy="32" r="16" stroke={color} strokeWidth="3" fill="none" />
+      {/* Specular highlight — the one detail that makes it a lens */}
+      <circle cx="43" cy="21" r="3.5" fill={color} />
+    </svg>
+  );
+}
+
+// C — Gate: The film gate with registration pins. The aperture every frame passes through.
+// Hook: the two filled rectangular pins flanking the stroked aperture read immediately as film hardware.
+function MarkGate({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Gate aperture — stroke only */}
+      <rect x="20" y="8" width="24" height="48" rx="3.5" stroke={color} strokeWidth="3.5" fill="none" />
+      {/* Registration pins — solid, flanking the gate */}
+      <rect x="8" y="28" width="10" height="8" rx="2" fill={color} />
+      <rect x="46" y="28" width="10" height="8" rx="2" fill={color} />
     </svg>
   );
 }
@@ -225,23 +233,23 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
       <section>
         <div className="mb-5">
           <h2 className="text-base font-bold text-white">Logo Candidates</h2>
-          <p className="text-xs text-zinc-500 mt-1">Three ownable directions — each uses visual territory no competitor in this space occupies.</p>
+          <p className="text-xs text-zinc-500 mt-1">Each mark has one hook detail that transforms a geometric shape into something cinematic and specific.</p>
         </div>
         <div className="grid grid-cols-3 gap-5">
           <LogoCard
-            label="A — Arc"
-            description="The gesture of cinema. A 270° camera move — the pan, the dolly, the arc shot. No competitor lives here."
-            mark={<MarkArc size={64} />}
+            label="A — Diagonal"
+            description="The edit. One 45° cut splits the frame into two states — solid vs. empty. The fundamental act of filmmaking made geometric."
+            mark={<MarkDiagonal size={64} />}
           />
           <LogoCard
-            label="B — Perf"
-            description="The sprocket hole every frame of cinema passes through. One shape. Pure function. Unmistakable to anyone who's touched film."
-            mark={<MarkPerf size={64} />}
+            label="B — Lens"
+            description="The camera head-on. Two concentric glass elements and one specular highlight. The dot is the hook — it turns two circles into a lens."
+            mark={<MarkLens size={64} />}
           />
           <LogoCard
-            label="C — Leader"
-            description="The SMPTE countdown mark that plays before every film in a cinema. Registration. Precision. The beginning of something."
-            mark={<MarkLeader size={64} />}
+            label="C — Gate"
+            description="The film gate with registration pins. The stroked aperture + solid pins create the hardware silhouette every cinematographer recognizes."
+            mark={<MarkGate size={64} />}
           />
         </div>
       </section>
