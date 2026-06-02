@@ -6,50 +6,57 @@ import { Upload, Trash2, Download, ImageIcon, FileIcon, X } from "lucide-react";
 
 // ─── Logo mark SVGs ──────────────────────────────────────────────────────────
 
-// A — Diagonal: The edit. One 45° cut. Two states. The fundamental act of filmmaking.
-// Hook: filled triangle vs. empty triangle — solid/negative contrast in one shape.
-function MarkDiagonal({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  const id = `diag-clip-${size}`;
+// Route 1 — Lens (Refined): refined stroke hierarchy, tighter inner ratio, specular dot on the glass.
+function MarkLensR({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="32" cy="32" r="27" stroke={color} strokeWidth="4" fill="none" />
+      <circle cx="32" cy="32" r="13" stroke={color} strokeWidth="2" fill="none" />
+      <circle cx="43" cy="22" r="3" fill={color} />
+    </svg>
+  );
+}
+
+// Route 2 — C Mark: bold geometric C + lens in its negative space.
+// C proportions: r=22, ±30° opening. Lens circle floats inside. Specular dot between them.
+function MarkCMark({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Bold geometric C — flat terminal cuts */}
+      <path d="M 51,43 A 22,22 0 1,0 51,21" stroke={color} strokeWidth="12" strokeLinecap="butt" fill="none" />
+      {/* Lens glass element in C's negative space */}
+      <circle cx="32" cy="32" r="10" stroke={color} strokeWidth="2" fill="none" />
+      {/* Specular highlight — sits between C inner edge and lens circle */}
+      <circle cx="41" cy="23" r="2.5" fill={color} />
+    </svg>
+  );
+}
+
+// Route 3 — Aperture: 5-blade iris with circular center void.
+// Blades sized to stay within r=26 without clipping. Mask carves the center opening.
+function MarkApertureR({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+  const maskId = `ap-mask-${size}`;
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <clipPath id={id}>
-          <rect x="5" y="5" width="54" height="54" rx="4" />
-        </clipPath>
+        <mask id={maskId}>
+          <rect width="64" height="64" fill="white" />
+          <circle cx="32" cy="32" r="9" fill="black" />
+        </mask>
       </defs>
-      {/* Upper-right triangle — filled solid */}
-      <polygon points="5,5 59,5 59,59" fill={color} clipPath={`url(#${id})`} />
-      {/* Square border drawn on top */}
-      <rect x="5" y="5" width="54" height="54" rx="4" stroke={color} strokeWidth="3.5" fill="none" />
-    </svg>
-  );
-}
-
-// B — Lens: A camera lens front-on. Two concentric elements + one specular highlight.
-// Hook: the offset dot at top-right transforms two plain circles into a camera lens.
-function MarkLens({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Outer barrel */}
-      <circle cx="32" cy="32" r="27" stroke={color} strokeWidth="3.5" fill="none" />
-      {/* Inner glass element */}
-      <circle cx="32" cy="32" r="16" stroke={color} strokeWidth="3" fill="none" />
-      {/* Specular highlight — the one detail that makes it a lens */}
-      <circle cx="43" cy="21" r="3.5" fill={color} />
-    </svg>
-  );
-}
-
-// C — Gate: The film gate with registration pins. The aperture every frame passes through.
-// Hook: the two filled rectangular pins flanking the stroked aperture read immediately as film hardware.
-function MarkGate({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Gate aperture — stroke only */}
-      <rect x="20" y="8" width="24" height="48" rx="3.5" stroke={color} strokeWidth="3.5" fill="none" />
-      {/* Registration pins — solid, flanking the gate */}
-      <rect x="8" y="28" width="10" height="8" rx="2" fill={color} />
-      <rect x="46" y="28" width="10" height="8" rx="2" fill={color} />
+      <g transform="translate(32,32)" mask={`url(#${maskId})`}>
+        {[0, 72, 144, 216, 288].map((angle) => (
+          <rect
+            key={angle}
+            x="-9" y="-24" width="18" height="30"
+            rx="4"
+            fill={color}
+            transform={`rotate(${angle})`}
+          />
+        ))}
+      </g>
+      {/* Thin boundary ring */}
+      <circle cx="32" cy="32" r="27" stroke={color} strokeWidth="1.5" fill="none" />
     </svg>
   );
 }
@@ -233,23 +240,23 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
       <section>
         <div className="mb-5">
           <h2 className="text-base font-bold text-white">Logo Candidates</h2>
-          <p className="text-xs text-zinc-500 mt-1">Each mark has one hook detail that transforms a geometric shape into something cinematic and specific.</p>
+          <p className="text-xs text-zinc-500 mt-1">Three strategic routes. Pick one — then we lock it, refine it, and ship it everywhere.</p>
         </div>
         <div className="grid grid-cols-3 gap-5">
           <LogoCard
-            label="A — Diagonal"
-            description="The edit. One 45° cut splits the frame into two states — solid vs. empty. The fundamental act of filmmaking made geometric."
-            mark={<MarkDiagonal size={64} />}
+            label="Route 1 — Lens"
+            description="The strongest mark from the last round, dialed in. Heavier outer ring, thinner inner glass, specular dot repositioned to sit naturally on the curve. Ready to ship as-is."
+            mark={<MarkLensR size={64} />}
           />
           <LogoCard
-            label="B — Lens"
-            description="The camera head-on. Two concentric glass elements and one specular highlight. The dot is the hook — it turns two circles into a lens."
-            mark={<MarkLens size={64} />}
+            label="Route 2 — C Mark"
+            description="Letter-first. A bold geometric C — not a typeface, a custom shape. A lens circle floats in its negative space. Read the C first. Notice the camera second."
+            mark={<MarkCMark size={64} />}
           />
           <LogoCard
-            label="C — Gate"
-            description="The film gate with registration pins. The stroked aperture + solid pins create the hardware silhouette every cinematographer recognizes."
-            mark={<MarkGate size={64} />}
+            label="Route 3 — Aperture"
+            description="Five iris blades with a circular center void. The mechanics of how a camera controls light, reduced to pure geometry. Highest visual energy of the three."
+            mark={<MarkApertureR size={64} />}
           />
         </div>
       </section>
