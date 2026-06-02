@@ -222,23 +222,23 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
       <section>
         <div className="mb-5">
           <h2 className="text-base font-bold text-white">Logo Candidates</h2>
-          <p className="text-xs text-zinc-500 mt-1">Reset. Three filled shapes — no outlines. Each reads as a pure silhouette. The Apple approach.</p>
+          <p className="text-xs text-zinc-500 mt-1">Flow of a project — three marks built around progression, momentum, and the specific language of production.</p>
         </div>
         <div className="grid grid-cols-3 gap-5">
           <LogoCard
-            label="Route 1 — Heavy Lens"
-            description="A bold solid ring and center dot. Barrel, glass, light — three things that read as one. Flip it to pure black: still perfect."
-            mark={<MarkHeavyLens size={64} />}
+            label="Concept 1 — Nodes"
+            description="Three phases of a film project — development, production, delivery — as ascending nodes on a flow line. The nodes grow because the project grows."
+            mark={<MarkNodes size={64} />}
           />
           <LogoCard
-            label="Route 2 — Letterbox"
-            description="Two solid bars. The exact proportions of cinemascope 2.39:1 — the bars every filmmaker knows. Made gold. The gap between them is the cinema screen."
-            mark={<MarkLetterbox size={64} />}
+            label="Concept 2 — Frames"
+            description="Three film frames advancing forward, each larger than the last. The project scales as it moves. A small idea becomes a delivered film."
+            mark={<MarkFrames size={64} />}
           />
           <LogoCard
-            label="Route 3 — C Mark"
-            description="A bold filled geometric C. Not a typeface — a custom ring shape. The opening angle is the geometry of a camera iris at f/2.8. Letter at small size. Lens at large."
-            mark={<MarkBoldC size={64} />}
+            label="Concept 3 — Playhead"
+            description="The playhead on a timeline. The most specific shape in video production — the marker that tells you exactly where you are in the project."
+            mark={<MarkPlayhead size={64} />}
           />
         </div>
       </section>
