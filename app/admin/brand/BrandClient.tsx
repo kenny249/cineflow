@@ -5,47 +5,40 @@ import { toast } from "sonner";
 import { Upload, Trash2, Download, ImageIcon, FileIcon, X } from "lucide-react";
 
 // ─── Logo mark SVGs ──────────────────────────────────────────────────────────
-// Apple-level rule: filled shapes only. Each mark reads as a pure silhouette.
+// Brief: flow of a project. Progression, momentum, forward motion.
 
-// Route 1 — Heavy Lens: bold solid ring + center dot. Mass, not outlines.
-function MarkHeavyLens({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  const id = `hl-${size}`;
+// Concept 1 — Nodes: three project phases as ascending milestone circles on a flow line.
+// Small → medium → large: the project grows as it moves through production.
+function MarkNodes({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <mask id={id}>
-          <circle cx="32" cy="32" r="30" fill="white" />
-          <circle cx="32" cy="32" r="16" fill="black" />
-        </mask>
-      </defs>
-      <circle cx="32" cy="32" r="30" fill={color} mask={`url(#${id})`} />
-      <circle cx="32" cy="32" r="5" fill={color} />
+      <line x1="12" y1="52" x2="52" y2="12" stroke={color} strokeWidth="3" strokeLinecap="round" />
+      <circle cx="12" cy="52" r="6" fill={color} />
+      <circle cx="32" cy="32" r="9" fill={color} />
+      <circle cx="52" cy="12" r="12" fill={color} />
     </svg>
   );
 }
 
-// Route 2 — Letterbox: two solid bars at exact 2.39:1 cinemascope proportions.
-function MarkLetterbox({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+// Concept 2 — Frames: three film frames advancing forward, each larger than the last.
+// The project scales as it moves — a small idea becomes a delivered film.
+function MarkFrames({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="10" width="58" height="10" rx="2" fill={color} />
-      <rect x="3" y="44" width="58" height="10" rx="2" fill={color} />
+      <rect x="4" y="48" width="12" height="12" rx="2" fill={color} />
+      <rect x="22" y="25" width="17" height="17" rx="2" fill={color} />
+      <rect x="41" y="4" width="22" height="22" rx="2" fill={color} />
     </svg>
   );
 }
 
-// Route 3 — C Mark: bold filled geometric C. Ring open on the right at a precise arm angle.
-// Opening angle ±30° — the same geometry as an iris at f/2.8.
-function MarkBoldC({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  // Outer r=28, inner r=16, center (32,32). Arms at ±30° from horizontal.
-  // Outer arm tips: (56,18) top, (56,46) bottom
-  // Inner arm tips: (46,24) top, (46,40) bottom
+// Concept 3 — Playhead: the video timeline playhead — exactly where you are in the project.
+// The most specific shape in video production. One triangle, one bar.
+function MarkPlayhead({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path
-        d="M 56,18 A 28,28 0 1,0 56,46 L 46,40 A 16,16 0 0,1 46,24 Z"
-        fill={color}
-      />
+      <rect x="4" y="38" width="56" height="8" rx="4" fill={color} />
+      <polygon points="30,8 50,8 40,38" fill={color} />
     </svg>
   );
 }
