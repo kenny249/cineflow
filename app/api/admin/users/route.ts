@@ -44,10 +44,16 @@ export async function PATCH(req: NextRequest) {
 
   const admin = getAdmin();
 
-  // Normalize lifetime plan updates so status and interval are always correct
-  const normalizedUpdates = updates.plan === "lifetime"
-    ? { ...updates, plan_status: "active", plan_interval: "lifetime", trial_ends_at: null }
-    : updates;
+  // Normalize plan updates:
+  // - lifetime → always active, no trial
+  // - any other plan assigned without explicit plan_status → fresh 30-day trial from now
+  const trialReset30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const normalizedUpdates =
+    updates.plan === "lifetime"
+      ? { ...updates, plan_status: "active", plan_interval: "lifetime", trial_ends_at: null }
+      : updates.plan && !("plan_status" in updates)
+        ? { ...updates, plan_status: "trialing", trial_ends_at: trialReset30 }
+        : updates;
 
   const { error } = await admin
     .from("profiles")

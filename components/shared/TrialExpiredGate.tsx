@@ -12,17 +12,18 @@ interface Props {
   plan: string;
   planStatus: string;
   trialEndsAt: string | null;
+  isDemo?: boolean;
   children: React.ReactNode;
 }
 
-export function TrialExpiredGate({ plan, planStatus, trialEndsAt, children }: Props) {
+export function TrialExpiredGate({ plan, planStatus, trialEndsAt, isDemo, children }: Props) {
   const pathname = usePathname();
 
   const profile = { plan, plan_status: planStatus, trial_ends_at: trialEndsAt } as Pick<Profile, "plan" | "plan_status" | "trial_ends_at">;
   const hasAccess = hasActiveAccess(profile);
   const isAllowedPath = ALLOWED_PATHS.some((p) => pathname.startsWith(p));
 
-  if (hasAccess || isAllowedPath) return <>{children}</>;
+  if (isDemo || hasAccess || isAllowedPath) return <>{children}</>;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#060606]/95 backdrop-blur-sm">

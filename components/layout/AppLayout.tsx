@@ -87,6 +87,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   );
   const [planStatus, setPlanStatus] = useState<string>("");
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [isDemoUser, setIsDemoUser] = useState(false);
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
   const [workspaceRole, setWorkspaceRole] = useState<"owner" | "admin" | "member">("owner");
@@ -99,6 +100,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
+      if (user.user_metadata?.is_demo === true) setIsDemoUser(true);
       Promise.all([
         supabase.from("profiles").select("plan, plan_status, trial_ends_at, first_name, last_name, avatar_url, workspace_id").eq("id", user.id).single(),
         supabase.rpc("get_member_role"),
@@ -237,7 +239,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
         ))}
         {/* pb-20 on mobile for bottom nav clearance (nav is ~68px + safe area) */}
         <main className="flex-1 overflow-hidden pb-20 md:pb-0">
-          <TrialExpiredGate plan={plan} planStatus={planStatus} trialEndsAt={trialEndsAt}>
+          <TrialExpiredGate plan={plan} planStatus={planStatus} trialEndsAt={trialEndsAt} isDemo={isDemoUser}>
             {children}
           </TrialExpiredGate>
         </main>

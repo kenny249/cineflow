@@ -107,6 +107,7 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
   const [emailBody, setEmailBody] = useState("");
   const [emailSending, setEmailSending] = useState(false);
   const [impersonateModal, setImpersonateModal] = useState<{ link: string; email: string } | null>(null);
+  const [customDays, setCustomDays] = useState<Record<string, string>>({});
   const [notesModal, setNotesModal] = useState<{ userId: string; name: string } | null>(null);
   const [notesList, setNotesList] = useState<{ id: string; body: string; created_at: string; author_name: string }[]>([]);
   const [newNote, setNewNote] = useState("");
@@ -262,11 +263,28 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
         body: JSON.stringify({ userId, updates: { plan_status: "trialing", trial_ends_at: newTrialEnd } }),
       });
       if (res.ok) {
-        toast.success(`Trial extended by ${days} days`);
+        toast.success(`Trial set to ${days} days from now`);
         setOpenMenu(null);
         window.location.reload();
       } else {
         toast.error("Failed to extend trial");
+      }
+    });
+  }
+
+  async function makeIndefinite(userId: string) {
+    startTransition(async () => {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, updates: { plan_status: "active", trial_ends_at: null } }),
+      });
+      if (res.ok) {
+        toast.success("Access set to indefinite");
+        setOpenMenu(null);
+        window.location.reload();
+      } else {
+        toast.error("Failed to update access");
       }
     });
   }
@@ -438,10 +456,10 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                           </button>
                         ))}
 
-                        {/* Extend trial */}
+                        {/* Set trial */}
                         <div className="my-1 border-t border-white/[0.06]" />
-                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Extend trial</p>
-                        {[7, 14, 30].map((days) => (
+                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Set trial access</p>
+                        {[30, 60, 90].map((days) => (
                           <button
                             key={days}
                             onClick={() => extendTrial(u.id, days)}
@@ -449,9 +467,36 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                             className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-white/[0.05]"
                           >
                             <Clock className="h-3.5 w-3.5 text-zinc-500" />
-                            +{days} days
+                            {days} days from now
                           </button>
                         ))}
+                        {/* Custom days */}
+                        <div className="flex items-center gap-1.5 px-3 py-1.5">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="Custom days"
+                            value={customDays[u.id] ?? ""}
+                            onChange={(e) => setCustomDays((prev) => ({ ...prev, [u.id]: e.target.value.replace(/[^\d]/g, "") }))}
+                            className="h-7 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-2 text-xs text-zinc-300 placeholder:text-zinc-600 focus:border-[#d4a853]/40 focus:outline-none"
+                          />
+                          <button
+                            disabled={isPending || !customDays[u.id]}
+                            onClick={() => { const d = parseInt(customDays[u.id] ?? "0", 10); if (d > 0) extendTrial(u.id, d); }}
+                            className="h-7 shrink-0 rounded-md bg-[#d4a853]/20 px-2 text-xs font-medium text-[#d4a853] transition-colors hover:bg-[#d4a853]/30 disabled:opacity-40"
+                          >
+                            Set
+                          </button>
+                        </div>
+                        {/* Indefinite */}
+                        <button
+                          onClick={() => makeIndefinite(u.id)}
+                          disabled={isPending}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-emerald-400 transition-colors hover:bg-emerald-500/10"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Indefinite access
+                        </button>
 
                         {/* Support actions */}
                         <div className="my-1 border-t border-white/[0.06]" />
