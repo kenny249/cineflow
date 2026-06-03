@@ -123,15 +123,16 @@ export function LoginPageClient() {
             >
               {isLoading ? "Signing in…" : "Sign in"}
             </Button>
-            <Link
-              href="/forgot-password"
-              className="block py-1 text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Forgot password?
-            </Link>
           </form>
 
-          <div className="relative my-5 flex items-center">
+          <Link
+            href="/forgot-password"
+            className="mt-3 flex min-h-[44px] items-center justify-center text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Forgot password?
+          </Link>
+
+          <div className="relative my-2 flex items-center">
             <div className="flex-1 border-t border-border" />
             <span className="mx-3 text-xs text-muted-foreground">or</span>
             <div className="flex-1 border-t border-border" />
