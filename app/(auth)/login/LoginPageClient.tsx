@@ -103,7 +103,16 @@ export function LoginPageClient() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  onClick={() => window.location.assign("/forgot-password")}
+                  className="min-h-[44px] px-1 text-xs text-muted-foreground transition-colors hover:text-foreground active:text-foreground"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -124,14 +133,6 @@ export function LoginPageClient() {
               {isLoading ? "Signing in…" : "Sign in"}
             </Button>
           </form>
-
-          <button
-            type="button"
-            onClick={() => window.location.assign("/forgot-password")}
-            className="mt-3 flex min-h-[44px] w-full items-center justify-center text-sm text-muted-foreground transition-colors hover:text-foreground active:text-foreground"
-          >
-            Forgot password?
-          </button>
 
           <div className="relative my-2 flex items-center">
             <div className="flex-1 border-t border-border" />
