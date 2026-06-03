@@ -26,7 +26,7 @@ export default function WrapLandingPage() {
     setSending(true);
     const { error } = await createClient().auth.signInWithOtp({
       email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: `${window.location.origin}/wrap/dashboard` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/wrap/dashboard` },
     });
     setSending(false);
     if (error) { toast.error(error.message); return; }
