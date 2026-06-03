@@ -89,7 +89,8 @@ export function LoginPageClient() {
             <p className="text-sm text-muted-foreground mt-1">Sign in to your studio.</p>
           </div>
 
-          <form className="space-y-4" onSubmit={handleSignIn}>
+          {/* data-form-type="other" prevents password managers auto-presenting on page load */}
+          <form className="space-y-4" onSubmit={handleSignIn} data-form-type="other">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -105,10 +106,17 @@ export function LoginPageClient() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
+                {/* onTouchStart fires before iOS native overlays (password managers)
+                    can intercept the event. onClick is kept as desktop fallback. */}
                 <button
                   type="button"
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    window.location.assign("/forgot-password");
+                  }}
                   onClick={() => window.location.assign("/forgot-password")}
-                  className="min-h-[44px] px-1 text-xs text-muted-foreground transition-colors hover:text-foreground active:text-foreground"
+                  className="min-h-[44px] px-2 text-sm text-zinc-400 hover:text-white active:text-white"
+                  style={{ touchAction: "manipulation" }}
                 >
                   Forgot password?
                 </button>
