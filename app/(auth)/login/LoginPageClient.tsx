@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Film } from "lucide-react";
+import { Film, X, Mail, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { HeroPreview } from "./HeroPreview";
 import { PageParticles } from "./PageParticles";
@@ -30,11 +30,121 @@ function GrainOverlay() {
   );
 }
 
+function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
+  const [resetEmail, setResetEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function handleReset(e: React.FormEvent) {
+    e.preventDefault();
+    if (!resetEmail.trim()) return;
+    setSending(true);
+    const { error } = await createClient().auth.resetPasswordForEmail(
+      resetEmail.trim().toLowerCase(),
+      { redirectTo: `${window.location.origin}/update-password` }
+    );
+    setSending(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setSent(true);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#111] p-7 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/10">
+              <Mail className="h-4 w-4 text-[#d4a853]" />
+            </div>
+            <p className="text-sm font-semibold text-white">Reset password</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/[0.06] hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {sent ? (
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10">
+              <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-white">Check your inbox</p>
+              <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
+                We sent a reset link to{" "}
+                <span className="text-white">{resetEmail}</span>.
+                Click it to set a new password.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="mt-2 text-xs text-zinc-500 transition-colors hover:text-white"
+            >
+              Back to sign in
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleReset} className="space-y-4">
+            <p className="text-sm text-zinc-400 leading-relaxed">
+              Enter your email and we&apos;ll send you a link to reset your password.
+            </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="reset-email">Email address</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                placeholder="you@studio.com"
+                autoComplete="email"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="gold"
+              className="w-full"
+              size="lg"
+              disabled={sending}
+            >
+              {sending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Sending…</>
+              ) : (
+                "Send reset link"
+              )}
+            </Button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="block w-full text-center text-xs text-zinc-500 transition-colors hover:text-white"
+            >
+              Cancel
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function LoginPageClient() {
-  const [email, setEmail]                 = useState("");
-  const [password, setPassword]           = useState("");
-  const [isLoading, setIsLoading]         = useState(false);
+  const [email, setEmail]                   = useState("");
+  const [password, setPassword]             = useState("");
+  const [isLoading, setIsLoading]           = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [showForgot, setShowForgot]         = useState(false);
 
   async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
@@ -69,6 +179,8 @@ export function LoginPageClient() {
       <PageParticles />
       <GrainOverlay />
 
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
+
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(212,168,83,0.14),transparent_26%),radial-gradient(circle_at_bottom_right,rgba(212,168,83,0.06),transparent_35%)]" />
       <div className="absolute left-0 top-0 h-48 w-48 rounded-full bg-[#d4a853]/10 blur-3xl" />
       <div className="absolute right-0 bottom-0 h-72 w-72 rounded-full bg-[#d4a853]/8 blur-3xl" />
@@ -89,8 +201,7 @@ export function LoginPageClient() {
             <p className="text-sm text-muted-foreground mt-1">Sign in to your studio.</p>
           </div>
 
-          {/* data-form-type="other" prevents password managers auto-presenting on page load */}
-          <form className="space-y-4" onSubmit={handleSignIn} data-form-type="other">
+          <form className="space-y-4" onSubmit={handleSignIn}>
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -104,23 +215,7 @@ export function LoginPageClient() {
               />
             </div>
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                {/* onTouchStart fires before iOS native overlays (password managers)
-                    can intercept the event. onClick is kept as desktop fallback. */}
-                <button
-                  type="button"
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    window.location.assign("/forgot-password");
-                  }}
-                  onClick={() => window.location.assign("/forgot-password")}
-                  className="min-h-[44px] px-2 text-sm text-zinc-400 hover:text-white active:text-white"
-                  style={{ touchAction: "manipulation" }}
-                >
-                  Forgot password?
-                </button>
-              </div>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -142,7 +237,15 @@ export function LoginPageClient() {
             </Button>
           </form>
 
-          <div className="relative my-2 flex items-center">
+          <button
+            type="button"
+            onClick={() => setShowForgot(true)}
+            className="mt-3 w-full py-2 text-center text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Forgot password?
+          </button>
+
+          <div className="relative my-3 flex items-center">
             <div className="flex-1 border-t border-border" />
             <span className="mx-3 text-xs text-muted-foreground">or</span>
             <div className="flex-1 border-t border-border" />
