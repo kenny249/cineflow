@@ -125,12 +125,13 @@ export function LoginPageClient() {
             </Button>
           </form>
 
-          <Link
-            href="/forgot-password"
-            className="mt-3 flex min-h-[44px] items-center justify-center text-sm text-muted-foreground transition-colors hover:text-foreground"
+          <button
+            type="button"
+            onClick={() => window.location.assign("/forgot-password")}
+            className="mt-3 flex min-h-[44px] w-full items-center justify-center text-sm text-muted-foreground transition-colors hover:text-foreground active:text-foreground"
           >
             Forgot password?
-          </Link>
+          </button>
 
           <div className="relative my-2 flex items-center">
             <div className="flex-1 border-t border-border" />
