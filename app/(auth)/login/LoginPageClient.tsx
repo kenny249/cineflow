@@ -103,15 +103,7 @@ export function LoginPageClient() {
               />
             </div>
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Forgot password?
-                </Link>
-              </div>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -131,6 +123,12 @@ export function LoginPageClient() {
             >
               {isLoading ? "Signing in…" : "Sign in"}
             </Button>
+            <Link
+              href="/forgot-password"
+              className="block py-1 text-center text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Forgot password?
+            </Link>
           </form>
 
           <div className="relative my-5 flex items-center">
