@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useCallback, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Camera, Upload, Loader2, CheckCircle2, ArrowLeft,
   Receipt, Utensils, Plane, Bed, Package, RotateCcw,
@@ -25,7 +25,7 @@ interface ParsedReceipt {
   description: string;
 }
 
-export default function WrapUploadPage() {
+function UploadPageInner() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
@@ -34,6 +34,8 @@ export default function WrapUploadPage() {
   const [done, setDone] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tripId = searchParams.get("trip");
 
   const handleFile = useCallback((file: File) => {
     if (!file.type.startsWith("image/")) { toast.error("Please select an image."); return; }
@@ -90,6 +92,7 @@ export default function WrapUploadPage() {
       // Save receipt
       const { error } = await supabase.from("wrap_receipts").insert({
         user_id: user.id,
+        trip_id: tripId || null,
         vendor: parsed.vendor || null,
         amount: parsed.amount,
         currency: "USD",
@@ -101,7 +104,7 @@ export default function WrapUploadPage() {
       if (error) throw new Error(error.message);
 
       setDone(true);
-      setTimeout(() => router.replace("/wrap/dashboard"), 1200);
+      setTimeout(() => router.replace(tripId ? `/wrap/trip/${tripId}` : "/wrap/dashboard"), 1200);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Save failed — try again.");
     } finally {
@@ -273,6 +276,14 @@ export default function WrapUploadPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function WrapUploadPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0a0a0a]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-[#d4a853]" /></div>}>
+      <UploadPageInner />
+    </Suspense>
   );
 }
 
