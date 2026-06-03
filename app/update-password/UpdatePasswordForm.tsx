@@ -17,17 +17,31 @@ export function UpdatePasswordForm() {
 
   useEffect(() => {
     const supabase = createClient();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
         setReady(true);
       }
     });
 
-    // Also check if there's already an active session (user refreshed the page)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setReady(true);
-    });
+    async function init() {
+      // PKCE flow: Supabase sends ?code= in the URL — exchange it here so
+      // the PASSWORD_RECOVERY event fires on this page's client.
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      if (code) {
+        await supabase.auth.exchangeCodeForSession(code);
+        // Clean the code from the URL without a reload
+        window.history.replaceState({}, "", window.location.pathname);
+        return;
+      }
 
+      // Implicit flow or page refresh — check for an existing session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) setReady(true);
+    }
+
+    init();
     return () => subscription.unsubscribe();
   }, []);
 
