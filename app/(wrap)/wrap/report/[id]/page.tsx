@@ -26,9 +26,21 @@ async function getData(id: string) {
   return { trip, receipts: receipts ?? [] };
 }
 
-export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function ReportPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ paid?: string }>;
+}) {
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
   const data = await getData(id);
   if (!data) notFound();
-  return <ReportClient trip={data.trip} receipts={data.receipts} />;
+  return (
+    <ReportClient
+      trip={data.trip}
+      receipts={data.receipts}
+      optimisticPaid={sp.paid === "1"}
+    />
+  );
 }

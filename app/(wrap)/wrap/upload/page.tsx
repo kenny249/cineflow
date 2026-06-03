@@ -25,41 +25,88 @@ interface ParsedReceipt {
   description: string;
 }
 
+async function compressImage(file: File): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX_DIM = 1600;
+      const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { reject(new Error("Compression failed")); return; }
+          const reader = new FileReader();
+          reader.onload = () =>
+            resolve({ base64: (reader.result as string).split(",")[1], mimeType: "image/jpeg" });
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        },
+        "image/jpeg",
+        0.82
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+    img.src = url;
+  });
+}
+
 function UploadPageInner() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [parsed, setParsed] = useState<ParsedReceipt | null>(null);
+  const [compressedBlob, setCompressedBlob] = useState<Blob | null>(null);
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const tripId = searchParams.get("trip");
 
+  // Revoke object URL on unmount
+  useEffect(() => {
+    return () => { if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current); };
+  }, []);
+
   const handleFile = useCallback((file: File) => {
     if (!file.type.startsWith("image/")) { toast.error("Please select an image."); return; }
-    setImageFile(file);
+    // Revoke previous URL before creating a new one
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     const url = URL.createObjectURL(file);
+    objectUrlRef.current = url;
+    setImageFile(file);
     setImagePreview(url);
     setParsed(null);
   }, []);
+
+  function handleReset() {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = null;
+    setImagePreview(null);
+    setImageFile(null);
+    setParsed(null);
+    setCompressedBlob(null);
+  }
 
   async function handleScan() {
     if (!imageFile) return;
     setScanning(true);
     try {
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve((reader.result as string).split(",")[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(imageFile);
-      });
-
+      const { base64, mimeType } = await compressImage(imageFile);
+      // Store the blob now so handleSave can reuse it without re-compressing
+      const blob = await fetch(`data:${mimeType};base64,${base64}`).then(r => r.blob());
+      setCompressedBlob(blob);
       const res = await fetch("/api/wrap/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, mimeType: imageFile.type }),
+        body: JSON.stringify({ image: base64, mimeType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Scan failed");
@@ -79,17 +126,18 @@ function UploadPageInner() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.replace("/wrap"); return; }
 
-      // Upload image
-      const ext = imageFile.name.split(".").pop() ?? "jpg";
-      const path = `wrap/${user.id}/${Date.now()}.${ext}`;
+      // Upload compressed image — reuse blob from scan step if available
+      const uploadBlob: Blob = compressedBlob ?? await compressImage(imageFile).then(
+        async ({ base64, mimeType }) => fetch(`data:${mimeType};base64,${base64}`).then(r => r.blob())
+      );
+      const path = `wrap/${user.id}/${Date.now()}.jpg`;
       const { error: uploadErr } = await supabase.storage
         .from("wrap-receipts")
-        .upload(path, imageFile, { contentType: imageFile.type });
+        .upload(path, uploadBlob, { contentType: "image/jpeg" });
       if (uploadErr) throw new Error(uploadErr.message);
 
       const { data: { publicUrl } } = supabase.storage.from("wrap-receipts").getPublicUrl(path);
 
-      // Save receipt
       const { error } = await supabase.from("wrap_receipts").insert({
         user_id: user.id,
         trip_id: tripId || null,
@@ -156,7 +204,7 @@ function UploadPageInner() {
                 className="max-h-64 w-full rounded-2xl object-contain"
               />
               <button
-                onClick={(e) => { e.stopPropagation(); setImagePreview(null); setImageFile(null); setParsed(null); }}
+                onClick={(e) => { e.stopPropagation(); handleReset(); }}
                 className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-black"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -281,7 +329,11 @@ function UploadPageInner() {
 
 export default function WrapUploadPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#0a0a0a]"><div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-[#d4a853]" /></div>}>
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a]">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-[#d4a853]" />
+      </div>
+    }>
       <UploadPageInner />
     </Suspense>
   );

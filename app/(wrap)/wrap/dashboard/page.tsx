@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Receipt, Plus, LogOut, Loader2, ChevronRight,
   Folder, DollarSign, CheckCircle2, Send, Clock,
+  Utensils, Plane, Bed, Camera, Package,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -19,18 +20,37 @@ interface Trip {
   total: number;
 }
 
-function formatAmount(amount: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount);
+interface UnassignedReceipt {
+  id: string;
+  vendor: string | null;
+  amount: number | null;
+  currency: string;
+  category: string | null;
+  date: string | null;
+}
+
+const CATEGORY_ICONS: Record<string, React.ElementType> = {
+  food: Utensils, travel: Plane, accommodation: Bed, equipment: Camera, other: Package,
+};
+
+function formatAmount(amount: number, currency = "USD") {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+}
+
+function formatAmountNullable(amount: number | null, currency = "USD") {
+  if (amount == null) return "—";
+  return formatAmount(amount, currency);
 }
 
 const STATUS_META = {
-  open:  { label: "Open",   icon: Clock,         color: "text-zinc-400",   bg: "bg-zinc-500/10" },
-  sent:  { label: "Sent",   icon: Send,           color: "text-blue-400",   bg: "bg-blue-500/10" },
+  open:  { label: "Open",   icon: Clock,         color: "text-zinc-400",    bg: "bg-zinc-500/10" },
+  sent:  { label: "Sent",   icon: Send,           color: "text-blue-400",    bg: "bg-blue-500/10" },
   paid:  { label: "Paid",   icon: CheckCircle2,   color: "text-emerald-400", bg: "bg-emerald-500/10" },
 };
 
 export default function WrapDashboard() {
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [unassigned, setUnassigned] = useState<UnassignedReceipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState("");
   const router = useRouter();
@@ -41,15 +61,23 @@ export default function WrapDashboard() {
     if (!user) { router.replace("/wrap"); return; }
     setUserName(user.email?.split("@")[0] ?? "");
 
-    const { data, error } = await supabase
-      .from("wrap_trips")
-      .select("*, wrap_receipts(amount)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+    const [{ data: tripData, error }, { data: unassignedData }] = await Promise.all([
+      supabase
+        .from("wrap_trips")
+        .select("*, wrap_receipts(amount)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("wrap_receipts")
+        .select("id, vendor, amount, currency, category, date")
+        .eq("user_id", user.id)
+        .is("trip_id", null)
+        .order("created_at", { ascending: false }),
+    ]);
 
     if (error) { toast.error("Couldn't load trips."); setLoading(false); return; }
 
-    const enriched: Trip[] = (data ?? []).map((t: any) => ({
+    const enriched: Trip[] = (tripData ?? []).map((t: any) => ({
       id: t.id,
       name: t.name,
       client_name: t.client_name,
@@ -60,6 +88,7 @@ export default function WrapDashboard() {
     }));
 
     setTrips(enriched);
+    setUnassigned(unassignedData ?? []);
     setLoading(false);
   }, [router]);
 
@@ -93,7 +122,7 @@ export default function WrapDashboard() {
 
       <div className="px-4 pt-6">
         <div className="mb-6">
-          <p className="text-sm text-zinc-500">Hey {userName} 👋</p>
+          <p className="text-sm text-zinc-500">Hey {userName}</p>
           <h1 className="mt-0.5 text-2xl font-bold text-white">Trips</h1>
         </div>
 
@@ -161,6 +190,47 @@ export default function WrapDashboard() {
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {/* Unassigned receipts */}
+        {!loading && unassigned.length > 0 && (
+          <div className="mt-8">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Unassigned receipts
+              </p>
+              <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">
+                {unassigned.length}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {unassigned.map((r) => {
+                const Icon = CATEGORY_ICONS[r.category ?? "other"] ?? Package;
+                return (
+                  <div
+                    key={r.id}
+                    className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-[#111] px-4 py-3"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-zinc-500" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-white">{r.vendor ?? "Unknown vendor"}</p>
+                      {r.date && (
+                        <p className="text-[11px] text-zinc-500">
+                          {new Date(r.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-300 shrink-0">
+                      {formatAmountNullable(r.amount, r.currency)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-center text-[11px] text-zinc-600">
+              These receipts have no trip assigned.
+            </p>
           </div>
         )}
       </div>

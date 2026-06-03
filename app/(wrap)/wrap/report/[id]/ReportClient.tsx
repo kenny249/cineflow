@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Receipt, Utensils, Plane, Bed, Camera, Package, CheckCircle2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   food: Utensils, travel: Plane, accommodation: Bed, equipment: Camera, other: Package,
@@ -19,7 +20,7 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
-interface Receipt {
+interface ReceiptItem {
   id: string; vendor: string | null; amount: number | null;
   currency: string; date: string | null; category: string | null; description: string | null;
 }
@@ -28,17 +29,25 @@ interface Trip {
   client_email: string | null; notes: string | null; status: string;
 }
 
-export function ReportClient({ trip, receipts }: { trip: Trip; receipts: Receipt[] }) {
+export function ReportClient({
+  trip,
+  receipts,
+  optimisticPaid = false,
+}: {
+  trip: Trip;
+  receipts: ReceiptItem[];
+  optimisticPaid?: boolean;
+}) {
   const [paying, setPaying] = useState(false);
   const total = receipts.reduce((s, r) => s + (r.amount ?? 0), 0);
-  const isPaid = trip.status === "paid";
+  const isPaid = trip.status === "paid" || optimisticPaid;
 
   async function handlePay() {
     setPaying(true);
     const res = await fetch(`/api/wrap/trips/${trip.id}/checkout`, { method: "POST" });
     const data = await res.json();
     if (!res.ok || !data.url) {
-      alert("Payment setup failed — please try again.");
+      toast.error("Payment setup failed — please try again.");
       setPaying(false);
       return;
     }
