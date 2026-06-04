@@ -92,8 +92,10 @@ export default function DashboardPage() {
         if (profile?.plan_status) {
           setPlanStatus(profile.plan_status);
         }
-        if (profile?.first_name || profile?.last_name) {
-          setDisplayName([profile.first_name, profile.last_name].filter(Boolean).join(" "));
+        const validFirst = profile?.first_name && !profile.first_name.includes("@")
+          ? profile.first_name : null;
+        if (validFirst || profile?.last_name) {
+          setDisplayName([validFirst, profile?.last_name].filter(Boolean).join(" "));
         } else {
           const emailName = user.email?.split("@")[0] ?? "";
           if (emailName) setDisplayName(emailName);

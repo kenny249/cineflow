@@ -350,45 +350,69 @@ export default function WelcomePage() {
   const isReturning   = useRef(false);
   const autoTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Confirm plan from Supabase profile and keep sessionStorage in sync
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase.from("profiles").select("plan").eq("id", user.id).single()
-        .then(({ data }) => {
-          if (data?.plan) {
-            setPlan(data.plan);
-            sessionStorage.setItem("cf_plan", data.plan);
-          }
-        });
-    });
-  }, []);
-
   const FEATURES = isSoloPlan(plan) ? FEATURES_SOLO : FEATURES_STUDIO;
 
-  // Boot sequence
+  // Boot sequence — checks Supabase first so localStorage state never wrongly
+  // treats an existing user as new (e.g. after clearing storage or on a new device)
   useEffect(() => {
-    isReturning.current = Boolean(localStorage.getItem("cf_onboarded"));
-    const name = getOrCreateDisplayName();
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let cancelled = false;
 
-    if (isReturning.current) {
-      setResolvedName(name);
-      const t1 = setTimeout(() => setPhase("logo"),     120);
-      const t2 = setTimeout(() => setPhase("headline"), 980);
-    const t3 = setTimeout(() => {
-      setPhase("exit");
-      setTimeout(() => window.location.assign("/dashboard"), 350);
-    }, 2400);
-      return () => [t1, t2, t3].forEach(clearTimeout);
-    } else {
-      const t1 = setTimeout(() => setPhase("logo"),     120);
-      const t2 = setTimeout(() => {
-        setPhase("name_ask");
-        setTimeout(() => inputRef.current?.focus(), 80);
-      }, 1050);
-      return () => [t1, t2].forEach(clearTimeout);
+    async function boot() {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled || !user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("plan, first_name, last_name")
+        .eq("id", user.id)
+        .single();
+
+      if (cancelled) return;
+
+      // Sync plan
+      if (profile?.plan) {
+        setPlan(profile.plan);
+        sessionStorage.setItem("cf_plan", profile.plan);
+      }
+
+      // A first_name that contains "@" is a corrupted value (email stored as name) — ignore it
+      const validFirst = profile?.first_name && !profile.first_name.includes("@")
+        ? profile.first_name : null;
+      const profileName = validFirst
+        ? [validFirst, profile?.last_name].filter(Boolean).join(" ")
+        : null;
+
+      // Returning = has a real name in DB, OR localStorage says they've been through before
+      const ret = Boolean(profileName || localStorage.getItem("cf_onboarded"));
+      isReturning.current = ret;
+
+      if (ret) {
+        // Use the DB name as source of truth; keep localStorage in sync
+        const name = profileName ?? getOrCreateDisplayName();
+        if (profileName) {
+          setDisplayName(profileName);
+          localStorage.setItem("cf_onboarded", "1");
+        }
+        setResolvedName(name);
+        timers.push(setTimeout(() => setPhase("logo"),     120));
+        timers.push(setTimeout(() => setPhase("headline"), 980));
+        timers.push(setTimeout(() => {
+          setPhase("exit");
+          setTimeout(() => window.location.assign("/dashboard"), 350);
+        }, 2400));
+      } else {
+        timers.push(setTimeout(() => setPhase("logo"), 120));
+        timers.push(setTimeout(() => {
+          setPhase("name_ask");
+          setTimeout(() => inputRef.current?.focus(), 80);
+        }, 1050));
+      }
     }
+
+    boot();
+    return () => { cancelled = true; timers.forEach(clearTimeout); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
