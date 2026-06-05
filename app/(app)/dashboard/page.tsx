@@ -98,7 +98,7 @@ export default function DashboardPage() {
           setDisplayName([validFirst, profile?.last_name].filter(Boolean).join(" "));
         } else {
           const emailName = user.email?.split("@")[0] ?? "";
-          if (emailName) setDisplayName(emailName);
+          if (emailName) setDisplayName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
           // Only prompt for name if account is less than 2 hours old — never show to existing users
           const accountAgeMs = Date.now() - new Date(user.created_at).getTime();
           if (accountAgeMs < 2 * 60 * 60 * 1000) {
