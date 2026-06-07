@@ -153,7 +153,7 @@ export function WarRoomClient({ data: initial }: { data: WarRoomData }) {
           {
             label: "Paid users",
             value: data.paidCount,
-            sub: `of ${data.totalUsers} total`,
+            sub: `Stripe-verified · ${data.totalUsers} total users`,
             icon: TrendingUp,
             color: "text-blue-400",
             highlight: false,

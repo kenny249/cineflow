@@ -81,8 +81,9 @@ async function fetchWarRoomData() {
       };
     });
 
-  // MRR from Stripe
+  // MRR + verified paid count from Stripe (excludes gifted/comped accounts with no real payment)
   let mrr = 0;
+  let paidCount = 0;
   let canceledLast30 = 0;
   if (process.env.STRIPE_SECRET_KEY) {
     try {
@@ -104,6 +105,8 @@ async function fetchWarRoomData() {
         return invoice?.amount_paid != null && invoice.amount_paid >= 100;
       });
 
+      paidCount = paidSubs.length;
+
       for (const sub of paidSubs) {
         const item = sub.items.data[0];
         if (!item) continue;
@@ -124,13 +127,10 @@ async function fetchWarRoomData() {
         return inv?.amount_paid != null && inv.amount_paid >= 100;
       }).length;
     } catch {
-      // Stripe unavailable
+      // Stripe unavailable — paidCount stays 0
     }
   }
 
-  const paidCount = (profiles ?? []).filter(
-    (p) => p.plan_status === "active" || p.plan_status === "founding" || p.plan === "lifetime"
-  ).length;
   const trialsActive = (profiles ?? []).filter(
     (p) => p.plan_status === "trialing" && p.trial_ends_at && new Date(p.trial_ends_at) > new Date()
   ).length;
