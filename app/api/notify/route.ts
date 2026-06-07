@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   emailPortalLive,
   emailRevisionReady,
@@ -64,19 +65,45 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // For unauthenticated client events, validate the portalUrl is on our own domain
-  // to prevent this endpoint being used as an open email relay
+  // For unauthenticated client events, validate portalUrl domain and derive the
+  // owner email from the DB — never trust the user-supplied `to` field.
   if (!user && isOwnerEvent) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com";
     const allowedHost = new URL(siteUrl).hostname;
+    let parsedPortal: URL;
     try {
-      const submittedHost = new URL(body.portalUrl).hostname;
-      if (submittedHost !== allowedHost) {
+      parsedPortal = new URL(body.portalUrl);
+      if (parsedPortal.hostname !== allowedHost) {
         return NextResponse.json({ error: "Invalid portal URL" }, { status: 400 });
       }
     } catch {
       return NextResponse.json({ error: "Invalid portal URL" }, { status: 400 });
     }
+
+    // Extract token from /review/[token] and look up the real owner email
+    const token = parsedPortal.pathname.split("/").filter(Boolean).pop();
+    if (!token) return NextResponse.json({ error: "Invalid portal URL" }, { status: 400 });
+
+    const admin = createAdminClient();
+    const { data: tokenRow } = await admin
+      .from("review_tokens")
+      .select("created_by")
+      .eq("token", token)
+      .eq("is_active", true)
+      .single();
+
+    if (!tokenRow) return NextResponse.json({ error: "Invalid token" }, { status: 400 });
+
+    const { data: ownerProfile } = await admin
+      .from("profiles")
+      .select("email")
+      .eq("id", tokenRow.created_by)
+      .single();
+
+    if (!ownerProfile?.email) return NextResponse.json({ error: "Owner not found" }, { status: 400 });
+
+    // Override recipient with verified owner email — ignore user-supplied `to`
+    body.to = ownerProfile.email;
   }
 
   if (!resend) {

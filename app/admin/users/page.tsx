@@ -70,7 +70,7 @@ export default async function UsersPage() {
         email: u.email ?? "",
         name: [p.first_name, p.last_name].filter(Boolean).join(" ") || null,
         company: p.business_name || p.company || null,
-        plan: p.plan ?? "studio_beta",
+        plan: p.plan ?? "studio",
         plan_status: p.plan_status ?? "trialing",
         trial_ends_at: p.trial_ends_at ?? null,
         is_admin: p.is_admin ?? false,

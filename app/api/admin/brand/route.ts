@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
   const folder = (form.get("folder") as string | null) ?? "uploads";
 
   if (!file) return NextResponse.json({ error: "file required" }, { status: 400 });
+  if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: "File too large (max 10MB)" }, { status: 413 });
 
   const ext = file.name.split(".").pop() ?? "bin";
   const path = `${folder}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;

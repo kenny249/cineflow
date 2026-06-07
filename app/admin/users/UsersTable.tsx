@@ -573,7 +573,7 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
 
       {/* ── Email user modal ── */}
       {emailModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setEmailModal(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setEmailModal(null)}>
           <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#111] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="mb-1 text-sm font-bold text-white">Email {emailModal.name}</h3>
             <p className="mb-4 text-xs text-zinc-500">{emailModal.email}</p>
@@ -603,7 +603,7 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
 
       {/* ── Notes modal ── */}
       {notesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setNotesModal(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setNotesModal(null)}>
           <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#111] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-bold text-white">Notes · {notesModal.name}</h3>
@@ -651,7 +651,7 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
 
       {/* ── Impersonate modal ── */}
       {impersonateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setImpersonateModal(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => setImpersonateModal(null)}>
           <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#111] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <h3 className="mb-1 text-sm font-bold text-white">Login as {impersonateModal.email}</h3>
             <p className="mb-4 text-xs text-zinc-500 leading-relaxed">Open this link in an <strong className="text-white">incognito / private window</strong> so you don&apos;t get logged out of your admin account.</p>
