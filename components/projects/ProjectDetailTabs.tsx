@@ -2921,10 +2921,10 @@ export default function ProjectDetailTabs({
                   −
                 </button>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="numeric"
                   value={newShotNumber}
-                  onChange={(e) => setNewShotNumber(Math.max(1, Number(e.target.value)))}
+                  onChange={(e) => setNewShotNumber(Math.max(1, Number(e.target.value.replace(/[^\d]/g, ""))))}
                   className="h-10 w-full rounded-lg border border-border bg-input px-3 text-center text-sm font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
                 <button

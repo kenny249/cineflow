@@ -249,8 +249,8 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
                   {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
                 </select>
                 <input className="budget-input sm:col-span-2" placeholder="Description *" value={lineForm.description} onChange={(e) => setLineForm({ ...lineForm, description: e.target.value })} />
-                <div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="budget-input pl-6" placeholder="Budgeted" type="number" step="0.01" value={lineForm.budgeted} onChange={(e) => setLineForm({ ...lineForm, budgeted: e.target.value })} /></div>
-                <div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="budget-input pl-6" placeholder="Actual" type="number" step="0.01" value={lineForm.actual} onChange={(e) => setLineForm({ ...lineForm, actual: e.target.value })} /></div>
+                <div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="budget-input pl-6" placeholder="Budgeted" type="text" inputMode="numeric" value={lineForm.budgeted} onChange={(e) => setLineForm({ ...lineForm, budgeted: e.target.value.replace(/[^\d.]/g, "") })} /></div>
+                <div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="budget-input pl-6" placeholder="Actual" type="text" inputMode="numeric" value={lineForm.actual} onChange={(e) => setLineForm({ ...lineForm, actual: e.target.value.replace(/[^\d.]/g, "") })} /></div>
                 <input className="budget-input" placeholder="Vendor" value={lineForm.vendor} onChange={(e) => setLineForm({ ...lineForm, vendor: e.target.value })} />
                 <input className="budget-input col-span-2 sm:col-span-3" placeholder="Notes" value={lineForm.notes} onChange={(e) => setLineForm({ ...lineForm, notes: e.target.value })} />
               </div>
@@ -452,7 +452,7 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
             <div className="overflow-y-auto px-5 py-4 space-y-3">
               <div><label className="fin-label">Description *</label><input className="fin-input" value={expenseForm.description ?? ""} onChange={(e) => setExpenseForm((p) => ({ ...p, description: e.target.value }))} placeholder="e.g. Grip rental" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="fin-label">Amount ($)</label><div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="fin-input pl-6" type="number" min="0" step="0.01" value={expenseForm.amount ?? 0} onChange={(e) => setExpenseForm((p) => ({ ...p, amount: parseFloat(e.target.value) || 0 }))} /></div></div>
+                <div><label className="fin-label">Amount ($)</label><div className="relative"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span><input className="fin-input pl-6" type="text" inputMode="numeric" value={expenseForm.amount ?? 0} onChange={(e) => setExpenseForm((p) => ({ ...p, amount: parseFloat(e.target.value.replace(/[^\d.]/g, "")) || 0 }))} /></div></div>
                 <div><label className="fin-label">Date</label><input className="fin-input" type="date" value={expenseForm.date ?? ""} onChange={(e) => setExpenseForm((p) => ({ ...p, date: e.target.value }))} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -519,8 +519,8 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
               <div><label className="fin-label">Client Name</label><input className="fin-input" value={invForm.client_name} onChange={fi("client_name")} placeholder="Client name" /></div>
               <div><label className="fin-label">Description</label><input className="fin-input" value={invForm.description} onChange={fi("description")} placeholder="e.g. Brand film production" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="fin-label">Amount ($)</label><input className="fin-input" type="number" min="0" step="0.01" value={invForm.amount} onChange={fi("amount")} placeholder="0.00" /></div>
-                <div><label className="fin-label">Paid ($)</label><input className="fin-input" type="number" min="0" step="0.01" value={invForm.amount_paid} onChange={fi("amount_paid")} placeholder="0.00" /></div>
+                <div><label className="fin-label">Amount ($)</label><input className="fin-input" type="text" inputMode="numeric" value={invForm.amount} onChange={(e) => { const v = e.target.value.replace(/[^\d.]/g, ""); fi("amount")({ target: { value: v } } as React.ChangeEvent<HTMLInputElement>); }} placeholder="0.00" /></div>
+                <div><label className="fin-label">Paid ($)</label><input className="fin-input" type="text" inputMode="numeric" value={invForm.amount_paid} onChange={(e) => { const v = e.target.value.replace(/[^\d.]/g, ""); fi("amount_paid")({ target: { value: v } } as React.ChangeEvent<HTMLInputElement>); }} placeholder="0.00" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className="fin-label">Due Date</label><input className="fin-input" type="date" value={invForm.due_date} onChange={fi("due_date")} /></div>

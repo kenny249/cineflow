@@ -230,12 +230,12 @@ function CrewModal({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Day rate min ($)</label>
-              <input type="number" value={form.day_rate_min} onChange={(e) => f("day_rate_min", e.target.value)} placeholder="500"
+              <input type="text" inputMode="numeric" value={form.day_rate_min} onChange={(e) => f("day_rate_min", e.target.value.replace(/[^\d.]/g, ""))} placeholder="500"
                 className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/50 focus:outline-none" />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Day rate max ($)</label>
-              <input type="number" value={form.day_rate_max} onChange={(e) => f("day_rate_max", e.target.value)} placeholder="1200"
+              <input type="text" inputMode="numeric" value={form.day_rate_max} onChange={(e) => f("day_rate_max", e.target.value.replace(/[^\d.]/g, ""))} placeholder="1200"
                 className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-[#d4a853]/50 focus:outline-none" />
             </div>
           </div>

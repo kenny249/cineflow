@@ -465,13 +465,13 @@ export function SessionLog({ sessions, onDelete, onAdd }: SessionLogProps) {
           <div className="flex gap-3">
             <div className="flex flex-col gap-1.5 w-24">
               <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Hours</label>
-              <input type="number" min="0" max="23" value={formHours} onChange={(e) => setFormHours(e.target.value)}
+              <input type="text" inputMode="numeric" value={formHours} onChange={(e) => setFormHours(e.target.value.replace(/[^\d]/g, ""))}
                 className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground text-center font-mono focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 focus:border-[#d4a853]/40 transition-colors"
               />
             </div>
             <div className="flex flex-col gap-1.5 w-24">
               <label className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">Minutes</label>
-              <input type="number" min="0" max="59" value={formMins} onChange={(e) => setFormMins(e.target.value)}
+              <input type="text" inputMode="numeric" value={formMins} onChange={(e) => setFormMins(e.target.value.replace(/[^\d]/g, ""))}
                 className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-foreground text-center font-mono focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40 focus:border-[#d4a853]/40 transition-colors"
               />
             </div>
