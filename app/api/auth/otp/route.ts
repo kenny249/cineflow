@@ -26,10 +26,9 @@ export async function POST(req: NextRequest) {
     const supabase = getAdminClient();
     const trimmedEmail = email.trim().toLowerCase();
 
-    // Look up user directly by email — avoids the 1000-user pagination bug
+    // Find existing user by email
     const { data: { users } } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    const existing = users.find((u) => u.email?.toLowerCase() === trimmedEmail)
-      ?? await supabase.auth.admin.getUserByEmail(trimmedEmail).then(r => r.data?.user ?? null).catch(() => null);
+    const existing = users.find((u) => u.email?.toLowerCase() === trimmedEmail);
 
     if (existing) {
       // If they exist but email isn't confirmed, confirm them now
