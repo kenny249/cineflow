@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette } from "lucide-react";
+import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
+  { href: "/admin/war-room",     label: "War Room",     icon: Zap },
   { href: "/admin/users",        label: "Users",        icon: Users },
   { href: "/admin/analytics",    label: "Analytics",    icon: BarChart2 },
   { href: "/admin/finances",     label: "Finances",     icon: DollarSign },
+  { href: "/admin/funnel",       label: "Churn & Funnel", icon: TrendingDown },
+  { href: "/admin/activity",     label: "Live Activity",icon: Radio },
+  { href: "/admin/broadcast",    label: "Broadcast",    icon: Send },
   { href: "/admin/invite-links", label: "Invite Links", icon: Link2 },
   { href: "/admin/referrals",    label: "Referrals",    icon: Share2 },
   { href: "/admin/audit-log",    label: "Audit Log",    icon: ScrollText },
