@@ -1143,11 +1143,11 @@ export default function FinancePage() {
                     {[
                       { key: "reminders_enabled" as const, label: "Payment reminders", desc: "Auto-email client 3 days before, day of, and when overdue" },
                       { key: "show_signature_lines" as const, label: "Signature lines", desc: "Print signature + date blocks for both parties" },
-                      { key: "show_rights_notice" as const, label: "Rights &amp; licensing notice", desc: "Append a usage rights clause to the invoice" },
+                      { key: "show_rights_notice" as const, label: "Rights & licensing notice", desc: "Append a usage rights clause to the invoice" },
                     ].map(({ key, label, desc }) => (
                       <div key={key} className="flex items-center justify-between px-3 py-2.5 gap-3">
                         <div className="min-w-0">
-                          <p className="text-xs font-medium text-foreground" dangerouslySetInnerHTML={{ __html: label }} />
+                          <p className="text-xs font-medium text-foreground">{label}</p>
                           <p className="text-[10px] text-muted-foreground/60">{desc}</p>
                         </div>
                         <button

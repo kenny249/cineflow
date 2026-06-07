@@ -101,7 +101,10 @@ export async function POST(req: NextRequest) {
   Promise.all([
     fetch(`${origin}/api/contracts/stamp`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-internal-secret": process.env.INTERNAL_API_SECRET ?? "",
+      },
       body: JSON.stringify({ contractId: contract.id }),
     }).catch(() => {}),
     sendSignedConfirmations({ supabase, contract, body, origin, now }).catch(() => {}),

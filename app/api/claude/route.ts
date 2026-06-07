@@ -12,7 +12,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { messages, system } = await req.json();
+    const body = await req.json();
+    if (JSON.stringify(body).length > 50_000) {
+      return NextResponse.json({ error: "Request too large" }, { status: 413 });
+    }
+    const { messages, system } = body;
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json({ error: "Invalid messages" }, { status: 400 });

@@ -10,7 +10,11 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { brief, title, lineItems, selectedTier, tierAmount } = await req.json();
+    const rawBody = await req.json();
+    if (JSON.stringify(rawBody).length > 50_000) {
+      return NextResponse.json({ error: "Request too large" }, { status: 413 });
+    }
+    const { brief, title, lineItems, selectedTier, tierAmount } = rawBody;
 
     const servicesList = (lineItems as Array<{ service: string; people: number; days: number; rate: number; isFlat: boolean }>)
       .filter((li) => li.service?.trim())

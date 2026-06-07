@@ -19,6 +19,11 @@ function dataURLToBytes(dataUrl: string): Uint8Array {
 }
 
 export async function POST(req: NextRequest) {
+  const internalSecret = process.env.INTERNAL_API_SECRET;
+  if (!internalSecret || req.headers.get("x-internal-secret") !== internalSecret) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const supabase = getAdmin();
 
   let body: { contractId: string };

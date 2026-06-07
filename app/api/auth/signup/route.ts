@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isRateLimited, getClientIp } from "@/lib/rate-limit";
 
 function getAdminClient() {
   return createClient(
@@ -15,6 +16,11 @@ function generateReferralCode(): string {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req);
+  if (isRateLimited(`signup:${ip}`, 5, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
+
   try {
     const { email, password, firstName, lastName, company, inviteCode, referredBy, utm } = await req.json();
 

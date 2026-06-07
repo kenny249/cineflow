@@ -64,6 +64,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // For unauthenticated client events, validate the portalUrl is on our own domain
+  // to prevent this endpoint being used as an open email relay
+  if (!user && isOwnerEvent) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com";
+    const allowedHost = new URL(siteUrl).hostname;
+    try {
+      const submittedHost = new URL(body.portalUrl).hostname;
+      if (submittedHost !== allowedHost) {
+        return NextResponse.json({ error: "Invalid portal URL" }, { status: 400 });
+      }
+    } catch {
+      return NextResponse.json({ error: "Invalid portal URL" }, { status: 400 });
+    }
+  }
+
   if (!resend) {
     return NextResponse.json({ ok: true, skipped: true });
   }
