@@ -38,7 +38,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { error } = await admin
       .from("shot_list_items")
       .update(patch)
-      .eq("id", itemId);
+      .eq("id", itemId)
+      .eq("project_id", projectId);
 
     if (error) {
       console.error("[collab shots PATCH]", error.message);
