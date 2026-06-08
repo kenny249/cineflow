@@ -517,9 +517,11 @@ function ImportTab({
 export function BreakdownPanel({
   file,
   onClose,
+  initialContent,
 }: {
   file: ProjectFile & { projectTitle?: string; projectId?: string };
   onClose: () => void;
+  initialContent?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BreakdownResult | null>(null);
@@ -530,11 +532,16 @@ export function BreakdownPanel({
     setLoading(true);
     setError(null);
     try {
-      // Fetch the script text content
-      if (!file.public_url) throw new Error("No file URL available");
-      const fileRes = await fetch(file.public_url, { cache: "no-store" });
-      if (!fileRes.ok) throw new Error("Could not load script file");
-      const content = await fileRes.text();
+      // Use initialContent if provided (e.g. from in-memory editor), otherwise fetch from URL
+      let content: string;
+      if (initialContent) {
+        content = initialContent;
+      } else {
+        if (!file.public_url) throw new Error("No file URL available");
+        const fileRes = await fetch(file.public_url, { cache: "no-store" });
+        if (!fileRes.ok) throw new Error("Could not load script file");
+        content = await fileRes.text();
+      }
 
       const res = await fetch("/api/scripts/breakdown", {
         method: "POST",

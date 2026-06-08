@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ScrollText, Upload, FileText, Save, Trash2, Files } from "lucide-react";
+import { ScrollText, Upload, FileText, Save, Trash2, Files, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { getProjectFiles, createProjectFile, deleteProjectFile } from "@/lib/supabase/queries";
 import { FileUploadZone } from "./FileUploadZone";
+import { BreakdownPanel } from "@/app/(app)/scripts/BreakdownPanel";
 import type { ProjectFile } from "@/types";
 import { toast } from "sonner";
 
 interface ScriptsTabProps {
   projectId: string;
   canEdit: boolean;
+  projectTitle?: string;
 }
 
 // ── Inline editor helpers (saves to Supabase as a .fountain text file) ────────
@@ -76,7 +78,7 @@ function parseScenes(content: string) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
+export function ScriptsTab({ projectId, canEdit, projectTitle }: ScriptsTabProps) {
   const [mode, setMode] = useState<"files" | "write">("files");
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,6 +88,7 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
   const [scriptFile, setScriptFile] = useState<ProjectFile | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const autoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -230,6 +233,15 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
         {/* Write mode controls */}
         {mode === "write" && canEdit && (
           <div className="flex items-center gap-1.5">
+            {content.trim() && (
+              <button
+                onClick={() => setShowBreakdown(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/8 px-2.5 py-1.5 text-xs font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-colors"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                AI Breakdown
+              </button>
+            )}
             <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               <Upload className="h-3.5 w-3.5" />
               Import
@@ -330,6 +342,27 @@ export function ScriptsTab({ projectId, canEdit }: ScriptsTabProps) {
             />
           )}
         </div>
+      )}
+
+      {showBreakdown && (
+        <BreakdownPanel
+          file={{
+            id: scriptFile?.id ?? "inline",
+            name: SCRIPT_FILENAME,
+            project_id: projectId,
+            projectId,
+            projectTitle,
+            public_url: scriptFile?.public_url,
+            storage_path: scriptFile?.storage_path ?? "",
+            tab: "scripts",
+            mime_type: "text/plain",
+            size: scriptFile?.size,
+            created_at: scriptFile?.created_at ?? new Date().toISOString(),
+            uploaded_by: scriptFile?.uploaded_by,
+          }}
+          initialContent={content}
+          onClose={() => setShowBreakdown(false)}
+        />
       )}
     </div>
   );

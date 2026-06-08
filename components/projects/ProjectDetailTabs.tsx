@@ -2345,7 +2345,7 @@ export default function ProjectDetailTabs({
 
             {/* ── Scripts (file-upload focused) ── */}
             <TabsContent value="scripts" className="m-0">
-              <ScriptsTab projectId={project.id} canEdit={canEdit} />
+              <ScriptsTab projectId={project.id} canEdit={canEdit} projectTitle={project.title} />
             </TabsContent>
 
             {/* ── Production Docs ── */}
