@@ -5,6 +5,7 @@ import {
   DragOverlay,
   PointerSensor,
   TouchSensor,
+  useDroppable,
   useSensor,
   useSensors,
   type DragStartEvent,
@@ -276,11 +277,13 @@ function KanbanColumn({
   onAddInColumn: (status: ProjectTaskStatus) => void;
   isOver: boolean;
 }) {
+  const { setNodeRef } = useDroppable({ id: column.id });
+
   return (
-    <div className="flex w-80 shrink-0 flex-col lg:w-auto lg:flex-1">
+    <div className="flex w-80 shrink-0 flex-col lg:w-auto lg:flex-1 min-h-0">
       {/* Column header */}
       <div className={cn(
-        "mb-3 flex items-center gap-2.5 rounded-xl border px-4 py-3",
+        "mb-3 flex shrink-0 items-center gap-2.5 rounded-xl border px-4 py-3",
         column.headerBg,
         column.accent
       )}>
@@ -296,39 +299,44 @@ function KanbanColumn({
         </span>
       </div>
 
-      {/* Drop zone */}
-      <div className={cn(
-        "flex flex-1 flex-col gap-2.5 rounded-xl border-2 border-dashed p-2 transition-all duration-200 min-h-[120px]",
-        isOver
-          ? column.id === "todo" ? "border-zinc-500 bg-zinc-800/30" :
-            column.id === "in_progress" ? "border-amber-500/50 bg-amber-900/10" :
-            "border-emerald-500/50 bg-emerald-900/10"
-          : "border-transparent"
-      )}>
+      {/* Drop zone — scrollable card area */}
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex-1 overflow-y-auto rounded-xl border-2 border-dashed p-2 transition-all duration-200 min-h-[120px]",
+          isOver
+            ? column.id === "todo" ? "border-zinc-500 bg-zinc-800/30" :
+              column.id === "in_progress" ? "border-amber-500/50 bg-amber-900/10" :
+              "border-emerald-500/50 bg-emerald-900/10"
+            : "border-transparent"
+        )}
+      >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-          {tasks.map((task) => (
-            <SortableCard
-              key={task.id}
-              task={task}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onStatusCycle={onStatusCycle}
-            />
-          ))}
+          <div className="flex flex-col gap-2.5">
+            {tasks.map((task) => (
+              <SortableCard
+                key={task.id}
+                task={task}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onStatusCycle={onStatusCycle}
+              />
+            ))}
+          </div>
         </SortableContext>
 
         {tasks.length === 0 && !isOver && (
-          <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+          <div className="flex h-full min-h-[80px] flex-col items-center justify-center text-center">
             <p className="text-xs text-muted-foreground/40">No tasks</p>
           </div>
         )}
       </div>
 
-      {/* Add task button */}
+      {/* Add task button — always pinned below drop zone */}
       <button
         onClick={() => onAddInColumn(column.id)}
         className={cn(
-          "mt-2.5 flex w-full items-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs font-medium transition-all",
+          "mt-2.5 shrink-0 flex w-full items-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs font-medium transition-all",
           "border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-[#d4a853] hover:bg-[#d4a853]/5"
         )}
       >
@@ -432,7 +440,7 @@ export function KanbanBoard({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex h-full gap-4 overflow-x-auto pb-4 px-6 pt-4">
+      <div className="flex h-full min-h-0 gap-4 overflow-x-auto pb-4 px-6 pt-4 items-stretch">
         {COLUMNS.map((col) => (
           <KanbanColumn
             key={col.id}
