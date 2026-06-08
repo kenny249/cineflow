@@ -36,6 +36,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import { isSoloPlan } from "@/types";
+import { trialDaysLeft } from "@/lib/billing";
+import { Zap } from "lucide-react";
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 
@@ -285,17 +287,26 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
   const [isAdmin, setIsAdmin] = useState(false);
+  const [planStatus, setPlanStatus] = useState<string>(() =>
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan_status") : null) ?? ""
+  );
+  const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("profiles").select("first_name, last_name, plan, is_admin").eq("id", user.id).single()
+      supabase.from("profiles").select("first_name, last_name, plan, plan_status, trial_ends_at, is_admin").eq("id", user.id).single()
         .then(({ data }) => {
           if (data?.plan) {
             setPlan(data.plan);
             sessionStorage.setItem("cf_plan", data.plan);
           }
+          if (data?.plan_status) {
+            setPlanStatus(data.plan_status);
+            sessionStorage.setItem("cf_plan_status", data.plan_status);
+          }
+          if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at);
           if (data?.is_admin) setIsAdmin(true);
           if (data?.first_name || data?.last_name) {
             setDisplayName(`${data.first_name ?? ""} ${data.last_name ?? ""}`.trim());
@@ -411,6 +422,28 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
         </nav>
 
         <SessionIndicator collapsed={collapsed} />
+
+        {/* Trial countdown */}
+        {planStatus === "trialing" && trialEndsAt && !collapsed && (() => {
+          const days = trialDaysLeft(trialEndsAt);
+          if (days <= 0) return null;
+          const urgent = days <= 3;
+          return (
+            <div className="mx-2 mb-2 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/[0.06] p-3">
+              <p className={`text-[11px] font-semibold ${urgent ? "text-orange-400" : "text-[#d4a853]"}`}>
+                {days === 1 ? "Trial ends today" : `${days} days left in trial`}
+              </p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">Upgrade to keep your work.</p>
+              <Link
+                href="/upgrade"
+                className="mt-2 flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-2.5 py-1.5 text-[11px] font-bold text-black hover:bg-[#e0b55e] transition-colors"
+              >
+                <Zap className="h-3 w-3" />
+                Choose a plan
+              </Link>
+            </div>
+          );
+        })()}
 
         {/* Bottom nav */}
         <div className="p-2">

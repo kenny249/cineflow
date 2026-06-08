@@ -82,10 +82,13 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [theme, setTheme] = useLocalStorage<"dark" | "light">("cineflow-theme", "dark");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
-  const [planStatus, setPlanStatus] = useState<string>("");
+  const [planStatus, setPlanStatus] = useState<string>(() =>
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan_status") : null) ?? ""
+  );
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [isDemoUser, setIsDemoUser] = useState(false);
   const [profileName, setProfileName] = useState<string>("");
@@ -109,8 +112,12 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
             setPlan(data.plan);
             sessionStorage.setItem("cf_plan", data.plan);
           }
-          if (data?.plan_status) setPlanStatus(data.plan_status);
+          if (data?.plan_status) {
+            setPlanStatus(data.plan_status);
+            sessionStorage.setItem("cf_plan_status", data.plan_status);
+          }
           if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at);
+          setProfileLoaded(true);
           if (data?.first_name || data?.last_name) {
             setProfileName([data.first_name, data.last_name].filter(Boolean).join(" "));
           } else {
@@ -119,7 +126,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
           }
           if (data?.avatar_url) setProfileAvatarUrl(data.avatar_url);
           if (role) setWorkspaceRole(role as "owner" | "admin" | "member");
-        });
+        }).catch(() => { setProfileLoaded(true); });
     });
   }, []);
 
@@ -239,7 +246,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
         ))}
         {/* pb-20 on mobile for bottom nav clearance (nav is ~68px + safe area) */}
         <main className="flex-1 overflow-hidden pb-20 md:pb-0">
-          <TrialExpiredGate plan={plan} planStatus={planStatus} trialEndsAt={trialEndsAt} isDemo={isDemoUser}>
+          <TrialExpiredGate plan={plan} planStatus={planStatus} trialEndsAt={trialEndsAt} isDemo={isDemoUser} profileLoaded={profileLoaded}>
             {children}
           </TrialExpiredGate>
         </main>

@@ -13,17 +13,19 @@ interface Props {
   planStatus: string;
   trialEndsAt: string | null;
   isDemo?: boolean;
+  profileLoaded?: boolean;
   children: React.ReactNode;
 }
 
-export function TrialExpiredGate({ plan, planStatus, trialEndsAt, isDemo, children }: Props) {
+export function TrialExpiredGate({ plan, planStatus, trialEndsAt, isDemo, profileLoaded = false, children }: Props) {
   const pathname = usePathname();
 
   const profile = { plan, plan_status: planStatus, trial_ends_at: trialEndsAt } as Pick<Profile, "plan" | "plan_status" | "trial_ends_at">;
   const hasAccess = hasActiveAccess(profile);
   const isAllowedPath = ALLOWED_PATHS.some((p) => pathname.startsWith(p));
 
-  if (isDemo || hasAccess || isAllowedPath) return <>{children}</>;
+  // Don't block until we know the real plan — prevents flash for lifetime/founding accounts
+  if (!profileLoaded || isDemo || hasAccess || isAllowedPath) return <>{children}</>;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#060606]/95 backdrop-blur-sm">

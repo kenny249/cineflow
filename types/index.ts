@@ -62,6 +62,7 @@ export interface Profile {
   plan_interval?: "month" | "year" | "lifetime" | null;
   plan_status?: "trialing" | "active" | "past_due" | "canceled" | "founding" | null;
   trial_ends_at?: string | null;
+  trial_reminders_sent?: string[] | null;
   current_period_end?: string | null;
   seat_count?: number | null;
   created_at: string;

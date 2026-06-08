@@ -17,7 +17,9 @@ import {
 } from "@/lib/supabase/queries";
 import type { TeamMember, TeamTopic, TeamMessage } from "@/types";
 import type { Project } from "@/types";
+import { isSoloPlan } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { UpgradeModal } from "@/components/shared/UpgradeModal";
 import { ROLE_DEFINITIONS, ROLE_MAP } from "@/lib/roles";
 import {
   Users,
@@ -594,6 +596,10 @@ export default function TeamPage() {
   const [memberMenuId, setMemberMenuId] = useState<string | null>(null);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [plan, setPlan] = useState<string>(() =>
+    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
+  );
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -604,6 +610,12 @@ export default function TeamPage() {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
     supabase.rpc("get_member_role").then(({ data: role }) => setIsOwner(role === "owner"));
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("profiles").select("plan").eq("id", user.id).single().then(({ data }) => {
+        if (data?.plan) { setPlan(data.plan); sessionStorage.setItem("cf_plan", data.plan); }
+      });
+    });
     getTeamMembers().then(setMembers).catch(() => {});
     getProjects().then(setProjects).catch(() => {});
     getTeamTopics().then((ts) => {
@@ -755,8 +767,23 @@ export default function TeamPage() {
   const activeCount = members.filter((m) => m.status === "active").length;
   const pendingCount = members.filter((m) => m.status === "pending").length;
 
+  const isSolo = isSoloPlan(plan);
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
+      {/* ── Solo upgrade banner ── */}
+      {isSolo && (
+        <div className="shrink-0 flex items-center justify-between gap-3 border-b border-[#d4a853]/20 bg-[#d4a853]/[0.06] px-5 py-2.5">
+          <p className="text-xs text-[#d4a853]/80">Team collaboration requires Studio or higher.</p>
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="shrink-0 rounded-lg bg-[#d4a853] px-3 py-1.5 text-[11px] font-bold text-black hover:bg-[#e0b55e] transition-colors"
+          >
+            Upgrade
+          </button>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-3.5">
         <div>
@@ -1135,6 +1162,15 @@ export default function TeamPage() {
             setActiveTopic(t);
             setPanel("chat");
           }}
+        />
+      )}
+
+      {showUpgradeModal && (
+        <UpgradeModal
+          feature="team"
+          title="Team is a Studio feature"
+          description="Invite crew members, create team channels, and collaborate in real time. Available on Studio and above."
+          onClose={() => setShowUpgradeModal(false)}
         />
       )}
     </div>

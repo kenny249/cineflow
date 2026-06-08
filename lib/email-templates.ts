@@ -277,6 +277,41 @@ export function emailLifetimeGift({
   };
 }
 
+// ─── Template: Trial expiring ─────────────────────────────────────────────────
+export function emailTrialExpiring({
+  firstName,
+  daysLeft,
+  upgradeUrl,
+}: {
+  firstName: string;
+  daysLeft: number;
+  upgradeUrl: string;
+}): { subject: string; html: string } {
+  const isToday = daysLeft <= 1;
+  const subject = isToday
+    ? "Your CineFlow trial ends today"
+    : `Your CineFlow trial ends in ${daysLeft} days`;
+  const urgencyColor = isToday ? "#ef4444" : daysLeft <= 3 ? "#f97316" : "#d4a853";
+  const body = `
+    ${h1(isToday ? "Your free trial ends today." : `Your free trial ends in ${daysLeft} days.`)}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;">Hi${firstName ? ` ${firstName}` : ""} — everything you've built in CineFlow (your projects, clients, invoices, scripts, and shot lists) stays safe. Choose a plan to keep full access.</p>
+    ${divider()}
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="background:#161616;border:1px solid #222;border-left:3px solid ${urgencyColor};border-radius:0 8px 8px 0;padding:14px 16px;">
+          <p style="margin:0;font-size:13px;font-weight:700;color:${urgencyColor};">${isToday ? "⚠ Expires today" : `${daysLeft} days remaining`}</p>
+          <p style="margin:6px 0 0;font-size:12px;color:#666;">Plans start at $39/month. Cancel anytime.</p>
+        </td>
+      </tr>
+    </table>
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#666666;">Pick the plan that fits your workflow. Solo is perfect for individual filmmakers — Studio adds team collaboration and unlimited collaborators.</p>
+    ${btn("Choose a plan", upgradeUrl)}
+  `;
+  const footer = "You're receiving this because your CineFlow trial is ending. <a href='${upgradeUrl}' style='color:#555;'>Manage account</a>.";
+  return { subject, html: base(subject, body, `You're receiving this because your CineFlow trial is ending soon.`) };
+}
+
 // ─── Template: Owner — client requested changes ───────────────────────────────
 export function emailOwnerClientRequestedChanges({
   projectTitle,
