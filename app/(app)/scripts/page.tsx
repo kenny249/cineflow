@@ -373,7 +373,7 @@ export default function ScriptsPage() {
       {preview && <PreviewModal file={preview} onClose={() => setPreview(null)} />}
       {breakdown && (
         <BreakdownPanel
-          file={breakdown}
+          file={{ ...breakdown, projectId: breakdown.projectId }}
           onClose={() => setBreakdown(null)}
         />
       )}

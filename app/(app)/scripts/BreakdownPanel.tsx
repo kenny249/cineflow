@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   X, Sparkles, Loader2, Film, Users, MapPin, Package,
   Wrench, Zap, AlertTriangle, Copy, Check, ChevronDown,
   ChevronRight, Calendar, Clock, Star, Clapperboard,
+  Download, CheckSquare, Square, ArrowRight, FolderOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 import type { ProjectFile } from "@/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -134,15 +137,380 @@ function Section({ icon, title, count, children, defaultOpen = true }: {
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "overview" | "scenes" | "characters" | "locations" | "production";
+type Tab = "overview" | "scenes" | "characters" | "locations" | "production" | "import";
 
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+const TABS: { id: Tab; label: string; icon: React.ReactNode; projectOnly?: boolean }[] = [
   { id: "overview",    label: "Overview",    icon: <Film className="h-3.5 w-3.5" /> },
   { id: "scenes",      label: "Scenes",      icon: <Clapperboard className="h-3.5 w-3.5" /> },
   { id: "characters",  label: "Characters",  icon: <Users className="h-3.5 w-3.5" /> },
   { id: "locations",   label: "Locations",   icon: <MapPin className="h-3.5 w-3.5" /> },
   { id: "production",  label: "Production",  icon: <Package className="h-3.5 w-3.5" /> },
+  { id: "import",      label: "Import",      icon: <Download className="h-3.5 w-3.5" />, projectOnly: true },
 ];
+
+// ─── Import Tab ───────────────────────────────────────────────────────────────
+
+function ImportTab({
+  result,
+  projectId,
+  projectTitle,
+  scriptTitle,
+}: {
+  result: BreakdownResult;
+  projectId: string;
+  projectTitle?: string;
+  scriptTitle: string;
+}) {
+  const supabase = createClient();
+
+  // Locations
+  const [selectedLocations, setSelectedLocations] = useState<Set<number>>(
+    new Set(result.locations.map((_, i) => i))
+  );
+  const [importingLocations, setImportingLocations] = useState(false);
+  const [locationsImported, setLocationsImported] = useState(false);
+
+  // Shot list
+  const [selectedScenes, setSelectedScenes] = useState<Set<number>>(
+    new Set(result.scenes.map((_, i) => i))
+  );
+  const [importingShots, setImportingShots] = useState(false);
+  const [shotsImported, setShotsImported] = useState(false);
+
+  // Tasks
+  const suggestedTasks = [
+    ...result.locations.map((l) => ({ title: `Scout location: ${l.name}`, type: "pre_production" as const })),
+    ...result.locations.filter((l) => !l.interior).map((l) => ({ title: `Secure permits: ${l.name}`, type: "pre_production" as const })),
+    ...result.characters.filter((c) => c.isLead).map((c) => ({ title: `Casting: ${c.name}`, type: "pre_production" as const })),
+    ...(result.vfx.length > 0 ? [{ title: `VFX pre-vis: ${result.vfx.length} shots`, type: "production" as const }] : []),
+    ...(result.stunts.length > 0 ? [{ title: `Stunt coordinator review`, type: "pre_production" as const }] : []),
+    ...(result.specialEquipment.length > 0 ? [{ title: `Equipment rental: ${result.specialEquipment.slice(0, 2).join(", ")}`, type: "pre_production" as const }] : []),
+    { title: `Production schedule: ${result.estimatedShootDays} shoot days`, type: "pre_production" as const },
+  ];
+  const [selectedTasks, setSelectedTasks] = useState<Set<number>>(
+    new Set(suggestedTasks.map((_, i) => i))
+  );
+  const [importingTasks, setImportingTasks] = useState(false);
+  const [tasksImported, setTasksImported] = useState(false);
+
+  function toggleAll(set: Set<number>, length: number, setter: (s: Set<number>) => void) {
+    if (set.size === length) {
+      setter(new Set());
+    } else {
+      setter(new Set(Array.from({ length }, (_, i) => i)));
+    }
+  }
+
+  async function importLocations() {
+    setImportingLocations(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const rows = result.locations
+        .filter((_, i) => selectedLocations.has(i))
+        .map((loc, i) => ({
+          project_id: projectId,
+          name: loc.name,
+          notes: [
+            loc.interior === null ? "INT & EXT" : loc.interior ? "Interior" : "Exterior",
+            `${loc.sceneCount} scene${loc.sceneCount !== 1 ? "s" : ""}`,
+            loc.notes ?? null,
+          ].filter(Boolean).join(" · "),
+          sort_order: i,
+          created_by: user.id,
+        }));
+      const { error } = await supabase.from("project_locations").insert(rows);
+      if (error) throw error;
+      setLocationsImported(true);
+      toast.success(`${rows.length} location${rows.length !== 1 ? "s" : ""} added to project`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to import locations");
+    } finally {
+      setImportingLocations(false);
+    }
+  }
+
+  async function importShotList() {
+    setImportingShots(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Create the shot list
+      const { data: list, error: listErr } = await supabase
+        .from("shot_lists")
+        .insert({
+          project_id: projectId,
+          title: `${scriptTitle} — Scene Breakdown`,
+          description: `Auto-generated from AI script breakdown · ${result.scenes.length} scenes`,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+      if (listErr || !list) throw listErr ?? new Error("Failed to create shot list");
+
+      const scenes = result.scenes.filter((_, i) => selectedScenes.has(i));
+      const items = scenes.map((scene, i) => ({
+        shot_list_id: list.id,
+        shot_number: i + 1,
+        scene: String(scene.number),
+        location: scene.location,
+        description: scene.action,
+        shot_type: "wide" as const,
+        camera_movement: "static" as const,
+        notes: [
+          scene.characters.length > 0 ? `Cast: ${scene.characters.join(", ")}` : null,
+          scene.props.length > 0 ? `Props: ${scene.props.join(", ")}` : null,
+          scene.specialNotes ?? null,
+        ].filter(Boolean).join(" | ") || null,
+        props: scene.props.length > 0 ? scene.props : null,
+        actors: scene.characters.length > 0 ? scene.characters : null,
+        is_complete: false,
+        created_by: user.id,
+      }));
+
+      const { error: itemsErr } = await supabase.from("shot_list_items").insert(items);
+      if (itemsErr) throw itemsErr;
+
+      setShotsImported(true);
+      toast.success(`Shot list created with ${scenes.length} scenes`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create shot list");
+    } finally {
+      setImportingShots(false);
+    }
+  }
+
+  async function importTasks() {
+    setImportingTasks(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const rows = suggestedTasks
+        .filter((_, i) => selectedTasks.has(i))
+        .map((t) => ({
+          project_id: projectId,
+          title: t.title,
+          type: t.type,
+          priority: "medium" as const,
+          status: "todo" as const,
+          created_by: user.id,
+          updated_at: new Date().toISOString(),
+        }));
+      const { error } = await supabase.from("project_tasks").insert(rows);
+      if (error) throw error;
+      setTasksImported(true);
+      toast.success(`${rows.length} task${rows.length !== 1 ? "s" : ""} added to project`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to import tasks");
+    } finally {
+      setImportingTasks(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+        <div className="flex items-start gap-3">
+          <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+          <div>
+            <p className="text-sm font-semibold text-emerald-300">Import to project</p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Push breakdown data directly into{" "}
+              <span className="font-medium text-zinc-300">{projectTitle ?? "your project"}</span>.
+              Select what you want to import, then click the import button for each section.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Locations */}
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06]">
+          <MapPin className="h-4 w-4 text-[#d4a853]" />
+          <span className="font-semibold text-zinc-200 text-sm">Locations</span>
+          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-zinc-400">{result.locations.length}</span>
+          <button
+            onClick={() => toggleAll(selectedLocations, result.locations.length, setSelectedLocations)}
+            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            {selectedLocations.size === result.locations.length ? "Deselect all" : "Select all"}
+          </button>
+        </div>
+        <div className="px-5 py-3 space-y-2">
+          {result.locations.map((loc, i) => (
+            <label key={i} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors">
+              <button
+                onClick={() => {
+                  const next = new Set(selectedLocations);
+                  next.has(i) ? next.delete(i) : next.add(i);
+                  setSelectedLocations(next);
+                }}
+                className="shrink-0 text-[#d4a853]"
+              >
+                {selectedLocations.has(i)
+                  ? <CheckSquare className="h-4 w-4" />
+                  : <Square className="h-4 w-4 text-zinc-600" />
+                }
+              </button>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm text-zinc-300">{loc.name}</span>
+                <span className="ml-2 text-xs text-zinc-600">
+                  {loc.interior === null ? "INT & EXT" : loc.interior ? "INT" : "EXT"} · {loc.sceneCount} scenes
+                </span>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="border-t border-white/[0.06] px-5 py-3">
+          <button
+            onClick={importLocations}
+            disabled={importingLocations || locationsImported || selectedLocations.size === 0}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all",
+              locationsImported
+                ? "bg-emerald-500/20 text-emerald-300 cursor-default"
+                : selectedLocations.size === 0
+                ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                : "bg-[#d4a853] text-black hover:bg-[#c49843]"
+            )}
+          >
+            {locationsImported ? (
+              <><Check className="h-4 w-4" /> Imported</>
+            ) : importingLocations ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Importing…</>
+            ) : (
+              <><ArrowRight className="h-4 w-4" /> Add {selectedLocations.size} location{selectedLocations.size !== 1 ? "s" : ""} to project</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Shot List from Scenes */}
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06]">
+          <Clapperboard className="h-4 w-4 text-[#d4a853]" />
+          <span className="font-semibold text-zinc-200 text-sm">Create Shot List from Scenes</span>
+          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-zinc-400">{result.scenes.length} scenes</span>
+          <button
+            onClick={() => toggleAll(selectedScenes, result.scenes.length, setSelectedScenes)}
+            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            {selectedScenes.size === result.scenes.length ? "Deselect all" : "Select all"}
+          </button>
+        </div>
+        <div className="px-5 py-3 space-y-1 max-h-48 overflow-y-auto">
+          {result.scenes.map((scene, i) => (
+            <label key={i} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors">
+              <button
+                onClick={() => {
+                  const next = new Set(selectedScenes);
+                  next.has(i) ? next.delete(i) : next.add(i);
+                  setSelectedScenes(next);
+                }}
+                className="shrink-0 text-[#d4a853]"
+              >
+                {selectedScenes.has(i)
+                  ? <CheckSquare className="h-4 w-4" />
+                  : <Square className="h-4 w-4 text-zinc-600" />
+                }
+              </button>
+              <div className="min-w-0 flex-1">
+                <span className="font-mono text-xs text-zinc-400">Sc.{scene.number}</span>
+                <span className="ml-2 text-sm text-zinc-300 truncate">{scene.heading}</span>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="border-t border-white/[0.06] px-5 py-3">
+          <p className="mb-2 text-xs text-zinc-600">Creates a new shot list with each scene as a shot entry, pre-filled with location, cast, and props.</p>
+          <button
+            onClick={importShotList}
+            disabled={importingShots || shotsImported || selectedScenes.size === 0}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all",
+              shotsImported
+                ? "bg-emerald-500/20 text-emerald-300 cursor-default"
+                : selectedScenes.size === 0
+                ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                : "bg-[#d4a853] text-black hover:bg-[#c49843]"
+            )}
+          >
+            {shotsImported ? (
+              <><Check className="h-4 w-4" /> Shot list created</>
+            ) : importingShots ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Creating…</>
+            ) : (
+              <><ArrowRight className="h-4 w-4" /> Create shot list ({selectedScenes.size} scenes)</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Pre-production Tasks */}
+      <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.06]">
+          <CheckSquare className="h-4 w-4 text-[#d4a853]" />
+          <span className="font-semibold text-zinc-200 text-sm">Pre-production Tasks</span>
+          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-xs text-zinc-400">{suggestedTasks.length}</span>
+          <button
+            onClick={() => toggleAll(selectedTasks, suggestedTasks.length, setSelectedTasks)}
+            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            {selectedTasks.size === suggestedTasks.length ? "Deselect all" : "Select all"}
+          </button>
+        </div>
+        <div className="px-5 py-3 space-y-1">
+          {suggestedTasks.map((task, i) => (
+            <label key={i} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-white/[0.03] transition-colors">
+              <button
+                onClick={() => {
+                  const next = new Set(selectedTasks);
+                  next.has(i) ? next.delete(i) : next.add(i);
+                  setSelectedTasks(next);
+                }}
+                className="shrink-0 text-[#d4a853]"
+              >
+                {selectedTasks.has(i)
+                  ? <CheckSquare className="h-4 w-4" />
+                  : <Square className="h-4 w-4 text-zinc-600" />
+                }
+              </button>
+              <div className="min-w-0 flex-1">
+                <span className="text-sm text-zinc-300">{task.title}</span>
+                <span className="ml-2 text-[10px] uppercase tracking-wide text-zinc-600">{task.type.replace("_", " ")}</span>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="border-t border-white/[0.06] px-5 py-3">
+          <button
+            onClick={importTasks}
+            disabled={importingTasks || tasksImported || selectedTasks.size === 0}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all",
+              tasksImported
+                ? "bg-emerald-500/20 text-emerald-300 cursor-default"
+                : selectedTasks.size === 0
+                ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
+                : "bg-[#d4a853] text-black hover:bg-[#c49843]"
+            )}
+          >
+            {tasksImported ? (
+              <><Check className="h-4 w-4" /> Tasks added</>
+            ) : importingTasks ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Adding…</>
+            ) : (
+              <><ArrowRight className="h-4 w-4" /> Add {selectedTasks.size} task{selectedTasks.size !== 1 ? "s" : ""} to project</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
@@ -150,7 +518,7 @@ export function BreakdownPanel({
   file,
   onClose,
 }: {
-  file: ProjectFile & { projectTitle?: string };
+  file: ProjectFile & { projectTitle?: string; projectId?: string };
   onClose: () => void;
 }) {
   const [loading, setLoading] = useState(false);
@@ -333,20 +701,25 @@ export function BreakdownPanel({
           {result && (
             <div className="flex flex-col">
               {/* Tabs */}
-              <div className="sticky top-0 z-10 flex gap-1 border-b border-white/[0.06] bg-[#0b0b0b] px-6 py-2">
-                {TABS.map((t) => (
+              <div className="sticky top-0 z-10 flex gap-1 border-b border-white/[0.06] bg-[#0b0b0b] px-6 py-2 overflow-x-auto">
+                {TABS.filter((t) => !t.projectOnly || file.projectId).map((t) => (
                   <button
                     key={t.id}
                     onClick={() => setTab(t.id)}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                      "relative flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                       tab === t.id
                         ? "bg-[#d4a853]/10 text-[#d4a853]"
+                        : t.id === "import"
+                        ? "text-emerald-400 hover:text-emerald-300 bg-emerald-400/5"
                         : "text-zinc-500 hover:text-zinc-300"
                     )}
                   >
                     {t.icon}
                     {t.label}
+                    {t.id === "import" && (
+                      <span className="ml-0.5 flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -646,6 +1019,16 @@ export function BreakdownPanel({
                       </Section>
                     )}
                   </div>
+                )}
+
+                {/* IMPORT TAB */}
+                {tab === "import" && file.projectId && (
+                  <ImportTab
+                    result={result}
+                    projectId={file.projectId}
+                    projectTitle={file.projectTitle}
+                    scriptTitle={result.title}
+                  />
                 )}
 
               </div>
