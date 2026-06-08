@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Plus, Trash2, CheckCircle2, Circle, Clock, ChevronDown,
-  ClipboardList, Filter,
+  ClipboardList, Filter, LayoutList, LayoutGrid,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { getProjects, getTeamMembers, createNotification } from "@/lib/supabase/queries";
+import { KanbanBoard } from "./KanbanBoard";
 import type { Project, ProjectTask, ProjectTaskType, TaskPriority, ProjectTaskStatus, TeamMember } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const TASK_TYPES: { value: ProjectTaskType; label: string }[] = [
   { value: "general",         label: "General" },
@@ -42,12 +44,15 @@ const TYPE_LABELS: Record<ProjectTaskType, string> = {
   post_production: "Post-Prod", admin: "Admin",
 };
 
+type ViewMode = "list" | "board";
+
 export default function ProjectTasksPage() {
   const supabase = createClient();
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<ViewMode>("board");
 
   // Filters
   const [filterStatus, setFilterStatus] = useState<ProjectTaskStatus | "all">("all");
@@ -58,6 +63,7 @@ export default function ProjectTasksPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ProjectTask | null>(null);
   const [saving, setSaving] = useState(false);
+  const [defaultStatus, setDefaultStatus] = useState<ProjectTaskStatus>("todo");
 
   // Form fields
   const [fTitle, setFTitle] = useState("");
@@ -68,6 +74,17 @@ export default function ProjectTasksPage() {
   const [fStatus, setFStatus] = useState<ProjectTaskStatus>("todo");
   const [fDueDate, setFDueDate] = useState("");
   const [fAssignee, setFAssignee] = useState("");
+
+  // Persist view preference
+  useEffect(() => {
+    const saved = localStorage.getItem("tasks-view") as ViewMode | null;
+    if (saved === "list" || saved === "board") setView(saved);
+  }, []);
+
+  function switchView(v: ViewMode) {
+    setView(v);
+    localStorage.setItem("tasks-view", v);
+  }
 
   useEffect(() => {
     async function load() {
@@ -103,10 +120,11 @@ export default function ProjectTasksPage() {
     return true;
   }), [tasks, filterStatus, filterProject, filterType]);
 
-  function openNew() {
+  function openNew(status: ProjectTaskStatus = "todo") {
     setEditingTask(null);
+    setDefaultStatus(status);
     setFTitle(""); setFDescription(""); setFProject(""); setFType("general");
-    setFPriority("medium"); setFStatus("todo"); setFDueDate(""); setFAssignee("");
+    setFPriority("medium"); setFStatus(status); setFDueDate(""); setFAssignee("");
     setDialogOpen(true);
   }
 
@@ -193,6 +211,18 @@ export default function ProjectTasksPage() {
     }
   }, []);
 
+  const handleStatusChange = useCallback(async (taskId: string, newStatus: ProjectTaskStatus) => {
+    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: newStatus } : t));
+    try {
+      await supabase.from("project_tasks").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", taskId);
+    } catch {
+      toast.error("Failed to move task");
+      // Revert
+      const task = tasks.find((t) => t.id === taskId);
+      if (task) setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, status: task.status } : t));
+    }
+  }, [tasks]);
+
   const handleDelete = useCallback(async (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     try {
@@ -217,21 +247,52 @@ export default function ProjectTasksPage() {
           <h1 className="font-display text-xl font-bold text-foreground">Tasks</h1>
           <p className="text-xs text-muted-foreground">Project-linked tasks, deadlines, and assignments.</p>
         </div>
-        <Button variant="gold" size="sm" className="h-9 gap-2" onClick={openNew}>
-          <Plus className="h-4 w-4" />
-          New Task
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
+            <button
+              onClick={() => switchView("list")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+                view === "list"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <LayoutList className="h-3.5 w-3.5" />
+              List
+            </button>
+            <button
+              onClick={() => switchView("board")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+                view === "board"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Board
+            </button>
+          </div>
+
+          <Button variant="gold" size="sm" className="h-9 gap-2" onClick={() => openNew()}>
+            <Plus className="h-4 w-4" />
+            New Task
+          </Button>
+        </div>
       </div>
 
-      {/* Stats bar */}
-      <div className="flex items-center gap-4 border-b border-border px-6 py-2.5">
+      {/* Stats + Filters bar */}
+      <div className="flex flex-wrap items-center gap-3 border-b border-border px-6 py-2.5">
         {(["todo", "in_progress", "done"] as const).map((s) => (
           <button
             key={s}
             onClick={() => setFilterStatus(filterStatus === s ? "all" : s)}
-            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all",
               filterStatus === s ? "bg-foreground/10 text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
+            )}
           >
             <span className={STATUS_CONFIG[s].color}>{STATUS_CONFIG[s].icon}</span>
             {STATUS_CONFIG[s].label}
@@ -240,127 +301,132 @@ export default function ProjectTasksPage() {
             </span>
           </button>
         ))}
-      </div>
 
-      {/* Filter bar */}
-      <div className="flex items-center gap-2 border-b border-border px-6 py-2">
-        <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        <div className="relative">
-          <select
-            value={filterProject}
-            onChange={(e) => setFilterProject(e.target.value)}
-            className="appearance-none rounded-md border border-border bg-transparent py-1 pl-2.5 pr-6 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="all">All projects</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-        </div>
-        <div className="relative">
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as ProjectTaskType | "all")}
-            className="appearance-none rounded-md border border-border bg-transparent py-1 pl-2.5 pr-6 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="all">All types</option>
-            {TASK_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-        </div>
-      </div>
-
-      {/* Task list */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading tasks…</p>
-        ) : filtered.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border">
-              <ClipboardList className="h-7 w-7 text-muted-foreground/40" />
-            </div>
-            <p className="font-display font-semibold text-foreground">No tasks yet</p>
-            <p className="text-sm text-muted-foreground">Create your first project task to get organized.</p>
-            <Button variant="gold" size="sm" onClick={openNew}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Task
-            </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <div className="relative">
+            <select
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+              className="appearance-none rounded-md border border-border bg-transparent py-1 pl-2.5 pr-6 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="all">All projects</option>
+              {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
           </div>
-        ) : (
-          <div className="overflow-x-auto rounded-xl border border-border">
-           <div className="min-w-[620px]">
-            {/* Column headers */}
-            <div className="grid grid-cols-[1.5rem_1fr_120px_80px_90px_100px_auto] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
-              {["", "Task", "Project", "Type", "Priority", "Due Date", ""].map((h, i) => (
-                <div key={i} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{h}</div>
-              ))}
+          <div className="relative">
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as ProjectTaskType | "all")}
+              className="appearance-none rounded-md border border-border bg-transparent py-1 pl-2.5 pr-6 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="all">All types</option>
+              {TASK_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-[#d4a853]/30 border-t-[#d4a853]" />
+        </div>
+      ) : tasks.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border">
+            <ClipboardList className="h-7 w-7 text-muted-foreground/40" />
+          </div>
+          <p className="font-display font-semibold text-foreground">No tasks yet</p>
+          <p className="text-sm text-muted-foreground">Create your first project task to get organized.</p>
+          <Button variant="gold" size="sm" onClick={() => openNew()}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Task
+          </Button>
+        </div>
+      ) : view === "board" ? (
+        <div className="flex-1 overflow-hidden">
+          <KanbanBoard
+            tasks={filtered}
+            projects={projects}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+            onStatusCycle={handleStatusCycle}
+            onStatusChange={handleStatusChange}
+            onAddInColumn={openNew}
+          />
+        </div>
+      ) : (
+        /* List view */
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+          {filtered.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+              <p className="text-sm text-muted-foreground">No tasks match your filters.</p>
             </div>
-            {filtered.map((task) => {
-              const pri = PRIORITY_CONFIG[task.priority];
-              const st = STATUS_CONFIG[task.status];
-              const isOverdue = task.due_date && task.status !== "done" && new Date(task.due_date) < new Date();
-              return (
-                <div
-                  key={task.id}
-                  className={`grid grid-cols-[1.5rem_1fr_120px_80px_90px_100px_auto] items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0 ${
-                    task.status === "done" ? "bg-muted/20" : "bg-card hover:bg-accent/30"
-                  }`}
-                >
-                  {/* Status toggle */}
-                  <button
-                    onClick={() => handleStatusCycle(task)}
-                    title={`Status: ${st.label} — click to advance`}
-                    className={`flex items-center justify-center transition-colors ${st.color} hover:scale-110`}
-                  >
-                    {st.icon}
-                  </button>
-
-                  {/* Title + description */}
-                  <div className="min-w-0 cursor-pointer" onClick={() => openEdit(task)}>
-                    <p className={`text-sm font-medium ${task.status === "done" ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                      {task.title}
-                    </p>
-                    {task.description && (
-                      <p className="truncate text-[11px] text-muted-foreground mt-0.5">{task.description}</p>
-                    )}
-                    {task.assignee_name && (
-                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">→ {task.assignee_name}</p>
-                    )}
-                  </div>
-
-                  {/* Project */}
-                  <span className="truncate text-xs text-muted-foreground">
-                    {(task.project as any)?.title || "—"}
-                  </span>
-
-                  {/* Type */}
-                  <span className="text-xs text-muted-foreground">
-                    {TYPE_LABELS[task.type]}
-                  </span>
-
-                  {/* Priority */}
-                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${pri.bg} ${pri.color}`}>
-                    {pri.label}
-                  </span>
-
-                  {/* Due date */}
-                  <span className={`text-xs tabular-nums ${isOverdue ? "text-red-400 font-semibold" : "text-muted-foreground"}`}>
-                    {task.due_date ? formatDate(task.due_date) : "—"}
-                  </span>
-
-                  {/* Actions */}
-                  <button
-                    onClick={() => handleDelete(task.id)}
-                    className="rounded p-1 text-muted-foreground/40 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <div className="min-w-[620px]">
+                <div className="grid grid-cols-[1.5rem_1fr_120px_80px_90px_100px_auto] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
+                  {["", "Task", "Project", "Type", "Priority", "Due Date", ""].map((h, i) => (
+                    <div key={i} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{h}</div>
+                  ))}
                 </div>
-              );
-            })}
-           </div>
-          </div>
-        )}
-      </div>
+                {filtered.map((task) => {
+                  const pri = PRIORITY_CONFIG[task.priority];
+                  const st = STATUS_CONFIG[task.status];
+                  const isOverdue = task.due_date && task.status !== "done" && new Date(task.due_date) < new Date();
+                  return (
+                    <div
+                      key={task.id}
+                      className={cn(
+                        "grid grid-cols-[1.5rem_1fr_120px_80px_90px_100px_auto] items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0",
+                        task.status === "done" ? "bg-muted/20" : "bg-card hover:bg-accent/30"
+                      )}
+                    >
+                      <button
+                        onClick={() => handleStatusCycle(task)}
+                        title={`Status: ${st.label} — click to advance`}
+                        className={cn("flex items-center justify-center transition-colors hover:scale-110", st.color)}
+                      >
+                        {st.icon}
+                      </button>
+                      <div className="min-w-0 cursor-pointer" onClick={() => openEdit(task)}>
+                        <p className={cn("text-sm font-medium", task.status === "done" ? "line-through text-muted-foreground" : "text-foreground")}>
+                          {task.title}
+                        </p>
+                        {task.description && (
+                          <p className="truncate text-[11px] text-muted-foreground mt-0.5">{task.description}</p>
+                        )}
+                        {task.assignee_name && (
+                          <p className="text-[10px] text-muted-foreground/60 mt-0.5">→ {task.assignee_name}</p>
+                        )}
+                      </div>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {(task.project as { title?: string } | null)?.title || "—"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{TYPE_LABELS[task.type]}</span>
+                      <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold", pri.bg, pri.color)}>
+                        {pri.label}
+                      </span>
+                      <span className={cn("text-xs tabular-nums", isOverdue ? "text-red-400 font-semibold" : "text-muted-foreground")}>
+                        {task.due_date ? formatDate(task.due_date) : "—"}
+                      </span>
+                      <button
+                        onClick={() => handleDelete(task.id)}
+                        className="rounded p-1 text-muted-foreground/40 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

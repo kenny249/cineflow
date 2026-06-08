@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ScrollText, Search, Film, FileText, Download, Eye, X, FolderKanban } from "lucide-react";
+import { ScrollText, Search, Film, FileText, Download, Eye, X, FolderKanban, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getProjects } from "@/lib/supabase/queries";
 import { formatFileSize } from "@/lib/utils";
+import { BreakdownPanel } from "./BreakdownPanel";
 import type { Project, ProjectFile } from "@/types";
 
 interface ScriptFile extends ProjectFile {
@@ -166,12 +167,18 @@ function PreviewModal({ file, onClose }: { file: ScriptFile; onClose: () => void
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+function isBreakdownSupported(mime?: string, name?: string): boolean {
+  const ext = name?.split(".").pop()?.toLowerCase();
+  return !!(mime?.includes("text") || ["txt", "fountain", "fdx"].includes(ext ?? ""));
+}
+
 export default function ScriptsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [files, setFiles] = useState<ScriptFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [preview, setPreview] = useState<ScriptFile | null>(null);
+  const [breakdown, setBreakdown] = useState<ScriptFile | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -308,6 +315,15 @@ export default function ScriptsPage() {
                 </div>
 
                 <div className="flex shrink-0 items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
+                  {isBreakdownSupported(file.mime_type, file.name) && (
+                    <button
+                      onClick={() => setBreakdown(file)}
+                      className="flex items-center gap-1 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/8 px-2.5 py-1.5 text-xs font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-colors"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      AI Breakdown
+                    </button>
+                  )}
                   {(canPreview(file.mime_type, file.name) || isTextFile(file.mime_type, file.name)) && (
                     <button
                       onClick={() => setPreview(file)}
@@ -355,6 +371,12 @@ export default function ScriptsPage() {
       </div>
 
       {preview && <PreviewModal file={preview} onClose={() => setPreview(null)} />}
+      {breakdown && (
+        <BreakdownPanel
+          file={breakdown}
+          onClose={() => setBreakdown(null)}
+        />
+      )}
     </>
   );
 }
