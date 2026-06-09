@@ -1,134 +1,80 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useId } from "react";
 import { toast } from "sonner";
-import { Upload, Trash2, Download, ImageIcon, FileIcon, X } from "lucide-react";
+import { Upload, Trash2, Download, FileIcon } from "lucide-react";
 
-// ─── Logo mark SVGs ──────────────────────────────────────────────────────────
-// Brief: flow of a project. Progression, momentum, forward motion.
+// ─── Cineflow Mark SVG ───────────────────────────────────────────────────────
+// Gold metallic diagonal slash on deep obsidian rounded square.
+// The parallelogram references motion, the editorial cut, and forward momentum.
 
-// Concept 1 — Nodes: three project phases as ascending milestone circles on a flow line.
-// Small → medium → large: the project grows as it moves through production.
-function MarkNodes({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+function CineflowIcon({ size = 64 }: { size?: number }) {
+  const u = useId().replace(/:/g, "");
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <line x1="12" y1="52" x2="52" y2="12" stroke={color} strokeWidth="3" strokeLinecap="round" />
-      <circle cx="12" cy="52" r="6" fill={color} />
-      <circle cx="32" cy="32" r="9" fill={color} />
-      <circle cx="52" cy="12" r="12" fill={color} />
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
+      <defs>
+        <radialGradient id={`cfbg${u}`} cx="44%" cy="36%" r="62%">
+          <stop offset="0%" stopColor="#1c1c1c" />
+          <stop offset="100%" stopColor="#050505" />
+        </radialGradient>
+        {/* Metallic gold — bright specular at top edge fading to deep shadow */}
+        <linearGradient id={`cfg${u}`} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%"   stopColor="#fffef2" />
+          <stop offset="5%"   stopColor="#fff3a8" />
+          <stop offset="14%"  stopColor="#f5d548" />
+          <stop offset="30%"  stopColor="#e8b838" />
+          <stop offset="52%"  stopColor="#c89028" />
+          <stop offset="74%"  stopColor="#966818" />
+          <stop offset="90%"  stopColor="#6a400c" />
+          <stop offset="100%" stopColor="#3c2006" />
+        </linearGradient>
+        {/* Specular sheen overlay — bright gloss on upper portion only */}
+        <linearGradient id={`cfs${u}`} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.60" />
+          <stop offset="20%"  stopColor="#ffffff" stopOpacity="0.22" />
+          <stop offset="50%"  stopColor="#ffffff" stopOpacity="0.05" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Obsidian background */}
+      <rect width="100" height="100" rx="22" fill={`url(#cfbg${u})`} />
+      {/* Gold diagonal slash — 35° tilt, centered */}
+      <g transform="rotate(-35, 50, 50)">
+        <rect x="11" y="38" width="78" height="24" rx="9" fill={`url(#cfg${u})`} />
+        <rect x="11" y="38" width="78" height="24" rx="9" fill={`url(#cfs${u})`} />
+      </g>
     </svg>
   );
 }
 
-// Concept 2 — Frames: three film frames advancing forward, each larger than the last.
-// The project scales as it moves — a small idea becomes a delivered film.
-function MarkFrames({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
+// Standalone slash mark — for use directly on dark surfaces (no background)
+function CineflowMark({ size = 64 }: { size?: number }) {
+  const u = useId().replace(/:/g, "");
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="4" y="48" width="12" height="12" rx="2" fill={color} />
-      <rect x="22" y="25" width="17" height="17" rx="2" fill={color} />
-      <rect x="41" y="4" width="22" height="22" rx="2" fill={color} />
+    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
+      <defs>
+        <linearGradient id={`cmg${u}`} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%"   stopColor="#fffef2" />
+          <stop offset="5%"   stopColor="#fff3a8" />
+          <stop offset="14%"  stopColor="#f5d548" />
+          <stop offset="30%"  stopColor="#e8b838" />
+          <stop offset="52%"  stopColor="#c89028" />
+          <stop offset="74%"  stopColor="#966818" />
+          <stop offset="90%"  stopColor="#6a400c" />
+          <stop offset="100%" stopColor="#3c2006" />
+        </linearGradient>
+        <linearGradient id={`cms${u}`} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.60" />
+          <stop offset="20%"  stopColor="#ffffff" stopOpacity="0.22" />
+          <stop offset="50%"  stopColor="#ffffff" stopOpacity="0.05" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <g transform="rotate(-35, 50, 50)">
+        <rect x="11" y="38" width="78" height="24" rx="9" fill={`url(#cmg${u})`} />
+        <rect x="11" y="38" width="78" height="24" rx="9" fill={`url(#cms${u})`} />
+      </g>
     </svg>
-  );
-}
-
-// Concept 3 — Playhead: the video timeline playhead — exactly where you are in the project.
-// The most specific shape in video production. One triangle, one bar.
-function MarkPlayhead({ size = 64, color = "#d4a853" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="4" y="38" width="56" height="8" rx="4" fill={color} />
-      <polygon points="30,8 50,8 40,38" fill={color} />
-    </svg>
-  );
-}
-
-// ─── Logo candidate card ─────────────────────────────────────────────────────
-
-function LogoCard({ label, mark, description }: {
-  label: string;
-  mark: React.ReactNode;
-  description: string;
-}) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
-      <div className="px-4 pt-4 pb-2">
-        <p className="text-xs font-semibold text-zinc-300">{label}</p>
-        <p className="text-[11px] text-zinc-600 mt-0.5">{description}</p>
-      </div>
-
-      {/* On dark */}
-      <div className="mx-4 mb-3 flex flex-col items-center justify-center gap-4 rounded-lg bg-[#080808] border border-white/[0.04] py-8">
-        <div className="flex flex-col items-center gap-3">
-          {mark}
-          <p className="font-display text-xl font-bold tracking-[0.1em] text-white" style={{ fontFamily: "var(--font-syne)" }}>
-            CINEFLOW
-          </p>
-        </div>
-        <div className="flex items-center gap-6 opacity-60">
-          <div className="flex items-center gap-2">
-            {mark}
-            <p className="font-display text-sm font-bold tracking-[0.1em] text-white" style={{ fontFamily: "var(--font-syne)" }}>
-              CINEFLOW
-            </p>
-          </div>
-        </div>
-        {/* Small sizes */}
-        <div className="flex items-center gap-4">
-          {[64, 40, 24, 16].map((sz) => (
-            <div key={sz} className="flex flex-col items-center gap-1">
-              <MarkFrameAt size={sz} mark={mark} />
-              <span className="text-[9px] text-zinc-700">{sz}px</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* On light */}
-      <div className="mx-4 mb-4 flex items-center justify-center gap-6 rounded-lg bg-white py-6">
-        <div className="flex flex-col items-center gap-2">
-          <LightMark mark={mark} size={48} />
-          <p className="font-display text-sm font-bold tracking-[0.1em] text-[#080808]" style={{ fontFamily: "var(--font-syne)" }}>
-            CINEFLOW
-          </p>
-        </div>
-        <LightMark mark={mark} size={32} />
-        <LightMark mark={mark} size={20} />
-      </div>
-
-      {/* Social crop preview */}
-      <div className="mx-4 mb-4 flex items-center gap-4">
-        <div>
-          <p className="text-[10px] text-zinc-600 mb-1.5">Profile pic preview</p>
-          <div className="h-14 w-14 rounded-full bg-[#080808] flex items-center justify-center border border-white/[0.06]">
-            <MarkFrameAt size={32} mark={mark} />
-          </div>
-        </div>
-        <div>
-          <p className="text-[10px] text-zinc-600 mb-1.5">Square (TikTok/IG)</p>
-          <div className="h-14 w-14 rounded-xl bg-[#080808] flex items-center justify-center border border-white/[0.06]">
-            <MarkFrameAt size={32} mark={mark} />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MarkFrameAt({ size, mark }: { size: number; mark: React.ReactNode }) {
-  return (
-    <div style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {mark}
-    </div>
-  );
-}
-
-function LightMark({ mark, size }: { mark: React.ReactNode; size: number }) {
-  // Render mark on light bg (mark components need color inversion for light bg)
-  return (
-    <div style={{ width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      {mark}
-    </div>
   );
 }
 
@@ -218,28 +164,122 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
         <p className="text-sm text-zinc-500 mt-0.5">Cineflow brand system — logos, colors, type, assets</p>
       </div>
 
-      {/* ── Logo Candidates ─────────────────────────────────────────────────── */}
+      {/* ── Cineflow Mark ──────────────────────────────────────────────────── */}
       <section>
         <div className="mb-5">
-          <h2 className="text-base font-bold text-white">Logo Candidates</h2>
-          <p className="text-xs text-zinc-500 mt-1">Flow of a project — three marks built around progression, momentum, and the specific language of production.</p>
+          <h2 className="text-base font-bold text-white">Cineflow Mark — Concept Preview</h2>
+          <p className="text-xs text-zinc-500 mt-1">
+            Gold metallic diagonal slash on deep obsidian. The parallelogram references the editorial cut, forward motion, and the cinematic frame.
+            This is an SVG concept — not yet applied to the live app.
+          </p>
         </div>
-        <div className="grid grid-cols-3 gap-5">
-          <LogoCard
-            label="Concept 1 — Nodes"
-            description="Three phases of a film project — development, production, delivery — as ascending nodes on a flow line. The nodes grow because the project grows."
-            mark={<MarkNodes size={64} />}
-          />
-          <LogoCard
-            label="Concept 2 — Frames"
-            description="Three film frames advancing forward, each larger than the last. The project scales as it moves. A small idea becomes a delivered film."
-            mark={<MarkFrames size={64} />}
-          />
-          <LogoCard
-            label="Concept 3 — Playhead"
-            description="The playhead on a timeline. The most specific shape in video production — the marker that tells you exactly where you are in the project."
-            mark={<MarkPlayhead size={64} />}
-          />
+
+        {/* App icon sizes */}
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden mb-4">
+          <div className="px-5 pt-5 pb-3">
+            <p className="text-xs font-semibold text-zinc-300">App Icon</p>
+            <p className="text-[11px] text-zinc-600 mt-0.5">Deep obsidian rounded square · primary export for App Store, web favicon, and social</p>
+          </div>
+          <div className="mx-5 mb-5 bg-[#080808] rounded-xl border border-white/[0.04] py-10 flex items-end justify-center gap-8 flex-wrap">
+            {[192, 96, 64, 48, 32, 24, 16].map((sz) => (
+              <div key={sz} className="flex flex-col items-center gap-2">
+                <CineflowIcon size={sz} />
+                <span className="text-[9px] text-zinc-700">{sz}px</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Wordmark + Social previews */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          {/* Horizontal wordmark lockup */}
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+            <div className="px-5 pt-5 pb-3">
+              <p className="text-xs font-semibold text-zinc-300">Wordmark Lockup</p>
+              <p className="text-[11px] text-zinc-600 mt-0.5">Icon + logotype horizontal — three size variants</p>
+            </div>
+            <div className="mx-5 mb-5 bg-[#080808] rounded-xl border border-white/[0.04] py-8 px-8 flex flex-col items-start gap-6">
+              {[
+                { iconSz: 44, textClass: "text-xl tracking-[0.12em]" },
+                { iconSz: 30, textClass: "text-sm tracking-[0.12em]" },
+                { iconSz: 20, textClass: "text-xs tracking-[0.12em]" },
+              ].map(({ iconSz, textClass }, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <CineflowIcon size={iconSz} />
+                  <span className={`font-bold text-white ${textClass}`} style={{ fontFamily: "var(--font-syne)" }}>
+                    CINEFLOW
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Social & profile previews */}
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+            <div className="px-5 pt-5 pb-3">
+              <p className="text-xs font-semibold text-zinc-300">Social &amp; Profile</p>
+              <p className="text-[11px] text-zinc-600 mt-0.5">Profile picture, square post, iOS home screen, favicon</p>
+            </div>
+            <div className="mx-5 mb-5 flex items-end gap-6 flex-wrap">
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-16 w-16 rounded-full bg-[#080808] border border-white/[0.06] flex items-center justify-center overflow-hidden">
+                  <CineflowIcon size={60} />
+                </div>
+                <span className="text-[9px] text-zinc-700">Profile pic</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-16 w-16 rounded-xl bg-[#080808] border border-white/[0.06] flex items-center justify-center overflow-hidden">
+                  <CineflowIcon size={64} />
+                </div>
+                <span className="text-[9px] text-zinc-700">IG / TikTok</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-12 w-12 rounded-2xl bg-[#080808] border border-white/[0.06] flex items-center justify-center overflow-hidden">
+                  <CineflowIcon size={48} />
+                </div>
+                <span className="text-[9px] text-zinc-700">iOS Home</span>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-8 w-8 rounded bg-[#080808] border border-white/[0.06] flex items-center justify-center overflow-hidden">
+                  <CineflowIcon size={32} />
+                </div>
+                <span className="text-[9px] text-zinc-700">Favicon</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Mark standalone on dark + light backgrounds */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+            <div className="px-5 pt-5 pb-3">
+              <p className="text-xs font-semibold text-zinc-300">Mark on Dark Surface</p>
+              <p className="text-[11px] text-zinc-600 mt-0.5">Slash only — for in-app use on dark UI surfaces</p>
+            </div>
+            <div className="mx-5 mb-5 bg-[#0d0d0d] rounded-xl border border-white/[0.04] py-8 flex items-end justify-center gap-6">
+              {[80, 56, 40, 28].map((sz) => (
+                <div key={sz} className="flex flex-col items-center gap-2">
+                  <CineflowMark size={sz} />
+                  <span className="text-[9px] text-zinc-700">{sz}px</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+            <div className="px-5 pt-5 pb-3">
+              <p className="text-xs font-semibold text-zinc-300">Icon on Light Background</p>
+              <p className="text-[11px] text-zinc-600 mt-0.5">Always use the enclosed icon on white — never the bare slash</p>
+            </div>
+            <div className="mx-5 mb-5 bg-white rounded-xl py-8 flex items-end justify-center gap-6">
+              {[96, 64, 48, 32].map((sz) => (
+                <div key={sz} className="flex flex-col items-center gap-2">
+                  <CineflowIcon size={sz} />
+                  <span className="text-[9px] text-zinc-500">{sz}px</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
