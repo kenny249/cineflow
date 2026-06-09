@@ -17,31 +17,29 @@ function CineflowIcon({ size = 64 }: { size?: number }) {
           <stop offset="0%" stopColor="#1c1c1c" />
           <stop offset="100%" stopColor="#050505" />
         </radialGradient>
-        {/* Metallic gold — bright specular at top edge fading to deep shadow */}
+        {/* Metallic gold — warm bright gold at top face, deep amber at bottom face */}
         <linearGradient id={`cfg${u}`} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-          <stop offset="0%"   stopColor="#fffef2" />
-          <stop offset="5%"   stopColor="#fff3a8" />
-          <stop offset="14%"  stopColor="#f5d548" />
-          <stop offset="30%"  stopColor="#e8b838" />
-          <stop offset="52%"  stopColor="#c89028" />
-          <stop offset="74%"  stopColor="#966818" />
-          <stop offset="90%"  stopColor="#6a400c" />
-          <stop offset="100%" stopColor="#3c2006" />
+          <stop offset="0%"   stopColor="#f8e060" />
+          <stop offset="12%"  stopColor="#f0cc40" />
+          <stop offset="32%"  stopColor="#e0a828" />
+          <stop offset="58%"  stopColor="#b88020" />
+          <stop offset="80%"  stopColor="#7a5010" />
+          <stop offset="100%" stopColor="#3c2406" />
         </linearGradient>
-        {/* Specular sheen overlay — bright gloss on upper portion only */}
+        {/* Specular sheen — subtle warm highlight, not white-plastic */}
         <linearGradient id={`cfs${u}`} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.60" />
-          <stop offset="20%"  stopColor="#ffffff" stopOpacity="0.22" />
-          <stop offset="50%"  stopColor="#ffffff" stopOpacity="0.05" />
+          <stop offset="0%"   stopColor="#fff8c0" stopOpacity="0.35" />
+          <stop offset="18%"  stopColor="#fff0a0" stopOpacity="0.10" />
+          <stop offset="45%"  stopColor="#ffffff" stopOpacity="0.02" />
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
         </linearGradient>
       </defs>
       {/* Obsidian background */}
       <rect width="100" height="100" rx="22" fill={`url(#cfbg${u})`} />
-      {/* Gold diagonal slash — 35° tilt, centered */}
+      {/* Gold diagonal slash — 35° tilt, rx=4 for flat-plate corners not pill ends */}
       <g transform="rotate(-35, 50, 50)">
-        <rect x="11" y="38" width="78" height="24" rx="9" fill={`url(#cfg${u})`} />
-        <rect x="11" y="38" width="78" height="24" rx="9" fill={`url(#cfs${u})`} />
+        <rect x="11" y="36" width="78" height="28" rx="4" fill={`url(#cfg${u})`} />
+        <rect x="11" y="36" width="78" height="28" rx="4" fill={`url(#cfs${u})`} />
       </g>
     </svg>
   );
@@ -54,25 +52,23 @@ function CineflowMark({ size = 64 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
       <defs>
         <linearGradient id={`cmg${u}`} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-          <stop offset="0%"   stopColor="#fffef2" />
-          <stop offset="5%"   stopColor="#fff3a8" />
-          <stop offset="14%"  stopColor="#f5d548" />
-          <stop offset="30%"  stopColor="#e8b838" />
-          <stop offset="52%"  stopColor="#c89028" />
-          <stop offset="74%"  stopColor="#966818" />
-          <stop offset="90%"  stopColor="#6a400c" />
-          <stop offset="100%" stopColor="#3c2006" />
+          <stop offset="0%"   stopColor="#f8e060" />
+          <stop offset="12%"  stopColor="#f0cc40" />
+          <stop offset="32%"  stopColor="#e0a828" />
+          <stop offset="58%"  stopColor="#b88020" />
+          <stop offset="80%"  stopColor="#7a5010" />
+          <stop offset="100%" stopColor="#3c2406" />
         </linearGradient>
         <linearGradient id={`cms${u}`} x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.60" />
-          <stop offset="20%"  stopColor="#ffffff" stopOpacity="0.22" />
-          <stop offset="50%"  stopColor="#ffffff" stopOpacity="0.05" />
+          <stop offset="0%"   stopColor="#fff8c0" stopOpacity="0.35" />
+          <stop offset="18%"  stopColor="#fff0a0" stopOpacity="0.10" />
+          <stop offset="45%"  stopColor="#ffffff" stopOpacity="0.02" />
           <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
         </linearGradient>
       </defs>
       <g transform="rotate(-35, 50, 50)">
-        <rect x="11" y="38" width="78" height="24" rx="9" fill={`url(#cmg${u})`} />
-        <rect x="11" y="38" width="78" height="24" rx="9" fill={`url(#cms${u})`} />
+        <rect x="11" y="36" width="78" height="28" rx="4" fill={`url(#cmg${u})`} />
+        <rect x="11" y="36" width="78" height="28" rx="4" fill={`url(#cms${u})`} />
       </g>
     </svg>
   );
