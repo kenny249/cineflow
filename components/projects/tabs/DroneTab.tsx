@@ -17,7 +17,7 @@ interface DroneEquipmentBasic {
 interface FlightLog {
   id: string;
   drone_id: string;
-  project_name?: string | null;
+  project_id?: string | null;
   flight_date: string;
   duration_minutes: number;
   location?: string | null;
@@ -31,11 +31,10 @@ interface FlightLog {
 
 interface DroneTabProps {
   projectId: string;
-  projectTitle: string;
   droneShots: ShotListItem[];
 }
 
-export function DroneTab({ projectId, projectTitle, droneShots }: DroneTabProps) {
+export function DroneTab({ projectId, droneShots }: DroneTabProps) {
   const supabase = createClient();
   const [flights, setFlights] = useState<FlightLog[]>([]);
   const [drones, setDrones] = useState<DroneEquipmentBasic[]>([]);
@@ -56,7 +55,7 @@ export function DroneTab({ projectId, projectTitle, droneShots }: DroneTabProps)
           .from("drone_flight_logs")
           .select("*, drone:drone_equipment(id, make, model, nickname)")
           .eq("user_id", user.id)
-          .eq("project_name", projectTitle)
+          .eq("project_id", projectId)
           .order("flight_date", { ascending: false }),
       ]);
 
@@ -65,7 +64,7 @@ export function DroneTab({ projectId, projectTitle, droneShots }: DroneTabProps)
       setLoading(false);
     }
     load();
-  }, [projectId, projectTitle]);
+  }, [projectId]);
 
   const totalMinutes = flights.reduce((sum, f) => sum + (f.duration_minutes ?? 0), 0);
   const preflightRate = flights.length
@@ -174,7 +173,7 @@ export function DroneTab({ projectId, projectTitle, droneShots }: DroneTabProps)
             <DroneIcon className="mx-auto h-7 w-7 text-muted-foreground/30 mb-2" />
             <p className="text-xs text-muted-foreground">No flight logs linked to this project yet.</p>
             <p className="text-[11px] text-muted-foreground/60 mt-1">
-              When logging a flight in the Drone module, set the project name to <span className="font-mono text-[#d4a853]/70">"{projectTitle}"</span>.
+              When logging a flight in the Drone module, select this project from the "Link to Project" dropdown.
             </p>
           </div>
         ) : (

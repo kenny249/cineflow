@@ -2370,7 +2370,6 @@ export default function ProjectDetailTabs({
             <TabsContent value="drone" className="m-0">
               <DroneTab
                 projectId={project.id}
-                projectTitle={project.title}
                 droneShots={shotList?.items?.filter((s) => s.shot_type === "drone") ?? []}
               />
             </TabsContent>
