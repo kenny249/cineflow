@@ -28,8 +28,8 @@ import {
   Wrench,
   Calculator,
   ShieldCheck,
-  Plane,
 } from "lucide-react";
+import { DroneIcon } from "@/components/icons/DroneIcon";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
@@ -82,7 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Tasks",         href: "/project-tasks", icon: ClipboardList },
       { label: "To Do",         href: "/tasks",         icon: CheckSquare },
       { label: "Editor Tools",  href: "/editor-tools",  icon: Wrench },
-      { label: "Drones",        href: "/drones",        icon: Plane },
+      { label: "Drones",        href: "/drones",        icon: DroneIcon },
     ],
   },
   {

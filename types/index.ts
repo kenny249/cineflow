@@ -956,6 +956,11 @@ export interface DroneEquipment {
   purchase_date?: string | null;
   status: DroneStatus;
   notes?: string | null;
+  weight_grams?: number | null;
+  remote_id_serial?: string | null;
+  firmware_version?: string | null;
+  insurance_policy?: string | null;
+  insurance_expires_at?: string | null;
   created_at: string;
 }
 
@@ -993,6 +998,10 @@ export interface DroneFlightLog {
   preflight_completed: boolean;
   preflight_items?: Record<string, boolean> | null;
   notes?: string | null;
+  laanc_auth_code?: string | null;
+  is_night_flight: boolean;
+  incident_flag: boolean;
+  incident_notes?: string | null;
   batteries?: { battery: Pick<DroneBattery, "id" | "label" | "cycle_count"> }[];
   created_at: string;
 }

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Plane, Plus, Trash2, Pencil, Battery, ClipboardCheck,
+  Plus, Trash2, Pencil, Battery, ClipboardCheck,
   Wrench, ShieldCheck, ChevronDown, AlertTriangle, CheckCircle2,
-  Circle, Clock, MapPin, Timer, ArrowUp, CloudSun, Wind,
-  Eye, Thermometer, FolderKanban, StickyNote, X,
+  Circle, CloudSun, Wind, Eye, Thermometer, FolderKanban,
+  Moon, Upload, ExternalLink, FileText, TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { DroneIcon } from "@/components/icons/DroneIcon";
 import type {
   DroneEquipment, DroneBattery, DroneFlightLog, DroneMaintenanceLog,
   DroneStatus, DroneBatteryStatus, Project,
@@ -63,8 +64,8 @@ function batteryHealth(cycles: number) {
   return               { label: "Replace",  color: "text-red-400",     bg: "bg-red-400/10 border-red-400/30",       bar: "bg-red-400",     pct: 100 };
 }
 
-function part107DaysLeft(expiresAt: string): number {
-  return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000);
+function daysLeft(dateStr: string): number {
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86_400_000);
 }
 
 function droneLabel(d: DroneEquipment) {
@@ -89,6 +90,15 @@ const STATUS_BADGE: Record<DroneStatus, string> = {
 const STATUS_LABEL: Record<DroneStatus, string> = {
   active: "Active", in_repair: "In Repair", retired: "Retired",
 };
+
+function insuranceStatus(expiresAt: string | null | undefined) {
+  if (!expiresAt) return null;
+  const days = daysLeft(expiresAt);
+  if (days < 0)   return { color: "text-red-400",   bg: "bg-red-400/10 border-red-400/30",     label: "Insurance expired" };
+  if (days <= 30) return { color: "text-red-400",   bg: "bg-red-400/10 border-red-400/30",     label: `Insurance expires in ${days}d` };
+  if (days <= 60) return { color: "text-amber-400", bg: "bg-amber-400/10 border-amber-400/30", label: `Insurance expires in ${days}d` };
+  return null;
+}
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -127,6 +137,25 @@ function SelectField({ label, value, onChange, children }: {
   );
 }
 
+function ToggleButton({ active, onClick, children, activeClass }: {
+  active: boolean; onClick: () => void; children: React.ReactNode; activeClass?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-all",
+        active
+          ? activeClass ?? "border-[#d4a853]/40 bg-[#d4a853]/10 text-[#d4a853]"
+          : "border-border text-muted-foreground hover:border-border hover:text-foreground"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function EmptyState({ icon: Icon, title, desc, action }: {
   icon: React.ElementType; title: string; desc: string; action?: React.ReactNode;
 }) {
@@ -158,7 +187,9 @@ export default function DronesPage() {
   const [projects, setProjects] = useState<Pick<Project, "id" | "title">[]>([]);
   const [part107Number, setPart107Number] = useState("");
   const [part107Expires, setPart107Expires] = useState("");
+  const [part107DocUrl, setPart107DocUrl] = useState("");
   const [part107Saving, setPart107Saving] = useState(false);
+  const [part107Uploading, setPart107Uploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState("");
 
@@ -184,6 +215,11 @@ export default function DronesPage() {
   const [fPurchaseDate, setFPurchaseDate] = useState("");
   const [fDroneStatus, setFDroneStatus] = useState<DroneStatus>("active");
   const [fDroneNotes, setFDroneNotes] = useState("");
+  const [fWeight, setFWeight] = useState("");
+  const [fRemoteId, setFRemoteId] = useState("");
+  const [fFirmware, setFFirmware] = useState("");
+  const [fInsurancePolicy, setFInsurancePolicy] = useState("");
+  const [fInsuranceExpires, setFInsuranceExpires] = useState("");
 
   // ── Battery form ──
   const [bLabel, setBLabel] = useState("");
@@ -209,6 +245,10 @@ export default function DronesPage() {
   const [flNotes, setFlNotes] = useState("");
   const [flChecklist, setFlChecklist] = useState<Record<string, boolean>>({});
   const [flBatteries, setFlBatteries] = useState<string[]>([]);
+  const [flLaanc, setFlLaanc] = useState("");
+  const [flNightFlight, setFlNightFlight] = useState(false);
+  const [flIncident, setFlIncident] = useState(false);
+  const [flIncidentNotes, setFlIncidentNotes] = useState("");
 
   // ── Maintenance form ──
   const [mDroneId, setMDroneId] = useState("");
@@ -241,7 +281,7 @@ export default function DronesPage() {
         supabase.from("drone_flight_logs").select("*, drone:drone_equipment(id, make, model), project:projects(id, title), batteries:drone_flight_batteries(battery:drone_batteries(id, label, cycle_count))").eq("user_id", user.id).order("flight_date", { ascending: false }),
         supabase.from("drone_maintenance_logs").select("*, drone:drone_equipment(id, make, model)").eq("user_id", user.id).order("maintenance_date", { ascending: false }),
         supabase.from("projects").select("id, title").eq("user_id", user.id).order("title"),
-        supabase.from("profiles").select("part107_number, part107_expires_at").eq("id", user.id).single(),
+        supabase.from("profiles").select("part107_number, part107_expires_at, part107_document_url").eq("id", user.id).single(),
       ]);
 
       setDrones((dronesData as DroneEquipment[]) ?? []);
@@ -252,6 +292,7 @@ export default function DronesPage() {
       if (profileData) {
         setPart107Number(profileData.part107_number ?? "");
         setPart107Expires(profileData.part107_expires_at ?? "");
+        setPart107DocUrl(profileData.part107_document_url ?? "");
       }
     } catch {
       toast.error("Failed to load drone data");
@@ -272,6 +313,11 @@ export default function DronesPage() {
     setFPurchaseDate(drone?.purchase_date ?? "");
     setFDroneStatus(drone?.status ?? "active");
     setFDroneNotes(drone?.notes ?? "");
+    setFWeight(drone?.weight_grams ? String(drone.weight_grams) : "");
+    setFRemoteId(drone?.remote_id_serial ?? "");
+    setFFirmware(drone?.firmware_version ?? "");
+    setFInsurancePolicy(drone?.insurance_policy ?? "");
+    setFInsuranceExpires(drone?.insurance_expires_at ?? "");
     setDroneOpen(true);
   }
 
@@ -284,6 +330,9 @@ export default function DronesPage() {
         nickname: fNickname.trim() || null, serial_number: fSerial.trim() || null,
         faa_registration: fFaaReg.trim() || null, purchase_date: fPurchaseDate || null,
         status: fDroneStatus, notes: fDroneNotes.trim() || null,
+        weight_grams: numVal(fWeight), remote_id_serial: fRemoteId.trim() || null,
+        firmware_version: fFirmware.trim() || null, insurance_policy: fInsurancePolicy.trim() || null,
+        insurance_expires_at: fInsuranceExpires || null,
       };
       if (editDrone) {
         const { data, error } = await supabase.from("drone_equipment").update(payload).eq("id", editDrone.id).select().single();
@@ -299,7 +348,7 @@ export default function DronesPage() {
       setDroneOpen(false);
     } catch { toast.error("Failed to save drone"); }
     finally { setSaving(false); }
-  }, [fMake, fModel, fNickname, fSerial, fFaaReg, fPurchaseDate, fDroneStatus, fDroneNotes, editDrone, userId]);
+  }, [fMake, fModel, fNickname, fSerial, fFaaReg, fPurchaseDate, fDroneStatus, fDroneNotes, fWeight, fRemoteId, fFirmware, fInsurancePolicy, fInsuranceExpires, editDrone, userId]);
 
   async function deleteDrone(id: string) {
     if (!confirm("Delete this drone? All associated flights and maintenance logs will also be deleted.")) return;
@@ -331,9 +380,7 @@ export default function DronesPage() {
       const payload = {
         label: bLabel.trim(), drone_id: bDroneId || null,
         serial_number: bSerial.trim() || null, purchase_date: bPurchaseDate || null,
-        cycle_count: numVal(bCycles) ?? 0,
-        capacity_mah: numVal(bCapacity),
-        status: bBattStatus,
+        cycle_count: numVal(bCycles) ?? 0, capacity_mah: numVal(bCapacity), status: bBattStatus,
       };
       if (editBattery) {
         const { data, error } = await supabase.from("drone_batteries").update(payload).eq("id", editBattery.id)
@@ -379,6 +426,10 @@ export default function DronesPage() {
     setFlNotes(flight?.notes ?? "");
     setFlChecklist(flight?.preflight_items ?? {});
     setFlBatteries(flight?.batteries?.map((b) => b.battery.id) ?? []);
+    setFlLaanc(flight?.laanc_auth_code ?? "");
+    setFlNightFlight(flight?.is_night_flight ?? false);
+    setFlIncident(flight?.incident_flag ?? false);
+    setFlIncidentNotes(flight?.incident_notes ?? "");
     setFlightOpen(true);
   }
 
@@ -389,38 +440,31 @@ export default function DronesPage() {
     try {
       const preflightCompleted = PREFLIGHT_ITEMS.every((item) => flChecklist[item.key]);
       const payload = {
-        drone_id: flDroneId || null,
-        project_id: flProjectId || null,
-        flight_date: flDate,
-        location: flLocation.trim(),
-        duration_minutes: numVal(flDuration) ?? 0,
-        max_altitude_ft: numVal(flAltitude),
-        purpose: flPurpose || null,
-        weather_conditions: flWeather || null,
-        wind_speed_mph: numVal(flWind),
-        visibility_miles: numVal(flVisibility),
+        drone_id: flDroneId || null, project_id: flProjectId || null,
+        flight_date: flDate, location: flLocation.trim(),
+        duration_minutes: numVal(flDuration) ?? 0, max_altitude_ft: numVal(flAltitude),
+        purpose: flPurpose || null, weather_conditions: flWeather || null,
+        wind_speed_mph: numVal(flWind), visibility_miles: numVal(flVisibility),
         temperature_f: numVal(flTemp),
-        preflight_completed: preflightCompleted,
-        preflight_items: flChecklist,
-        notes: flNotes.trim() || null,
+        preflight_completed: preflightCompleted, preflight_items: flChecklist,
+        notes: flNotes.trim() || null, laanc_auth_code: flLaanc.trim() || null,
+        is_night_flight: flNightFlight, incident_flag: flIncident,
+        incident_notes: flIncident ? flIncidentNotes.trim() || null : null,
       };
-
-      let flightId: string;
 
       if (editFlight) {
         const { data, error } = await supabase.from("drone_flight_logs").update(payload).eq("id", editFlight.id)
           .select("*, drone:drone_equipment(id, make, model), project:projects(id, title), batteries:drone_flight_batteries(battery:drone_batteries(id, label, cycle_count))").single();
         if (error) throw error;
         setFlights((prev) => prev.map((f) => f.id === editFlight.id ? data as DroneFlightLog : f));
-        flightId = editFlight.id;
         toast.success("Flight updated");
+        setFlightOpen(false);
       } else {
         const { data, error } = await supabase.from("drone_flight_logs").insert({ ...payload, user_id: userId })
           .select("*, drone:drone_equipment(id, make, model), project:projects(id, title), batteries:drone_flight_batteries(battery:drone_batteries(id, label, cycle_count))").single();
         if (error) throw error;
-        flightId = (data as DroneFlightLog).id;
+        const flightId = (data as DroneFlightLog).id;
 
-        // Link batteries + increment cycle counts
         if (flBatteries.length > 0) {
           await supabase.from("drone_flight_batteries").insert(
             flBatteries.map((bid) => ({ flight_id: flightId, battery_id: bid }))
@@ -431,29 +475,21 @@ export default function DronesPage() {
               await supabase.from("drone_batteries").update({ cycle_count: bat.cycle_count + 1 }).eq("id", bid);
             }
           }
-          // Refresh batteries to reflect updated cycle counts
           const { data: refreshed } = await supabase.from("drone_batteries")
             .select("*, drone:drone_equipment(id, make, model)").eq("user_id", userId).order("created_at", { ascending: false });
           if (refreshed) setBatteries(refreshed as DroneBattery[]);
         }
 
-        // Re-fetch the flight with batteries included
         const { data: withBats } = await supabase.from("drone_flight_logs")
           .select("*, drone:drone_equipment(id, make, model), project:projects(id, title), batteries:drone_flight_batteries(battery:drone_batteries(id, label, cycle_count))")
           .eq("id", flightId).single();
-        if (withBats) setFlights((prev) => [withBats as DroneFlightLog, ...prev]);
-        else setFlights((prev) => [data as DroneFlightLog, ...prev]);
-
+        setFlights((prev) => [withBats as DroneFlightLog, ...prev]);
         toast.success("Flight logged");
         setFlightOpen(false);
-        setSaving(false);
-        return;
       }
-
-      setFlightOpen(false);
     } catch { toast.error("Failed to save flight"); }
     finally { setSaving(false); }
-  }, [flDate, flDroneId, flLocation, flDuration, flAltitude, flPurpose, flWeather, flWind, flVisibility, flTemp, flProjectId, flNotes, flChecklist, flBatteries, editFlight, userId, batteries]);
+  }, [flDate, flDroneId, flLocation, flDuration, flAltitude, flPurpose, flWeather, flWind, flVisibility, flTemp, flProjectId, flNotes, flChecklist, flBatteries, flLaanc, flNightFlight, flIncident, flIncidentNotes, editFlight, userId, batteries]);
 
   async function deleteFlight(id: string) {
     if (!confirm("Delete this flight log? Battery cycle counts will not be reversed.")) return;
@@ -512,6 +548,21 @@ export default function DronesPage() {
 
   // ── Part 107 ──
 
+  async function handlePart107Upload(file: File) {
+    setPart107Uploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${userId}/part107/certificate.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("uploads").upload(path, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
+      setPart107DocUrl(publicUrl);
+      await supabase.from("profiles").update({ part107_document_url: publicUrl }).eq("id", userId);
+      toast.success("Certificate uploaded");
+    } catch { toast.error("Upload failed — check that the uploads bucket exists in Supabase Storage"); }
+    finally { setPart107Uploading(false); }
+  }
+
   async function savePart107() {
     setPart107Saving(true);
     try {
@@ -524,7 +575,7 @@ export default function DronesPage() {
     finally { setPart107Saving(false); }
   }
 
-  // ── Checklist helpers ──
+  // ── Checklist ──
   const checklistComplete = PREFLIGHT_ITEMS.every((i) => flChecklist[i.key]);
   const checklistCount = PREFLIGHT_ITEMS.filter((i) => flChecklist[i.key]).length;
 
@@ -551,7 +602,7 @@ export default function DronesPage() {
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-border px-6 py-2">
         <TabButton active={tab === "equipment"}   onClick={() => setTab("equipment")}>
-          <Plane className="h-3.5 w-3.5" /> Equipment
+          <DroneIcon className="h-3.5 w-3.5" /> Equipment
         </TabButton>
         <TabButton active={tab === "batteries"}   onClick={() => setTab("batteries")}>
           <Battery className="h-3.5 w-3.5" /> Batteries
@@ -580,7 +631,7 @@ export default function DronesPage() {
               </Button>
             </div>
             {drones.length === 0 ? (
-              <EmptyState icon={Plane} title="No drones yet" desc="Register your first drone to start tracking flights and maintenance."
+              <EmptyState icon={DroneIcon} title="No drones yet" desc="Register your first drone to start tracking flights and maintenance."
                 action={<Button variant="gold" size="sm" onClick={() => openDroneDialog()}><Plus className="mr-1.5 h-3.5 w-3.5" />Add Drone</Button>} />
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -589,12 +640,14 @@ export default function DronesPage() {
                   const totalMins = flights.filter((f) => f.drone_id === drone.id).reduce((s, f) => s + f.duration_minutes, 0);
                   const hrs = Math.floor(totalMins / 60);
                   const mins = totalMins % 60;
+                  const insStatus = insuranceStatus(drone.insurance_expires_at);
+                  const sub250 = drone.weight_grams != null && drone.weight_grams < 250;
                   return (
                     <div key={drone.id} className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#d4a853]/10">
-                            <Plane className="h-5 w-5 text-[#d4a853]" />
+                            <DroneIcon className="h-5 w-5 text-[#d4a853]" />
                           </div>
                           <div>
                             <p className="font-semibold text-foreground">{drone.nickname || `${drone.make} ${drone.model}`}</p>
@@ -605,16 +658,46 @@ export default function DronesPage() {
                           {STATUS_LABEL[drone.status]}
                         </span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+
+                      {/* Compliance badges */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {sub250 && (
+                          <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-400">
+                            Sub-250g
+                          </span>
+                        )}
+                        {drone.remote_id_serial ? (
+                          <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                            Remote ID ✓
+                          </span>
+                        ) : !sub250 && (
+                          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
+                            Remote ID missing
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
                         {drone.faa_registration && (
                           <div><span className="text-zinc-500">FAA Reg </span>{drone.faa_registration}</div>
                         )}
-                        {drone.serial_number && (
-                          <div><span className="text-zinc-500">S/N </span>{drone.serial_number}</div>
+                        {drone.weight_grams != null && (
+                          <div><span className="text-zinc-500">Weight </span>{drone.weight_grams}g</div>
+                        )}
+                        {drone.firmware_version && (
+                          <div><span className="text-zinc-500">FW </span>{drone.firmware_version}</div>
                         )}
                         <div><span className="text-zinc-500">Flights </span>{flightCount}</div>
                         <div><span className="text-zinc-500">Air time </span>{hrs > 0 ? `${hrs}h ` : ""}{mins}m</div>
                       </div>
+
+                      {insStatus && (
+                        <div className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium", insStatus.bg, insStatus.color)}>
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                          {insStatus.label}
+                        </div>
+                      )}
+
                       <div className="flex items-center gap-2 border-t border-border pt-3">
                         <button onClick={() => openDroneDialog(drone)}
                           className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
@@ -663,7 +746,6 @@ export default function DronesPage() {
                           {health.label}
                         </span>
                       </div>
-                      {/* Cycle bar */}
                       <div>
                         <div className="mb-1.5 flex items-center justify-between text-xs">
                           <span className="text-muted-foreground">Charge cycles</span>
@@ -714,14 +796,14 @@ export default function DronesPage() {
                 action={<Button variant="gold" size="sm" onClick={() => openFlightDialog()}><Plus className="mr-1.5 h-3.5 w-3.5" />Log Flight</Button>} />
             ) : (
               <div className="overflow-x-auto rounded-xl border border-border">
-                <div className="min-w-[760px]">
-                  <div className="grid grid-cols-[90px_1fr_100px_70px_60px_80px_60px_auto] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
-                    {["Date", "Location", "Drone", "Duration", "Alt", "Project", "Pre-flight", ""].map((h, i) => (
+                <div className="min-w-[820px]">
+                  <div className="grid grid-cols-[90px_1fr_110px_70px_110px_80px_72px_auto] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
+                    {["Date", "Location", "Drone", "Duration", "Airspace", "Project", "Flags", ""].map((h, i) => (
                       <div key={i} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{h}</div>
                     ))}
                   </div>
                   {flights.map((f) => (
-                    <div key={f.id} className="grid grid-cols-[90px_1fr_100px_70px_60px_80px_60px_auto] items-center gap-3 border-b border-border bg-card px-4 py-3 last:border-0 hover:bg-accent/20 transition-colors">
+                    <div key={f.id} className="grid grid-cols-[90px_1fr_110px_70px_110px_80px_72px_auto] items-center gap-3 border-b border-border bg-card px-4 py-3 last:border-0 hover:bg-accent/20 transition-colors">
                       <span className="text-xs tabular-nums text-muted-foreground">{f.flight_date}</span>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">{f.location}</p>
@@ -733,15 +815,21 @@ export default function DronesPage() {
                       <span className="text-xs tabular-nums text-muted-foreground">
                         {Math.floor(f.duration_minutes / 60) > 0 ? `${Math.floor(f.duration_minutes / 60)}h ` : ""}{f.duration_minutes % 60}m
                       </span>
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {f.max_altitude_ft ? `${f.max_altitude_ft}ft` : "—"}
+                      <span className="truncate text-xs">
+                        {f.laanc_auth_code
+                          ? <span className="text-emerald-400 font-mono">{f.laanc_auth_code}</span>
+                          : <span className="text-zinc-600">No auth</span>}
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
                         {(f.project as any)?.title ?? "—"}
                       </span>
-                      <span className={cn("flex items-center gap-1 text-xs", f.preflight_completed ? "text-emerald-400" : "text-zinc-600")}>
-                        {f.preflight_completed ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {f.preflight_completed
+                          ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" aria-label="Pre-flight complete" />
+                          : <Circle className="h-3.5 w-3.5 text-zinc-600" aria-label="Pre-flight incomplete" />}
+                        {f.is_night_flight && <Moon className="h-3.5 w-3.5 text-indigo-400" aria-label="Night flight" />}
+                        {f.incident_flag && <TriangleAlert className="h-3.5 w-3.5 text-red-400" aria-label="Incident reported" />}
+                      </div>
                       <div className="flex items-center gap-1">
                         <button onClick={() => openFlightDialog(f)}
                           className="rounded p-1 text-muted-foreground/40 hover:bg-accent hover:text-muted-foreground transition-colors">
@@ -818,7 +906,8 @@ export default function DronesPage() {
 
         {/* ── PART 107 ── */}
         {tab === "part107" && (
-          <div className="max-w-lg">
+          <div className="max-w-lg space-y-4">
+            {/* Certificate info */}
             <div className="rounded-xl border border-border bg-card p-6 space-y-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#d4a853]/10">
@@ -830,17 +919,15 @@ export default function DronesPage() {
                 </div>
               </div>
 
-              {/* Expiry status */}
               {part107Expires && (() => {
-                const days = part107DaysLeft(part107Expires);
+                const days = daysLeft(part107Expires);
                 const isExpired = days < 0;
-                const isUrgent = days >= 0 && days <= 30;
+                const isUrgent  = days >= 0 && days <= 30;
                 const isWarning = days > 30 && days <= 60;
                 return (
                   <div className={cn(
                     "flex items-center gap-3 rounded-lg border px-4 py-3",
-                    isExpired ? "border-red-500/30 bg-red-500/10" :
-                    isUrgent  ? "border-red-500/30 bg-red-500/10" :
+                    isExpired || isUrgent ? "border-red-500/30 bg-red-500/10" :
                     isWarning ? "border-amber-500/30 bg-amber-500/10" :
                                 "border-emerald-500/30 bg-emerald-500/10"
                   )}>
@@ -861,11 +948,7 @@ export default function DronesPage() {
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <Label>Certificate Number</Label>
-                  <Input
-                    value={part107Number}
-                    onChange={(e) => setPart107Number(e.target.value)}
-                    placeholder="e.g. 4207XXX"
-                  />
+                  <Input value={part107Number} onChange={(e) => setPart107Number(e.target.value)} placeholder="e.g. 4207XXX" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Expiration Date</Label>
@@ -882,57 +965,152 @@ export default function DronesPage() {
                 {part107Saving ? "Saving…" : "Save"}
               </Button>
             </div>
+
+            {/* Certificate document upload */}
+            <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">Certificate Document</p>
+                  <p className="text-xs text-muted-foreground">Upload your physical cert or TSA clearance letter</p>
+                </div>
+              </div>
+
+              {part107DocUrl && (
+                <div className="flex items-center gap-3 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-4 py-3">
+                  <FileText className="h-4 w-4 shrink-0 text-emerald-400" />
+                  <span className="flex-1 text-sm text-muted-foreground truncate">Certificate on file</span>
+                  <a href={part107DocUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-[#d4a853] hover:underline shrink-0">
+                    <ExternalLink className="h-3.5 w-3.5" /> View
+                  </a>
+                </div>
+              )}
+
+              <label className={cn(
+                "flex cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-sm transition-colors",
+                part107Uploading
+                  ? "border-border text-muted-foreground/50 pointer-events-none"
+                  : "border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
+              )}>
+                <Upload className="h-4 w-4" />
+                {part107Uploading ? "Uploading…" : part107DocUrl ? "Replace certificate" : "Upload certificate (PDF or image)"}
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                  className="sr-only"
+                  disabled={part107Uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handlePart107Upload(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
           </div>
         )}
       </div>
 
-      {/* ─── DIALOGS ──────────────────────────────────────────────────────── */}
+      {/* ─── DIALOGS ─────────────────────────────────────────────────────────── */}
 
       {/* Add/Edit Drone */}
       <Dialog open={droneOpen} onOpenChange={setDroneOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editDrone ? "Edit Drone" : "Add Drone"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Make <span className="text-red-400">*</span></Label>
-                <Input value={fMake} onChange={(e) => setFMake(e.target.value)} placeholder="DJI" autoFocus />
+          <div className="space-y-5 py-2">
+
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Aircraft</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Make <span className="text-red-400">*</span></Label>
+                  <Input value={fMake} onChange={(e) => setFMake(e.target.value)} placeholder="DJI" autoFocus />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Model <span className="text-red-400">*</span></Label>
+                  <Input value={fModel} onChange={(e) => setFModel(e.target.value)} placeholder="Mavic 3 Pro" />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Model <span className="text-red-400">*</span></Label>
-                <Input value={fModel} onChange={(e) => setFModel(e.target.value)} placeholder="Mavic 3 Pro" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Nickname</Label>
+                  <Input value={fNickname} onChange={(e) => setFNickname(e.target.value)} placeholder="Main rig" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Weight (grams)</Label>
+                  <Input
+                    value={fWeight}
+                    onChange={(e) => setFWeight(e.target.value.replace(/[^\d]/g, ""))}
+                    inputMode="numeric"
+                    placeholder="895"
+                  />
+                </div>
+              </div>
+              {fWeight && numVal(fWeight) != null && numVal(fWeight)! < 250 && (
+                <p className="rounded-lg border border-sky-400/20 bg-sky-400/5 px-3 py-2 text-[11px] text-sky-400">
+                  Sub-250g — FAA registration and Remote ID not required for recreational use.
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Firmware Version</Label>
+                  <Input value={fFirmware} onChange={(e) => setFFirmware(e.target.value)} placeholder="01.01.0100" />
+                </div>
+                <SelectField label="Status" value={fDroneStatus} onChange={(v) => setFDroneStatus(v as DroneStatus)}>
+                  <option value="active">Active</option>
+                  <option value="in_repair">In Repair</option>
+                  <option value="retired">Retired</option>
+                </SelectField>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Nickname</Label>
-              <Input value={fNickname} onChange={(e) => setFNickname(e.target.value)} placeholder="Main rig" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>FAA Registration</Label>
-                <Input value={fFaaReg} onChange={(e) => setFFaaReg(e.target.value)} placeholder="FA3XXXXXXX" />
+
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Registration & Compliance</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>FAA Registration</Label>
+                  <Input value={fFaaReg} onChange={(e) => setFFaaReg(e.target.value)} placeholder="FA3XXXXXXX" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Serial Number</Label>
+                  <Input value={fSerial} onChange={(e) => setFSerial(e.target.value)} placeholder="Optional" />
+                </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Serial Number</Label>
-                <Input value={fSerial} onChange={(e) => setFSerial(e.target.value)} placeholder="Optional" />
+                <Label>Remote ID Serial</Label>
+                <Input value={fRemoteId} onChange={(e) => setFRemoteId(e.target.value)} placeholder="Module or built-in serial" />
+                <p className="text-[11px] text-muted-foreground">Required by FAA for most drones since Sept 2023.</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Insurance</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Policy Number</Label>
+                  <Input value={fInsurancePolicy} onChange={(e) => setFInsurancePolicy(e.target.value)} placeholder="Optional" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Policy Expiry</Label>
+                  <Input type="date" value={fInsuranceExpires} onChange={(e) => setFInsuranceExpires(e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label>Purchase Date</Label>
                 <Input type="date" value={fPurchaseDate} onChange={(e) => setFPurchaseDate(e.target.value)} />
               </div>
-              <SelectField label="Status" value={fDroneStatus} onChange={(v) => setFDroneStatus(v as DroneStatus)}>
-                <option value="active">Active</option>
-                <option value="in_repair">In Repair</option>
-                <option value="retired">Retired</option>
-              </SelectField>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Notes</Label>
-              <Textarea value={fDroneNotes} onChange={(e) => setFDroneNotes(e.target.value)} rows={2} placeholder="Optional" />
+              <div className="space-y-1.5">
+                <Label>Notes</Label>
+                <Textarea value={fDroneNotes} onChange={(e) => setFDroneNotes(e.target.value)} rows={2} placeholder="Optional" />
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -1016,7 +1194,7 @@ export default function DronesPage() {
             {/* Basic info */}
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Plane className="h-3 w-3" /> Flight Info
+                <DroneIcon className="h-3 w-3" /> Flight Info
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
@@ -1056,6 +1234,26 @@ export default function DronesPage() {
                   {DRONE_PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
                 </SelectField>
               </div>
+              <div className="space-y-1.5">
+                <Label>LAANC Authorization Code</Label>
+                <Input value={flLaanc} onChange={(e) => setFlLaanc(e.target.value)} placeholder="e.g. 2024LAANC0001 (leave blank if uncontrolled airspace)" />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <ToggleButton active={flNightFlight} onClick={() => setFlNightFlight((v) => !v)}
+                  activeClass="border-indigo-400/40 bg-indigo-400/10 text-indigo-400">
+                  <Moon className="h-3.5 w-3.5" /> Night flight
+                </ToggleButton>
+                <ToggleButton active={flIncident} onClick={() => setFlIncident((v) => !v)}
+                  activeClass="border-red-400/40 bg-red-400/10 text-red-400">
+                  <TriangleAlert className="h-3.5 w-3.5" /> Incident / near-miss
+                </ToggleButton>
+              </div>
+              {flIncident && (
+                <div className="space-y-1.5">
+                  <Label className="text-red-400">Incident Notes</Label>
+                  <Textarea value={flIncidentNotes} onChange={(e) => setFlIncidentNotes(e.target.value)} rows={2} placeholder="Describe what happened…" />
+                </div>
+              )}
             </div>
 
             {/* Pre-flight checklist */}
@@ -1065,7 +1263,7 @@ export default function DronesPage() {
                   <ClipboardCheck className="h-3 w-3" /> Pre-flight Checklist
                 </p>
                 <span className={cn("text-xs font-semibold", checklistComplete ? "text-emerald-400" : "text-muted-foreground")}>
-                  {checklistCount}/{PREFLIGHT_ITEMS.length} complete
+                  {checklistCount}/{PREFLIGHT_ITEMS.length}
                 </span>
               </div>
               <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
@@ -1091,15 +1289,12 @@ export default function DronesPage() {
                   </label>
                 ))}
               </div>
-              {!checklistComplete && (
-                <p className="text-[11px] text-amber-400/80">You can still log the flight without completing the checklist — compliance status will be recorded.</p>
-              )}
             </div>
 
             {/* Weather */}
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <CloudSun className="h-3 w-3" /> Weather Conditions
+                <CloudSun className="h-3 w-3" /> Weather
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <SelectField label="Conditions" value={flWeather} onChange={setFlWeather}>
@@ -1136,7 +1331,7 @@ export default function DronesPage() {
               </div>
             </div>
 
-            {/* Batteries used */}
+            {/* Batteries */}
             {batteries.filter((b) => b.status === "active" && (!flDroneId || b.drone_id === flDroneId || !b.drone_id)).length > 0 && (
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -1150,9 +1345,7 @@ export default function DronesPage() {
                       const selected = flBatteries.includes(b.id);
                       const h = batteryHealth(b.cycle_count);
                       return (
-                        <button
-                          key={b.id}
-                          type="button"
+                        <button key={b.id} type="button"
                           onClick={() => setFlBatteries((prev) => selected ? prev.filter((id) => id !== b.id) : [...prev, b.id])}
                           className={cn(
                             "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all",
