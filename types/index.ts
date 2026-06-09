@@ -939,3 +939,73 @@ export interface QuoteEstimate {
   created_at: string;
   updated_at: string;
 }
+
+// ─── Drone Module ─────────────────────────────────────────────────────────────
+
+export type DroneStatus = "active" | "in_repair" | "retired";
+export type DroneBatteryStatus = "active" | "retired";
+
+export interface DroneEquipment {
+  id: string;
+  user_id: string;
+  make: string;
+  model: string;
+  nickname?: string | null;
+  serial_number?: string | null;
+  faa_registration?: string | null;
+  purchase_date?: string | null;
+  status: DroneStatus;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface DroneBattery {
+  id: string;
+  user_id: string;
+  drone_id?: string | null;
+  drone?: Pick<DroneEquipment, "id" | "make" | "model"> | null;
+  label: string;
+  serial_number?: string | null;
+  purchase_date?: string | null;
+  cycle_count: number;
+  capacity_mah?: number | null;
+  status: DroneBatteryStatus;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface DroneFlightLog {
+  id: string;
+  user_id: string;
+  drone_id?: string | null;
+  drone?: Pick<DroneEquipment, "id" | "make" | "model"> | null;
+  project_id?: string | null;
+  project?: Pick<Project, "id" | "title"> | null;
+  flight_date: string;
+  location: string;
+  duration_minutes: number;
+  max_altitude_ft?: number | null;
+  purpose?: string | null;
+  weather_conditions?: string | null;
+  wind_speed_mph?: number | null;
+  visibility_miles?: number | null;
+  temperature_f?: number | null;
+  preflight_completed: boolean;
+  preflight_items?: Record<string, boolean> | null;
+  notes?: string | null;
+  batteries?: { battery: Pick<DroneBattery, "id" | "label" | "cycle_count"> }[];
+  created_at: string;
+}
+
+export interface DroneMaintenanceLog {
+  id: string;
+  user_id: string;
+  drone_id: string;
+  drone?: Pick<DroneEquipment, "id" | "make" | "model"> | null;
+  maintenance_date: string;
+  maintenance_type: string;
+  description?: string | null;
+  cost_cents?: number | null;
+  next_maintenance_date?: string | null;
+  created_at: string;
+}

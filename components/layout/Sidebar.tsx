@@ -28,6 +28,7 @@ import {
   Wrench,
   Calculator,
   ShieldCheck,
+  Plane,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -81,6 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Tasks",         href: "/project-tasks", icon: ClipboardList },
       { label: "To Do",         href: "/tasks",         icon: CheckSquare },
       { label: "Editor Tools",  href: "/editor-tools",  icon: Wrench },
+      { label: "Drones",        href: "/drones",        icon: Plane },
     ],
   },
   {
