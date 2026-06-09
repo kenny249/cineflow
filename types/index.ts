@@ -150,6 +150,7 @@ export interface CrewCall {
   shoot_day_id: string;
   project_id: string;
   collaborator_id?: string | null;
+  drone_id?: string | null;
   name: string;
   role?: string | null;
   call_time: string;
@@ -200,6 +201,7 @@ export interface ShotListItem {
   camera_angle?: string;
   props?: string[];
   actors?: string[];
+  drone_id?: string | null;
   shoot_day_id?: string;
   created_by?: string;
   created_at?: string;

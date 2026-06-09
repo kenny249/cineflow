@@ -37,6 +37,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const body = await req.json() as {
       collaborator_id?: string | null;
+      drone_id?: string | null;
       name: string;
       role?: string | null;
       call_time: string;
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         shoot_day_id: dayId,
         project_id: projectId,
         collaborator_id: body.collaborator_id ?? null,
+        drone_id: body.drone_id ?? null,
         name: body.name.trim(),
         role: body.role?.trim() || null,
         call_time: body.call_time.trim(),

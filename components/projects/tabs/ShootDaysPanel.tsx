@@ -7,7 +7,8 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import type { ShotListItem, ProjectCollaborator, CrewCall } from "@/types";
+import type { ShotListItem, ProjectCollaborator, CrewCall, DroneEquipment } from "@/types";
+import { DroneIcon } from "@/components/icons/DroneIcon";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -240,6 +241,36 @@ function CallSheetModal({
               </>
             )}
 
+            {/* Drone Briefing — shown only when drone shots exist for this day */}
+            {shots.filter((s) => s.shot_type === "drone").length > 0 && (
+              <>
+                <h2>Drone / Aerial Briefing</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Description</th>
+                      <th>Scene</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shots.filter((s) => s.shot_type === "drone").map((s) => (
+                      <tr key={s.id}>
+                        <td className="shot-num">{s.shot_number}</td>
+                        <td>{s.description}</td>
+                        <td>{s.scene ?? "—"}</td>
+                        <td>{s.notes ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p style={{ fontSize: "9px", color: "#a1a1aa", marginTop: "6px" }}>
+                  Confirm LAANC authorization, pre-flight checklist, and Remote ID broadcast before any aerial operation.
+                </p>
+              </>
+            )}
+
             {/* Notes */}
             {day.notes && (
               <>
@@ -271,11 +302,15 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
   const [crewCalls, setCrewCalls] = useState<CrewCall[]>([]);
   const [showCallForm, setShowCallForm] = useState(false);
   const [callCollabId, setCallCollabId] = useState<string>("");
+  const [callDroneId, setCallDroneId] = useState<string>("");
   const [callName, setCallName] = useState("");
   const [callRole, setCallRole] = useState("");
   const [callTime, setCallTime] = useState("");
   const [savingCall, setSavingCall] = useState(false);
   const [removingCallId, setRemovingCallId] = useState<string | null>(null);
+
+  // Drone equipment
+  const [drones, setDrones] = useState<Pick<DroneEquipment, "id" | "make" | "model" | "nickname">[]>([]);
 
   // Add/edit day form
   const [showForm, setShowForm] = useState(false);
@@ -321,6 +356,17 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
         if (Array.isArray(data)) setCollaborators((data as ProjectCollaborator[]).filter((c) => c.status === "active"));
       })
       .catch(() => {});
+
+    // Load user's registered drones
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("drone_equipment")
+        .select("id, make, model, nickname")
+        .eq("user_id", user.id)
+        .order("make")
+        .then(({ data }) => setDrones((data ?? []) as Pick<DroneEquipment, "id" | "make" | "model" | "nickname">[]));
+    });
   }, [projectId]);
 
   useEffect(() => {
@@ -412,7 +458,7 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
   }
 
   function openCallForm() {
-    setCallCollabId(""); setCallName(""); setCallRole(""); setCallTime("");
+    setCallCollabId(""); setCallDroneId(""); setCallName(""); setCallRole(""); setCallTime("");
     setShowCallForm(true);
   }
 
@@ -433,6 +479,7 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           collaborator_id: callCollabId || null,
+          drone_id: callDroneId || null,
           name: callName.trim(),
           role: callRole.trim() || null,
           call_time: callTime.trim(),
@@ -600,6 +647,26 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
                       ))}
                     </select>
                   </div>
+                  {drones.length > 0 && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <DroneIcon className="h-2.5 w-2.5" />
+                        Link drone (optional)
+                      </label>
+                      <select
+                        value={callDroneId}
+                        onChange={(e) => setCallDroneId(e.target.value)}
+                        className="w-full rounded-lg border border-border bg-muted/30 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+                      >
+                        <option value="">No drone</option>
+                        {drones.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.nickname ?? `${d.make} ${d.model}`}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       type="text"
@@ -654,6 +721,15 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
                       <div className="min-w-0 flex-1">
                         <span className="text-xs font-medium text-foreground">{cc.name}</span>
                         {cc.role && <span className="ml-1.5 text-[10px] text-muted-foreground">{cc.role}</span>}
+                        {cc.drone_id && (() => {
+                          const d = drones.find((dr) => dr.id === cc.drone_id);
+                          return d ? (
+                            <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] text-[#d4a853]/80">
+                              <DroneIcon className="h-2.5 w-2.5" />
+                              {d.nickname ?? `${d.make} ${d.model}`}
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       <span className="shrink-0 text-xs font-bold text-[#d4a853]">{cc.call_time}</span>
                       {canEdit && (

@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import type { Project, ShotList, ShotListItem } from "@/types";
+import type { Project, ShotList, ShotListItem, DroneEquipment } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { DroneIcon } from "@/components/icons/DroneIcon";
 
 const DEFAULT_CATEGORIES = ["All", "Interior", "Exterior", "B-Roll", "Interview", "Action", "Dialogue", "VFX", "Other"];
 const SHOT_TYPES = ["wide", "medium", "close_up", "extreme_close_up", "overhead", "drone", "pov", "other"] as const;
@@ -48,6 +49,8 @@ export default function ShotListsPage() {
   const [shotImagePreview, setShotImagePreview] = useState<string | null>(null);
   const [isSavingShot, setIsSavingShot] = useState(false);
   const imageFileRef = useRef<HTMLInputElement>(null);
+  const [shotDroneId, setShotDroneId] = useState<string>("");
+  const [drones, setDrones] = useState<Pick<DroneEquipment, "id" | "make" | "model" | "nickname">[]>([]);
 
   // Category filter
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -65,6 +68,19 @@ export default function ShotListsPage() {
       }
     }
     load();
+
+    // Load user drones for the drone shot picker
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("drone_equipment")
+        .select("id, make, model, nickname")
+        .eq("user_id", user.id)
+        .order("make")
+        .then(({ data }) =>
+          setDrones((data ?? []) as Pick<DroneEquipment, "id" | "make" | "model" | "nickname">[])
+        );
+    });
   }, []);
 
   useEffect(() => {
@@ -122,7 +138,7 @@ export default function ShotListsPage() {
   function openAddShot() {
     setEditingShot(null);
     setShotDesc(""); setShotType("wide"); setShotScene(""); setShotNotes("");
-    setShotImageFile(null); setShotImagePreview(null);
+    setShotImageFile(null); setShotImagePreview(null); setShotDroneId("");
     setShotDialogOpen(true);
   }
 
@@ -134,6 +150,7 @@ export default function ShotListsPage() {
     setShotNotes(item.notes || "");
     setShotImageFile(null);
     setShotImagePreview(item.image_url || null);
+    setShotDroneId(item.drone_id ?? "");
     setShotDialogOpen(true);
   }
 
@@ -175,7 +192,8 @@ export default function ShotListsPage() {
           scene: shotScene.trim() || undefined,
           notes: shotNotes.trim() || undefined,
           image_url: imageUrl,
-        });
+          drone_id: shotType === "drone" ? (shotDroneId || null) : null,
+        } as any);
         setShotLists((prev) =>
           prev.map((l) => ({
             ...l,
@@ -195,6 +213,7 @@ export default function ShotListsPage() {
           scene: shotScene.trim() || undefined,
           notes: shotNotes.trim() || undefined,
           image_url: imageUrl,
+          drone_id: shotType === "drone" ? (shotDroneId || null) : null,
           is_complete: false,
         } as any);
         setShotLists((prev) =>
@@ -652,7 +671,7 @@ export default function ShotListsPage() {
                 <div className="relative">
                   <select
                     value={shotType}
-                    onChange={(e) => setShotType(e.target.value as ShotListItem["shot_type"])}
+                    onChange={(e) => { setShotType(e.target.value as ShotListItem["shot_type"]); if (e.target.value !== "drone") setShotDroneId(""); }}
                     className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                   >
                     {SHOT_TYPES.map((t) => (
@@ -667,6 +686,29 @@ export default function ShotListsPage() {
                 <Input value={shotScene} onChange={(e) => setShotScene(e.target.value)} placeholder="e.g. SC-12A" />
               </div>
             </div>
+            {shotType === "drone" && drones.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <DroneIcon className="h-3 w-3 text-[#d4a853]" />
+                  Assign Drone <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                <div className="relative">
+                  <select
+                    value={shotDroneId}
+                    onChange={(e) => setShotDroneId(e.target.value)}
+                    className="w-full appearance-none rounded-md border border-border bg-input px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">No specific drone</option>
+                    {drones.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nickname ?? `${d.make} ${d.model}`}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronRight className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 rotate-90 text-muted-foreground" />
+                </div>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Notes</Label>
               <Input value={shotNotes} onChange={(e) => setShotNotes(e.target.value)} placeholder="Golden hour, handheld…" />

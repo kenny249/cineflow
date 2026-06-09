@@ -35,6 +35,8 @@ import { ProjectTasksTab } from "@/components/projects/tabs/ProjectTasksTab";
 import { VideoDeliverablesTab } from "@/components/projects/tabs/VideoDeliverablesTab";
 import { ShootDaysPanel } from "@/components/projects/tabs/ShootDaysPanel";
 import { PeopleTab } from "@/components/projects/tabs/PeopleTab";
+import { DroneTab } from "@/components/projects/tabs/DroneTab";
+import { DroneIcon } from "@/components/icons/DroneIcon";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
 import { downloadCSV } from "@/lib/export";
@@ -187,9 +189,9 @@ export default function ProjectDetailTabs({
   const searchParams = useSearchParams();
   const rawInitialTab = searchParams.get("tab") ?? "overview";
   // Map legacy/hidden tab values into their new parent tab
-  const initialTab = ["shot-list","scripts","docs","crew"].includes(rawInitialTab) ? "production" : rawInitialTab;
+  const initialTab = ["shot-list","scripts","docs","crew","drone"].includes(rawInitialTab) ? "production" : rawInitialTab;
   const [activeTab, setActiveTab] = useState(initialTab);
-  const PRODUCTION_TABS = ["shot-list", "scripts", "docs", "crew"];
+  const PRODUCTION_TABS = ["shot-list", "scripts", "docs", "crew", "drone"];
   const isAdmin = userRole === "owner" || userRole === "admin";
   const isClient = userRole === "client";
   const canEdit = !isClient;
@@ -2009,13 +2011,14 @@ export default function ProjectDetailTabs({
                 <h2 className="font-display text-sm font-semibold text-foreground">Production</h2>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">Shot planning, scripts, files, and crew — everything for the shoot.</p>
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                {([
                   { value: "shot-list", label: "Shot List",  icon: ListChecks, desc: `${totalShots ? `${completedShots}/${totalShots} shots` : "Plan your shots"}` },
                   { value: "scripts",   label: "Scripts",    icon: ScrollText, desc: "Scripts & callsheets" },
                   { value: "docs",      label: "Files",      icon: Package,    desc: "Production documents" },
                   { value: "crew",      label: "Crew",       icon: Users,      desc: "Crew & contacts" },
-                ].map((section) => (
+                  { value: "drone",     label: "Drone",      icon: DroneIcon,  desc: "Flights & aerial ops" },
+                ] as Array<{ value: string; label: string; icon: React.ElementType; desc: string }>).map((section) => (
                   <button
                     key={section.value}
                     type="button"
@@ -2361,6 +2364,15 @@ export default function ProjectDetailTabs({
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Locations</p>
               </div>
               <LocationsTab projectId={project.id} canEdit={canEdit} />
+            </TabsContent>
+
+            {/* ── Drone Operations ── */}
+            <TabsContent value="drone" className="m-0">
+              <DroneTab
+                projectId={project.id}
+                projectTitle={project.title}
+                droneShots={shotList?.items?.filter((s) => s.shot_type === "drone") ?? []}
+              />
             </TabsContent>
 
             {/* ── Locations (hidden, kept for deep-link compat) ── */}
