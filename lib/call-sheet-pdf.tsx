@@ -225,16 +225,16 @@ const s = StyleSheet.create({
   // Static cameras
   staticTable: { marginBottom: 14 },
   staticRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 5 },
-  staticName: { fontSize: 8, fontFamily: "Helvetica-Bold", width: "38%" },
-  staticRole: { fontSize: 7, color: GRAY, flex: 1 },
+  staticName: { fontSize: 8, fontFamily: "Helvetica-Bold", width: "30%" },
+  staticRole: { fontSize: 7, color: GRAY, width: "70%", lineHeight: 1.4 },
 
   // Key moments
   momTable: { marginBottom: 14 },
-  momRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 5 },
-  momDotWrap: { flexDirection: "row", alignItems: "center", gap: 5, width: "32%" },
-  momDot: { width: 6, height: 6, borderRadius: 3 },
-  momLabel: { fontSize: 8, fontFamily: "Helvetica-Bold" },
-  momDesc: { fontSize: 7, color: "#374151", flex: 1, lineHeight: 1.5 },
+  momRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 6 },
+  momDotWrap: { flexDirection: "row", alignItems: "flex-start", gap: 5, width: "44%" },
+  momDot: { width: 6, height: 6, borderRadius: 3, marginTop: 1.5, flexShrink: 0 },
+  momLabel: { fontSize: 8, fontFamily: "Helvetica-Bold", flex: 1, lineHeight: 1.4 },
+  momDesc: { fontSize: 7, color: "#374151", width: "56%", lineHeight: 1.5 },
 
   // Director note
   noteBox: { borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3, borderLeftColor: BLACK, borderRadius: 3, padding: 8, marginBottom: 12 },
