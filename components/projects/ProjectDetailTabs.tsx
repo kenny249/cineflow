@@ -353,6 +353,9 @@ export default function ProjectDetailTabs({
   const [editDescription, setEditDescription] = useState(description);
   const [editClientName, setEditClientName] = useState(project.client_name ?? "");
   const [editClientEmail, setEditClientEmail] = useState(project.client_email ?? "");
+  const [displayType, setDisplayType] = useState(project.type);
+  const [displayCustomType, setDisplayCustomType] = useState(project.custom_type ?? "");
+  const [displayClientLogoUrl, setDisplayClientLogoUrl] = useState(project.client_logo_url ?? "");
   const [editType, setEditType] = useState(project.type);
   const [editCustomType, setEditCustomType] = useState(project.custom_type ?? "");
   const [editClientLogoUrl, setEditClientLogoUrl] = useState(project.client_logo_url ?? "");
@@ -1110,6 +1113,9 @@ export default function ProjectDetailTabs({
     };
     setTitle(updates.title);
     setDescription(updates.description);
+    setDisplayType(editType);
+    setDisplayCustomType(editType === "custom" ? (editCustomType.trim() || "") : "");
+    setDisplayClientLogoUrl(editClientLogoUrl || "");
     setShowEditDialog(false);
     try {
       await updateProject(project.id, updates);
@@ -1520,7 +1526,7 @@ export default function ProjectDetailTabs({
                 {/* Status indicator — read-only, driven by phase completion */}
                 <StatusBadge status={status} />
                 <Badge variant="outline">
-                  {project.type === "custom" && project.custom_type ? project.custom_type : PROJECT_TYPE_LABELS[project.type]}
+                  {displayType === "custom" && displayCustomType ? displayCustomType : PROJECT_TYPE_LABELS[displayType]}
                 </Badge>
                 {project.tags?.map((tag) => (
                   <Badge key={tag} variant="outline">{tag}</Badge>
@@ -1948,7 +1954,7 @@ export default function ProjectDetailTabs({
                     <div className="rounded-xl border border-border bg-card p-3 space-y-2.5">
                       {[
                         { label: "Client", value: project.client_name || "—" },
-                        { label: "Type", value: PROJECT_TYPE_LABELS[project.type] },
+                        { label: "Type", value: displayType === "custom" && displayCustomType ? displayCustomType : PROJECT_TYPE_LABELS[displayType] },
                         { label: "Created", value: formatDate(project.created_at, "MMM d, yyyy") },
                         { label: "Updated", value: formatRelative(project.updated_at) },
                       ].map((detail) => (
