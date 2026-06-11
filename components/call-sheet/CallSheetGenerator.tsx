@@ -4,31 +4,54 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   X, ChevronRight, ChevronLeft, Loader2, Printer,
-  MapPin, Users, Clock, Calendar, AlertTriangle, Building2,
-  CloudSun, FileText, Check,
+  MapPin, Users, Clock, Calendar, AlertTriangle, FileText, Check,
+  Edit3, Film, Radio, Mic2, CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import {
-  getCrewContacts, getProjectLocations, getShotLists, getProfile,
-} from "@/lib/supabase/queries";
+import { getCrewContacts, getProjectLocations, getShotLists, getProfile } from "@/lib/supabase/queries";
 import type { Project, CrewContact, ProjectLocation, ShotListItem } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type CallSheetFormat = "scripted" | "live_event" | "interview";
+
 interface CrewWithCall extends CrewContact { callTime: string }
 interface LocationWithParking extends ProjectLocation { parkingNotes: string }
+
 interface ScheduleItem {
   time: string;
   label: string;
   location: string | null;
   type: "logistics" | "setup" | "shoot" | "break" | "move" | "wrap";
 }
-interface GeneratedSheet {
-  schedule: ScheduleItem[];
-  warning: string | null;
+
+interface CoverageAssignment {
+  person: string;
+  role: string;
+  equipment: string;
+  responsibilities: string[];
 }
+
+interface StaticCamera {
+  name: string;
+  role: string;
+}
+
+interface KeyMoment {
+  label: string;
+  description: string;
+  type: "pre" | "during" | "post" | "logistics";
+}
+
+interface ScriptedSheet   { format: "scripted";   schedule: ScheduleItem[];     warning: string | null }
+interface LiveEventSheet  { format: "live_event"; coverage: CoverageAssignment[]; staticCameras: StaticCamera[]; keyMoments: KeyMoment[]; warning: string | null }
+interface InterviewSheet  { format: "interview";  schedule: ScheduleItem[];     warning: string | null }
+
+type GeneratedSheet = ScriptedSheet | LiveEventSheet | InterviewSheet;
+
 interface FormData {
+  format: CallSheetFormat;
   shootDate: string;
   callTime: string;
   wrapTime: string;
@@ -40,10 +63,15 @@ interface FormData {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const DEPT_ORDER = [
-  "Production", "Direction", "Camera", "Lighting", "Grip", "Sound",
-  "Art", "Wardrobe", "Hair & Makeup", "Talent", "Other",
-];
+function to12h(t: string): string {
+  if (!t || !t.includes(":")) return t || "TBD";
+  const [h, m] = t.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+const DEPT_ORDER = ["Production", "Direction", "Camera", "Lighting", "Grip", "Sound", "Art", "Wardrobe", "Hair & Makeup", "Talent", "Other"];
 
 function groupByDept(crew: CrewWithCall[]) {
   const map = new Map<string, CrewWithCall[]>();
@@ -58,43 +86,30 @@ function groupByDept(crew: CrewWithCall[]) {
   return sorted;
 }
 
-const TYPE_STYLE: Record<ScheduleItem["type"], string> = {
-  logistics: "border-l-[#d4a853]/60 bg-[#d4a853]/5 text-[#d4a853]",
-  setup:     "border-l-blue-400/60 bg-blue-400/5 text-blue-400",
-  shoot:     "border-l-emerald-400/60 bg-emerald-400/5 text-emerald-400",
-  break:     "border-l-purple-400/60 bg-purple-400/5 text-purple-400",
-  move:      "border-l-amber-400/60 bg-amber-400/5 text-amber-400",
-  wrap:      "border-l-muted-foreground/40 bg-muted/30 text-muted-foreground",
+const ROW_BG: Record<ScheduleItem["type"], string> = {
+  logistics: "#fffbeb", setup: "#eff6ff", shoot: "#ffffff",
+  break: "#f5f3ff", move: "#fff7ed", wrap: "#f9fafb",
+};
+const ROW_DOT: Record<ScheduleItem["type"], string> = {
+  logistics: "#d4a853", setup: "#60a5fa", shoot: "#34d399",
+  break: "#a78bfa", move: "#fb923c", wrap: "#9ca3af",
 };
 const TYPE_LABEL: Record<ScheduleItem["type"], string> = {
   logistics: "LOGISTICS", setup: "SETUP", shoot: "SHOOT",
   break: "BREAK", move: "MOVE", wrap: "WRAP",
 };
 
-// ─── Print Sheet ──────────────────────────────────────────────────────────────
+const MOMENT_DOT: Record<KeyMoment["type"], string> = {
+  pre: "#60a5fa", during: "#34d399", post: "#a78bfa", logistics: "#d4a853",
+};
 
-const ROW_BG: Record<ScheduleItem["type"], string> = {
-  logistics: "#fffbeb",
-  setup:     "#eff6ff",
-  shoot:     "#ffffff",
-  break:     "#f5f3ff",
-  move:      "#fff7ed",
-  wrap:      "#f9fafb",
-};
-const ROW_DOT: Record<ScheduleItem["type"], string> = {
-  logistics: "#d4a853",
-  setup:     "#60a5fa",
-  shoot:     "#34d399",
-  break:     "#a78bfa",
-  move:      "#fb923c",
-  wrap:      "#9ca3af",
-};
+// ─── Shared print header / footer ─────────────────────────────────────────────
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
       <div style={{ width: 3, height: 14, background: "#000", borderRadius: 2, flexShrink: 0 }} />
-      <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#111" }}>
+      <p style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.15em", textTransform: "uppercase", color: "#111", margin: 0 }}>
         {children}
       </p>
       <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
@@ -102,77 +117,42 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-function PrintSheet({
-  project, profile, formData, crew, locations, sheet, clientLogoUrl,
-}: {
-  project: Project;
-  profile: { business_name?: string; logo_url?: string; first_name?: string; last_name?: string } | null;
-  formData: FormData;
-  crew: CrewWithCall[];
-  locations: LocationWithParking[];
-  sheet: GeneratedSheet;
-  clientLogoUrl?: string;
+function PrintHeader({ project, profile, formData, clientLogoUrl }: {
+  project: Project; profile: any; formData: FormData; clientLogoUrl?: string;
 }) {
-  const deptMap = groupByDept(crew);
-  const producerName = profile
-    ? [profile.first_name, profile.last_name].filter(Boolean).join(" ")
-    : "";
+  const producerName = profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") : "";
   const shootDateStr = formData.shootDate
-    ? new Date(formData.shootDate + "T12:00:00").toLocaleDateString("en-US", {
-        weekday: "long", year: "numeric", month: "long", day: "numeric",
-      })
+    ? new Date(formData.shootDate + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
     : "Date TBD";
-
   return (
-    <div style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", color: "#111", fontSize: 11, lineHeight: 1.4, background: "#fff" }}>
-
-      {/* ── Header ── */}
+    <>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", paddingBottom: 12, marginBottom: 14, borderBottom: "2.5px solid #111" }}>
-        {/* Left: logo + company */}
         <div style={{ minWidth: 120 }}>
-          {profile?.logo_url && (
-            <img src={profile.logo_url} alt="" style={{ height: 36, objectFit: "contain", display: "block", marginBottom: 4 }} />
-          )}
-          <p style={{ fontSize: 12, fontWeight: 700, color: "#111" }}>{profile?.business_name || "Production Company"}</p>
+          {profile?.logo_url && <img src={profile.logo_url} alt="" style={{ height: 36, objectFit: "contain", display: "block", marginBottom: 4 }} />}
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#111", margin: 0 }}>{profile?.business_name || "Production Company"}</p>
           {producerName && <p style={{ fontSize: 9, color: "#6b7280", marginTop: 2 }}>{producerName}</p>}
         </div>
-
-        {/* Center: title */}
         <div style={{ textAlign: "center", flex: 1, padding: "0 20px" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 3px" }}>
-            {project.title}
-          </h1>
-          {project.client_name && (
-            <p style={{ fontSize: 9, color: "#6b7280", margin: "0 0 2px" }}>Client: {project.client_name}</p>
-          )}
-          <p style={{ fontSize: 10, fontWeight: 700, color: "#111", margin: 0 }}>
-            CALL SHEET — {shootDateStr}
-          </p>
+          <h1 style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 3px" }}>{project.title}</h1>
+          {project.client_name && <p style={{ fontSize: 9, color: "#6b7280", margin: "0 0 2px" }}>Client: {project.client_name}</p>}
+          <p style={{ fontSize: 10, fontWeight: 700, color: "#111", margin: 0 }}>CALL SHEET — {shootDateStr}</p>
         </div>
-
-        {/* Right: client logo + confidential */}
         <div style={{ textAlign: "right", minWidth: 120 }}>
-          {clientLogoUrl && (
-            <img src={clientLogoUrl} alt="client logo" style={{ height: 36, maxWidth: 120, objectFit: "contain", display: "block", marginLeft: "auto", marginBottom: 6 }} />
-          )}
-          {formData.confidential && (
-            <span style={{ display: "inline-block", border: "1.5px solid #111", padding: "2px 6px", fontSize: 8, fontWeight: 800, letterSpacing: "0.15em" }}>
-              CONFIDENTIAL
-            </span>
-          )}
+          {clientLogoUrl && <img src={clientLogoUrl} alt="" style={{ height: 36, maxWidth: 120, objectFit: "contain", display: "block", marginLeft: "auto", marginBottom: 6 }} />}
+          {formData.confidential && <span style={{ display: "inline-block", border: "1.5px solid #111", padding: "2px 6px", fontSize: 8, fontWeight: 800, letterSpacing: "0.15em" }}>CONFIDENTIAL</span>}
           <p style={{ fontSize: 9, color: "#9ca3af", marginTop: formData.confidential ? 4 : 0 }}>Generated by Cineflow</p>
         </div>
       </div>
 
-      {/* ── General call time — most prominent element ── */}
+      {/* Call time bar */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#111", color: "#fff", borderRadius: 6, padding: "10px 16px", marginBottom: 10 }}>
         <div>
           <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>General Crew Call</p>
-          <p style={{ fontSize: 28, fontWeight: 900, fontFamily: "monospace", margin: 0, letterSpacing: "0.05em" }}>{formData.callTime || "TBD"}</p>
+          <p style={{ fontSize: 28, fontWeight: 900, fontFamily: "monospace", margin: 0, letterSpacing: "0.05em" }}>{to12h(formData.callTime)}</p>
         </div>
         <div style={{ textAlign: "center" }}>
           <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Wrap</p>
-          <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{formData.wrapTime || "TBD"}</p>
+          <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.wrapTime)}</p>
         </div>
         <div style={{ textAlign: "right" }}>
           <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Weather</p>
@@ -183,15 +163,37 @@ function PrintSheet({
           <p style={{ fontSize: 10, fontWeight: 600, margin: 0 }}>{formData.hospital || "See location contact"}</p>
         </div>
       </div>
+    </>
+  );
+}
 
-      {/* ── Warning ── */}
+function PrintFooter({ formData }: { formData: FormData }) {
+  return (
+    <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 6, fontSize: 8, color: "#9ca3af", textAlign: "center" }}>
+      Generated with Cineflow · {new Date().toLocaleDateString()}
+      {formData.confidential && " · CONFIDENTIAL — Do not distribute"}
+    </div>
+  );
+}
+
+// ─── Scripted Print Sheet ─────────────────────────────────────────────────────
+
+function ScriptedPrintSheet({ project, profile, formData, crew, locations, sheet, clientLogoUrl }: {
+  project: Project; profile: any; formData: FormData; crew: CrewWithCall[];
+  locations: LocationWithParking[]; sheet: ScriptedSheet | InterviewSheet; clientLogoUrl?: string;
+}) {
+  const deptMap = groupByDept(crew);
+  return (
+    <div style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", color: "#111", fontSize: 11, lineHeight: 1.4, background: "#fff" }}>
+      <PrintHeader project={project} profile={profile} formData={formData} clientLogoUrl={clientLogoUrl} />
+
       {sheet.warning && (
         <div style={{ border: "1px solid #fbbf24", background: "#fffbeb", borderRadius: 4, padding: "6px 10px", marginBottom: 10, fontSize: 10, color: "#92400e", display: "flex", gap: 6 }}>
           <span style={{ fontWeight: 800 }}>⚠ NOTE:</span> {sheet.warning}
         </div>
       )}
 
-      {/* ── Crew by Department (FIRST — what everyone checks first) ── */}
+      {/* Crew call times */}
       {crew.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <SectionHeader>Crew Call Times</SectionHeader>
@@ -209,7 +211,7 @@ function PrintSheet({
                         <td style={{ padding: "4px 10px", color: "#6b7280" }}>{m.role}</td>
                         {m.phone && <td style={{ padding: "4px 10px", color: "#9ca3af", fontSize: 9, whiteSpace: "nowrap" }}>{m.phone}</td>}
                         <td style={{ padding: "4px 10px", fontFamily: "monospace", fontWeight: 900, textAlign: "right", whiteSpace: "nowrap", color: "#111" }}>
-                          {m.callTime || formData.callTime || "—"}
+                          {to12h(m.callTime || formData.callTime)}
                         </td>
                       </tr>
                     ))}
@@ -221,7 +223,7 @@ function PrintSheet({
         </div>
       )}
 
-      {/* ── Locations ── */}
+      {/* Locations */}
       {locations.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <SectionHeader>Locations</SectionHeader>
@@ -234,21 +236,16 @@ function PrintSheet({
                 </p>
                 {loc.address && <p style={{ fontSize: 9, color: "#374151", margin: "2px 0 2px 24px" }}>{loc.address}</p>}
                 {loc.parkingNotes && <p style={{ fontSize: 9, color: "#6b7280", margin: "2px 0 2px 24px" }}>Parking: {loc.parkingNotes}</p>}
-                {loc.contact_name && (
-                  <p style={{ fontSize: 9, color: "#6b7280", margin: "2px 0 2px 24px" }}>
-                    Location Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}
-                  </p>
-                )}
+                {loc.contact_name && <p style={{ fontSize: 9, color: "#6b7280", margin: "2px 0 2px 24px" }}>Location Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}</p>}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── Shooting Schedule ── */}
+      {/* Schedule */}
       <div style={{ marginBottom: 14 }}>
         <SectionHeader>Shooting Schedule</SectionHeader>
-        {/* Legend — above the table */}
         <div style={{ display: "flex", gap: 14, marginBottom: 8, flexWrap: "wrap" }}>
           {(Object.entries(ROW_DOT) as [ScheduleItem["type"], string][]).map(([type, color]) => (
             <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 8, color: "#6b7280" }}>
@@ -260,7 +257,7 @@ function PrintSheet({
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
           <thead>
             <tr style={{ background: "#111", color: "#fff" }}>
-              <th style={{ padding: "5px 10px", textAlign: "left", fontWeight: 700, width: 60, whiteSpace: "nowrap" }}>Time</th>
+              <th style={{ padding: "5px 10px", textAlign: "left", fontWeight: 700, width: 75, whiteSpace: "nowrap" }}>Time</th>
               <th style={{ padding: "5px 10px", textAlign: "left", fontWeight: 700 }}>Description</th>
               <th style={{ padding: "5px 10px", textAlign: "left", fontWeight: 700, width: 120 }}>Location</th>
             </tr>
@@ -271,7 +268,7 @@ function PrintSheet({
                 <td style={{ padding: "5px 10px", fontFamily: "monospace", fontWeight: 800, whiteSpace: "nowrap", verticalAlign: "top" }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                     <span style={{ width: 7, height: 7, borderRadius: "50%", background: ROW_DOT[item.type] ?? "#9ca3af", display: "inline-block", flexShrink: 0 }} />
-                    {item.time}
+                    {to12h(item.time)}
                   </span>
                 </td>
                 <td style={{ padding: "5px 10px", verticalAlign: "top" }}>{item.label}</td>
@@ -282,7 +279,6 @@ function PrintSheet({
         </table>
       </div>
 
-      {/* ── Director's Note ── */}
       {formData.directorNote && (
         <div style={{ border: "1px solid #e5e7eb", borderLeft: "3px solid #111", borderRadius: 4, padding: "8px 12px", marginBottom: 12 }}>
           <p style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.15em", color: "#9ca3af", margin: "0 0 4px" }}>Director's Note</p>
@@ -290,18 +286,376 @@ function PrintSheet({
         </div>
       )}
 
-      {/* ── Footer ── */}
-      <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: 6, fontSize: 8, color: "#9ca3af", textAlign: "center" }}>
-        Generated with Cineflow · {new Date().toLocaleDateString()}
-        {formData.confidential && " · CONFIDENTIAL — Do not distribute"}
+      <PrintFooter formData={formData} />
+    </div>
+  );
+}
+
+// ─── Live Event Print Sheet ───────────────────────────────────────────────────
+
+function LiveEventPrintSheet({ project, profile, formData, crew, locations, sheet, clientLogoUrl }: {
+  project: Project; profile: any; formData: FormData; crew: CrewWithCall[];
+  locations: LocationWithParking[]; sheet: LiveEventSheet; clientLogoUrl?: string;
+}) {
+  return (
+    <div style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif", color: "#111", fontSize: 11, lineHeight: 1.4, background: "#fff" }}>
+      <PrintHeader project={project} profile={profile} formData={formData} clientLogoUrl={clientLogoUrl} />
+
+      {sheet.warning && (
+        <div style={{ border: "1px solid #fbbf24", background: "#fffbeb", borderRadius: 4, padding: "6px 10px", marginBottom: 10, fontSize: 10, color: "#92400e", display: "flex", gap: 6 }}>
+          <span style={{ fontWeight: 800 }}>⚠ NOTE:</span> {sheet.warning}
+        </div>
+      )}
+
+      {/* Venue / locations */}
+      {locations.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <SectionHeader>Venue</SectionHeader>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(locations.length, 2)}, 1fr)`, gap: 6 }}>
+            {locations.map((loc, i) => (
+              <div key={loc.id} style={{ border: "1px solid #e5e7eb", borderRadius: 4, padding: "8px 10px" }}>
+                <p style={{ fontSize: 11, fontWeight: 800, margin: "0 0 3px", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ display: "inline-flex", width: 18, height: 18, background: "#111", color: "#fff", borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span>
+                  {loc.name}
+                </p>
+                {loc.address && <p style={{ fontSize: 9, color: "#374151", margin: "2px 0 2px 24px" }}>{loc.address}</p>}
+                {loc.parkingNotes && <p style={{ fontSize: 9, color: "#6b7280", margin: "2px 0 2px 24px" }}>Parking: {loc.parkingNotes}</p>}
+                {loc.contact_name && <p style={{ fontSize: 9, color: "#6b7280", margin: "2px 0 2px 24px" }}>Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Coverage assignments */}
+      {sheet.coverage.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <SectionHeader>Coverage Assignments</SectionHeader>
+          <div style={{ display: "grid", gridTemplateColumns: sheet.coverage.length === 1 ? "1fr" : "repeat(2, 1fr)", gap: 8 }}>
+            {sheet.coverage.map((c, i) => (
+              <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ background: "#111", color: "#fff", padding: "6px 10px" }}>
+                  <p style={{ fontSize: 11, fontWeight: 800, margin: 0 }}>{c.person}</p>
+                  <p style={{ fontSize: 9, color: "#9ca3af", margin: "2px 0 0" }}>{c.role}</p>
+                  {c.equipment && <p style={{ fontSize: 9, color: "#d4a853", margin: "2px 0 0" }}>{c.equipment}</p>}
+                </div>
+                <div style={{ padding: "8px 10px" }}>
+                  {c.responsibilities.map((r, j) => (
+                    <div key={j} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                      <span style={{ color: "#6b7280", flexShrink: 0, marginTop: 1 }}>•</span>
+                      <p style={{ fontSize: 10, color: "#374151", margin: 0, lineHeight: 1.5 }}>{r}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Static cameras */}
+      {sheet.staticCameras.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <SectionHeader>Static / Mounted Cameras</SectionHeader>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+            <tbody>
+              {sheet.staticCameras.map((cam, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#f9fafb" : "#fff" }}>
+                  <td style={{ padding: "5px 10px", fontWeight: 700, whiteSpace: "nowrap", width: "35%" }}>{cam.name}</td>
+                  <td style={{ padding: "5px 10px", color: "#6b7280" }}>{cam.role}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Key moments */}
+      {sheet.keyMoments.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <SectionHeader>Key Moments</SectionHeader>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+            <tbody>
+              {sheet.keyMoments.map((m, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: "#fff" }}>
+                  <td style={{ padding: "5px 10px", verticalAlign: "top", whiteSpace: "nowrap", width: "30%" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: MOMENT_DOT[m.type] ?? "#9ca3af", display: "inline-block", flexShrink: 0 }} />
+                      <span style={{ fontWeight: 800 }}>{m.label}</span>
+                    </span>
+                  </td>
+                  <td style={{ padding: "5px 10px", color: "#374151", verticalAlign: "top" }}>{m.description}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Crew contact reference */}
+      {crew.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <SectionHeader>Crew</SectionHeader>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+            <tbody>
+              {crew.map((m) => (
+                <tr key={m.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "4px 10px", fontWeight: 700, width: "20%" }}>{m.name}</td>
+                  <td style={{ padding: "4px 10px", color: "#6b7280", width: "30%" }}>{m.role}</td>
+                  {m.phone && <td style={{ padding: "4px 10px", color: "#9ca3af", fontSize: 9 }}>{m.phone}</td>}
+                  <td style={{ padding: "4px 10px", fontFamily: "monospace", fontWeight: 800, textAlign: "right", color: "#111", whiteSpace: "nowrap" }}>
+                    Call: {to12h(m.callTime || formData.callTime)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {formData.directorNote && (
+        <div style={{ border: "1px solid #e5e7eb", borderLeft: "3px solid #111", borderRadius: 4, padding: "8px 12px", marginBottom: 12 }}>
+          <p style={{ fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.15em", color: "#9ca3af", margin: "0 0 4px" }}>Director's Note</p>
+          <p style={{ fontSize: 10, lineHeight: 1.7, margin: 0, fontStyle: "italic" }}>{formData.directorNote}</p>
+        </div>
+      )}
+
+      <PrintFooter formData={formData} />
+    </div>
+  );
+}
+
+// ─── Universal PrintSheet dispatcher ─────────────────────────────────────────
+
+function PrintSheet(props: {
+  project: Project; profile: any; formData: FormData; crew: CrewWithCall[];
+  locations: LocationWithParking[]; sheet: GeneratedSheet; clientLogoUrl?: string;
+}) {
+  if (props.sheet.format === "live_event") {
+    return <LiveEventPrintSheet {...props} sheet={props.sheet} />;
+  }
+  return <ScriptedPrintSheet {...props} sheet={props.sheet as ScriptedSheet} />;
+}
+
+// ─── Inline editor for scripted schedule ─────────────────────────────────────
+
+function ScriptedEditor({ sheet, onChange }: { sheet: ScriptedSheet | InterviewSheet; onChange: (s: GeneratedSheet) => void }) {
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  const [draft, setDraft] = useState<ScheduleItem | null>(null);
+
+  function startEdit(i: number) { setEditIdx(i); setDraft({ ...sheet.schedule[i] }); }
+  function cancelEdit() { setEditIdx(null); setDraft(null); }
+  function saveEdit() {
+    if (editIdx === null || !draft) return;
+    const updated = [...sheet.schedule];
+    updated[editIdx] = draft;
+    onChange({ ...sheet, schedule: updated });
+    setEditIdx(null); setDraft(null);
+  }
+  function deleteRow(i: number) {
+    const updated = sheet.schedule.filter((_, idx) => idx !== i);
+    onChange({ ...sheet, schedule: updated });
+  }
+
+  return (
+    <div className="space-y-1">
+      {sheet.schedule.map((item, i) => (
+        <div key={i}>
+          {editIdx === i && draft ? (
+            <div className="rounded-xl border border-[#d4a853]/40 bg-[#d4a853]/5 p-3 space-y-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Time</label>
+                  <input type="time" value={draft.time} onChange={(e) => setDraft({ ...draft, time: e.target.value })}
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Type</label>
+                  <select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value as any })}
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50">
+                    {(["logistics","setup","shoot","break","move","wrap"] as ScheduleItem["type"][]).map((t) => (
+                      <option key={t} value={t}>{TYPE_LABEL[t]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Location</label>
+                  <input value={draft.location ?? ""} onChange={(e) => setDraft({ ...draft, location: e.target.value || null })}
+                    placeholder="Location or blank"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Description</label>
+                <input value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button onClick={cancelEdit} className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent transition-colors">Cancel</button>
+                <button onClick={saveEdit} className="rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black hover:bg-[#d4a853]/90 transition-colors">Save</button>
+              </div>
+            </div>
+          ) : (
+            <div className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/20 transition-colors">
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: ROW_DOT[item.type] ?? "#9ca3af", display: "inline-block", flexShrink: 0 }} />
+              <span className="w-16 shrink-0 font-mono text-xs font-bold text-foreground">{to12h(item.time)}</span>
+              <span className="min-w-0 flex-1 text-xs text-foreground">{item.label}</span>
+              {item.location && <span className="text-[10px] text-muted-foreground shrink-0">{item.location}</span>}
+              <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => startEdit(i)} className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"><Edit3 className="h-3 w-3" /></button>
+                <button onClick={() => deleteRow(i)} className="rounded p-1 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"><X className="h-3 w-3" /></button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Inline editor for live event ────────────────────────────────────────────
+
+function LiveEventEditor({ sheet, onChange }: { sheet: LiveEventSheet; onChange: (s: GeneratedSheet) => void }) {
+  const [editCovIdx, setEditCovIdx] = useState<number | null>(null);
+  const [editMomIdx, setEditMomIdx] = useState<number | null>(null);
+  const [covDraft, setCovDraft] = useState<CoverageAssignment | null>(null);
+  const [momDraft, setMomDraft] = useState<KeyMoment | null>(null);
+
+  function saveCoverage() {
+    if (editCovIdx === null || !covDraft) return;
+    const updated = [...sheet.coverage]; updated[editCovIdx] = covDraft;
+    onChange({ ...sheet, coverage: updated });
+    setEditCovIdx(null); setCovDraft(null);
+  }
+  function saveMoment() {
+    if (editMomIdx === null || !momDraft) return;
+    const updated = [...sheet.keyMoments]; updated[editMomIdx] = momDraft;
+    onChange({ ...sheet, keyMoments: updated });
+    setEditMomIdx(null); setMomDraft(null);
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Coverage */}
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Coverage Assignments</p>
+        <div className="space-y-2">
+          {sheet.coverage.map((c, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card overflow-hidden">
+              <div className="flex items-start justify-between bg-muted/30 px-4 py-2.5">
+                <div>
+                  <p className="text-sm font-bold text-foreground">{c.person}</p>
+                  <p className="text-xs text-muted-foreground">{c.role}</p>
+                  {c.equipment && <p className="text-xs text-[#d4a853]">{c.equipment}</p>}
+                </div>
+                <button onClick={() => { setEditCovIdx(i); setCovDraft({ ...c, responsibilities: [...c.responsibilities] }); }}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                  <Edit3 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {editCovIdx === i && covDraft ? (
+                <div className="px-4 py-3 space-y-2 border-t border-border bg-[#d4a853]/5">
+                  <div className="grid grid-cols-2 gap-2">
+                    {["person","role","equipment"].map((f) => (
+                      <input key={f} value={(covDraft as any)[f]} onChange={(e) => setCovDraft({ ...covDraft, [f]: e.target.value })}
+                        placeholder={f} className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50 col-span-1" />
+                    ))}
+                  </div>
+                  <div className="space-y-1">
+                    {covDraft.responsibilities.map((r, j) => (
+                      <div key={j} className="flex gap-2">
+                        <input value={r} onChange={(e) => { const rs = [...covDraft.responsibilities]; rs[j] = e.target.value; setCovDraft({ ...covDraft, responsibilities: rs }); }}
+                          className="flex-1 rounded-lg border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                        <button onClick={() => { const rs = covDraft.responsibilities.filter((_, k) => k !== j); setCovDraft({ ...covDraft, responsibilities: rs }); }}
+                          className="text-muted-foreground hover:text-red-400 transition-colors"><X className="h-3 w-3" /></button>
+                      </div>
+                    ))}
+                    <button onClick={() => setCovDraft({ ...covDraft, responsibilities: [...covDraft.responsibilities, ""] })}
+                      className="text-xs text-[#d4a853] hover:underline">+ Add responsibility</button>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => { setEditCovIdx(null); setCovDraft(null); }} className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent">Cancel</button>
+                    <button onClick={saveCoverage} className="rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black">Save</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="px-4 py-2.5 space-y-1">
+                  {c.responsibilities.map((r, j) => (
+                    <div key={j} className="flex gap-2 text-xs text-muted-foreground">
+                      <span className="shrink-0">•</span><span>{r}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* Static cameras */}
+      {sheet.staticCameras.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Static / Mounted Cameras</p>
+          <div className="rounded-xl border border-border bg-card divide-y divide-border">
+            {sheet.staticCameras.map((cam, i) => (
+              <div key={i} className="flex items-start gap-3 px-4 py-2.5">
+                <span className="min-w-0 w-40 shrink-0 text-xs font-semibold text-foreground">{cam.name}</span>
+                <span className="text-xs text-muted-foreground">{cam.role}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Key moments */}
+      {sheet.keyMoments.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Key Moments</p>
+          <div className="space-y-1">
+            {sheet.keyMoments.map((m, i) => (
+              <div key={i}>
+                {editMomIdx === i && momDraft ? (
+                  <div className="rounded-xl border border-[#d4a853]/40 bg-[#d4a853]/5 p-3 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <input value={momDraft.label} onChange={(e) => setMomDraft({ ...momDraft, label: e.target.value })} placeholder="Label"
+                        className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                      <select value={momDraft.type} onChange={(e) => setMomDraft({ ...momDraft, type: e.target.value as any })}
+                        className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50">
+                        {(["pre","during","post","logistics"] as KeyMoment["type"][]).map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <input value={momDraft.description} onChange={(e) => setMomDraft({ ...momDraft, description: e.target.value })} placeholder="Description"
+                      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setEditMomIdx(null); setMomDraft(null); }} className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent">Cancel</button>
+                      <button onClick={saveMoment} className="rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black">Save</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="group flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-muted/20 transition-colors">
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: MOMENT_DOT[m.type] ?? "#9ca3af", marginTop: 4, display: "inline-block", flexShrink: 0 }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-foreground">{m.label}</p>
+                      <p className="text-xs text-muted-foreground">{m.description}</p>
+                    </div>
+                    <button onClick={() => { setEditMomIdx(i); setMomDraft({ ...m }); }}
+                      className="shrink-0 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-accent transition-all">
+                      <Edit3 className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
-function StepDot({ n, current }: { n: number; current: number }) {
+function StepDot({ n, current, total }: { n: number; current: number; total: number }) {
   const done = current > n;
   const active = current === n;
   return (
@@ -320,27 +674,25 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
   const [generating, setGenerating] = useState(false);
   const [sheet, setSheet] = useState<GeneratedSheet | null>(null);
   const [isMounted, setIsMounted] = useState(false);
-
   const [profile, setProfile] = useState<any>(null);
   const [crew, setCrew] = useState<CrewWithCall[]>([]);
   const [locations, setLocations] = useState<LocationWithParking[]>([]);
   const [shotItems, setShotItems] = useState<ShotListItem[]>([]);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const [formData, setFormData] = useState<FormData>({
+    format: (project.type === "live_event" ? "live_event" : project.type === "documentary" || project.type === "podcast" ? "interview" : "scripted") as CallSheetFormat,
     shootDate: "",
-    callTime: "07:00",
-    wrapTime: "19:00",
+    callTime: "18:00",
+    wrapTime: "02:00",
     hospital: "",
     weather: "",
     confidential: false,
     directorNote: "",
   });
 
-  const printRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => { setIsMounted(true); }, []);
 
-  // Load all project data on mount
   useEffect(() => {
     async function load() {
       try {
@@ -355,11 +707,8 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
         const items = (shotListData[0] as any)?.shot_list_items ?? (shotListData[0] as any)?.items ?? [];
         setShotItems(items);
         setProfile(profileData);
-      } catch {
-        toast.error("Failed to load project data");
-      } finally {
-        setLoading(false);
-      }
+      } catch { toast.error("Failed to load project data"); }
+      finally { setLoading(false); }
     }
     load();
   }, [project.id]);
@@ -376,14 +725,9 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
       const data = await res.json();
       setSheet(data);
       setStep(5);
-    } catch {
-      toast.error("Failed to generate schedule — try again");
-    } finally {
-      setGenerating(false);
-    }
+    } catch { toast.error("Failed to generate call sheet — try again"); }
+    finally { setGenerating(false); }
   };
-
-  const [pdfLoading, setPdfLoading] = useState(false);
 
   const handleSavePDF = async () => {
     if (!sheet) return;
@@ -394,42 +738,28 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project, profile, formData, crew, locations, sheet }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "PDF generation failed");
-      }
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "PDF generation failed"); }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `call-sheet-${project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       toast.success("Call sheet downloaded");
-    } catch (err: any) {
-      toast.error(err.message ?? "Failed to generate PDF");
-    } finally {
-      setPdfLoading(false);
-    }
+    } catch (err: any) { toast.error(err.message ?? "Failed to generate PDF"); }
+    finally { setPdfLoading(false); }
   };
 
   const handlePrint = () => {
     const portalEl = document.getElementById("call-sheet-print-portal");
     if (!portalEl) { toast.error("No call sheet to print"); return; }
     const printWin = window.open("", "_blank", "width=900,height=700");
-    if (!printWin) { toast.error("Allow popups for this site to print"); return; }
+    if (!printWin) { toast.error("Allow popups to print"); return; }
     printWin.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8"/>
       <title>Call Sheet — ${project.title}</title>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 28px; color: #111; background: #fff; }
-        @media print { body { padding: 20px; } @page { margin: 12mm; } }
-        img { max-width: 100%; }
-        table { border-collapse: collapse; }
-      </style>
+      <style>* { box-sizing: border-box; margin: 0; padding: 0; } body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 28px; color: #111; background: #fff; } @media print { body { padding: 20px; } @page { margin: 12mm; } } img { max-width: 100%; } table { border-collapse: collapse; }</style>
     </head><body>${portalEl.innerHTML}<script>setTimeout(()=>{window.print();},350);<\/script></body></html>`);
     printWin.document.close();
   };
@@ -437,17 +767,13 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-        <div className="flex flex-col items-center gap-3 text-foreground">
-          <Loader2 className="h-8 w-8 animate-spin text-[#d4a853]" />
-          <p className="text-sm text-muted-foreground">Loading project data…</p>
-        </div>
+        <div className="flex flex-col items-center gap-3"><Loader2 className="h-8 w-8 animate-spin text-[#d4a853]" /><p className="text-sm text-muted-foreground">Loading project data…</p></div>
       </div>
     );
   }
 
   return (
     <>
-      {/* Modal */}
       <div className="csg-modal fixed inset-0 z-50 flex flex-col bg-background">
         {/* Top bar */}
         <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
@@ -459,16 +785,24 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
               <h2 className="font-display text-sm font-semibold text-foreground">Call Sheet Generator</h2>
               <p className="text-[11px] text-muted-foreground">{project.title}</p>
             </div>
-            {/* Step dots */}
             {step < 5 && (
               <div className="ml-4 hidden items-center gap-2 sm:flex">
                 {[1, 2, 3, 4].map((n) => (
                   <div key={n} className="flex items-center gap-2">
-                    <StepDot n={n} current={step} />
+                    <StepDot n={n} current={step} total={4} />
                     {n < 4 && <div className={`h-px w-6 ${step > n ? "bg-emerald-500" : "bg-border"}`} />}
                   </div>
                 ))}
               </div>
+            )}
+            {step === 5 && sheet && (
+              <span className={`ml-3 hidden rounded-full border px-2.5 py-0.5 text-[10px] font-semibold sm:inline-block ${
+                sheet.format === "live_event" ? "border-blue-400/30 bg-blue-400/10 text-blue-400" :
+                sheet.format === "interview" ? "border-purple-400/30 bg-purple-400/10 text-purple-400" :
+                "border-[#d4a853]/30 bg-[#d4a853]/10 text-[#d4a853]"
+              }`}>
+                {sheet.format === "live_event" ? "Live Event" : sheet.format === "interview" ? "Interview" : "Scripted"} Format
+              </span>
             )}
           </div>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
@@ -483,23 +817,39 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
           {step === 3 && <Step3 crew={crew} formData={formData} onChange={setCrew} />}
           {step === 4 && <Step4 formData={formData} onChange={setFormData} shotCount={shotItems.length} crewCount={crew.length} />}
           {step === 5 && sheet && (
-            <div className="mx-auto max-w-4xl px-6 py-6">
-              {sheet.warning && (
-                <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-400">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                  {sheet.warning}
+            <div className="flex h-full">
+              {/* Left: editable source */}
+              <div className="w-1/2 border-r border-border overflow-y-auto p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Edit</p>
+                    <p className="text-[11px] text-muted-foreground">Click any row to edit before printing.</p>
+                  </div>
+                  <button onClick={() => setStep(4)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">← Regenerate</button>
                 </div>
-              )}
-              <div className="rounded-xl border border-border bg-white shadow-lg">
-                <PrintSheet
-                  project={project}
-                  profile={profile}
-                  formData={formData}
-                  crew={crew}
-                  locations={locations}
-                  sheet={sheet}
-                  clientLogoUrl={project.client_logo_url}
-                />
+                {sheet.warning && (
+                  <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-400">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />{sheet.warning}
+                  </div>
+                )}
+                {sheet.format === "live_event"
+                  ? <LiveEventEditor sheet={sheet} onChange={setSheet} />
+                  : <ScriptedEditor sheet={sheet as ScriptedSheet} onChange={setSheet} />
+                }
+              </div>
+              {/* Right: live preview */}
+              <div className="w-1/2 overflow-y-auto bg-zinc-100 p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preview</p>
+                  <span className="text-[10px] text-muted-foreground">Updates as you edit</span>
+                </div>
+                <div className="rounded-xl border border-border bg-white shadow-lg p-6">
+                  <PrintSheet
+                    project={project} profile={profile} formData={formData}
+                    crew={crew} locations={locations} sheet={sheet}
+                    clientLogoUrl={project.client_logo_url}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -514,56 +864,36 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
             <ChevronLeft className="h-4 w-4" />
             {step === 1 ? "Cancel" : "Back"}
           </button>
-
           {step < 4 && (
-            <button
-              onClick={() => setStep((s) => (s < 4 ? (s + 1) as any : 4))}
-              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 transition-colors"
-            >
+            <button onClick={() => setStep((s) => (s < 4 ? (s + 1) as any : 4))}
+              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 transition-colors">
               Next <ChevronRight className="h-4 w-4" />
             </button>
           )}
           {step === 4 && (
-            <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-50 transition-colors"
-            >
+            <button onClick={handleGenerate} disabled={generating}
+              className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-50 transition-colors">
               {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : "Generate Call Sheet"}
             </button>
           )}
           {step === 5 && (
             <div className="flex items-center gap-2">
-              <button
-                onClick={handlePrint}
-                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors"
-              >
+              <button onClick={handlePrint}
+                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors">
                 <Printer className="h-4 w-4" /> Print
               </button>
-              <button
-                onClick={handleSavePDF}
-                disabled={pdfLoading}
-                className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-50 transition-colors"
-              >
-                {pdfLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><FileText className="h-4 w-4" /> Save as PDF</>}
+              <button onClick={handleSavePDF} disabled={pdfLoading}
+                className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-50 transition-colors">
+                {pdfLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><FileText className="h-4 w-4" /> Save PDF</>}
               </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Print portal — mounted directly on body so print CSS can target it */}
       {isMounted && sheet && createPortal(
         <div id="call-sheet-print-portal">
-          <PrintSheet
-            project={project}
-            profile={profile}
-            formData={formData}
-            crew={crew}
-            locations={locations}
-            sheet={sheet}
-            clientLogoUrl={project.client_logo_url}
-          />
+          <PrintSheet project={project} profile={profile} formData={formData} crew={crew} locations={locations} sheet={sheet} clientLogoUrl={project.client_logo_url} />
         </div>,
         document.body
       )}
@@ -571,46 +901,73 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
   );
 }
 
-// ─── Step 1: Shoot Basics ─────────────────────────────────────────────────────
+// ─── Step 1: Format + Shoot Basics ───────────────────────────────────────────
+
+const FORMAT_OPTIONS: { value: CallSheetFormat; label: string; icon: React.ElementType; desc: string }[] = [
+  { value: "scripted",   label: "Scripted",    icon: Film,   desc: "Sequential time-blocked schedule — commercials, narrative, music video" },
+  { value: "live_event", label: "Live Event",  icon: Radio,  desc: "Coverage-based by person — concerts, shows, simultaneous multi-cam" },
+  { value: "interview",  label: "Interview",   icon: Mic2,   desc: "Subject-based schedule — documentaries, podcasts, sit-downs" },
+];
 
 function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormData) => void }) {
   const set = (k: keyof FormData, v: any) => onChange({ ...formData, [k]: v });
   return (
-    <div className="mx-auto max-w-xl px-6 py-8 space-y-5">
+    <div className="mx-auto max-w-xl px-6 py-8 space-y-6">
+      {/* Format selector */}
       <div>
-        <h3 className="font-display text-base font-semibold text-foreground">Shoot Details</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Basic info that goes at the top of every call sheet.</p>
-      </div>
-      <Field label="Shoot Date" required>
-        <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)}
-          className="input-style [color-scheme:dark]" />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="General Call Time" required>
-          <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)}
-            className="input-style [color-scheme:dark]" />
-        </Field>
-        <Field label="Wrap Time" required>
-          <input type="time" value={formData.wrapTime} onChange={(e) => set("wrapTime", e.target.value)}
-            className="input-style [color-scheme:dark]" />
-        </Field>
-      </div>
-      <Field label="Nearest Hospital" hint="Required on professional sets">
-        <input placeholder="e.g. Cedars-Sinai Medical Center, 8700 Beverly Blvd" value={formData.hospital}
-          onChange={(e) => set("hospital", e.target.value)} className="input-style" />
-      </Field>
-      <Field label="Weather" hint="Brief description for the crew">
-        <input placeholder="e.g. Sunny, 78°F — light breeze expected" value={formData.weather}
-          onChange={(e) => set("weather", e.target.value)} className="input-style" />
-      </Field>
-      <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card p-4">
-        <input type="checkbox" checked={formData.confidential} onChange={(e) => set("confidential", e.target.checked)}
-          className="h-4 w-4 rounded accent-[#d4a853]" />
-        <div>
-          <p className="text-sm font-medium text-foreground">Mark as Confidential</p>
-          <p className="text-xs text-muted-foreground">Adds a CONFIDENTIAL watermark — for NDAs and unreleased work</p>
+        <h3 className="font-display text-base font-semibold text-foreground">Call Sheet Format</h3>
+        <p className="mt-0.5 mb-4 text-xs text-muted-foreground">Choose the format that matches your production — it determines how the schedule is structured.</p>
+        <div className="space-y-2">
+          {FORMAT_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const active = formData.format === opt.value;
+            return (
+              <button key={opt.value} type="button" onClick={() => set("format", opt.value)}
+                className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-all ${active ? "border-[#d4a853]/60 bg-[#d4a853]/5" : "border-border bg-card hover:border-[#d4a853]/30"}`}>
+                <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all ${active ? "border-[#d4a853]/40 bg-[#d4a853]/15 text-[#d4a853]" : "border-border bg-muted/30 text-muted-foreground"}`}>
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className={`text-sm font-semibold ${active ? "text-[#d4a853]" : "text-foreground"}`}>{opt.label}</p>
+                    {active && <CheckCircle2 className="h-3.5 w-3.5 text-[#d4a853]" />}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
-      </label>
+      </div>
+
+      {/* Basics */}
+      <div className="space-y-4">
+        <h3 className="font-display text-sm font-semibold text-foreground">Shoot Details</h3>
+        <Field label="Shoot Date" required>
+          <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="input-style [color-scheme:dark]" />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="General Call Time" required>
+            <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)} className="input-style [color-scheme:dark]" />
+          </Field>
+          <Field label="Wrap Time" required>
+            <input type="time" value={formData.wrapTime} onChange={(e) => set("wrapTime", e.target.value)} className="input-style [color-scheme:dark]" />
+          </Field>
+        </div>
+        <Field label="Nearest Hospital" hint="Required on professional sets">
+          <input placeholder="e.g. Cedars-Sinai Medical Center, 8700 Beverly Blvd" value={formData.hospital} onChange={(e) => set("hospital", e.target.value)} className="input-style" />
+        </Field>
+        <Field label="Weather" hint="Brief description for the crew">
+          <input placeholder="e.g. Sunny, 78°F — light breeze expected" value={formData.weather} onChange={(e) => set("weather", e.target.value)} className="input-style" />
+        </Field>
+        <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card p-4">
+          <input type="checkbox" checked={formData.confidential} onChange={(e) => set("confidential", e.target.checked)} className="h-4 w-4 rounded accent-[#d4a853]" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Mark as Confidential</p>
+            <p className="text-xs text-muted-foreground">Adds a CONFIDENTIAL watermark — for NDAs and unreleased work</p>
+          </div>
+        </label>
+      </div>
     </div>
   );
 }
@@ -625,9 +982,7 @@ function Step2({ locations, onChange }: { locations: LocationWithParking[]; onCh
         <p className="mt-0.5 text-xs text-muted-foreground">Pre-filled from your project. Add parking notes for crew.</p>
       </div>
       {locations.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No locations saved on this project yet — add them in the project's Locations tab.
-        </div>
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No locations saved on this project — add them in the Locations tab.</div>
       )}
       {locations.map((loc, i) => (
         <div key={loc.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
@@ -640,12 +995,8 @@ function Step2({ locations, onChange }: { locations: LocationWithParking[]; onCh
             </div>
           </div>
           <Field label="Parking notes">
-            <input placeholder="e.g. Park in structure B, level 2 — production will validate" value={loc.parkingNotes}
-              onChange={(e) => {
-                const updated = [...locations];
-                updated[i] = { ...updated[i], parkingNotes: e.target.value };
-                onChange(updated);
-              }}
+            <input placeholder="e.g. Artist Parking — 2 spots under Telykast" value={loc.parkingNotes}
+              onChange={(e) => { const u = [...locations]; u[i] = { ...u[i], parkingNotes: e.target.value }; onChange(u); }}
               className="input-style" />
           </Field>
         </div>
@@ -662,14 +1013,10 @@ function Step3({ crew, formData, onChange }: { crew: CrewWithCall[]; formData: F
     <div className="mx-auto max-w-2xl px-6 py-8 space-y-6">
       <div>
         <h3 className="font-display text-base font-semibold text-foreground">Crew Call Times</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Individual call times default to the general call ({formData.callTime}). Adjust per department or person.
-        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Default is general call ({to12h(formData.callTime)}). Adjust per person as needed.</p>
       </div>
       {crew.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          No crew saved on this project — add them in the project's Crew tab.
-        </div>
+        <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No crew saved — add them in the Crew tab.</div>
       )}
       {Array.from(deptMap.entries()).map(([dept, members]) => (
         <div key={dept}>
@@ -679,24 +1026,15 @@ function Step3({ crew, formData, onChange }: { crew: CrewWithCall[]; formData: F
               const idx = crew.findIndex((c) => c.id === m.id);
               return (
                 <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">
-                    {m.name.charAt(0).toUpperCase()}
-                  </div>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">{m.name.charAt(0).toUpperCase()}</div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground">{m.name}</p>
                     <p className="text-xs text-muted-foreground">{m.role}</p>
                   </div>
                   {m.phone && <p className="hidden text-xs text-muted-foreground sm:block">{m.phone}</p>}
-                  <input
-                    type="time"
-                    value={m.callTime || formData.callTime}
-                    onChange={(e) => {
-                      const updated = [...crew];
-                      updated[idx] = { ...updated[idx], callTime: e.target.value };
-                      onChange(updated);
-                    }}
-                    className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-sm font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none"
-                  />
+                  <input type="time" value={m.callTime || formData.callTime}
+                    onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: e.target.value }; onChange(u); }}
+                    className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-sm font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />
                 </div>
               );
             })}
@@ -707,35 +1045,30 @@ function Step3({ crew, formData, onChange }: { crew: CrewWithCall[]; formData: F
   );
 }
 
-// ─── Step 4: Director's Note + Confirm ───────────────────────────────────────
+// ─── Step 4: Notes + Confirm ──────────────────────────────────────────────────
 
-function Step4({ formData, onChange, shotCount, crewCount }: {
-  formData: FormData; onChange: (f: FormData) => void; shotCount: number; crewCount: number;
-}) {
+function Step4({ formData, onChange, shotCount, crewCount }: { formData: FormData; onChange: (f: FormData) => void; shotCount: number; crewCount: number }) {
+  const formatLabel = FORMAT_OPTIONS.find((f) => f.value === formData.format)?.label ?? formData.format;
   return (
     <div className="mx-auto max-w-xl px-6 py-8 space-y-5">
       <div>
         <h3 className="font-display text-base font-semibold text-foreground">Director's Note</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">A message from the director to the crew. Optional but recommended.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Optional message to the crew — printed on the call sheet.</p>
       </div>
-      <textarea
-        rows={4}
-        placeholder="e.g. Today's shoot is all about capturing authentic moments. Prioritize performance over perfection — we'll have time to polish in post. Thank you for your energy and commitment."
-        value={formData.directorNote}
-        onChange={(e) => onChange({ ...formData, directorNote: e.target.value })}
-        className="input-style w-full resize-none"
-      />
+      <textarea rows={4} placeholder="e.g. Tonight is all about authentic moments. Let the energy of the crowd guide you — no over-directing."
+        value={formData.directorNote} onChange={(e) => onChange({ ...formData, directorNote: e.target.value })}
+        className="input-style w-full resize-none" />
       <div className="rounded-xl border border-border bg-card p-4 space-y-2">
         <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Ready to generate</p>
         {[
-          { icon: Calendar, label: `${formData.shootDate || "No date set"} · ${formData.callTime} → ${formData.wrapTime}` },
-          { icon: MapPin, label: `Locations will be pulled from project` },
+          { icon: Film, label: `${formatLabel} format call sheet` },
+          { icon: Calendar, label: `${formData.shootDate || "No date set"} · ${to12h(formData.callTime)} → ${to12h(formData.wrapTime)}` },
+          { icon: MapPin, label: "Locations pulled from project" },
           { icon: Users, label: `${crewCount} crew member${crewCount !== 1 ? "s" : ""}` },
-          { icon: Clock, label: `${shotCount} shot${shotCount !== 1 ? "s" : ""} in shot list — Claude will build the schedule` },
+          { icon: Clock, label: `${shotCount} shot${shotCount !== 1 ? "s" : ""} in shot list` },
         ].map(({ icon: Icon, label }) => (
           <div key={label} className="flex items-center gap-2 text-sm text-foreground">
-            <Icon className="h-4 w-4 shrink-0 text-[#d4a853]" />
-            {label}
+            <Icon className="h-4 w-4 shrink-0 text-[#d4a853]" />{label}
           </div>
         ))}
       </div>
@@ -743,20 +1076,16 @@ function Step4({ formData, onChange, shotCount, crewCount }: {
   );
 }
 
-// ─── Shared Field wrapper ─────────────────────────────────────────────────────
+// ─── Shared Field ─────────────────────────────────────────────────────────────
 
-function Field({ label, hint, required, children }: {
-  label: string; hint?: string; required?: boolean; children: React.ReactNode;
-}) {
+function Field({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
       <label className="flex items-center gap-1 text-xs font-medium text-foreground">
-        {label}
-        {required && <span className="text-[#d4a853]">*</span>}
+        {label}{required && <span className="text-[#d4a853]">*</span>}
         {hint && <span className="ml-1 font-normal text-muted-foreground">— {hint}</span>}
       </label>
       {children}
     </div>
   );
 }
-
