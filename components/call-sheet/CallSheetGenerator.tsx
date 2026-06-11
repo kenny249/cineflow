@@ -327,28 +327,67 @@ function LiveEventPrintSheet({ project, profile, formData, crew, locations, shee
         </div>
       )}
 
-      {/* Coverage assignments */}
+      {/* Crew call times — always near top so crew finds their time immediately */}
+      {crew.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <SectionHeader>Crew Call Times</SectionHeader>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, border: "1px solid #e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                <th style={{ padding: "5px 10px", textAlign: "left", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "#374151", width: "22%" }}>Name</th>
+                <th style={{ padding: "5px 10px", textAlign: "left", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "#374151" }}>Role</th>
+                <th style={{ padding: "5px 10px", textAlign: "left", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "#374151", width: "22%" }}>Phone</th>
+                <th style={{ padding: "5px 10px", textAlign: "right", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", color: "#374151", whiteSpace: "nowrap" }}>Call Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {crew.map((m, i) => (
+                <tr key={m.id} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <td style={{ padding: "5px 10px", fontWeight: 700 }}>{m.name}</td>
+                  <td style={{ padding: "5px 10px", color: "#6b7280" }}>{m.role}</td>
+                  <td style={{ padding: "5px 10px", color: "#9ca3af", fontSize: 9 }}>{m.phone || "—"}</td>
+                  <td style={{ padding: "5px 10px", fontFamily: "monospace", fontWeight: 900, textAlign: "right", color: "#111", whiteSpace: "nowrap" }}>
+                    {to12h(m.callTime || formData.callTime)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Coverage assignments — call time also shown in each card header */}
       {sheet.coverage.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <SectionHeader>Coverage Assignments</SectionHeader>
           <div style={{ display: "grid", gridTemplateColumns: sheet.coverage.length === 1 ? "1fr" : "repeat(2, 1fr)", gap: 8 }}>
-            {sheet.coverage.map((c, i) => (
-              <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 4, overflow: "hidden" }}>
-                <div style={{ background: "#111", color: "#fff", padding: "6px 10px" }}>
-                  <p style={{ fontSize: 11, fontWeight: 800, margin: 0 }}>{c.person}</p>
-                  <p style={{ fontSize: 9, color: "#9ca3af", margin: "2px 0 0" }}>{c.role}</p>
-                  {c.equipment && <p style={{ fontSize: 9, color: "#d4a853", margin: "2px 0 0" }}>{c.equipment}</p>}
-                </div>
-                <div style={{ padding: "8px 10px" }}>
-                  {c.responsibilities.map((r, j) => (
-                    <div key={j} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
-                      <span style={{ color: "#6b7280", flexShrink: 0, marginTop: 1 }}>•</span>
-                      <p style={{ fontSize: 10, color: "#374151", margin: 0, lineHeight: 1.5 }}>{r}</p>
+            {sheet.coverage.map((c, i) => {
+              const member = crew.find((m) => m.name.toLowerCase() === c.person.toLowerCase());
+              const callTime = to12h(member?.callTime || formData.callTime);
+              return (
+                <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ background: "#111", color: "#fff", padding: "7px 10px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 800, margin: 0 }}>{c.person}</p>
+                      <p style={{ fontSize: 9, color: "#9ca3af", margin: "2px 0 0" }}>{c.role}</p>
+                      {c.equipment && <p style={{ fontSize: 9, color: "#d4a853", margin: "2px 0 0" }}>{c.equipment}</p>}
                     </div>
-                  ))}
+                    <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 10 }}>
+                      <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#6b7280", margin: "0 0 2px" }}>CALL</p>
+                      <p style={{ fontSize: 13, fontWeight: 900, fontFamily: "monospace", color: "#fff", margin: 0 }}>{callTime}</p>
+                    </div>
+                  </div>
+                  <div style={{ padding: "8px 10px" }}>
+                    {c.responsibilities.map((r, j) => (
+                      <div key={j} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                        <span style={{ color: "#6b7280", flexShrink: 0, marginTop: 1 }}>•</span>
+                        <p style={{ fontSize: 10, color: "#374151", margin: 0, lineHeight: 1.5 }}>{r}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -361,7 +400,7 @@ function LiveEventPrintSheet({ project, profile, formData, crew, locations, shee
             <tbody>
               {sheet.staticCameras.map((cam, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#f9fafb" : "#fff" }}>
-                  <td style={{ padding: "5px 10px", fontWeight: 700, whiteSpace: "nowrap", width: "35%" }}>{cam.name}</td>
+                  <td style={{ padding: "5px 10px", fontWeight: 700, whiteSpace: "nowrap", width: "28%" }}>{cam.name}</td>
                   <td style={{ padding: "5px 10px", color: "#6b7280" }}>{cam.role}</td>
                 </tr>
               ))}
@@ -378,34 +417,13 @@ function LiveEventPrintSheet({ project, profile, formData, crew, locations, shee
             <tbody>
               {sheet.keyMoments.map((m, i) => (
                 <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: "#fff" }}>
-                  <td style={{ padding: "5px 10px", verticalAlign: "top", whiteSpace: "nowrap", width: "30%" }}>
+                  <td style={{ padding: "5px 10px", verticalAlign: "top", width: "28%" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <span style={{ width: 7, height: 7, borderRadius: "50%", background: MOMENT_DOT[m.type] ?? "#9ca3af", display: "inline-block", flexShrink: 0 }} />
                       <span style={{ fontWeight: 800 }}>{m.label}</span>
                     </span>
                   </td>
                   <td style={{ padding: "5px 10px", color: "#374151", verticalAlign: "top" }}>{m.description}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Crew contact reference */}
-      {crew.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <SectionHeader>Crew</SectionHeader>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
-            <tbody>
-              {crew.map((m) => (
-                <tr key={m.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "4px 10px", fontWeight: 700, width: "20%" }}>{m.name}</td>
-                  <td style={{ padding: "4px 10px", color: "#6b7280", width: "30%" }}>{m.role}</td>
-                  {m.phone && <td style={{ padding: "4px 10px", color: "#9ca3af", fontSize: 9 }}>{m.phone}</td>}
-                  <td style={{ padding: "4px 10px", fontFamily: "monospace", fontWeight: 800, textAlign: "right", color: "#111", whiteSpace: "nowrap" }}>
-                    Call: {to12h(m.callTime || formData.callTime)}
-                  </td>
                 </tr>
               ))}
             </tbody>

@@ -364,28 +364,61 @@ export function CallSheetPDFDocument({
 
           <LocationsSection locations={locations} />
 
-          {/* Coverage Assignments */}
+          {/* Crew Call Times — near top so crew finds their time immediately */}
+          {crew.length > 0 && (
+            <View style={{ marginBottom: 14 }} wrap={false}>
+              <SectionHeader>Crew Call Times</SectionHeader>
+              <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
+                <View style={{ flexDirection: "row", backgroundColor: FAINT, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 4 }}>
+                  <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: "25%" }}>Name</Text>
+                  <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", flex: 1 }}>Role</Text>
+                  <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: "25%" }}>Phone</Text>
+                  <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: 52, textAlign: "right" }}>Call Time</Text>
+                </View>
+                {crew.map((m, i) => (
+                  <View key={m.id} style={[s.crewTableRow, { backgroundColor: i % 2 === 0 ? WHITE : FAINT }]} wrap={false}>
+                    <Text style={[s.crewTableName, { width: "25%" }]}>{m.name}</Text>
+                    <Text style={[s.crewTableRole, { flex: 1 }]}>{m.role}</Text>
+                    <Text style={[s.crewTablePhone, { width: "25%" }]}>{m.phone || "—"}</Text>
+                    <Text style={[s.crewTableCall, { width: 52 }]}>{to12h(m.callTime || formData.callTime)}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Coverage Assignments — call time shown in each card header */}
           {sheet.coverage.length > 0 && (
             <View style={{ marginBottom: 14 }}>
               <SectionHeader>Coverage Assignments</SectionHeader>
               <View style={s.covGrid}>
-                {sheet.coverage.map((c, i) => (
-                  <View key={i} style={s.covCard} wrap={false}>
-                    <View style={s.covHeader}>
-                      <Text style={s.covPerson}>{c.person}</Text>
-                      <Text style={s.covRole}>{c.role}</Text>
-                      {c.equipment ? <Text style={s.covEquip}>{c.equipment}</Text> : null}
-                    </View>
-                    <View style={s.covBody}>
-                      {c.responsibilities.map((r, j) => (
-                        <View key={j} style={s.covBullet}>
-                          <Text style={s.covDot}>•</Text>
-                          <Text style={s.covText}>{r}</Text>
+                {sheet.coverage.map((c, i) => {
+                  const member = crew.find((m) => m.name.toLowerCase() === c.person.toLowerCase());
+                  const callTime = to12h(member?.callTime || formData.callTime);
+                  return (
+                    <View key={i} style={s.covCard} wrap={false}>
+                      <View style={[s.covHeader, { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.covPerson}>{c.person}</Text>
+                          <Text style={s.covRole}>{c.role}</Text>
+                          {c.equipment ? <Text style={s.covEquip}>{c.equipment}</Text> : null}
                         </View>
-                      ))}
+                        <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
+                          <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", letterSpacing: 1.5, textTransform: "uppercase", color: LGRAY, marginBottom: 2 }}>CALL</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: WHITE }}>{callTime}</Text>
+                        </View>
+                      </View>
+                      <View style={s.covBody}>
+                        {c.responsibilities.map((r, j) => (
+                          <View key={j} style={s.covBullet}>
+                            <Text style={s.covDot}>•</Text>
+                            <Text style={s.covText}>{r}</Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           )}
@@ -417,23 +450,6 @@ export function CallSheetPDFDocument({
                       <Text style={s.momLabel}>{m.label}</Text>
                     </View>
                     <Text style={s.momDesc}>{m.description}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Crew */}
-          {crew.length > 0 && (
-            <View style={{ marginBottom: 14 }} wrap={false}>
-              <SectionHeader>Crew</SectionHeader>
-              <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
-                {crew.map((m, i) => (
-                  <View key={m.id} style={[s.crewTableRow, { backgroundColor: i % 2 === 0 ? FAINT : WHITE }]}>
-                    <Text style={s.crewTableName}>{m.name}</Text>
-                    <Text style={s.crewTableRole}>{m.role}</Text>
-                    <Text style={s.crewTablePhone}>{m.phone || ""}</Text>
-                    <Text style={s.crewTableCall}>Call: {to12h(m.callTime || formData.callTime)}</Text>
                   </View>
                 ))}
               </View>
