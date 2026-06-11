@@ -1,7 +1,7 @@
 import React from "react";
 import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
 
-// ─── Types (mirrored from CallSheetGenerator) ──────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface CSCrewMember {
   id: string;
@@ -25,10 +25,26 @@ export interface CSScheduleItem {
   location: string | null;
   type: "logistics" | "setup" | "shoot" | "break" | "move" | "wrap";
 }
-export interface CSSheet {
-  schedule: CSScheduleItem[];
-  warning: string | null;
+export interface CSCoverageAssignment {
+  person: string;
+  role: string;
+  equipment: string;
+  responsibilities: string[];
 }
+export interface CSStaticCamera {
+  name: string;
+  role: string;
+}
+export interface CSKeyMoment {
+  label: string;
+  description: string;
+  type: "pre" | "during" | "post" | "logistics";
+}
+
+export type CSSheet =
+  | { format: "scripted" | "interview"; schedule: CSScheduleItem[]; warning: string | null }
+  | { format: "live_event"; coverage: CSCoverageAssignment[]; staticCameras: CSStaticCamera[]; keyMoments: CSKeyMoment[]; warning: string | null };
+
 export interface CSFormData {
   shootDate: string;
   callTime: string;
@@ -47,18 +63,19 @@ export interface CSProfile {
 export interface CSProject {
   title: string;
   client_name?: string | null;
+  client_logo_url?: string | null;
 }
 
-// ─── Constants ─────────────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────
 
-const GOLD  = "#d4a853";
-const BLACK = "#111111";
-const GRAY  = "#6b7280";
-const LGRAY = "#9ca3af";
+const GOLD   = "#d4a853";
+const BLACK  = "#111111";
+const GRAY   = "#6b7280";
+const LGRAY  = "#9ca3af";
 const BORDER = "#e5e7eb";
 const FBORDER = "#f3f4f6";
-const WHITE = "#ffffff";
-const FAINT = "#f9fafb";
+const WHITE  = "#ffffff";
+const FAINT  = "#f9fafb";
 
 const DEPT_ORDER = [
   "Production", "Direction", "Camera", "Lighting", "Grip", "Sound",
@@ -66,29 +83,29 @@ const DEPT_ORDER = [
 ];
 
 const ROW_BG: Record<CSScheduleItem["type"], string> = {
-  logistics: "#fffbeb",
-  setup:     "#eff6ff",
-  shoot:     WHITE,
-  break:     "#f5f3ff",
-  move:      "#fff7ed",
-  wrap:      FAINT,
+  logistics: "#fffbeb", setup: "#eff6ff", shoot: WHITE,
+  break: "#f5f3ff", move: "#fff7ed", wrap: FAINT,
 };
 const ROW_DOT: Record<CSScheduleItem["type"], string> = {
-  logistics: GOLD,
-  setup:     "#60a5fa",
-  shoot:     "#34d399",
-  break:     "#a78bfa",
-  move:      "#fb923c",
-  wrap:      LGRAY,
+  logistics: GOLD, setup: "#60a5fa", shoot: "#34d399",
+  break: "#a78bfa", move: "#fb923c", wrap: LGRAY,
 };
 const TYPE_LABEL: Record<CSScheduleItem["type"], string> = {
-  logistics: "LOGISTICS",
-  setup:     "SETUP",
-  shoot:     "SHOOT",
-  break:     "BREAK",
-  move:      "MOVE",
-  wrap:      "WRAP",
+  logistics: "LOGISTICS", setup: "SETUP", shoot: "SHOOT",
+  break: "BREAK", move: "MOVE", wrap: "WRAP",
 };
+
+const MOMENT_DOT: Record<CSKeyMoment["type"], string> = {
+  pre: "#60a5fa", during: "#34d399", post: "#a78bfa", logistics: GOLD,
+};
+
+function to12h(t: string): string {
+  if (!t || !t.includes(":")) return t || "TBD";
+  const [h, m] = t.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
 
 function groupByDept(crew: CSCrewMember[]) {
   const map = new Map<string, CSCrewMember[]>();
@@ -110,17 +127,10 @@ function fmtDate(iso: string) {
   });
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────
+// ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  page: {
-    fontFamily: "Helvetica",
-    backgroundColor: WHITE,
-    paddingHorizontal: 32,
-    paddingVertical: 28,
-    fontSize: 9,
-    color: BLACK,
-  },
+  page: { fontFamily: "Helvetica", backgroundColor: WHITE, paddingHorizontal: 32, paddingVertical: 28, fontSize: 9, color: BLACK },
 
   // Header
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 10, marginBottom: 12, borderBottomWidth: 2.5, borderBottomColor: BLACK },
@@ -135,6 +145,7 @@ const s = StyleSheet.create({
   callSheetLabel: { fontSize: 8, fontFamily: "Helvetica-Bold", marginTop: 2 },
   confidentialBadge: { borderWidth: 1.5, borderColor: BLACK, paddingHorizontal: 5, paddingVertical: 2, fontSize: 6, fontFamily: "Helvetica-Bold", letterSpacing: 1.5 },
   genBy: { fontSize: 6, color: LGRAY, marginTop: 3 },
+  clientLogo: { height: 28, maxWidth: 100, objectFit: "contain", marginBottom: 5 },
 
   // Call time bar
   callBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: BLACK, borderRadius: 4, paddingHorizontal: 14, paddingVertical: 9, marginBottom: 10 },
@@ -154,7 +165,7 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 2, color: BLACK },
   sectionLine: { flex: 1, height: 1, backgroundColor: BORDER, marginLeft: 6 },
 
-  // Crew
+  // Crew call times
   crewGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
   crewCard: { width: "48.5%", borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" },
   crewDeptHeader: { backgroundColor: FAINT, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 4 },
@@ -164,6 +175,13 @@ const s = StyleSheet.create({
   crewRole: { fontSize: 7, color: GRAY, flex: 1 },
   crewPhone: { fontSize: 6, color: LGRAY, width: 70 },
   crewCall: { fontSize: 8, fontFamily: "Helvetica-Bold", width: 38, textAlign: "right" },
+
+  // Crew contact table (live event)
+  crewTableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 4 },
+  crewTableName: { fontSize: 8, fontFamily: "Helvetica-Bold", width: "22%" },
+  crewTableRole: { fontSize: 7, color: GRAY, width: "30%" },
+  crewTablePhone: { fontSize: 7, color: LGRAY, flex: 1 },
+  crewTableCall: { fontSize: 8, fontFamily: "Helvetica-Bold", width: 55, textAlign: "right" },
 
   // Locations
   locGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
@@ -181,7 +199,7 @@ const s = StyleSheet.create({
   legendDot: { width: 5, height: 5, borderRadius: 3 },
   legendLabel: { fontSize: 6, color: GRAY },
 
-  // Schedule
+  // Scripted schedule
   schedTable: { marginBottom: 14 },
   schedHead: { flexDirection: "row", backgroundColor: BLACK, paddingHorizontal: 8, paddingVertical: 5 },
   schedHeadCell: { fontSize: 7, fontFamily: "Helvetica-Bold", color: WHITE },
@@ -192,6 +210,32 @@ const s = StyleSheet.create({
   schedDesc: { flex: 1, fontSize: 8, paddingRight: 8 },
   schedLoc: { width: 110, fontSize: 7, color: GRAY },
 
+  // Coverage (live event)
+  covGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
+  covCard: { width: "48.5%", borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" },
+  covHeader: { backgroundColor: BLACK, paddingHorizontal: 9, paddingVertical: 7 },
+  covPerson: { fontSize: 10, fontFamily: "Helvetica-Bold", color: WHITE },
+  covRole: { fontSize: 7, color: LGRAY, marginTop: 2 },
+  covEquip: { fontSize: 7, color: GOLD, marginTop: 2 },
+  covBody: { padding: 9 },
+  covBullet: { flexDirection: "row", marginBottom: 4, gap: 5 },
+  covDot: { fontSize: 9, color: GRAY, marginTop: 0 },
+  covText: { fontSize: 7, color: "#374151", flex: 1, lineHeight: 1.5 },
+
+  // Static cameras
+  staticTable: { marginBottom: 14 },
+  staticRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 5 },
+  staticName: { fontSize: 8, fontFamily: "Helvetica-Bold", width: "38%" },
+  staticRole: { fontSize: 7, color: GRAY, flex: 1 },
+
+  // Key moments
+  momTable: { marginBottom: 14 },
+  momRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 5 },
+  momDotWrap: { flexDirection: "row", alignItems: "center", gap: 5, width: "32%" },
+  momDot: { width: 6, height: 6, borderRadius: 3 },
+  momLabel: { fontSize: 8, fontFamily: "Helvetica-Bold" },
+  momDesc: { fontSize: 7, color: "#374151", flex: 1, lineHeight: 1.5 },
+
   // Director note
   noteBox: { borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3, borderLeftColor: BLACK, borderRadius: 3, padding: 8, marginBottom: 12 },
   noteLabel: { fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 2, color: LGRAY, marginBottom: 4 },
@@ -201,7 +245,7 @@ const s = StyleSheet.create({
   footer: { borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 5, fontSize: 6, color: LGRAY, textAlign: "center" },
 });
 
-// ─── Sub-components ────────────────────────────────────────────────────────
+// ─── Sub-components ─────────────────────────────────────────────────────────
 
 function SectionHeader({ children }: { children: string }) {
   return (
@@ -226,15 +270,78 @@ function Legend() {
   );
 }
 
-// ─── Main Document ─────────────────────────────────────────────────────────
+function PageHeader({ project, profile, formData }: { project: CSProject; profile: CSProfile | null; formData: CSFormData }) {
+  const producerName = profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") : "";
+  return (
+    <>
+      <View style={s.headerRow}>
+        <View style={s.headerLeft}>
+          {profile?.logo_url && <Image src={profile.logo_url} style={s.logo} />}
+          <Text style={s.bizName}>{profile?.business_name || "Production Company"}</Text>
+          {producerName ? <Text style={s.producerName}>{producerName}</Text> : null}
+        </View>
+        <View style={s.headerCenter}>
+          <Text style={s.projectTitle}>{project.title}</Text>
+          {project.client_name ? <Text style={s.clientLine}>Client: {project.client_name}</Text> : null}
+          <Text style={s.callSheetLabel}>CALL SHEET — {fmtDate(formData.shootDate)}</Text>
+        </View>
+        <View style={s.headerRight}>
+          {project.client_logo_url && <Image src={project.client_logo_url} style={s.clientLogo} />}
+          {formData.confidential && <Text style={s.confidentialBadge}>CONFIDENTIAL</Text>}
+          <Text style={s.genBy}>Generated by Cineflow</Text>
+        </View>
+      </View>
+
+      <View style={s.callBar}>
+        <View>
+          <Text style={s.callBarLabel}>General Crew Call</Text>
+          <Text style={s.callTime}>{to12h(formData.callTime)}</Text>
+        </View>
+        <View style={{ alignItems: "center" }}>
+          <Text style={s.callBarLabel}>Wrap</Text>
+          <Text style={s.wrapTime}>{to12h(formData.wrapTime)}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={s.callBarLabel}>Weather</Text>
+          <Text style={s.callBarSmall}>{formData.weather || "—"}</Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={s.callBarLabel}>Nearest Hospital</Text>
+          <Text style={s.callBarSmall}>{formData.hospital || "See location contact"}</Text>
+        </View>
+      </View>
+    </>
+  );
+}
+
+function LocationsSection({ locations }: { locations: CSLocation[] }) {
+  if (locations.length === 0) return null;
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <SectionHeader>Locations</SectionHeader>
+      <View style={s.locGrid}>
+        {locations.map((loc, i) => (
+          <View key={loc.id} style={s.locCard}>
+            <View style={s.locNameRow}>
+              <View style={s.locBubble}><Text style={s.locBubbleText}>{i + 1}</Text></View>
+              <Text style={s.locName}>{loc.name}</Text>
+            </View>
+            {loc.address ? <Text style={s.locDetail}>{loc.address}</Text> : null}
+            {loc.parkingNotes ? <Text style={s.locMuted}>Parking: {loc.parkingNotes}</Text> : null}
+            {loc.contact_name ? (
+              <Text style={s.locMuted}>Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}</Text>
+            ) : null}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Document ───────────────────────────────────────────────────────────
 
 export function CallSheetPDFDocument({
-  project,
-  profile,
-  formData,
-  crew,
-  locations,
-  sheet,
+  project, profile, formData, crew, locations, sheet,
 }: {
   project: CSProject;
   profile: CSProfile | null;
@@ -243,70 +350,126 @@ export function CallSheetPDFDocument({
   locations: CSLocation[];
   sheet: CSSheet;
 }) {
+  if (sheet.format === "live_event") {
+    return (
+      <Document title={`Call Sheet — ${project.title}`} author="Cineflow">
+        <Page size="A4" style={s.page}>
+          <PageHeader project={project} profile={profile} formData={formData} />
+
+          {sheet.warning ? (
+            <View style={s.warningBox}>
+              <Text style={s.warningText}><Text style={s.warningLabel}>⚠ NOTE: </Text>{sheet.warning}</Text>
+            </View>
+          ) : null}
+
+          <LocationsSection locations={locations} />
+
+          {/* Coverage Assignments */}
+          {sheet.coverage.length > 0 && (
+            <View style={{ marginBottom: 14 }}>
+              <SectionHeader>Coverage Assignments</SectionHeader>
+              <View style={s.covGrid}>
+                {sheet.coverage.map((c, i) => (
+                  <View key={i} style={s.covCard}>
+                    <View style={s.covHeader}>
+                      <Text style={s.covPerson}>{c.person}</Text>
+                      <Text style={s.covRole}>{c.role}</Text>
+                      {c.equipment ? <Text style={s.covEquip}>{c.equipment}</Text> : null}
+                    </View>
+                    <View style={s.covBody}>
+                      {c.responsibilities.map((r, j) => (
+                        <View key={j} style={s.covBullet}>
+                          <Text style={s.covDot}>•</Text>
+                          <Text style={s.covText}>{r}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Static Cameras */}
+          {sheet.staticCameras.length > 0 && (
+            <View style={s.staticTable}>
+              <SectionHeader>Static / Mounted Cameras</SectionHeader>
+              <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
+                {sheet.staticCameras.map((cam, i) => (
+                  <View key={i} style={[s.staticRow, { backgroundColor: i % 2 === 0 ? FAINT : WHITE }]}>
+                    <Text style={s.staticName}>{cam.name}</Text>
+                    <Text style={s.staticRole}>{cam.role}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Key Moments */}
+          {sheet.keyMoments.length > 0 && (
+            <View style={s.momTable}>
+              <SectionHeader>Key Moments</SectionHeader>
+              <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
+                {sheet.keyMoments.map((m, i) => (
+                  <View key={i} style={[s.momRow, { backgroundColor: WHITE }]}>
+                    <View style={s.momDotWrap}>
+                      <View style={[s.momDot, { backgroundColor: MOMENT_DOT[m.type] ?? LGRAY }]} />
+                      <Text style={s.momLabel}>{m.label}</Text>
+                    </View>
+                    <Text style={s.momDesc}>{m.description}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Crew */}
+          {crew.length > 0 && (
+            <View style={{ marginBottom: 14 }}>
+              <SectionHeader>Crew</SectionHeader>
+              <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
+                {crew.map((m, i) => (
+                  <View key={m.id} style={[s.crewTableRow, { backgroundColor: i % 2 === 0 ? FAINT : WHITE }]}>
+                    <Text style={s.crewTableName}>{m.name}</Text>
+                    <Text style={s.crewTableRole}>{m.role}</Text>
+                    <Text style={s.crewTablePhone}>{m.phone || ""}</Text>
+                    <Text style={s.crewTableCall}>Call: {to12h(m.callTime || formData.callTime)}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {formData.directorNote ? (
+            <View style={s.noteBox}>
+              <Text style={s.noteLabel}>Director's Note</Text>
+              <Text style={s.noteText}>{formData.directorNote}</Text>
+            </View>
+          ) : null}
+
+          <Text style={s.footer}>
+            Generated with Cineflow · {new Date().toLocaleDateString()}
+            {formData.confidential ? " · CONFIDENTIAL — Do not distribute" : ""}
+          </Text>
+        </Page>
+      </Document>
+    );
+  }
+
+  // Scripted / Interview layout
   const deptMap = groupByDept(crew);
-  const producerName = profile
-    ? [profile.first_name, profile.last_name].filter(Boolean).join(" ")
-    : "";
 
   return (
     <Document title={`Call Sheet — ${project.title}`} author="Cineflow">
       <Page size="A4" style={s.page}>
+        <PageHeader project={project} profile={profile} formData={formData} />
 
-        {/* ── Header ── */}
-        <View style={s.headerRow}>
-          <View style={s.headerLeft}>
-            {profile?.logo_url && (
-              <Image src={profile.logo_url} style={s.logo} />
-            )}
-            <Text style={s.bizName}>{profile?.business_name || "Production Company"}</Text>
-            {producerName ? <Text style={s.producerName}>{producerName}</Text> : null}
-          </View>
-
-          <View style={s.headerCenter}>
-            <Text style={s.projectTitle}>{project.title}</Text>
-            {project.client_name ? <Text style={s.clientLine}>Client: {project.client_name}</Text> : null}
-            <Text style={s.callSheetLabel}>CALL SHEET — {fmtDate(formData.shootDate)}</Text>
-          </View>
-
-          <View style={s.headerRight}>
-            {formData.confidential && (
-              <Text style={s.confidentialBadge}>CONFIDENTIAL</Text>
-            )}
-            <Text style={s.genBy}>Generated by Cineflow</Text>
-          </View>
-        </View>
-
-        {/* ── General call time bar ── */}
-        <View style={s.callBar}>
-          <View>
-            <Text style={s.callBarLabel}>General Crew Call</Text>
-            <Text style={s.callTime}>{formData.callTime || "TBD"}</Text>
-          </View>
-          <View style={{ alignItems: "center" }}>
-            <Text style={s.callBarLabel}>Wrap</Text>
-            <Text style={s.wrapTime}>{formData.wrapTime || "TBD"}</Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={s.callBarLabel}>Weather</Text>
-            <Text style={s.callBarSmall}>{formData.weather || "—"}</Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            <Text style={s.callBarLabel}>Nearest Hospital</Text>
-            <Text style={s.callBarSmall}>{formData.hospital || "See location contact"}</Text>
-          </View>
-        </View>
-
-        {/* ── Warning ── */}
         {sheet.warning ? (
           <View style={s.warningBox}>
-            <Text style={s.warningText}>
-              <Text style={s.warningLabel}>⚠ NOTE: </Text>
-              {sheet.warning}
-            </Text>
+            <Text style={s.warningText}><Text style={s.warningLabel}>⚠ NOTE: </Text>{sheet.warning}</Text>
           </View>
         ) : null}
 
-        {/* ── Crew Call Times ── */}
         {crew.length > 0 && (
           <View style={{ marginBottom: 14 }}>
             <SectionHeader>Crew Call Times</SectionHeader>
@@ -321,7 +484,7 @@ export function CallSheetPDFDocument({
                       <Text style={s.crewName}>{m.name}</Text>
                       <Text style={s.crewRole}>{m.role}</Text>
                       {m.phone ? <Text style={s.crewPhone}>{m.phone}</Text> : <Text style={s.crewPhone} />}
-                      <Text style={s.crewCall}>{m.callTime || formData.callTime || "—"}</Text>
+                      <Text style={s.crewCall}>{to12h(m.callTime || formData.callTime)}</Text>
                     </View>
                   ))}
                 </View>
@@ -330,33 +493,8 @@ export function CallSheetPDFDocument({
           </View>
         )}
 
-        {/* ── Locations ── */}
-        {locations.length > 0 && (
-          <View style={{ marginBottom: 14 }}>
-            <SectionHeader>Locations</SectionHeader>
-            <View style={s.locGrid}>
-              {locations.map((loc, i) => (
-                <View key={loc.id} style={s.locCard}>
-                  <View style={s.locNameRow}>
-                    <View style={s.locBubble}>
-                      <Text style={s.locBubbleText}>{i + 1}</Text>
-                    </View>
-                    <Text style={s.locName}>{loc.name}</Text>
-                  </View>
-                  {loc.address ? <Text style={s.locDetail}>{loc.address}</Text> : null}
-                  {loc.parkingNotes ? <Text style={s.locMuted}>Parking: {loc.parkingNotes}</Text> : null}
-                  {loc.contact_name ? (
-                    <Text style={s.locMuted}>
-                      Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}
-                    </Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
+        <LocationsSection locations={locations} />
 
-        {/* ── Shooting Schedule ── */}
         <View style={s.schedTable}>
           <SectionHeader>Shooting Schedule</SectionHeader>
           <Legend />
@@ -370,7 +508,7 @@ export function CallSheetPDFDocument({
               <View key={i} style={[s.schedRow, { backgroundColor: ROW_BG[item.type] ?? WHITE }]}>
                 <View style={s.schedTime}>
                   <View style={[s.schedDot, { backgroundColor: ROW_DOT[item.type] ?? LGRAY }]} />
-                  <Text style={s.schedTimeText}>{item.time}</Text>
+                  <Text style={s.schedTimeText}>{to12h(item.time)}</Text>
                 </View>
                 <Text style={s.schedDesc}>{item.label}</Text>
                 <Text style={s.schedLoc}>{item.location || "—"}</Text>
@@ -379,7 +517,6 @@ export function CallSheetPDFDocument({
           </View>
         </View>
 
-        {/* ── Director's Note ── */}
         {formData.directorNote ? (
           <View style={s.noteBox}>
             <Text style={s.noteLabel}>Director's Note</Text>
@@ -387,7 +524,6 @@ export function CallSheetPDFDocument({
           </View>
         ) : null}
 
-        {/* ── Footer ── */}
         <Text style={s.footer}>
           Generated with Cineflow · {new Date().toLocaleDateString()}
           {formData.confidential ? " · CONFIDENTIAL — Do not distribute" : ""}
