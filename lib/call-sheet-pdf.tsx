@@ -370,7 +370,7 @@ export function CallSheetPDFDocument({
               <SectionHeader>Coverage Assignments</SectionHeader>
               <View style={s.covGrid}>
                 {sheet.coverage.map((c, i) => (
-                  <View key={i} style={s.covCard}>
+                  <View key={i} style={s.covCard} wrap={false}>
                     <View style={s.covHeader}>
                       <Text style={s.covPerson}>{c.person}</Text>
                       <Text style={s.covRole}>{c.role}</Text>
@@ -392,11 +392,11 @@ export function CallSheetPDFDocument({
 
           {/* Static Cameras */}
           {sheet.staticCameras.length > 0 && (
-            <View style={s.staticTable}>
+            <View style={s.staticTable} wrap={false}>
               <SectionHeader>Static / Mounted Cameras</SectionHeader>
               <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
                 {sheet.staticCameras.map((cam, i) => (
-                  <View key={i} style={[s.staticRow, { backgroundColor: i % 2 === 0 ? FAINT : WHITE }]}>
+                  <View key={i} style={[s.staticRow, { backgroundColor: i % 2 === 0 ? FAINT : WHITE }]} wrap={false}>
                     <Text style={s.staticName}>{cam.name}</Text>
                     <Text style={s.staticRole}>{cam.role}</Text>
                   </View>
@@ -411,7 +411,7 @@ export function CallSheetPDFDocument({
               <SectionHeader>Key Moments</SectionHeader>
               <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
                 {sheet.keyMoments.map((m, i) => (
-                  <View key={i} style={[s.momRow, { backgroundColor: WHITE }]}>
+                  <View key={i} style={[s.momRow, { backgroundColor: WHITE }]} wrap={false}>
                     <View style={s.momDotWrap}>
                       <View style={[s.momDot, { backgroundColor: MOMENT_DOT[m.type] ?? LGRAY }]} />
                       <Text style={s.momLabel}>{m.label}</Text>
@@ -425,7 +425,7 @@ export function CallSheetPDFDocument({
 
           {/* Crew */}
           {crew.length > 0 && (
-            <View style={{ marginBottom: 14 }}>
+            <View style={{ marginBottom: 14 }} wrap={false}>
               <SectionHeader>Crew</SectionHeader>
               <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
                 {crew.map((m, i) => (
@@ -475,7 +475,7 @@ export function CallSheetPDFDocument({
             <SectionHeader>Crew Call Times</SectionHeader>
             <View style={s.crewGrid}>
               {Array.from(deptMap.entries()).map(([dept, members]) => (
-                <View key={dept} style={s.crewCard}>
+                <View key={dept} style={s.crewCard} wrap={false}>
                   <View style={s.crewDeptHeader}>
                     <Text style={s.crewDeptLabel}>{dept}</Text>
                   </View>
@@ -499,13 +499,13 @@ export function CallSheetPDFDocument({
           <SectionHeader>Shooting Schedule</SectionHeader>
           <Legend />
           <View>
-            <View style={s.schedHead}>
+            <View style={s.schedHead} fixed>
               <Text style={[s.schedHeadCell, { width: 52 }]}>Time</Text>
               <Text style={[s.schedHeadCell, { flex: 1 }]}>Description</Text>
               <Text style={[s.schedHeadCell, { width: 110 }]}>Location</Text>
             </View>
             {sheet.schedule.map((item, i) => (
-              <View key={i} style={[s.schedRow, { backgroundColor: ROW_BG[item.type] ?? WHITE }]}>
+              <View key={i} style={[s.schedRow, { backgroundColor: ROW_BG[item.type] ?? WHITE }]} wrap={false}>
                 <View style={s.schedTime}>
                   <View style={[s.schedDot, { backgroundColor: ROW_DOT[item.type] ?? LGRAY }]} />
                   <Text style={s.schedTimeText}>{to12h(item.time)}</Text>
