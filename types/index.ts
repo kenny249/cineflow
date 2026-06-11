@@ -952,6 +952,40 @@ export interface QuoteEstimate {
   updated_at: string;
 }
 
+// ─── Project Equipment ────────────────────────────────────────────────────────
+
+export type EquipmentCategory = "camera" | "audio" | "lighting" | "support" | "other";
+
+export interface EquipmentLens {
+  id: string;
+  focal_length: string;
+  aperture?: string;
+  brand?: string;
+  type?: "prime" | "zoom";
+  notes?: string;
+}
+
+export interface ProjectEquipment {
+  id: string;
+  project_id: string;
+  created_by?: string | null;
+  category: EquipmentCategory;
+  name: string;
+  brand?: string | null;
+  model?: string | null;
+  assigned_to?: string | null;
+  role?: string | null;
+  lenses: EquipmentLens[];
+  specs?: Record<string, string>;
+  is_rental?: boolean;
+  rental_vendor?: string | null;
+  serial_number?: string | null;
+  notes?: string | null;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // ─── Drone Module ─────────────────────────────────────────────────────────────
 
 export type DroneStatus = "active" | "in_repair" | "retired";

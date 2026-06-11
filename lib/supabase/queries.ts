@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem, Quote, QuoteStatus } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem, Quote, QuoteStatus, ProjectEquipment } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -646,6 +646,31 @@ export async function updateProjectLocation(id: string, updates: Partial<Project
 
 export async function deleteProjectLocation(id: string): Promise<void> {
   const { error } = await db().from('project_locations').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── Project Equipment ────────────────────────────────────────────────────────
+
+export async function getProjectEquipment(projectId: string): Promise<ProjectEquipment[]> {
+  const { data, error } = await db().from('project_equipment').select('*').eq('project_id', projectId).order('category').order('sort_order').order('created_at');
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as ProjectEquipment[];
+}
+
+export async function createProjectEquipment(item: Omit<ProjectEquipment, 'id' | 'created_at' | 'updated_at'>): Promise<ProjectEquipment> {
+  const { data, error } = await db().from('project_equipment').insert(item).select().single();
+  if (error) throw error;
+  return data as ProjectEquipment;
+}
+
+export async function updateProjectEquipment(id: string, updates: Partial<ProjectEquipment>): Promise<ProjectEquipment> {
+  const { data, error } = await db().from('project_equipment').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+  if (error) throw error;
+  return data as ProjectEquipment;
+}
+
+export async function deleteProjectEquipment(id: string): Promise<void> {
+  const { error } = await db().from('project_equipment').delete().eq('id', id);
   if (error) throw error;
 }
 

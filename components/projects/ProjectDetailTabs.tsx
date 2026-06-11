@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp } from "lucide-react";
 import { CallSheetGenerator } from "@/components/call-sheet/CallSheetGenerator";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
@@ -37,6 +37,8 @@ import { ShootDaysPanel } from "@/components/projects/tabs/ShootDaysPanel";
 import { PeopleTab } from "@/components/projects/tabs/PeopleTab";
 import { DroneTab } from "@/components/projects/tabs/DroneTab";
 import { DroneIcon } from "@/components/icons/DroneIcon";
+import { EquipmentTab } from "@/components/projects/tabs/EquipmentTab";
+import { ImportBriefModal } from "@/components/projects/ImportBriefModal";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
 import { downloadCSV } from "@/lib/export";
@@ -191,7 +193,7 @@ export default function ProjectDetailTabs({
   // Map legacy/hidden tab values into their new parent tab
   const initialTab = ["shot-list","scripts","docs","crew","drone"].includes(rawInitialTab) ? "production" : rawInitialTab;
   const [activeTab, setActiveTab] = useState(initialTab);
-  const PRODUCTION_TABS = ["shot-list", "scripts", "docs", "crew", "drone"];
+  const PRODUCTION_TABS = ["shot-list", "scripts", "docs", "crew", "drone", "equipment"];
   const isAdmin = userRole === "owner" || userRole === "admin";
   const isClient = userRole === "client";
   const canEdit = !isClient;
@@ -349,6 +351,7 @@ export default function ProjectDetailTabs({
   const tabScrollRef = useRef<HTMLDivElement>(null);
 
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showImportBrief, setShowImportBrief] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description);
   const [editClientName, setEditClientName] = useState(project.client_name ?? "");
@@ -1375,6 +1378,12 @@ export default function ProjectDetailTabs({
               <span className="hidden sm:inline">Call Sheet</span>
             </Button>
             {canEdit && (
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setShowImportBrief(true)}>
+                <FileUp className="h-3 w-3" />
+                <span className="hidden sm:inline">Import Brief</span>
+              </Button>
+            )}
+            {canEdit && (
               <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={openEditDialog}>
                 <Edit3 className="h-3 w-3" />
                 <span className="hidden sm:inline">Edit</span>
@@ -2088,12 +2097,13 @@ export default function ProjectDetailTabs({
                 <h2 className="font-display text-sm font-semibold text-foreground">Production</h2>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">Shot planning, scripts, files, and crew — everything for the shoot.</p>
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {([
-                  { value: "shot-list", label: "Shot List",  icon: ListChecks, desc: `${totalShots ? `${completedShots}/${totalShots} shots` : "Plan your shots"}` },
+                  { value: "shot-list",  label: "Shot List",  icon: ListChecks, desc: `${totalShots ? `${completedShots}/${totalShots} shots` : "Plan your shots"}` },
                   { value: "scripts",   label: "Scripts",    icon: ScrollText, desc: "Scripts & callsheets" },
                   { value: "docs",      label: "Files",      icon: Package,    desc: "Production documents" },
                   { value: "crew",      label: "Crew",       icon: Users,      desc: "Crew & contacts" },
+                  { value: "equipment", label: "Equipment",  icon: Camera,     desc: "Camera & gear package" },
                   { value: "drone",     label: "Drone",      icon: DroneIcon,  desc: "Flights & aerial ops" },
                 ] as Array<{ value: string; label: string; icon: React.ElementType; desc: string }>).map((section) => (
                   <button
@@ -2450,6 +2460,11 @@ export default function ProjectDetailTabs({
                 projectId={project.id}
                 droneShots={shotList?.items?.filter((s) => s.shot_type === "drone") ?? []}
               />
+            </TabsContent>
+
+            {/* ── Equipment ── */}
+            <TabsContent value="equipment" className="m-0 p-4 sm:p-6">
+              <EquipmentTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
             {/* ── Locations (hidden, kept for deep-link compat) ── */}
@@ -3271,6 +3286,17 @@ export default function ProjectDetailTabs({
         </DialogContent>
       </Dialog>
       <BurstRenderer particles={burst.particles} />
+
+      {showImportBrief && (
+        <ImportBriefModal
+          projectId={project.id}
+          onClose={() => setShowImportBrief(false)}
+          onImported={(summary) => {
+            setShowImportBrief(false);
+            toast.success(summary);
+          }}
+        />
+      )}
     </div>
   );
 }
