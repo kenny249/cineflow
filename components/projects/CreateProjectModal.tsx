@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { createProject, getProjectTemplates, type ProjectTemplate } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
-import { Project } from "@/types/index";
+import type { Project, ProjectType } from "@/types/index";
 import { toast } from "sonner";
 
 interface CreateProjectModalProps {
@@ -24,15 +24,20 @@ interface CreateProjectModalProps {
   onSuccess?: () => void;
 }
 
-const PROJECT_TYPES = [
-  { value: "commercial", label: "Commercial" },
-  { value: "documentary", label: "Documentary" },
-  { value: "music_video", label: "Music Video" },
-  { value: "short_film", label: "Short Film" },
-  { value: "corporate", label: "Corporate" },
-  { value: "wedding", label: "Wedding" },
-  { value: "event", label: "Event" },
-  { value: "other", label: "Other" },
+const PROJECT_TYPES: { value: ProjectType; label: string }[] = [
+  { value: "commercial",    label: "Commercial" },
+  { value: "music_video",   label: "Music Video" },
+  { value: "short_film",    label: "Short Film" },
+  { value: "feature_film",  label: "Feature Film" },
+  { value: "documentary",   label: "Documentary" },
+  { value: "corporate",     label: "Corporate / Brand" },
+  { value: "wedding",       label: "Wedding" },
+  { value: "live_event",    label: "Live Event / Concert" },
+  { value: "social_content",label: "Social Content / Reels" },
+  { value: "podcast",       label: "Podcast / Interview" },
+  { value: "reality_tv",    label: "Reality / TV Show" },
+  { value: "editorial",     label: "Editorial / News" },
+  { value: "custom",        label: "Custom…" },
 ];
 
 const STATUS_OPTIONS = [
@@ -52,6 +57,8 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
     due_date: "",
     progress: 0,
   });
+  const [projectType, setProjectType] = useState<ProjectType>("commercial");
+  const [customType, setCustomType] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
@@ -121,7 +128,8 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
         client_name: form.client_name || undefined,
         client_email: form.client_email || undefined,
         status: form.status as any,
-        type: "commercial" as any,
+        type: projectType,
+        custom_type: projectType === "custom" ? (customType.trim() || undefined) : undefined,
         description: form.description || undefined,
         due_date: form.due_date ? form.due_date : undefined,
         progress: form.progress,
@@ -194,6 +202,8 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
         progress: 0,
       });
       setSelectedTemplate(null);
+      setProjectType("commercial");
+      setCustomType("");
 
       onClose();
       onSuccess?.();
@@ -282,7 +292,30 @@ export function CreateProjectModal({ open, onClose, onSuccess }: CreateProjectMo
             </div>
           </div>
 
-          {/* Type + Status row */}
+          {/* Project type */}
+          <div className="space-y-1.5">
+            <Label>Project type</Label>
+            <Select value={projectType} onValueChange={(v) => setProjectType(v as ProjectType)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROJECT_TYPES.map((t) => (
+                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {projectType === "custom" && (
+              <Input
+                placeholder="Describe your project type…"
+                value={customType}
+                onChange={(e) => setCustomType(e.target.value)}
+                className="mt-1.5"
+              />
+            )}
+          </div>
+
+          {/* Status + Due date row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Status</Label>

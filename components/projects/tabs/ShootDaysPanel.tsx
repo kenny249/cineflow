@@ -35,6 +35,7 @@ interface CrewMember {
 interface ShootDaysPanelProps {
   projectId: string;
   projectTitle: string;
+  clientLogoUrl?: string | null;
   shots: ShotListItem[];
   onShotsUpdated: (shots: ShotListItem[]) => void;
   canEdit: boolean;
@@ -45,6 +46,7 @@ interface ShootDaysPanelProps {
 function CallSheetModal({
   day,
   projectTitle,
+  clientLogoUrl,
   shots,
   crew,
   crewCalls,
@@ -52,6 +54,7 @@ function CallSheetModal({
 }: {
   day: ShootDay;
   projectTitle: string;
+  clientLogoUrl?: string | null;
   shots: ShotListItem[];
   crew: CrewMember[];
   crewCalls: CrewCall[];
@@ -141,7 +144,12 @@ function CallSheetModal({
                 <div className="title">{projectTitle}</div>
                 <div className="subtitle">Call Sheet · Day {day.day_number}</div>
               </div>
-              <div className="badge">DAY {day.day_number}</div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                {clientLogoUrl && (
+                  <img src={clientLogoUrl} alt="client logo" style={{ height: 32, maxWidth: 100, objectFit: "contain" }} />
+                )}
+                <div className="badge">DAY {day.day_number}</div>
+              </div>
             </div>
 
             {/* Meta grid */}
@@ -291,7 +299,7 @@ function CallSheetModal({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated, canEdit }: ShootDaysPanelProps) {
+export function ShootDaysPanel({ projectId, projectTitle, clientLogoUrl, shots, onShotsUpdated, canEdit }: ShootDaysPanelProps) {
   const [days, setDays] = useState<ShootDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<ShootDay | null>(null);
@@ -862,6 +870,7 @@ export function ShootDaysPanel({ projectId, projectTitle, shots, onShotsUpdated,
         <CallSheetModal
           day={callSheetDay}
           projectTitle={projectTitle}
+          clientLogoUrl={clientLogoUrl}
           shots={shots.filter((s) => s.shoot_day_id === callSheetDay.id)}
           crew={crew}
           crewCalls={crewCalls}

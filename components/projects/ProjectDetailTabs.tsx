@@ -201,6 +201,14 @@ export default function ProjectDetailTabs({
   const [coverUrl, setCoverUrl] = useState(
     isStaleUrl(project.thumbnail_url) ? "" : (project.thumbnail_url ?? "")
   );
+  const [coverPosition, setCoverPosition] = useState(project.cover_position ?? "50% 50%");
+  const coverPositionRef = useRef(coverPosition);
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const isDraggingCover = useRef(false);
+  const dragStartMouse = useRef({ x: 0, y: 0 });
+  const dragStartPos = useRef({ x: 50, y: 50 });
+  const [isDragging, setIsDragging] = useState(false);
+
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description ?? "");
   const [status, setStatus] = useState<Project["status"]>(project.status);
@@ -218,6 +226,35 @@ export default function ProjectDetailTabs({
   const [chatDisplayName, setChatDisplayName] = useState("");
 
   // Load current user for chat
+  // ── Cover photo drag-to-reposition ──
+  useEffect(() => {
+    function parsePct(pos: string) {
+      const [x, y] = pos.split(" ").map(parseFloat);
+      return { x: isNaN(x) ? 50 : x, y: isNaN(y) ? 50 : y };
+    }
+    function onMove(e: MouseEvent) {
+      if (!isDraggingCover.current || !bannerRef.current) return;
+      const { width, height } = bannerRef.current.getBoundingClientRect();
+      const dx = e.clientX - dragStartMouse.current.x;
+      const dy = e.clientY - dragStartMouse.current.y;
+      const nx = Math.max(0, Math.min(100, dragStartPos.current.x - (dx / width) * 100));
+      const ny = Math.max(0, Math.min(100, dragStartPos.current.y - (dy / height) * 100));
+      const pos = `${nx.toFixed(1)}% ${ny.toFixed(1)}%`;
+      coverPositionRef.current = pos;
+      setCoverPosition(pos);
+    }
+    function onUp() {
+      if (!isDraggingCover.current) return;
+      isDraggingCover.current = false;
+      setIsDragging(false);
+      updateProject(project.id, { cover_position: coverPositionRef.current }).catch(() => {});
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     import("@/lib/supabase/client").then(({ createClient }) => {
       const supabase = createClient();
@@ -316,6 +353,10 @@ export default function ProjectDetailTabs({
   const [editDescription, setEditDescription] = useState(description);
   const [editClientName, setEditClientName] = useState(project.client_name ?? "");
   const [editClientEmail, setEditClientEmail] = useState(project.client_email ?? "");
+  const [editType, setEditType] = useState(project.type);
+  const [editCustomType, setEditCustomType] = useState(project.custom_type ?? "");
+  const [editClientLogoUrl, setEditClientLogoUrl] = useState(project.client_logo_url ?? "");
+  const [uploadingClientLogo, setUploadingClientLogo] = useState(false);
   const [editTags, setEditTags] = useState<string[]>(project.tags ?? []);
   const [editTagInput, setEditTagInput] = useState("");
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
@@ -1062,6 +1103,9 @@ export default function ProjectDetailTabs({
       description: editDescription,
       client_name: editClientName.trim() || undefined,
       client_email: editClientEmail.trim() || undefined,
+      type: editType,
+      custom_type: editType === "custom" ? (editCustomType.trim() || undefined) : undefined,
+      client_logo_url: editClientLogoUrl || undefined,
       tags: editTags,
     };
     setTitle(updates.title);
@@ -1148,6 +1192,9 @@ export default function ProjectDetailTabs({
     setEditDescription(description);
     setEditClientName(project.client_name ?? "");
     setEditClientEmail(project.client_email ?? "");
+    setEditType(project.type);
+    setEditCustomType(project.custom_type ?? "");
+    setEditClientLogoUrl(project.client_logo_url ?? "");
     setEditTags(project.tags ?? []);
     setEditTagInput("");
     setShowEditDialog(true);
@@ -1409,17 +1456,39 @@ export default function ProjectDetailTabs({
           </DialogContent>
         </Dialog>
 
-        <div className="relative h-28 sm:h-36 w-full overflow-hidden" data-cover>
+        <div
+          ref={bannerRef}
+          className={`relative h-28 sm:h-36 w-full overflow-hidden group/banner ${coverUrl && canEdit ? (isDragging ? "cursor-grabbing" : "cursor-grab") : ""}`}
+          data-cover
+          onMouseDown={(e) => {
+            if (!coverUrl || !canEdit || e.button !== 0) return;
+            const el = e.target as HTMLElement;
+            if (el.closest("button") || el.closest("label")) return;
+            isDraggingCover.current = true;
+            setIsDragging(true);
+            dragStartMouse.current = { x: e.clientX, y: e.clientY };
+            const parts = coverPositionRef.current.split(" ");
+            dragStartPos.current = { x: parseFloat(parts[0] ?? "50"), y: parseFloat(parts[1] ?? "50") };
+            e.preventDefault();
+          }}
+        >
           {coverUrl ? (
             <Image
               src={coverUrl}
               alt={title}
               fill
               className="object-cover"
+              style={{ objectPosition: coverPosition }}
               unoptimized
               onError={() => setCoverUrl("")}
             />
           ) : null}
+          {/* Drag hint — shown on hover when image exists */}
+          {coverUrl && canEdit && !isDragging && (
+            <div className="absolute inset-x-0 top-2 flex justify-center opacity-0 group-hover/banner:opacity-100 transition-opacity pointer-events-none">
+              <span className="rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-medium text-white/80">Drag to reposition</span>
+            </div>
+          )}
           {/* Gradient fallback always rendered behind the image */}
           <CoverGradient seed={project.id || project.title} />
           <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
@@ -1450,7 +1519,9 @@ export default function ProjectDetailTabs({
               <div className="mb-2 flex flex-wrap items-center gap-2">
                 {/* Status indicator — read-only, driven by phase completion */}
                 <StatusBadge status={status} />
-                <Badge variant="outline">{PROJECT_TYPE_LABELS[project.type]}</Badge>
+                <Badge variant="outline">
+                  {project.type === "custom" && project.custom_type ? project.custom_type : PROJECT_TYPE_LABELS[project.type]}
+                </Badge>
                 {project.tags?.map((tag) => (
                   <Badge key={tag} variant="outline">{tag}</Badge>
                 ))}
@@ -2070,6 +2141,7 @@ export default function ProjectDetailTabs({
                       <ShootDaysPanel
                         projectId={project.id}
                         projectTitle={project.title}
+                        clientLogoUrl={project.client_logo_url}
                         shots={shotList?.items ?? []}
                         onShotsUpdated={(_updated) => {
                           window.location.reload();
@@ -2811,7 +2883,7 @@ export default function ProjectDetailTabs({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit project</DialogTitle>
-            <DialogDescription>Update the project's title, description, status, and progress.</DialogDescription>
+            <DialogDescription>Update the project's title, description, type, and client details.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
@@ -2820,17 +2892,93 @@ export default function ProjectDetailTabs({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-description">Description</Label>
-              <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} placeholder="Project description" />
+              <Textarea id="edit-description" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={3} placeholder="Project description" />
             </div>
+
+            {/* Project type */}
+            <div className="space-y-1.5">
+              <Label>Project type</Label>
+              <select
+                value={editType}
+                onChange={(e) => setEditType(e.target.value as typeof editType)}
+                className="h-9 w-full rounded-lg border border-border bg-input px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+              >
+                {([
+                  ["commercial","Commercial"],["music_video","Music Video"],["short_film","Short Film"],
+                  ["feature_film","Feature Film"],["documentary","Documentary"],["corporate","Corporate / Brand"],
+                  ["wedding","Wedding"],["live_event","Live Event / Concert"],["social_content","Social Content / Reels"],
+                  ["podcast","Podcast / Interview"],["reality_tv","Reality / TV Show"],["editorial","Editorial / News"],
+                  ["custom","Custom…"],
+                ] as [string, string][]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+              {editType === "custom" && (
+                <Input
+                  value={editCustomType}
+                  onChange={(e) => setEditCustomType(e.target.value)}
+                  placeholder="Describe your project type…"
+                  className="mt-1.5"
+                />
+              )}
+            </div>
+
+            {/* Client details */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="edit-client-name">Client name</Label>
-                <Input id="edit-client-name" value={editClientName} onChange={(e) => setEditClientName(e.target.value)} placeholder="e.g. Volta EV" />
+                <Input id="edit-client-name" value={editClientName} onChange={(e) => setEditClientName(e.target.value)} placeholder="e.g. Telykast" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-client-email">Client email</Label>
                 <Input id="edit-client-email" type="email" value={editClientEmail} onChange={(e) => setEditClientEmail(e.target.value)} placeholder="client@example.com" />
               </div>
+            </div>
+
+            {/* Client / artist logo */}
+            <div className="space-y-1.5">
+              <Label>Client / Artist Logo <span className="font-normal text-muted-foreground">(appears on call sheet)</span></Label>
+              {editClientLogoUrl ? (
+                <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2">
+                  <img src={editClientLogoUrl} alt="client logo" className="h-8 max-w-[80px] object-contain" />
+                  <span className="flex-1 text-xs text-muted-foreground truncate">Logo uploaded</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditClientLogoUrl("")}
+                    className="text-muted-foreground hover:text-red-400 transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border bg-muted/10 px-4 py-3 transition-colors hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5">
+                  <Upload className="h-4 w-4 text-muted-foreground/60" />
+                  <span className="text-xs text-muted-foreground">{uploadingClientLogo ? "Uploading…" : "Upload logo (PNG, SVG, JPG)"}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingClientLogo}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadingClientLogo(true);
+                      try {
+                        const { createClient } = await import("@/lib/supabase/client");
+                        const supabase = createClient();
+                        const ext = file.name.split(".").pop();
+                        const path = `${project.id}/client-logo/logo.${ext}`;
+                        const { error } = await supabase.storage.from("uploads").upload(path, file, { upsert: true });
+                        if (error) throw error;
+                        const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
+                        setEditClientLogoUrl(publicUrl);
+                      } catch {
+                        toast.error("Logo upload failed");
+                      } finally {
+                        setUploadingClientLogo(false);
+                      }
+                    }}
+                  />
+                </label>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Tags</Label>

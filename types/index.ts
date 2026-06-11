@@ -72,13 +72,20 @@ export interface Profile {
 export type ProjectStatus = "draft" | "active" | "review" | "delivered" | "archived" | "cancelled";
 export type ProjectType =
   | "commercial"
-  | "documentary"
   | "music_video"
   | "short_film"
+  | "feature_film"
+  | "documentary"
   | "corporate"
   | "wedding"
+  | "live_event"
+  | "social_content"
+  | "podcast"
+  | "reality_tv"
+  | "editorial"
   | "event"
-  | "other";
+  | "other"
+  | "custom";
 
 export type ShotStatus = "planned" | "filming" | "completed" | "review";
 export type RevisionStatus = "draft" | "in_review" | "revisions_requested" | "approved" | "final";
@@ -113,6 +120,9 @@ export interface Project {
   due_date?: string;
   shoot_date?: string;
   thumbnail_url?: string;
+  cover_position?: string;
+  custom_type?: string;
+  client_logo_url?: string;
   created_by?: string;
   owner_id?: string;
   tags?: string[];

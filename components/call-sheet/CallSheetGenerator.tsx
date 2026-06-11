@@ -103,7 +103,7 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
 }
 
 function PrintSheet({
-  project, profile, formData, crew, locations, sheet,
+  project, profile, formData, crew, locations, sheet, clientLogoUrl,
 }: {
   project: Project;
   profile: { business_name?: string; logo_url?: string; first_name?: string; last_name?: string } | null;
@@ -111,6 +111,7 @@ function PrintSheet({
   crew: CrewWithCall[];
   locations: LocationWithParking[];
   sheet: GeneratedSheet;
+  clientLogoUrl?: string;
 }) {
   const deptMap = groupByDept(crew);
   const producerName = profile
@@ -149,8 +150,11 @@ function PrintSheet({
           </p>
         </div>
 
-        {/* Right: confidential */}
+        {/* Right: client logo + confidential */}
         <div style={{ textAlign: "right", minWidth: 120 }}>
+          {clientLogoUrl && (
+            <img src={clientLogoUrl} alt="client logo" style={{ height: 36, maxWidth: 120, objectFit: "contain", display: "block", marginLeft: "auto", marginBottom: 6 }} />
+          )}
           {formData.confidential && (
             <span style={{ display: "inline-block", border: "1.5px solid #111", padding: "2px 6px", fontSize: 8, fontWeight: 800, letterSpacing: "0.15em" }}>
               CONFIDENTIAL
@@ -494,6 +498,7 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
                   crew={crew}
                   locations={locations}
                   sheet={sheet}
+                  clientLogoUrl={project.client_logo_url}
                 />
               </div>
             </div>
@@ -557,6 +562,7 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
             crew={crew}
             locations={locations}
             sheet={sheet}
+            clientLogoUrl={project.client_logo_url}
           />
         </div>,
         document.body

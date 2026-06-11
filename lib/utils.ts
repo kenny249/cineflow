@@ -56,14 +56,21 @@ export const PROJECT_STATUS_STYLES: Record<ProjectStatus, string> = {
 };
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
-  commercial: "Commercial",
-  documentary: "Documentary",
-  music_video: "Music Video",
-  short_film: "Short Film",
-  corporate: "Corporate",
-  wedding: "Wedding",
-  event: "Event",
-  other: "Other",
+  commercial:    "Commercial",
+  music_video:   "Music Video",
+  short_film:    "Short Film",
+  feature_film:  "Feature Film",
+  documentary:   "Documentary",
+  corporate:     "Corporate / Brand",
+  wedding:       "Wedding",
+  live_event:    "Live Event / Concert",
+  social_content:"Social Content / Reels",
+  podcast:       "Podcast / Interview",
+  reality_tv:    "Reality / TV Show",
+  editorial:     "Editorial / News",
+  event:         "Event",
+  other:         "Other",
+  custom:        "Custom",
 };
 
 export const EVENT_TYPE_STYLES: Record<CalendarEventType, string> = {
