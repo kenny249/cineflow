@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       createElement(TranscriptPDFDocument, { text, filename: filename ?? "Transcript", duration: duration ?? null }) as any
     );
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${(filename ?? "transcript").replace(/[^a-z0-9\-_ ]/gi, "")}.pdf"`,
