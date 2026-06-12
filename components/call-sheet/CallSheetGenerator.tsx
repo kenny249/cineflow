@@ -75,6 +75,29 @@ interface FormData {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function cleanTimeValue(v: string) {
+  if (!v) return v;
+  const parts = v.split(":");
+  return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : v;
+}
+
+function TimeInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  return (
+    <input
+      type="time"
+      value={value}
+      className={className}
+      onFocus={(e) => {
+        if (!e.target.value) {
+          const h = String((new Date().getHours() + 1) % 24).padStart(2, "0");
+          e.target.value = `${h}:00`;
+        }
+      }}
+      onChange={(e) => onChange(cleanTimeValue(e.target.value))}
+    />
+  );
+}
+
 function to12h(t: string): string {
   if (!t || !t.includes(":")) return t || "TBD";
   const [h, m] = t.split(":").map(Number);
@@ -542,9 +565,9 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Date</label>
               <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Crew Call</label>
-              <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <TimeInput value={formData.callTime} onChange={(v) => set("callTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
-              <input type="time" value={formData.wrapTime} onChange={(e) => set("wrapTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <TimeInput value={formData.wrapTime} onChange={(v) => set("wrapTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Weather</label>
               <input value={formData.weather} onChange={(e) => set("weather", e.target.value)} placeholder="e.g. 72°F Sunny" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             {sheet.format === "scripted" && <>
@@ -598,8 +621,8 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
                   <p className="text-xs font-medium text-foreground">{m.name}</p>
                   <p className="text-[10px] text-muted-foreground">{m.role}</p>
                 </div>
-                <input type="time" value={m.callTime || formData.callTime}
-                  onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: e.target.value }; onCrewChange(u); }}
+                <TimeInput value={m.callTime || formData.callTime}
+                  onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }}
                   className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-xs font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />
               </div>
             ))}
@@ -618,7 +641,7 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
               <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Time</label>
-                  <input type="time" value={draft.time} onChange={(e) => setDraft({ ...draft, time: e.target.value })}
+                  <TimeInput value={draft.time} onChange={(v) => setDraft({ ...draft, time: v })}
                     className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
                 </div>
                 <div>
@@ -714,15 +737,15 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Date</label>
               <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">General Crew Call</label>
-              <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <TimeInput value={formData.callTime} onChange={(v) => set("callTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Doors Open</label>
-              <input type="time" value={formData.doorsTime} onChange={(e) => set("doorsTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <TimeInput value={formData.doorsTime} onChange={(v) => set("doorsTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Sound Check</label>
-              <input type="time" value={formData.soundCheckTime} onChange={(e) => set("soundCheckTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <TimeInput value={formData.soundCheckTime} onChange={(v) => set("soundCheckTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Show Start</label>
-              <input type="time" value={formData.showTime} onChange={(e) => set("showTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <TimeInput value={formData.showTime} onChange={(v) => set("showTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
-              <input type="time" value={formData.wrapTime} onChange={(e) => set("wrapTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <TimeInput value={formData.wrapTime} onChange={(v) => set("wrapTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Weather</label>
               <input value={formData.weather} onChange={(e) => set("weather", e.target.value)} placeholder="e.g. 72°F Sunny" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
           </div>
@@ -766,10 +789,9 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                   <p className="text-xs font-medium text-foreground">{m.name}</p>
                   <p className="text-[10px] text-muted-foreground">{m.role}</p>
                 </div>
-                <input
-                  type="time"
+                <TimeInput
                   value={m.callTime || defaultCallTime}
-                  onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: e.target.value }; onCrewChange(u); }}
+                  onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }}
                   className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-xs font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none"
                 />
               </div>
@@ -1219,10 +1241,10 @@ function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormD
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="General Crew Call" required>
-            <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)} className="input-style [color-scheme:dark]" />
+            <TimeInput value={formData.callTime} onChange={(v) => set("callTime", v)} className="input-style [color-scheme:dark]" />
           </Field>
           <Field label="Wrap Time" required>
-            <input type="time" value={formData.wrapTime} onChange={(e) => set("wrapTime", e.target.value)} className="input-style [color-scheme:dark]" />
+            <TimeInput value={formData.wrapTime} onChange={(v) => set("wrapTime", v)} className="input-style [color-scheme:dark]" />
           </Field>
         </div>
 
@@ -1230,13 +1252,13 @@ function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormD
         {formData.format === "live_event" && (
           <div className="grid grid-cols-3 gap-3">
             <Field label="Doors Open">
-              <input type="time" value={formData.doorsTime} onChange={(e) => set("doorsTime", e.target.value)} className="input-style [color-scheme:dark]" />
+              <TimeInput value={formData.doorsTime} onChange={(v) => set("doorsTime", v)} className="input-style [color-scheme:dark]" />
             </Field>
             <Field label="Sound Check">
-              <input type="time" value={formData.soundCheckTime} onChange={(e) => set("soundCheckTime", e.target.value)} className="input-style [color-scheme:dark]" />
+              <TimeInput value={formData.soundCheckTime} onChange={(v) => set("soundCheckTime", v)} className="input-style [color-scheme:dark]" />
             </Field>
             <Field label="Show Start">
-              <input type="time" value={formData.showTime} onChange={(e) => set("showTime", e.target.value)} className="input-style [color-scheme:dark]" />
+              <TimeInput value={formData.showTime} onChange={(v) => set("showTime", v)} className="input-style [color-scheme:dark]" />
             </Field>
           </div>
         )}
@@ -1407,8 +1429,8 @@ function Step3({ crew, formData, onChange }: { crew: CrewWithCall[]; formData: F
                     placeholder="Phone"
                     className="hidden w-32 rounded-lg border border-border bg-background px-2 py-1 text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:border-[#d4a853]/50 focus:outline-none sm:block"
                   />
-                  <input type="time" value={m.callTime || formData.callTime}
-                    onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: e.target.value }; onChange(u); }}
+                  <TimeInput value={m.callTime || formData.callTime}
+                    onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onChange(u); }}
                     className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-sm font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />
                 </div>
               );
