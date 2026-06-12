@@ -37,16 +37,15 @@ function SectionHeader({ label, number }: { label: string; number: string }) {
   );
 }
 
-export function SharedBriefClient() {
+export function SharedBriefClient({ token }: { token: string }) {
   const [metrics, setMetrics] = useState<LiveMetrics>({ totalUsers: 0, activeTrials: 0, activeRecently: 0, totalProjects: 0 });
 
   useEffect(() => {
-    // Metrics from a public endpoint that only returns aggregate counts — no PII
-    fetch("/api/share/brief/metrics")
+    fetch(`/api/share/brief/metrics?t=${token}`)
       .then((r) => r.json())
       .then((d) => { if (!d.error) setMetrics({ ...d, activeRecently: d.activeRecently ?? 0 }); })
       .catch(() => {});
-  }, []);
+  }, [token]);
 
   const pricingChartData = [
     { name: "CineFlow", price: 39, fill: GOLD },

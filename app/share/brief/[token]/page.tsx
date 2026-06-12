@@ -15,5 +15,5 @@ export default async function SharedBriefPage({
     notFound();
   }
 
-  return <SharedBriefClient />;
+  return <SharedBriefClient token={token} />;
 }

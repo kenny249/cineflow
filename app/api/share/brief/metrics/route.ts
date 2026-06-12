@@ -12,12 +12,13 @@ function getAdmin() {
 }
 
 // Public endpoint — aggregate counts only, zero PII.
-// Gated by referer containing the share token.
+// Gated by ?t=token matching BRIEF_SHARE_TOKEN env var.
 export async function GET(req: NextRequest) {
   try {
-    const referer = req.headers.get("referer") ?? "";
-    const token = process.env.BRIEF_SHARE_TOKEN;
-    if (!token || !referer.includes(token)) {
+    const { searchParams } = new URL(req.url);
+    const provided = searchParams.get("t") ?? "";
+    const validToken = process.env.BRIEF_SHARE_TOKEN;
+    if (!validToken || provided !== validToken) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

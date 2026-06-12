@@ -404,10 +404,18 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium leading-tight text-white">
-                        {u.name ?? <span className="font-normal text-zinc-500">—</span>}
-                        {u.is_admin && <Shield className="ml-1 inline h-3 w-3 text-[#d4a853]" />}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium leading-tight text-white">
+                          {u.name ?? <span className="font-normal text-zinc-500">—</span>}
+                          {u.is_admin && <Shield className="ml-1 inline h-3 w-3 text-[#d4a853]" />}
+                        </p>
+                        {u.is_test && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full border border-zinc-700 bg-zinc-800 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-zinc-500">
+                            <FlaskConical className="h-2.5 w-2.5" />
+                            test
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-zinc-500">{u.email}</p>
                       {u.company && <p className="text-xs text-zinc-600">{u.company}</p>}
                     </div>
