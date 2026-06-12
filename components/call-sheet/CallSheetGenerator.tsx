@@ -59,6 +59,17 @@ interface FormData {
   weather: string;
   confidential: boolean;
   directorNote: string;
+  // All formats
+  emergencyContact: string;
+  walkieChannels: string;
+  // Live event
+  doorsTime: string;
+  showTime: string;
+  // Scripted / Interview
+  shootDay: string;
+  scriptRevision: string;
+  // Interview
+  interviewSubjects: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -145,11 +156,28 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
       </div>
 
       {/* Call time bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#111", color: "#fff", borderRadius: 6, padding: "10px 16px", marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#111", color: "#fff", borderRadius: 6, padding: "10px 16px", marginBottom: 6 }}>
         <div>
           <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>General Crew Call</p>
           <p style={{ fontSize: 28, fontWeight: 900, fontFamily: "monospace", margin: 0, letterSpacing: "0.05em" }}>{to12h(formData.callTime)}</p>
         </div>
+        {formData.format === "live_event" && (formData.doorsTime || formData.showTime) ? (
+          <>
+            {formData.doorsTime && <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Doors Open</p>
+              <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.doorsTime)}</p>
+            </div>}
+            {formData.showTime && <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Show Start</p>
+              <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.showTime)}</p>
+            </div>}
+          </>
+        ) : (formData.shootDay || formData.scriptRevision) ? (
+          <div style={{ textAlign: "center" }}>
+            {formData.shootDay && <p style={{ fontSize: 11, fontWeight: 700, color: "#fff", margin: 0 }}>{formData.shootDay}</p>}
+            {formData.scriptRevision && <p style={{ fontSize: 9, color: "#9ca3af", margin: "2px 0 0" }}>{formData.scriptRevision}</p>}
+          </div>
+        ) : null}
         <div style={{ textAlign: "center" }}>
           <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Wrap</p>
           <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.wrapTime)}</p>
@@ -163,6 +191,21 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
           <p style={{ fontSize: 10, fontWeight: 600, margin: 0 }}>{formData.hospital || "See location contact"}</p>
         </div>
       </div>
+
+      {/* Supplemental info strip — key contact + walkie channels */}
+      {(formData.emergencyContact || formData.walkieChannels || formData.interviewSubjects) && (
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 4, padding: "5px 12px", marginBottom: 10, fontSize: 9 }}>
+          {formData.emergencyContact && (
+            <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Key Contact: </span><span style={{ color: "#111", fontWeight: 600 }}>{formData.emergencyContact}</span></span>
+          )}
+          {formData.walkieChannels && (
+            <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Walkie: </span><span style={{ color: "#111" }}>{formData.walkieChannels}</span></span>
+          )}
+          {formData.interviewSubjects && (
+            <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Subject(s): </span><span style={{ color: "#111" }}>{formData.interviewSubjects}</span></span>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -707,6 +750,13 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
     weather: "",
     confidential: false,
     directorNote: "",
+    emergencyContact: "",
+    walkieChannels: "",
+    doorsTime: "",
+    showTime: "",
+    shootDay: "",
+    scriptRevision: "",
+    interviewSubjects: "",
   });
 
   useEffect(() => { setIsMounted(true); }, []);
@@ -831,7 +881,7 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
         {/* Step content */}
         <div className="flex-1 overflow-y-auto">
           {step === 1 && <Step1 formData={formData} onChange={setFormData} />}
-          {step === 2 && <Step2 locations={locations} onChange={setLocations} />}
+          {step === 2 && <Step2 locations={locations} onChange={setLocations} onHospitalFound={(h) => setFormData((f) => ({ ...f, hospital: f.hospital || h }))} />}
           {step === 3 && <Step3 crew={crew} formData={formData} onChange={setCrew} />}
           {step === 4 && <Step4 formData={formData} onChange={setFormData} shotCount={shotItems.length} crewCount={crew.length} />}
           {step === 5 && sheet && (
@@ -958,25 +1008,77 @@ function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormD
         </div>
       </div>
 
-      {/* Basics */}
+      {/* Shoot Details */}
       <div className="space-y-4">
         <h3 className="font-display text-sm font-semibold text-foreground">Shoot Details</h3>
         <Field label="Shoot Date" required>
           <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="input-style [color-scheme:dark]" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="General Call Time" required>
+          <Field label="General Crew Call" required>
             <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)} className="input-style [color-scheme:dark]" />
           </Field>
           <Field label="Wrap Time" required>
             <input type="time" value={formData.wrapTime} onChange={(e) => set("wrapTime", e.target.value)} className="input-style [color-scheme:dark]" />
           </Field>
         </div>
-        <Field label="Nearest Hospital" hint="Required on professional sets">
+
+        {/* Live event: doors + show time */}
+        {formData.format === "live_event" && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Doors Open">
+              <input type="time" value={formData.doorsTime} onChange={(e) => set("doorsTime", e.target.value)} className="input-style [color-scheme:dark]" />
+            </Field>
+            <Field label="Show Start">
+              <input type="time" value={formData.showTime} onChange={(e) => set("showTime", e.target.value)} className="input-style [color-scheme:dark]" />
+            </Field>
+          </div>
+        )}
+
+        {/* Scripted / Interview: shoot day + revision */}
+        {(formData.format === "scripted" || formData.format === "interview") && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Shoot Day" hint="e.g. Day 3 of 15">
+              <input placeholder="Day 1 of 5" value={formData.shootDay} onChange={(e) => set("shootDay", e.target.value)} className="input-style" />
+            </Field>
+            {formData.format === "scripted" && (
+              <Field label="Script Revision">
+                <select value={formData.scriptRevision} onChange={(e) => set("scriptRevision", e.target.value)} className="input-style">
+                  <option value="">— None —</option>
+                  <option value="White">White</option>
+                  <option value="Blue Rev.">Blue Rev.</option>
+                  <option value="Pink Rev.">Pink Rev.</option>
+                  <option value="Yellow Rev.">Yellow Rev.</option>
+                  <option value="Green Rev.">Green Rev.</option>
+                  <option value="Goldenrod Rev.">Goldenrod Rev.</option>
+                  <option value="Buff Rev.">Buff Rev.</option>
+                  <option value="Salmon Rev.">Salmon Rev.</option>
+                  <option value="Cherry Rev.">Cherry Rev.</option>
+                  <option value="Double White">Double White</option>
+                </select>
+              </Field>
+            )}
+          </div>
+        )}
+
+        {/* Interview: subjects */}
+        {formData.format === "interview" && (
+          <Field label="Interview Subject(s)" hint="Who is being interviewed">
+            <input placeholder="e.g. Jane Smith, John Doe" value={formData.interviewSubjects} onChange={(e) => set("interviewSubjects", e.target.value)} className="input-style" />
+          </Field>
+        )}
+
+        <Field label="Weather" hint="Brief forecast for crew">
+          <input placeholder="e.g. Sunny, 78°F — light breeze expected" value={formData.weather} onChange={(e) => set("weather", e.target.value)} className="input-style" />
+        </Field>
+        <Field label="Nearest Hospital" hint="Always verify before distributing">
           <input placeholder="e.g. Cedars-Sinai Medical Center, 8700 Beverly Blvd" value={formData.hospital} onChange={(e) => set("hospital", e.target.value)} className="input-style" />
         </Field>
-        <Field label="Weather" hint="Brief description for the crew">
-          <input placeholder="e.g. Sunny, 78°F — light breeze expected" value={formData.weather} onChange={(e) => set("weather", e.target.value)} className="input-style" />
+        <Field label="Key Contact" hint="1st AD, producer, or main point of contact">
+          <input placeholder="e.g. Jane Smith (1st AD) — 310-555-0100" value={formData.emergencyContact} onChange={(e) => set("emergencyContact", e.target.value)} className="input-style" />
+        </Field>
+        <Field label="Walkie Channels" hint="Radio channel assignments for departments">
+          <input placeholder="e.g. Ch.1 — AD / Ch.2 — Camera / Ch.3 — Sound" value={formData.walkieChannels} onChange={(e) => set("walkieChannels", e.target.value)} className="input-style" />
         </Field>
         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card p-4">
           <input type="checkbox" checked={formData.confidential} onChange={(e) => set("confidential", e.target.checked)} className="h-4 w-4 rounded accent-[#d4a853]" />
@@ -992,28 +1094,72 @@ function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormD
 
 // ─── Step 2: Locations ────────────────────────────────────────────────────────
 
-function Step2({ locations, onChange }: { locations: LocationWithParking[]; onChange: (l: LocationWithParking[]) => void }) {
+function Step2({ locations, onChange, onHospitalFound }: {
+  locations: LocationWithParking[];
+  onChange: (l: LocationWithParking[]) => void;
+  onHospitalFound: (hospital: string) => void;
+}) {
+  const [lookingUp, setLookingUp] = useState<string | null>(null);
+
+  async function handleLookup(loc: LocationWithParking, i: number) {
+    setLookingUp(loc.id);
+    try {
+      const res = await fetch("/api/call-sheet/venue-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ venueName: loc.name }),
+      });
+      const data = await res.json();
+      if (data.address) {
+        const u = [...locations];
+        u[i] = { ...u[i], address: data.address } as LocationWithParking;
+        onChange(u);
+        toast.success(`Address found for ${loc.name}`);
+      } else {
+        toast.error("Couldn't find address — enter it manually");
+      }
+      if (data.nearestHospital) {
+        onHospitalFound(data.nearestHospital);
+        toast.success("Nearest hospital auto-filled");
+      }
+    } catch {
+      toast.error("Lookup failed — check your connection");
+    } finally {
+      setLookingUp(null);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-xl px-6 py-8 space-y-5">
       <div>
         <h3 className="font-display text-base font-semibold text-foreground">Locations</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Pre-filled from your project. Add parking notes for crew.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Pre-filled from your project. Use "Find Address" to auto-fill the address and nearest hospital.</p>
       </div>
       {locations.length === 0 && (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No locations saved on this project — add them in the Locations tab.</div>
       )}
       {locations.map((loc, i) => (
         <div key={loc.id} className="rounded-xl border border-border bg-card p-4 space-y-3">
-          <div className="flex items-start gap-2">
-            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#d4a853]" />
-            <div className="min-w-0">
-              <p className="font-medium text-foreground">{loc.name}</p>
-              {loc.address && <p className="text-xs text-muted-foreground">{loc.address}</p>}
-              {loc.contact_name && <p className="text-xs text-muted-foreground">Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}</p>}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-2 min-w-0">
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#d4a853]" />
+              <div className="min-w-0">
+                <p className="font-medium text-foreground">{loc.name}</p>
+                {loc.address && <p className="text-xs text-muted-foreground">{loc.address}</p>}
+                {loc.contact_name && <p className="text-xs text-muted-foreground">Contact: {loc.contact_name}{loc.contact_phone ? ` · ${loc.contact_phone}` : ""}</p>}
+              </div>
             </div>
+            <button
+              onClick={() => handleLookup(loc, i)}
+              disabled={lookingUp === loc.id}
+              className="shrink-0 flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 transition-colors"
+            >
+              {lookingUp === loc.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <MapPin className="h-3 w-3" />}
+              {lookingUp === loc.id ? "Looking up…" : "Find Address"}
+            </button>
           </div>
-          <Field label="Parking notes">
-            <input placeholder="e.g. Artist Parking — 2 spots under Telykast" value={loc.parkingNotes}
+          <Field label="Parking / Load-In Notes">
+            <input placeholder="e.g. Artist Parking — 2 spots under Telykast name" value={loc.parkingNotes}
               onChange={(e) => { const u = [...locations]; u[i] = { ...u[i], parkingNotes: e.target.value }; onChange(u); }}
               className="input-style" />
           </Field>
@@ -1049,7 +1195,12 @@ function Step3({ crew, formData, onChange }: { crew: CrewWithCall[]; formData: F
                     <p className="text-sm font-medium text-foreground">{m.name}</p>
                     <p className="text-xs text-muted-foreground">{m.role}</p>
                   </div>
-                  {m.phone && <p className="hidden text-xs text-muted-foreground sm:block">{m.phone}</p>}
+                  <input
+                    value={m.phone ?? ""}
+                    onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], phone: e.target.value }; onChange(u); }}
+                    placeholder="Phone"
+                    className="hidden w-32 rounded-lg border border-border bg-background px-2 py-1 text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:border-[#d4a853]/50 focus:outline-none sm:block"
+                  />
                   <input type="time" value={m.callTime || formData.callTime}
                     onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: e.target.value }; onChange(u); }}
                     className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-sm font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />

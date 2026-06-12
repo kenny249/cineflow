@@ -46,6 +46,7 @@ export type CSSheet =
   | { format: "live_event"; coverage: CSCoverageAssignment[]; staticCameras: CSStaticCamera[]; keyMoments: CSKeyMoment[]; warning: string | null };
 
 export interface CSFormData {
+  format?: string;
   shootDate: string;
   callTime: string;
   wrapTime: string;
@@ -53,6 +54,13 @@ export interface CSFormData {
   weather: string;
   confidential: boolean;
   directorNote: string;
+  emergencyContact?: string;
+  walkieChannels?: string;
+  doorsTime?: string;
+  showTime?: string;
+  shootDay?: string;
+  scriptRevision?: string;
+  interviewSubjects?: string;
 }
 export interface CSProfile {
   first_name?: string;
@@ -292,11 +300,28 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
         </View>
       </View>
 
-      <View style={s.callBar}>
+      <View style={[s.callBar, { marginBottom: 6 }]}>
         <View>
           <Text style={s.callBarLabel}>General Crew Call</Text>
           <Text style={s.callTime}>{to12h(formData.callTime)}</Text>
         </View>
+        {formData.format === "live_event" && (formData.doorsTime || formData.showTime) ? (
+          <>
+            {formData.doorsTime ? <View style={{ alignItems: "center" }}>
+              <Text style={s.callBarLabel}>Doors Open</Text>
+              <Text style={s.wrapTime}>{to12h(formData.doorsTime)}</Text>
+            </View> : null}
+            {formData.showTime ? <View style={{ alignItems: "center" }}>
+              <Text style={s.callBarLabel}>Show Start</Text>
+              <Text style={s.wrapTime}>{to12h(formData.showTime)}</Text>
+            </View> : null}
+          </>
+        ) : (formData.shootDay || formData.scriptRevision) ? (
+          <View style={{ alignItems: "center" }}>
+            {formData.shootDay ? <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: WHITE }}>{formData.shootDay}</Text> : null}
+            {formData.scriptRevision ? <Text style={{ fontSize: 7, color: LGRAY, marginTop: 2 }}>{formData.scriptRevision}</Text> : null}
+          </View>
+        ) : null}
         <View style={{ alignItems: "center" }}>
           <Text style={s.callBarLabel}>Wrap</Text>
           <Text style={s.wrapTime}>{to12h(formData.wrapTime)}</Text>
@@ -310,6 +335,30 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
           <Text style={s.callBarSmall}>{formData.hospital || "See location contact"}</Text>
         </View>
       </View>
+
+      {/* Supplemental strip — key contact, walkie channels, interview subjects */}
+      {(formData.emergencyContact || formData.walkieChannels || formData.interviewSubjects) ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16, backgroundColor: FAINT, borderWidth: 1, borderColor: BORDER, borderRadius: 3, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10 }}>
+          {formData.emergencyContact ? (
+            <View style={{ flexDirection: "row", gap: 4 }}>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Key Contact: </Text>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.emergencyContact}</Text>
+            </View>
+          ) : null}
+          {formData.walkieChannels ? (
+            <View style={{ flexDirection: "row", gap: 4 }}>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Walkie: </Text>
+              <Text style={{ fontSize: 6, color: BLACK }}>{formData.walkieChannels}</Text>
+            </View>
+          ) : null}
+          {formData.interviewSubjects ? (
+            <View style={{ flexDirection: "row", gap: 4 }}>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Subject(s): </Text>
+              <Text style={{ fontSize: 6, color: BLACK }}>{formData.interviewSubjects}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </>
   );
 }
