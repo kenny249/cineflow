@@ -57,6 +57,7 @@ export interface CSFormData {
   emergencyContact?: string;
   walkieChannels?: string;
   doorsTime?: string;
+  soundCheckTime?: string;
   showTime?: string;
   shootDay?: string;
   scriptRevision?: string;
@@ -305,11 +306,15 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
           <Text style={s.callBarLabel}>General Crew Call</Text>
           <Text style={s.callTime}>{to12h(formData.callTime)}</Text>
         </View>
-        {formData.format === "live_event" && (formData.doorsTime || formData.showTime) ? (
+        {formData.format === "live_event" && (formData.doorsTime || formData.soundCheckTime || formData.showTime) ? (
           <>
             {formData.doorsTime ? <View style={{ alignItems: "center" }}>
               <Text style={s.callBarLabel}>Doors Open</Text>
               <Text style={s.wrapTime}>{to12h(formData.doorsTime)}</Text>
+            </View> : null}
+            {formData.soundCheckTime ? <View style={{ alignItems: "center" }}>
+              <Text style={s.callBarLabel}>Sound Check</Text>
+              <Text style={s.wrapTime}>{to12h(formData.soundCheckTime)}</Text>
             </View> : null}
             {formData.showTime ? <View style={{ alignItems: "center" }}>
               <Text style={s.callBarLabel}>Show Start</Text>

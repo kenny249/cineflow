@@ -64,6 +64,7 @@ interface FormData {
   walkieChannels: string;
   // Live event
   doorsTime: string;
+  soundCheckTime: string;
   showTime: string;
   // Scripted / Interview
   shootDay: string;
@@ -161,11 +162,15 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
           <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>General Crew Call</p>
           <p style={{ fontSize: 28, fontWeight: 900, fontFamily: "monospace", margin: 0, letterSpacing: "0.05em" }}>{to12h(formData.callTime)}</p>
         </div>
-        {formData.format === "live_event" && (formData.doorsTime || formData.showTime) ? (
+        {formData.format === "live_event" && (formData.doorsTime || formData.soundCheckTime || formData.showTime) ? (
           <>
             {formData.doorsTime && <div style={{ textAlign: "center" }}>
               <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Doors Open</p>
               <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.doorsTime)}</p>
+            </div>}
+            {formData.soundCheckTime && <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Sound Check</p>
+              <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.soundCheckTime)}</p>
             </div>}
             {formData.showTime && <div style={{ textAlign: "center" }}>
               <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Show Start</p>
@@ -710,6 +715,8 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
               <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Doors Open</label>
               <input type="time" value={formData.doorsTime} onChange={(e) => set("doorsTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Sound Check</label>
+              <input type="time" value={formData.soundCheckTime} onChange={(e) => set("soundCheckTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Show Start</label>
               <input type="time" value={formData.showTime} onChange={(e) => set("showTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
@@ -946,6 +953,7 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
     emergencyContact: "",
     walkieChannels: "",
     doorsTime: "",
+    soundCheckTime: "",
     showTime: "",
     shootDay: "",
     scriptRevision: "",
@@ -1216,11 +1224,14 @@ function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormD
           </Field>
         </div>
 
-        {/* Live event: doors + show time */}
+        {/* Live event: doors + sound check + show time */}
         {formData.format === "live_event" && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Field label="Doors Open">
               <input type="time" value={formData.doorsTime} onChange={(e) => set("doorsTime", e.target.value)} className="input-style [color-scheme:dark]" />
+            </Field>
+            <Field label="Sound Check">
+              <input type="time" value={formData.soundCheckTime} onChange={(e) => set("soundCheckTime", e.target.value)} className="input-style [color-scheme:dark]" />
             </Field>
             <Field label="Show Start">
               <input type="time" value={formData.showTime} onChange={(e) => set("showTime", e.target.value)} className="input-style [color-scheme:dark]" />
