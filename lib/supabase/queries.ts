@@ -2090,3 +2090,12 @@ export async function deleteProjectTranscript(id: string): Promise<void> {
   const { error } = await client.from("project_transcripts").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+export async function updateProjectTranscriptText(id: string, transcript: string): Promise<void> {
+  const client = createClient();
+  const { error } = await client
+    .from("project_transcripts")
+    .update({ transcript })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}

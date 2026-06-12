@@ -24,6 +24,7 @@ export default function EditorToolsPage() {
   const [tab, setTab]           = useState<Tab>("log");
   const [sessions, setSessions] = useState<EditSession[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [historyKey, setHistoryKey] = useState(0);
 
   useEffect(() => {
     getEditSessions()
@@ -90,14 +91,14 @@ export default function EditorToolsPage() {
           {tab === "delivery" && <DeliverySpecs />}
           {tab === "transcribe" && (
             <div className="space-y-10">
-              <AudioTranscriber />
+              <AudioTranscriber onTranscriptSaved={() => setHistoryKey((k) => k + 1)} />
               <div>
                 <div className="mb-4 flex items-center gap-3">
                   <div className="h-px flex-1 bg-border" />
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">Saved Transcripts</p>
                   <div className="h-px flex-1 bg-border" />
                 </div>
-                <TranscriptHistory />
+                <TranscriptHistory key={historyKey} />
               </div>
             </div>
           )}

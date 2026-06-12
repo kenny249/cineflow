@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Upload, FileAudio, Copy, Download, CheckCheck, X, Loader2, AlertCircle, FolderOpen, ChevronDown } from "lucide-react";
+import { Upload, FileAudio, Copy, Download, CheckCheck, X, Loader2, AlertCircle, FolderOpen, ChevronDown, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
@@ -32,7 +32,7 @@ function formatDuration(secs: number) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-export function AudioTranscriber() {
+export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: () => void }) {
   const [state, setState] = useState<State>({ phase: "idle" });
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -42,6 +42,9 @@ export function AudioTranscriber() {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
   const [savedToProject, setSavedToProject] = useState<string | null>(null);
+  // Inline editing
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Restore from localStorage on mount
@@ -203,8 +206,29 @@ export function AudioTranscriber() {
       setSavedToProject(project.title);
       setShowProjectPicker(false);
       toast.success(`Saved to "${project.title}"`);
+      onTranscriptSaved?.();
     } catch { toast.error("Failed to save to project"); }
     finally { setSavingProject(false); }
+  }
+
+  function startEdit() {
+    if (state.phase !== "done") return;
+    setEditText(state.text);
+    setIsEditing(true);
+  }
+
+  function saveEdit() {
+    if (state.phase !== "done") return;
+    setState({ ...state, text: editText });
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        localStorage.setItem(LS_KEY, JSON.stringify({ ...parsed, text: editText }));
+      }
+    } catch {}
+    setIsEditing(false);
+    toast.success("Transcript updated");
   }
 
   function reset() {
@@ -289,14 +313,30 @@ export function AudioTranscriber() {
           <div className="rounded-xl border border-border bg-white/[0.02]">
             <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-auto">Transcript</p>
-              <button onClick={copyText} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
-                {copied ? <CheckCheck className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "Copied" : "Copy"}
-              </button>
-              <button onClick={downloadPDF} disabled={pdfLoading} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-50 transition-colors">
-                {pdfLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                {pdfLoading ? "Generating…" : "Download PDF"}
-              </button>
+              {isEditing ? (
+                <>
+                  <button onClick={() => setIsEditing(false)} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={saveEdit} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 transition-colors">
+                    Save edits
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={startEdit} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </button>
+                  <button onClick={copyText} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
+                    {copied ? <CheckCheck className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                  <button onClick={downloadPDF} disabled={pdfLoading} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-50 transition-colors">
+                    {pdfLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    {pdfLoading ? "Generating…" : "Download PDF"}
+                  </button>
+                </>
+              )}
 
               {/* Save to Project picker */}
               <div className="relative">
@@ -343,7 +383,16 @@ export function AudioTranscriber() {
               </div>
             </div>
             <div className="max-h-[480px] overflow-y-auto custom-scrollbar p-5">
-              <p className="whitespace-pre-wrap text-sm leading-7 text-foreground/90">{state.text}</p>
+              {isEditing ? (
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="w-full resize-none rounded-lg border border-[#d4a853]/30 bg-white/[0.03] p-3 text-sm leading-7 text-foreground focus:border-[#d4a853]/60 focus:outline-none transition-colors"
+                  rows={Math.max(10, editText.split("\n").length)}
+                />
+              ) : (
+                <p className="whitespace-pre-wrap text-sm leading-7 text-foreground/90">{state.text}</p>
+              )}
             </div>
           </div>
 

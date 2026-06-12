@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Sparkles, Loader2, Copy, CheckCheck, ChevronDown, ChevronUp, Save } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -70,6 +70,7 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
   const [saved, setSaved] = useState(false);
   const [expandedCuts, setExpandedCuts] = useState<Record<number, boolean>>({});
   const { copiedKey, copy } = useCopyText();
+  const outputRef = useRef<HTMLDivElement>(null);
 
   function toggleVibe(v: string) {
     setVibes((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
@@ -93,7 +94,7 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
       const { cutList: cl } = await res.json();
       setCutList({ ...cl, brief, saved_at: new Date().toISOString() });
       // auto-scroll to results
-      setTimeout(() => document.getElementById("cut-list-output")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      setTimeout(() => outputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
     } catch {
       toast.error("Generation failed. Try again.");
     } finally {
@@ -201,7 +202,7 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
 
       {/* Output */}
       {cutList && (
-        <div id="cut-list-output" className="border-t border-[#d4a853]/15">
+        <div ref={outputRef} className="border-t border-[#d4a853]/15">
           {/* Result header */}
           <div className="flex items-center justify-between px-5 py-4">
             <div>
