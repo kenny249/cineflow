@@ -1991,3 +1991,87 @@ export async function deleteQuoteEstimate(id: string): Promise<void> {
   const { error } = await client.from("quote_estimates").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+// ── Project Transcripts ───────────────────────────────────────────────────────
+
+export type ProjectTranscript = {
+  id: string;
+  project_id: string;
+  created_by: string | null;
+  filename: string;
+  file_size_bytes: number | null;
+  duration_secs: number | null;
+  transcript: string;
+  cut_lists: CutListSave[];
+  created_at: string;
+};
+
+export type CutListSave = {
+  format: string;
+  total_duration: string;
+  cuts: { label: string; timecode_hint: string; quote: string; speaker: string | null; note: string }[];
+  caption_suggestions: string[];
+  hook_options: string[];
+  editor_notes: string;
+  brief: string;
+  saved_at: string;
+};
+
+export async function getProjectTranscripts(projectId: string): Promise<ProjectTranscript[]> {
+  const client = createClient();
+  const { data, error } = await client
+    .from("project_transcripts")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ProjectTranscript[];
+}
+
+export async function saveProjectTranscript(params: {
+  projectId: string;
+  filename: string;
+  fileSizeBytes: number;
+  durationSecs: number | null;
+  transcript: string;
+}): Promise<ProjectTranscript> {
+  const client = createClient();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+  const { data, error } = await client
+    .from("project_transcripts")
+    .insert({
+      project_id: params.projectId,
+      created_by: user.id,
+      filename: params.filename,
+      file_size_bytes: params.fileSizeBytes,
+      duration_secs: params.durationSecs,
+      transcript: params.transcript,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as ProjectTranscript;
+}
+
+export async function appendTranscriptCutList(transcriptId: string, cutList: CutListSave): Promise<void> {
+  const client = createClient();
+  const { data: existing, error: fetchErr } = await client
+    .from("project_transcripts")
+    .select("cut_lists")
+    .eq("id", transcriptId)
+    .single();
+  if (fetchErr) throw new Error(fetchErr.message);
+  const current: CutListSave[] = existing?.cut_lists ?? [];
+  const { error } = await client
+    .from("project_transcripts")
+    .update({ cut_lists: [cutList, ...current] })
+    .eq("id", transcriptId);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteProjectTranscript(id: string): Promise<void> {
+  const client = createClient();
+  const { error } = await client.from("project_transcripts").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}

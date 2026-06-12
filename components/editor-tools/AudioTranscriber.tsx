@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { Upload, FileAudio, Copy, Download, CheckCheck, X, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
 
 const ACCEPTED_EXT = [".mp3", ".mp4", ".m4a", ".wav", ".ogg", ".flac", ".aac", ".webm"];
 const MAX_MB = 500;
@@ -290,6 +291,9 @@ export function AudioTranscriber() {
               <p className="whitespace-pre-wrap text-sm leading-7 text-foreground/90">{state.text}</p>
             </div>
           </div>
+
+          {/* AI Content Intelligence — standalone, nothing saved */}
+          <AIContentPanel transcript={state.text} filename={state.file.name} />
 
           <button
             onClick={reset}
