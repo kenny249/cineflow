@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
-import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical, Film, Clapperboard, Camera, Repeat2 } from "lucide-react";
+import { LayoutDashboard, FolderKanban, Calendar, CheckSquare, ClipboardList, FileSignature, ScrollText, UsersRound, MoreHorizontal, X, DollarSign, Users, Settings, FlaskConical, Film, Clapperboard, Camera, Repeat2, ShieldCheck } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { SidebarDivider } from "./SidebarDivider";
@@ -94,6 +94,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
   const [workspaceRole, setWorkspaceRole] = useState<"owner" | "admin" | "member">("owner");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [announcements, setAnnouncements] = useState<{ id: string; message: string; type: string }[]>([]);
   const router = useRouter();
   const pathname = usePathname();
@@ -105,7 +106,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
       if (!user) return;
       if (user.user_metadata?.is_demo === true) setIsDemoUser(true);
       Promise.all([
-        supabase.from("profiles").select("plan, plan_status, trial_ends_at, first_name, last_name, avatar_url, workspace_id").eq("id", user.id).single(),
+        supabase.from("profiles").select("plan, plan_status, trial_ends_at, first_name, last_name, avatar_url, workspace_id, is_admin").eq("id", user.id).single(),
         supabase.rpc("get_member_role"),
       ]).then(([{ data }, { data: role }]) => {
           if (data?.plan) {
@@ -125,6 +126,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
             if (emailName) setProfileName(emailName);
           }
           if (data?.avatar_url) setProfileAvatarUrl(data.avatar_url);
+          if (data?.is_admin) setIsAdmin(true);
           if (role) setWorkspaceRole(role as "owner" | "admin" | "member");
         }).catch(() => { setProfileLoaded(true); });
     });
@@ -379,6 +381,28 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
                   );
                 })}
               </div>
+
+              {/* Admin portal — only for is_admin users */}
+              {isAdmin && (
+                <div className="px-4 pb-3">
+                  <Link
+                    href="/admin"
+                    onClick={() => setMoreOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-2xl border px-4 py-3.5 transition-all duration-150 active:scale-95",
+                      pathname.startsWith("/admin")
+                        ? "border-violet-500/30 bg-violet-500/10 text-violet-400"
+                        : "border-violet-500/20 bg-violet-500/[0.05] text-violet-400/80 hover:border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-400"
+                    )}
+                  >
+                    <ShieldCheck className="h-5 w-5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold leading-tight">Admin Portal</p>
+                      <p className="text-[10px] text-violet-400/50 leading-tight">War Room & Controls</p>
+                    </div>
+                  </Link>
+                </div>
+              )}
 
               {/* Safe area spacer */}
               <div className="h-[max(1rem,env(safe-area-inset-bottom))]" />

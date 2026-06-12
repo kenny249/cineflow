@@ -307,15 +307,15 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
           <Text style={s.callBarLabel}>General Crew Call</Text>
           <Text style={s.callTime}>{to12h(formData.callTime)}</Text>
         </View>
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           {formData.format === "live_event" ? (<>
-            {formData.doorsTime ? <View style={{ alignItems: "center" }}>
-              <Text style={s.callBarLabel}>Doors Open</Text>
-              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.doorsTime)}</Text>
-            </View> : null}
             {formData.soundCheckTime ? <View style={{ alignItems: "center" }}>
               <Text style={s.callBarLabel}>Sound Check</Text>
               <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.soundCheckTime)}</Text>
+            </View> : null}
+            {formData.doorsTime ? <View style={{ alignItems: "center" }}>
+              <Text style={s.callBarLabel}>Doors Open</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.doorsTime)}</Text>
             </View> : null}
             {formData.showTime ? <View style={{ alignItems: "center" }}>
               <Text style={s.callBarLabel}>Show Start</Text>
@@ -338,9 +338,15 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
         </View>
       </View>
 
-      {/* Supplemental strip — weather, hospital, key contact, walkie, subjects */}
-      {(formData.weather || formData.hospital || formData.emergencyContact || formData.walkieChannels || formData.interviewSubjects) ? (
+      {/* Supplemental strip — key contact, weather, hospital, walkie, subjects */}
+      {(formData.emergencyContact || formData.weather || formData.hospital || formData.walkieChannels || formData.interviewSubjects) ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, backgroundColor: FAINT, borderWidth: 1, borderColor: BORDER, borderRadius: 3, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10 }}>
+          {formData.emergencyContact ? (
+            <View style={{ flexDirection: "row", gap: 4 }}>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Key Contact: </Text>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.emergencyContact}</Text>
+            </View>
+          ) : null}
           {formData.weather ? (
             <View style={{ flexDirection: "row", gap: 4 }}>
               <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Weather: </Text>
@@ -351,12 +357,6 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
             <View style={{ flexDirection: "row", gap: 4 }}>
               <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Hospital: </Text>
               <Text style={{ fontSize: 6, color: BLACK }}>{formData.hospital}</Text>
-            </View>
-          ) : null}
-          {formData.emergencyContact ? (
-            <View style={{ flexDirection: "row", gap: 4 }}>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Key Contact: </Text>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.emergencyContact}</Text>
             </View>
           ) : null}
           {formData.walkieChannels ? (
@@ -505,6 +505,15 @@ export function CallSheetPDFDocument({
           {sheet.keyMoments.length > 0 && (
             <View style={s.momTable}>
               <SectionHeader>Key Moments</SectionHeader>
+              {/* Legend */}
+              <View style={{ flexDirection: "row", gap: 10, marginBottom: 5 }}>
+                {([ ["pre", "Pre-Show"], ["during", "During"], ["post", "Post-Show"], ["logistics", "Logistics"] ] as const).map(([type, label]) => (
+                  <View key={type} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                    <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: MOMENT_DOT[type] }} />
+                    <Text style={{ fontSize: 6, color: GRAY }}>{label}</Text>
+                  </View>
+                ))}
+              </View>
               <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
                 {sheet.keyMoments.map((m, i) => (
                   <View key={i} style={[s.momRow, { backgroundColor: WHITE }]} wrap={false}>

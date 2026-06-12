@@ -185,15 +185,15 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
           <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>General Crew Call</p>
           <p style={{ fontSize: 28, fontWeight: 900, fontFamily: "monospace", margin: 0, letterSpacing: "0.05em" }}>{to12h(formData.callTime)}</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1 }}>
           {formData.format === "live_event" ? (<>
-            {formData.doorsTime && <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Doors Open</p>
-              <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.doorsTime)}</p>
-            </div>}
             {formData.soundCheckTime && <div style={{ textAlign: "center" }}>
               <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Sound Check</p>
               <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.soundCheckTime)}</p>
+            </div>}
+            {formData.doorsTime && <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Doors Open</p>
+              <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.doorsTime)}</p>
             </div>}
             {formData.showTime && <div style={{ textAlign: "center" }}>
               <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Show Start</p>
@@ -216,17 +216,17 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
         </div>
       </div>
 
-      {/* Supplemental strip — weather, hospital, key contact, walkie */}
-      {(formData.weather || formData.hospital || formData.emergencyContact || formData.walkieChannels || formData.interviewSubjects) && (
+      {/* Supplemental strip — key contact, weather, hospital, walkie */}
+      {(formData.emergencyContact || formData.weather || formData.hospital || formData.walkieChannels || formData.interviewSubjects) && (
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 4, padding: "5px 12px", marginBottom: 10, fontSize: 9 }}>
+          {formData.emergencyContact && (
+            <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Key Contact: </span><span style={{ color: "#111", fontWeight: 600 }}>{formData.emergencyContact}</span></span>
+          )}
           {formData.weather && (
             <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Weather: </span><span style={{ color: "#111", fontWeight: 600 }}>{formData.weather}</span></span>
           )}
           {formData.hospital && (
             <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Hospital: </span><span style={{ color: "#111" }}>{formData.hospital}</span></span>
-          )}
-          {formData.emergencyContact && (
-            <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Key Contact: </span><span style={{ color: "#111", fontWeight: 600 }}>{formData.emergencyContact}</span></span>
           )}
           {formData.walkieChannels && (
             <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Walkie: </span><span style={{ color: "#111" }}>{formData.walkieChannels}</span></span>
@@ -486,6 +486,15 @@ function LiveEventPrintSheet({ project, profile, formData, crew, locations, shee
       {sheet.keyMoments.length > 0 && (
         <div style={{ marginBottom: 14 }}>
           <SectionHeader>Key Moments</SectionHeader>
+          {/* Legend */}
+          <div style={{ display: "flex", gap: 14, marginBottom: 6, fontSize: 8, color: "#6b7280" }}>
+            {([ ["pre", "Pre-Show"], ["during", "During"], ["post", "Post-Show"], ["logistics", "Logistics"] ] as const).map(([type, label]) => (
+              <span key={type} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: MOMENT_DOT[type], display: "inline-block", flexShrink: 0 }} />
+                {label}
+              </span>
+            ))}
+          </div>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
             <tbody>
               {sheet.keyMoments.map((m, i) => (
@@ -1248,14 +1257,14 @@ function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormD
           </Field>
         </div>
 
-        {/* Live event: doors + sound check + show time */}
+        {/* Live event: sound check + doors + show time (chronological order) */}
         {formData.format === "live_event" && (
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Doors Open">
-              <TimeInput value={formData.doorsTime} onChange={(v) => set("doorsTime", v)} className="input-style [color-scheme:dark]" />
-            </Field>
             <Field label="Sound Check">
               <TimeInput value={formData.soundCheckTime} onChange={(v) => set("soundCheckTime", v)} className="input-style [color-scheme:dark]" />
+            </Field>
+            <Field label="Doors Open">
+              <TimeInput value={formData.doorsTime} onChange={(v) => set("doorsTime", v)} className="input-style [color-scheme:dark]" />
             </Field>
             <Field label="Show Start">
               <TimeInput value={formData.showTime} onChange={(v) => set("showTime", v)} className="input-style [color-scheme:dark]" />
