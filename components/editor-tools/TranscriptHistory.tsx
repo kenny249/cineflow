@@ -317,8 +317,11 @@ export function TranscriptHistory() {
               const isEditingThis = editingId === t.id;
               return (
                 <div key={t.id} className="rounded-2xl border border-border bg-white/[0.02] overflow-hidden">
-                  {/* Row */}
-                  <div className="flex items-center gap-3 px-4 py-3">
+                  {/* Row — entire row is clickable to expand */}
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
+                    onClick={() => setExpanded((e) => ({ ...e, [t.id]: !isOpen }))}
+                  >
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03]">
                       <FileAudio className="h-3.5 w-3.5 text-muted-foreground" />
                     </div>
@@ -343,18 +346,15 @@ export function TranscriptHistory() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button
-                        onClick={() => handleDelete(t.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
                         disabled={deleting === t.id}
                         className="rounded-lg p-1.5 text-muted-foreground/30 hover:bg-red-500/10 hover:text-red-400 transition-colors"
                       >
                         {deleting === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
-                      <button
-                        onClick={() => setExpanded((e) => ({ ...e, [t.id]: !isOpen }))}
-                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/[0.06] transition-colors"
-                      >
+                      <div className="rounded-lg p-1.5 text-muted-foreground/50 pointer-events-none">
                         {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </button>
+                      </div>
                     </div>
                   </div>
 
