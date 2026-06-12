@@ -209,7 +209,7 @@ export function AudioTranscriber() {
       setHistoryKey((k) => k + 1);
       setTimeout(() => setLibraryOpen(true), 400);
       toast.success(project ? `Saved to "${label}"` : "Saved to Personal");
-    } catch { toast.error("Failed to save"); }
+    } catch (e: any) { toast.error(e.message ?? "Failed to save"); }
     finally { setSavingProject(false); }
   }
 
