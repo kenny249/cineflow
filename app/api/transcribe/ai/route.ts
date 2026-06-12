@@ -69,7 +69,7 @@ Cut labels to use: HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, E
   try {
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
 
@@ -77,7 +77,12 @@ Cut labels to use: HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, E
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("No valid JSON in response");
 
-    const cutList = JSON.parse(match[0]);
+    // Fix common JSON issues (trailing commas, truncation)
+    let jsonStr = match[0]
+      .replace(/,\s*([}\]])/g, "$1") // remove trailing commas
+      .replace(/[\x00-\x1F\x7F]/g, " "); // strip control chars
+
+    const cutList = JSON.parse(jsonStr);
     return NextResponse.json({ cutList });
   } catch (err: any) {
     console.error("[transcribe/ai]", err);
