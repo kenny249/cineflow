@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 const GOLD = "#d4a853";
 
-type LiveMetrics = { totalUsers: number; activeTrials: number; totalProjects: number };
+type LiveMetrics = { totalUsers: number; activeTrials: number; activeRecently: number; totalProjects: number };
 
 function StatCard({ value, label, sub }: { value: string; label: string; sub?: string }) {
   return (
@@ -38,13 +38,13 @@ function SectionHeader({ label, number }: { label: string; number: string }) {
 }
 
 export function SharedBriefClient() {
-  const [metrics, setMetrics] = useState<LiveMetrics>({ totalUsers: 0, activeTrials: 0, totalProjects: 0 });
+  const [metrics, setMetrics] = useState<LiveMetrics>({ totalUsers: 0, activeTrials: 0, activeRecently: 0, totalProjects: 0 });
 
   useEffect(() => {
     // Metrics from a public endpoint that only returns aggregate counts — no PII
     fetch("/api/share/brief/metrics")
       .then((r) => r.json())
-      .then((d) => { if (!d.error) setMetrics(d); })
+      .then((d) => { if (!d.error) setMetrics({ ...d, activeRecently: d.activeRecently ?? 0 }); })
       .catch(() => {});
   }, []);
 
@@ -109,10 +109,11 @@ export function SharedBriefClient() {
         {/* Live Traction */}
         <div>
           <SectionHeader label="Live Traction" number="00" />
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard value={metrics.totalUsers.toLocaleString()} label="Total Users" sub="All-time signups" />
-            <StatCard value={metrics.activeTrials.toLocaleString()} label="Active Trials" sub="30-day trial period" />
-            <StatCard value={metrics.totalProjects.toLocaleString()} label="Projects Created" sub="Across all users" />
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard value={metrics.totalUsers.toLocaleString()} label="Real Users" sub="All-time signups" />
+            <StatCard value={metrics.activeRecently.toLocaleString()} label="Active (30d)" sub="Logged in last 30 days" />
+            <StatCard value={metrics.activeTrials.toLocaleString()} label="Active Trials" sub="Trial not yet expired" />
+            <StatCard value={metrics.totalProjects.toLocaleString()} label="Projects" sub="Created by real users" />
           </div>
         </div>
 

@@ -11,12 +11,10 @@ function getAdmin() {
   );
 }
 
-// Public endpoint — returns only aggregate counts, zero PII.
-// Gated by the referer token being in the URL (enforced by the page route).
-// Additionally rate-limited by Vercel edge.
+// Public endpoint — aggregate counts only, zero PII.
+// Gated by referer containing the share token.
 export async function GET(req: NextRequest) {
   try {
-    // Verify the request is coming from a valid share URL
     const referer = req.headers.get("referer") ?? "";
     const token = process.env.BRIEF_SHARE_TOKEN;
     if (!token || !referer.includes(token)) {
@@ -26,22 +24,41 @@ export async function GET(req: NextRequest) {
     const supabase = getAdmin();
     const [authUsersRes, profilesRes, projectsRes] = await Promise.all([
       supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-      supabase.from("profiles").select("plan_status, trial_ends_at"),
-      supabase.from("projects").select("id", { count: "exact", head: true }),
+      supabase.from("profiles").select("id, plan_status, trial_ends_at, is_test"),
+      supabase.from("projects").select("id, created_by"),
     ]);
 
     const authUsers = authUsersRes.data?.users ?? [];
-    const realUsers = authUsers.filter((u) => !u.email?.endsWith("@demo.usecineflow.com"));
     const profiles = profilesRes.data ?? [];
-    const now = new Date().toISOString();
-    const activeTrials = profiles.filter(
-      (p) => p.plan_status === "trialing" && p.trial_ends_at && p.trial_ends_at > now
+    const projects = projectsRes.data ?? [];
+
+    const testUserIds = new Set(profiles.filter((p) => p.is_test).map((p) => p.id));
+    const realUsers = authUsers.filter(
+      (u) => !u.email?.endsWith("@demo.usecineflow.com") && !testUserIds.has(u.id)
+    );
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const activeRecently = realUsers.filter(
+      (u) => u.last_sign_in_at && u.last_sign_in_at > thirtyDaysAgo
     ).length;
+
+    const now = new Date().toISOString();
+    const realProfileIds = new Set(realUsers.map((u) => u.id));
+    const activeTrials = profiles.filter(
+      (p) =>
+        realProfileIds.has(p.id) &&
+        p.plan_status === "trialing" &&
+        p.trial_ends_at &&
+        p.trial_ends_at > now
+    ).length;
+
+    const realProjects = projects.filter((p) => !testUserIds.has(p.created_by)).length;
 
     return NextResponse.json({
       totalUsers: realUsers.length,
       activeTrials,
-      totalProjects: projectsRes.count ?? 0,
+      activeRecently,
+      totalProjects: realProjects,
     });
   } catch (err: any) {
     console.error("[share/brief/metrics]", err);

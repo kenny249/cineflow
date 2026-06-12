@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Search, Shield, ShieldCheck, ShieldOff, MoreHorizontal, Check, Trash2, Crown, Clock, AlertCircle, CheckCircle2, Star, Download, Mail, LogIn, StickyNote, X } from "lucide-react";
+import { Search, Shield, ShieldCheck, ShieldOff, MoreHorizontal, Check, Trash2, Crown, Clock, AlertCircle, CheckCircle2, Star, Download, Mail, LogIn, StickyNote, X, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ type User = {
   plan_status: string;
   trial_ends_at: string | null;
   is_admin: boolean;
+  is_test: boolean;
   referral_code: string | null;
   referred_by: string | null;
   invoices: number;
@@ -309,6 +310,23 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
     });
   }
 
+  async function toggleTest(userId: string, mark: boolean) {
+    startTransition(async () => {
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, updates: { is_test: mark } }),
+      });
+      if (res.ok) {
+        toast.success(mark ? "Marked as test account" : "Removed test flag");
+        setOpenMenu(null);
+        window.location.reload();
+      } else {
+        toast.error("Failed to update");
+      }
+    });
+  }
+
   async function deleteUser(userId: string, email: string) {
     if (!confirm(`Permanently delete ${email}? This cannot be undone.`)) return;
     startTransition(async () => {
@@ -520,6 +538,22 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                           className="flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-zinc-300 transition-colors hover:bg-white/[0.05] disabled:opacity-40"
                         >
                           <LogIn className="h-3.5 w-3.5" /> Login as user
+                        </button>
+
+                        {/* Test account flag */}
+                        <div className="my-1 border-t border-white/[0.06]" />
+                        <button
+                          onClick={() => toggleTest(u.id, !u.is_test)}
+                          disabled={isPending}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors",
+                            u.is_test
+                              ? "text-emerald-400 hover:bg-emerald-500/10"
+                              : "text-zinc-400 hover:bg-white/[0.05]"
+                          )}
+                        >
+                          <FlaskConical className="h-3.5 w-3.5" />
+                          {u.is_test ? "Remove test flag" : "Mark as test account"}
                         </button>
 
                         {/* Admin */}

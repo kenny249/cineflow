@@ -27,8 +27,9 @@ const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string }
 type LiveMetrics = {
   totalUsers: number;
   activeTrials: number;
+  activeRecently: number;
   totalProjects: number;
-  totalRevenue: number | null;
+  mrr: number | null;
 };
 
 const GOLD = "#d4a853";
@@ -61,7 +62,7 @@ function SectionHeader({ label, number }: { label: string; number: string }) {
 }
 
 export function BriefClient() {
-  const [metrics, setMetrics] = useState<LiveMetrics>({ totalUsers: 0, activeTrials: 0, totalProjects: 0, totalRevenue: null });
+  const [metrics, setMetrics] = useState<LiveMetrics>({ totalUsers: 0, activeTrials: 0, activeRecently: 0, totalProjects: 0, mrr: null });
   const [generating, setGenerating] = useState<Format | null>(null);
   const [generated, setGenerated] = useState<Partial<Record<Format, string>>>({});
   const [copied, setCopied] = useState<Format | null>(null);
@@ -77,8 +78,9 @@ export function BriefClient() {
           setMetrics({
             totalUsers: data.totalUsers ?? 0,
             activeTrials: data.activeTrials ?? 0,
+            activeRecently: data.activeRecently ?? 0,
             totalProjects: data.totalProjects ?? 0,
-            totalRevenue: null,
+            mrr: data.mrr ?? null,
           });
         }
       })
@@ -198,12 +200,14 @@ export function BriefClient() {
         {/* ── Live Metrics ── */}
         <div>
           <SectionHeader label="Live Traction" number="00" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard value={metrics.totalUsers.toLocaleString()} label="Total Users" icon={Users} sub="All-time signups" />
-            <StatCard value={metrics.activeTrials.toLocaleString()} label="Active Trials" icon={Activity} sub="30-day trial period" />
-            <StatCard value={metrics.totalProjects.toLocaleString()} label="Projects Created" icon={FileText} sub="Across all users" />
+          <p className="text-[11px] text-zinc-600 mb-4">Real users only — demo &amp; test accounts excluded</p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <StatCard value={metrics.totalUsers.toLocaleString()} label="Real Users" icon={Users} sub="All-time signups" />
+            <StatCard value={metrics.activeRecently.toLocaleString()} label="Active (30d)" icon={Activity} sub="Logged in last 30 days" />
+            <StatCard value={metrics.activeTrials.toLocaleString()} label="Active Trials" icon={TrendingUp} sub="Trial not yet expired" />
+            <StatCard value={metrics.totalProjects.toLocaleString()} label="Projects" icon={FileText} sub="Created by real users" />
             <StatCard
-              value={metrics.totalRevenue != null ? `$${metrics.totalRevenue.toLocaleString()}` : "—"}
+              value={metrics.mrr != null ? `$${metrics.mrr.toLocaleString()}` : "—"}
               label="MRR"
               icon={DollarSign}
               sub="Live from Stripe"

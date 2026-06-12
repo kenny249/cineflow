@@ -8,7 +8,7 @@ export const BRIEF = {
     tagline: "The all-in-one platform built for professional filmmakers.",
     website: "usecineflow.com",
     founded: "2024",
-    stage: "Bootstrapped · Beta → Public Launch 2025",
+    stage: "Bootstrapped · Beta → Public Launch 2026",
     mission:
       "To give independent filmmakers and production teams a single, purpose-built platform that eliminates the chaos of juggling 10+ disconnected tools — so they can focus on the work that matters.",
     vision:
