@@ -192,22 +192,23 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
     finally { setPdfLoading(false); }
   }
 
-  async function saveToProject(project: Project) {
+  async function saveToProject(project: Project | null) {
     if (state.phase !== "done") return;
     setSavingProject(true);
+    const label = project ? project.title : "Personal";
     try {
       await saveProjectTranscript({
-        projectId: project.id,
+        projectId: project?.id ?? null,
         filename: state.file.name,
         fileSizeBytes: state.file.size,
         durationSecs: state.duration,
         transcript: state.text,
       });
-      setSavedToProject(project.title);
+      setSavedToProject(label);
       setShowProjectPicker(false);
-      toast.success(`Saved to "${project.title}"`);
+      toast.success(project ? `Saved to "${label}"` : "Saved to Personal transcripts");
       onTranscriptSaved?.();
-    } catch { toast.error("Failed to save to project"); }
+    } catch { toast.error("Failed to save"); }
     finally { setSavingProject(false); }
   }
 
@@ -351,7 +352,7 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
                   )}
                 >
                   {savingProject ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
-                  {savedToProject ? "Saved" : "Save to Project"}
+                  {savedToProject ? "Saved" : "Save"}
                   {!savedToProject && !savingProject && <ChevronDown className="h-3 w-3" />}
                 </button>
 
@@ -359,13 +360,20 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowProjectPicker(false)} />
                     <div className="absolute right-0 top-9 z-50 w-64 rounded-xl border border-border bg-[#111] shadow-2xl overflow-hidden">
-                      <p className="border-b border-border px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Save to project</p>
+                      <p className="border-b border-border px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Save transcript</p>
+                      {/* Personal option always at top */}
+                      <button
+                        onClick={() => saveToProject(null)}
+                        className="flex w-full items-center gap-2 border-b border-border/50 px-4 py-2.5 text-left text-sm text-muted-foreground hover:bg-white/[0.05] hover:text-foreground transition-colors"
+                      >
+                        <span className="flex-1 truncate">Personal (no project)</span>
+                      </button>
                       {projects.length === 0 ? (
                         <div className="flex items-center justify-center py-6">
                           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
                         </div>
                       ) : (
-                        <div className="max-h-56 overflow-y-auto">
+                        <div className="max-h-52 overflow-y-auto">
                           {projects.map((p) => (
                             <button
                               key={p.id}

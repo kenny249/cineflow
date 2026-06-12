@@ -1996,7 +1996,7 @@ export async function deleteQuoteEstimate(id: string): Promise<void> {
 
 export type ProjectTranscript = {
   id: string;
-  project_id: string;
+  project_id: string | null;
   created_by: string | null;
   filename: string;
   file_size_bytes: number | null;
@@ -2017,7 +2017,7 @@ export type CutListSave = {
   saved_at: string;
 };
 
-export type ProjectTranscriptWithProject = ProjectTranscript & { project_title: string };
+export type ProjectTranscriptWithProject = ProjectTranscript & { project_title: string | null };
 
 export async function getAllUserTranscripts(): Promise<ProjectTranscriptWithProject[]> {
   const client = createClient();
@@ -2028,7 +2028,7 @@ export async function getAllUserTranscripts(): Promise<ProjectTranscriptWithProj
   if (error) throw new Error(error.message);
   return (data ?? []).map((t: any) => ({
     ...t,
-    project_title: t.projects?.title ?? "Unknown Project",
+    project_title: t.projects?.title ?? null,
   })) as ProjectTranscriptWithProject[];
 }
 
@@ -2044,7 +2044,7 @@ export async function getProjectTranscripts(projectId: string): Promise<ProjectT
 }
 
 export async function saveProjectTranscript(params: {
-  projectId: string;
+  projectId?: string | null;
   filename: string;
   fileSizeBytes: number;
   durationSecs: number | null;
@@ -2056,7 +2056,7 @@ export async function saveProjectTranscript(params: {
   const { data, error } = await client
     .from("project_transcripts")
     .insert({
-      project_id: params.projectId,
+      project_id: params.projectId ?? null,
       created_by: user.id,
       filename: params.filename,
       file_size_bytes: params.fileSizeBytes,

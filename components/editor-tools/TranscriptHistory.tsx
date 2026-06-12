@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   ChevronDown, ChevronUp, Clock, Copy, CheckCheck, FileAudio, FileText,
-  FolderOpen, Loader2, Pencil, Search, Trash2,
+  FolderOpen, Loader2, Pencil, Search, Trash2, User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -256,15 +256,25 @@ export function TranscriptHistory() {
   );
 
   const filtered = search.trim()
-    ? transcripts.filter((t) => t.filename.toLowerCase().includes(search.toLowerCase()) || t.project_title.toLowerCase().includes(search.toLowerCase()))
+    ? transcripts.filter((t) => t.filename.toLowerCase().includes(search.toLowerCase()) || (t.project_title ?? "").toLowerCase().includes(search.toLowerCase()))
     : transcripts;
 
-  // Group by project
-  const grouped = filtered.reduce<Record<string, { title: string; items: ProjectTranscriptWithProject[] }>>((acc, t) => {
-    if (!acc[t.project_id]) acc[t.project_id] = { title: t.project_title, items: [] };
-    acc[t.project_id].items.push(t);
+  const PERSONAL_KEY = "__personal__";
+
+  // Group by project (null project_id → personal)
+  const grouped = filtered.reduce<Record<string, { title: string | null; items: ProjectTranscriptWithProject[] }>>((acc, t) => {
+    const key = t.project_id ?? PERSONAL_KEY;
+    if (!acc[key]) acc[key] = { title: t.project_title, items: [] };
+    acc[key].items.push(t);
     return acc;
   }, {});
+
+  // Personal group always first
+  const sortedEntries = Object.entries(grouped).sort(([a], [b]) => {
+    if (a === PERSONAL_KEY) return -1;
+    if (b === PERSONAL_KEY) return 1;
+    return 0;
+  });
 
   return (
     <div className="space-y-5">
@@ -284,12 +294,19 @@ export function TranscriptHistory() {
         <p className="py-6 text-center text-sm text-muted-foreground/50">No transcripts match &ldquo;{search}&rdquo;</p>
       )}
 
-      {Object.entries(grouped).map(([projectId, group]) => (
-        <div key={projectId}>
-          {/* Project header */}
+      {sortedEntries.map(([groupKey, group]) => {
+        const isPersonal = groupKey === PERSONAL_KEY;
+        return (
+        <div key={groupKey}>
+          {/* Group header */}
           <div className="mb-2 flex items-center gap-2">
-            <FolderOpen className="h-3.5 w-3.5 text-[#d4a853]" />
-            <p className="text-xs font-semibold text-[#d4a853]">{group.title}</p>
+            {isPersonal
+              ? <User className="h-3.5 w-3.5 text-muted-foreground/60" />
+              : <FolderOpen className="h-3.5 w-3.5 text-[#d4a853]" />
+            }
+            <p className={cn("text-xs font-semibold", isPersonal ? "text-muted-foreground/80" : "text-[#d4a853]")}>
+              {isPersonal ? "Personal" : group.title}
+            </p>
             <span className="text-[10px] text-muted-foreground/40">{group.items.length} transcript{group.items.length !== 1 ? "s" : ""}</span>
           </div>
 
@@ -415,7 +432,8 @@ export function TranscriptHistory() {
             })}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

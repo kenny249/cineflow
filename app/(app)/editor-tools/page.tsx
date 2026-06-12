@@ -26,6 +26,17 @@ export default function EditorToolsPage() {
   const [loading, setLoading]   = useState(true);
   const [historyKey, setHistoryKey] = useState(0);
 
+  // Persist active tab in URL hash so refresh restores the same tab
+  useEffect(() => {
+    const hash = window.location.hash.slice(1) as Tab;
+    if (TABS.some((t) => t.key === hash)) setTab(hash);
+  }, []);
+
+  function handleTabChange(key: Tab) {
+    setTab(key);
+    window.history.replaceState(null, "", `#${key}`);
+  }
+
   useEffect(() => {
     getEditSessions()
       .then(setSessions)
@@ -60,7 +71,7 @@ export default function EditorToolsPage() {
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
-              onClick={() => setTab(key)}
+              onClick={() => handleTabChange(key)}
               className={cn(
                 "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all duration-150",
                 tab === key
