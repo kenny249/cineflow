@@ -3,45 +3,22 @@
 import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  Cell,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, Cell,
 } from "recharts";
 import {
-  Sparkles, FileText, Download, Copy, CheckCheck, Loader2,
-  Users, TrendingUp, DollarSign, Activity, ExternalLink,
-  ChevronRight, Check, X as XIcon,
+  TrendingUp, ChevronRight, Check, X as XIcon, ExternalLink, Sparkles,
 } from "lucide-react";
 import { BRIEF } from "@/lib/brief.config";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-
-type Format = "ig" | "sms" | "email" | "pitch";
-
-const FORMAT_OPTIONS: { key: Format; label: string; icon: string; desc: string }[] = [
-  { key: "ig",    label: "Instagram",  icon: "📸", desc: "Hook + bullets + hashtags" },
-  { key: "sms",   label: "SMS / Text", icon: "💬", desc: "~160 chars, casual" },
-  { key: "email", label: "Email Pitch", icon: "📧", desc: "Investor / partner intro" },
-  { key: "pitch", label: "Full Pitch",  icon: "📋", desc: "600–900 word narrative" },
-];
-
-type LiveMetrics = {
-  totalUsers: number;
-  activeTrials: number;
-  totalProjects: number;
-  totalRevenue: number | null;
-};
 
 const GOLD = "#d4a853";
 
-function StatCard({ value, label, icon: Icon, sub }: { value: string; label: string; icon: React.ElementType; sub?: string }) {
+type LiveMetrics = { totalUsers: number; activeTrials: number; totalProjects: number };
+
+function StatCard({ value, label, sub }: { value: string; label: string; sub?: string }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold uppercase tracking-widest text-zinc-600">{label}</span>
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#d4a853]/10">
-          <Icon className="h-3.5 w-3.5 text-[#d4a853]" />
-        </div>
-      </div>
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-3">{label}</p>
       <p className="text-3xl font-bold text-white">{value}</p>
       {sub && <p className="mt-1 text-xs text-zinc-600">{sub}</p>}
     </div>
@@ -60,73 +37,17 @@ function SectionHeader({ label, number }: { label: string; number: string }) {
   );
 }
 
-export function BriefClient() {
-  const [metrics, setMetrics] = useState<LiveMetrics>({ totalUsers: 0, activeTrials: 0, totalProjects: 0, totalRevenue: null });
-  const [generating, setGenerating] = useState<Format | null>(null);
-  const [generated, setGenerated] = useState<Partial<Record<Format, string>>>({});
-  const [copied, setCopied] = useState<Format | null>(null);
-  const [activeFormat, setActiveFormat] = useState<Format | null>(null);
-  const [shareToken, setShareToken] = useState<string | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+export function SharedBriefClient() {
+  const [metrics, setMetrics] = useState<LiveMetrics>({ totalUsers: 0, activeTrials: 0, totalProjects: 0 });
 
   useEffect(() => {
-    fetch("/api/admin/brief/metrics")
+    // Metrics from a public endpoint that only returns aggregate counts — no PII
+    fetch("/api/share/brief/metrics")
       .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) {
-          setMetrics({
-            totalUsers: data.totalUsers ?? 0,
-            activeTrials: data.activeTrials ?? 0,
-            totalProjects: data.totalProjects ?? 0,
-            totalRevenue: null,
-          });
-        }
-      })
-      .catch(() => {});
-    fetch("/api/admin/brief/share-token")
-      .then((r) => r.json())
-      .then((d) => { if (d.token) setShareToken(d.token); })
+      .then((d) => { if (!d.error) setMetrics(d); })
       .catch(() => {});
   }, []);
 
-  async function copyShareLink() {
-    if (!shareToken) return;
-    const url = `${window.location.origin}/share/brief/${shareToken}`;
-    await navigator.clipboard.writeText(url);
-    setLinkCopied(true);
-    toast.success("Share link copied to clipboard");
-    setTimeout(() => setLinkCopied(false), 2000);
-  }
-
-  async function generate(format: Format) {
-    setGenerating(format);
-    setActiveFormat(format);
-    try {
-      const res = await fetch("/api/admin/brief/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format }),
-      });
-      if (!res.ok) throw new Error("Generation failed");
-      const { text } = await res.json();
-      setGenerated((prev) => ({ ...prev, [format]: text }));
-    } catch {
-      toast.error("Failed to generate — check API key");
-    } finally {
-      setGenerating(null);
-    }
-  }
-
-  async function copyGenerated(format: Format) {
-    const text = generated[format];
-    if (!text) return;
-    await navigator.clipboard.writeText(text);
-    setCopied(format);
-    toast.success("Copied to clipboard");
-    setTimeout(() => setCopied(null), 2000);
-  }
-
-  // Chart data
   const pricingChartData = [
     { name: "CineFlow", price: 39, fill: GOLD },
     { name: "Frame.io", price: 25, fill: "#6b7280" },
@@ -150,68 +71,52 @@ export function BriefClient() {
   ];
 
   return (
-    <div className="min-h-full bg-[#080808]">
+    <div className="min-h-screen bg-[#080808]">
       {/* Top bar */}
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/[0.06] bg-[#080808]/95 px-6 py-3 backdrop-blur">
-        <div>
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10">
+            <span className="text-xs font-black" style={{ color: GOLD }}>C</span>
+          </div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#d4a853]">CineFlow</p>
-          <p className="text-[10px] text-zinc-600">Company Brief · Auto-updates on deploy</p>
+          <span className="text-zinc-700">·</span>
+          <p className="text-[11px] text-zinc-600">Company Brief · Confidential</p>
         </div>
-        <div className="flex items-center gap-2">
-          {shareToken && (
-            <button
-              onClick={copyShareLink}
-              className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/5 px-3 py-1.5 text-xs font-medium text-[#d4a853] transition-colors hover:bg-[#d4a853]/10"
-            >
-              {linkCopied ? <CheckCheck className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {linkCopied ? "Copied!" : "Copy share link"}
-            </button>
-          )}
-          <a
-            href="/admin/brief/print"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.08] hover:text-white"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export PDF
-          </a>
-        </div>
+        <a
+          href={`https://${BRIEF.company.website}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-[#d4a853]"
+        >
+          {BRIEF.company.website}
+          <ExternalLink className="h-3 w-3" />
+        </a>
       </div>
 
       <div className="mx-auto max-w-5xl space-y-16 px-6 py-10">
 
-        {/* ── Hero ── */}
+        {/* Hero */}
         <div className="text-center pt-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d4a853]/20 bg-[#d4a853]/5 px-4 py-1.5 mb-6">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-[11px] font-semibold text-[#d4a853] uppercase tracking-widest">{BRIEF.company.stage}</span>
           </div>
           <h1 className="font-display text-5xl font-black text-white mb-4">{BRIEF.company.name}</h1>
-          <p className="text-xl text-zinc-300 max-w-2xl mx-auto mb-2">{BRIEF.company.tagline}</p>
-          <a href={`https://${BRIEF.company.website}`} target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-sm text-[#d4a853] hover:underline">
-            {BRIEF.company.website} <ExternalLink className="h-3 w-3" />
-          </a>
+          <p className="text-xl text-zinc-300 max-w-2xl mx-auto mb-4">{BRIEF.company.tagline}</p>
+          <p className="text-sm text-zinc-500 max-w-2xl mx-auto leading-relaxed">{BRIEF.company.mission}</p>
         </div>
 
-        {/* ── Live Metrics ── */}
+        {/* Live Traction */}
         <div>
           <SectionHeader label="Live Traction" number="00" />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCard value={metrics.totalUsers.toLocaleString()} label="Total Users" icon={Users} sub="All-time signups" />
-            <StatCard value={metrics.activeTrials.toLocaleString()} label="Active Trials" icon={Activity} sub="30-day trial period" />
-            <StatCard value={metrics.totalProjects.toLocaleString()} label="Projects Created" icon={FileText} sub="Across all users" />
-            <StatCard
-              value={metrics.totalRevenue != null ? `$${metrics.totalRevenue.toLocaleString()}` : "—"}
-              label="MRR"
-              icon={DollarSign}
-              sub="Live from Stripe"
-            />
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard value={metrics.totalUsers.toLocaleString()} label="Total Users" sub="All-time signups" />
+            <StatCard value={metrics.activeTrials.toLocaleString()} label="Active Trials" sub="30-day trial period" />
+            <StatCard value={metrics.totalProjects.toLocaleString()} label="Projects Created" sub="Across all users" />
           </div>
         </div>
 
-        {/* ── Problem ── */}
+        {/* Problem */}
         <div>
           <SectionHeader label={BRIEF.problem.headline} number="01" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -225,13 +130,13 @@ export function BriefClient() {
           </div>
         </div>
 
-        {/* ── Solution ── */}
+        {/* Solution */}
         <div>
           <SectionHeader label={BRIEF.solution.headline} number="02" />
           <p className="text-base text-zinc-300 leading-relaxed max-w-3xl">{BRIEF.solution.description}</p>
         </div>
 
-        {/* ── Features ── */}
+        {/* Features */}
         <div>
           <SectionHeader label="Product Features" number="03" />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -252,7 +157,7 @@ export function BriefClient() {
           </div>
         </div>
 
-        {/* ── Pricing ── */}
+        {/* Pricing */}
         <div>
           <SectionHeader label="Pricing" number="04" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
@@ -285,7 +190,7 @@ export function BriefClient() {
           </div>
         </div>
 
-        {/* ── Market ── */}
+        {/* Market */}
         <div>
           <SectionHeader label="Market Opportunity" number="05" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -310,11 +215,9 @@ export function BriefClient() {
           </div>
         </div>
 
-        {/* ── Competitive Analysis ── */}
+        {/* Competitive */}
         <div>
           <SectionHeader label="Competitive Landscape" number="06" />
-
-          {/* Radar chart */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
               <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Feature Coverage vs. Market</p>
@@ -327,40 +230,28 @@ export function BriefClient() {
                 </RadarChart>
               </ResponsiveContainer>
             </div>
-
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
               <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Monthly Price Comparison</p>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={pricingChartData} barSize={28}>
                   <XAxis dataKey="name" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
-                  <Tooltip
-                    contentStyle={{ background: "#111", border: "1px solid #ffffff15", borderRadius: 8, fontSize: 12 }}
-                    formatter={(v) => [`$${v}/mo`, "Price"]}
-                  />
+                  <Tooltip contentStyle={{ background: "#111", border: "1px solid #ffffff15", borderRadius: 8, fontSize: 12 }} formatter={(v) => [`$${v}/mo`, "Price"]} />
                   <Bar dataKey="price" radius={[4, 4, 0, 0]}>
-                    {pricingChartData.map((entry, i) => (
-                      <Cell key={i} fill={entry.fill} />
-                    ))}
+                    {pricingChartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Feature matrix */}
           <div className="overflow-x-auto rounded-xl border border-white/[0.06]">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/[0.06] bg-white/[0.02]">
                   <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Feature</th>
                   {BRIEF.competitors.columns.map((c, i) => (
-                    <th key={c} className={cn(
-                      "px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wider",
-                      i === 0 ? "text-[#d4a853]" : "text-zinc-500"
-                    )}>
-                      {c}
-                    </th>
+                    <th key={c} className={cn("px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wider", i === 0 ? "text-[#d4a853]" : "text-zinc-500")}>{c}</th>
                   ))}
                 </tr>
               </thead>
@@ -370,10 +261,8 @@ export function BriefClient() {
                     <td className="px-4 py-3 text-xs text-zinc-300">{row.feature}</td>
                     {row.values.map((v, vi) => (
                       <td key={vi} className="px-4 py-3 text-center">
-                        {v
-                          ? <Check className={cn("mx-auto h-4 w-4", vi === 0 ? "text-[#d4a853]" : "text-emerald-500/60")} />
-                          : <XIcon className="mx-auto h-3.5 w-3.5 text-zinc-700" />
-                        }
+                        {v ? <Check className={cn("mx-auto h-4 w-4", vi === 0 ? "text-[#d4a853]" : "text-emerald-500/60")} />
+                           : <XIcon className="mx-auto h-3.5 w-3.5 text-zinc-700" />}
                       </td>
                     ))}
                   </tr>
@@ -389,10 +278,10 @@ export function BriefClient() {
               </tbody>
             </table>
           </div>
-          <p className="mt-3 text-[11px] text-zinc-600 leading-relaxed">{BRIEF.competitors.savingsNote}</p>
+          <p className="mt-3 text-[11px] text-zinc-600">{BRIEF.competitors.savingsNote}</p>
         </div>
 
-        {/* ── ROI ── */}
+        {/* ROI */}
         <div>
           <SectionHeader label="ROI — Why Filmmakers Switch" number="07" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
@@ -402,15 +291,11 @@ export function BriefClient() {
                 <BarChart data={savingsChartData} layout="vertical" barSize={16}>
                   <XAxis type="number" tick={{ fill: "#71717a", fontSize: 10 }} tickFormatter={(v) => `$${v}`} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
-                  <Tooltip
-                    contentStyle={{ background: "#111", border: "1px solid #ffffff15", borderRadius: 8, fontSize: 12 }}
-                    formatter={(v) => [`$${v}/mo`, "Cost"]}
-                  />
+                  <Tooltip contentStyle={{ background: "#111", border: "1px solid #ffffff15", borderRadius: 8, fontSize: 12 }} formatter={(v) => [`$${v}/mo`, "Cost"]} />
                   <Bar dataKey="cost" fill="#6b7280" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-
             <div className="flex flex-col gap-4">
               <div className="flex-1 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <p className="text-xs text-zinc-500 mb-1">Avg. monthly spend on separate tools</p>
@@ -426,14 +311,9 @@ export function BriefClient() {
               </div>
             </div>
           </div>
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-            <p className="text-sm text-zinc-300">
-              <span className="font-semibold text-white">Time saved: </span>{BRIEF.roi.timePerWeek}
-            </p>
-          </div>
         </div>
 
-        {/* ── Tech Stack ── */}
+        {/* Tech */}
         <div>
           <SectionHeader label="Technology" number="08" />
           <div className="flex flex-wrap gap-2 mb-4">
@@ -451,59 +331,10 @@ export function BriefClient() {
           </div>
         </div>
 
-        {/* ── AI Format Generator ── */}
-        <div>
-          <SectionHeader label="Generate Short Formats" number="09" />
-          <p className="text-sm text-zinc-500 mb-5">Use Claude to reformat this brief for any channel. Results are generated fresh from the current config.</p>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            {FORMAT_OPTIONS.map(({ key, label, icon, desc }) => (
-              <button
-                key={key}
-                onClick={() => generate(key)}
-                disabled={generating !== null}
-                className={cn(
-                  "rounded-xl border p-4 text-left transition-all",
-                  activeFormat === key
-                    ? "border-[#d4a853]/40 bg-[#d4a853]/5"
-                    : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]"
-                )}
-              >
-                <p className="text-lg mb-2">{icon}</p>
-                <p className="text-xs font-semibold text-white mb-0.5">{label}</p>
-                <p className="text-[10px] text-zinc-600">{desc}</p>
-                {generating === key && <Loader2 className="mt-2 h-3 w-3 animate-spin text-[#d4a853]" />}
-              </button>
-            ))}
-          </div>
-
-          {activeFormat && generated[activeFormat] && (
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
-              <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
-                <p className="text-xs font-semibold text-zinc-400">
-                  {FORMAT_OPTIONS.find(f => f.key === activeFormat)?.icon}{" "}
-                  {FORMAT_OPTIONS.find(f => f.key === activeFormat)?.label}
-                </p>
-                <button
-                  onClick={() => copyGenerated(activeFormat)}
-                  className="flex items-center gap-1.5 rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:text-white"
-                >
-                  {copied === activeFormat ? <CheckCheck className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied === activeFormat ? "Copied" : "Copy"}
-                </button>
-              </div>
-              <pre className="whitespace-pre-wrap p-5 text-sm text-zinc-200 leading-relaxed font-sans">
-                {generated[activeFormat]}
-              </pre>
-            </div>
-          )}
-        </div>
-
         {/* Footer */}
         <div className="border-t border-white/[0.04] pt-6 pb-10 text-center">
-          <p className="text-[11px] text-zinc-700">
-            {BRIEF.company.name} · {BRIEF.company.website} · Founded {BRIEF.company.founded}
-          </p>
-          <p className="text-[10px] text-zinc-800 mt-1">This brief auto-updates on every deployment — last updated when this version was deployed.</p>
+          <p className="text-[11px] text-zinc-700">{BRIEF.company.name} · {BRIEF.company.website} · Founded {BRIEF.company.founded}</p>
+          <p className="text-[10px] text-zinc-800 mt-1">Confidential — For authorized recipients only</p>
         </div>
       </div>
     </div>
