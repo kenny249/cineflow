@@ -27,7 +27,6 @@ import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote
 import type { ProjectDeliverable } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
-import { WrapNotesTab } from "@/components/projects/tabs/WrapNotesTab";
 import { FinanceTab } from "@/components/projects/tabs/FinanceTab";
 import { ProductionDocsTab } from "@/components/projects/tabs/ProductionDocsTab";
 import { ScriptsTab } from "@/components/projects/tabs/ScriptsTab";
@@ -1142,7 +1141,6 @@ export default function ProjectDetailTabs({
 
       // Deactivate collaborators + send wrap emails when project is delivered
       if (newStatus === "delivered") {
-        fetch(`/api/projects/${project.id}/wrap-collaborators`, { method: "POST" }).catch(() => {});
       }
 
       // Fire stage notification email (same as full edit flow)
@@ -2086,11 +2084,6 @@ export default function ProjectDetailTabs({
                 )}
               </div>
 
-              {/* ── Wrap Notes (merged into Overview) ── */}
-              <div className="mt-6 border-t border-border pt-5">
-                <h3 className="mb-4 font-display text-sm font-semibold text-foreground">Wrap Notes</h3>
-                <WrapNotesTab projectId={project.id} canEdit={canEdit} />
-              </div>
             </TabsContent>
 
             {/* ── Production Hub ── */}
@@ -2474,10 +2467,6 @@ export default function ProjectDetailTabs({
               <LocationsTab projectId={project.id} canEdit={canEdit} />
             </TabsContent>
 
-            {/* ── Wrap Notes ── */}
-            <TabsContent value="wrap" className="m-0">
-              <WrapNotesTab projectId={project.id} canEdit={canEdit} />
-            </TabsContent>
 
             {/* ── Finance (admin only) ── */}
             {isAdmin && (

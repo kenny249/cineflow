@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, WrapNote, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem, Quote, QuoteStatus, ProjectEquipment } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem, Quote, QuoteStatus, ProjectEquipment } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -674,47 +674,6 @@ export async function deleteProjectEquipment(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// ─── Wrap Notes ───────────────────────────────────────────────────────────────
-
-export async function getWrapNotes(projectId: string): Promise<WrapNote[]> {
-  const { data, error } = await db().from('wrap_notes').select('*').eq('project_id', projectId).order('production_day', { ascending: false });
-  if (error) { if (isMissingTableError(error)) return []; throw error; }
-  return (data ?? []) as WrapNote[];
-}
-
-export async function upsertWrapNote(note: Omit<WrapNote, 'id' | 'created_at' | 'updated_at'>): Promise<WrapNote> {
-  // Manually check for existing record to avoid needing a UNIQUE constraint
-  const { data: existing } = await db()
-    .from('wrap_notes')
-    .select('id')
-    .eq('project_id', note.project_id)
-    .eq('production_day', note.production_day)
-    .maybeSingle();
-
-  if (existing?.id) {
-    const { data, error } = await db()
-      .from('wrap_notes')
-      .update({ content: note.content, issues: note.issues, outstanding: note.outstanding, updated_at: new Date().toISOString() })
-      .eq('id', existing.id)
-      .select()
-      .single();
-    if (error) throw error;
-    return data as WrapNote;
-  } else {
-    const { data, error } = await db()
-      .from('wrap_notes')
-      .insert({ ...note, updated_at: new Date().toISOString() })
-      .select()
-      .single();
-    if (error) throw error;
-    return data as WrapNote;
-  }
-}
-
-export async function deleteWrapNote(id: string): Promise<void> {
-  const { error } = await db().from('wrap_notes').delete().eq('id', id);
-  if (error) throw error;
-}
 
 // ─── Project Membership Helper ───────────────────────────────────────────────
 // Ensures the current user is in project_members (needed for budget RLS).

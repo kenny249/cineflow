@@ -441,19 +441,6 @@ export interface ProjectLocation {
   created_at: string;
 }
 
-// ─── Wrap Notes ──────────────────────────────────────────────────────────────
-export interface WrapNote {
-  id: string;
-  project_id: string;
-  production_day: string;
-  content: string;
-  issues?: string;
-  outstanding?: string;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-}
-
 // ─── Budget ──────────────────────────────────────────────────────────────────
 export interface BudgetLine {
   id: string;
