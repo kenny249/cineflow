@@ -5,18 +5,13 @@ import { Upload, FileAudio, Copy, Download, CheckCheck, X, Loader2, AlertCircle 
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const ACCEPTED_MIME = [
-  "audio/mpeg", "audio/mp4", "audio/wav", "audio/x-wav", "audio/ogg",
-  "audio/flac", "audio/x-flac", "audio/aac", "audio/m4a", "audio/webm",
-  "video/webm", "video/mp4",
-];
 const ACCEPTED_EXT = [".mp3", ".mp4", ".m4a", ".wav", ".ogg", ".flac", ".aac", ".webm"];
-const MAX_MB = 25;
+const MAX_MB = 500;
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 
 type State =
   | { phase: "idle" }
-  | { phase: "uploading"; file: File; progress: number }
+  | { phase: "uploading"; file: File; progress: number; label: string }
   | { phase: "done"; file: File; text: string; duration: number | null }
   | { phase: "error"; message: string };
 
@@ -41,7 +36,7 @@ export function AudioTranscriber() {
   function validateFile(file: File): string | null {
     if (file.size > MAX_BYTES) return `File is ${formatBytes(file.size)} — max is ${MAX_MB} MB.`;
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
-    if (!ACCEPTED_MIME.includes(file.type) && !ACCEPTED_EXT.includes(ext)) {
+    if (!ACCEPTED_EXT.includes(ext)) {
       return "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC.";
     }
     return null;
@@ -51,32 +46,73 @@ export function AudioTranscriber() {
     const err = validateFile(file);
     if (err) { setState({ phase: "error", message: err }); return; }
 
-    setState({ phase: "uploading", file, progress: 0 });
-
-    const form = new FormData();
-    form.append("file", file);
+    setState({ phase: "uploading", file, progress: 0, label: "Preparing upload…" });
 
     try {
-      // Simulate progress while waiting (Whisper doesn't stream)
-      let prog = 0;
-      const tick = setInterval(() => {
-        prog = Math.min(prog + Math.random() * 8, 85);
-        setState((s) => s.phase === "uploading" ? { ...s, progress: prog } : s);
-      }, 400);
+      // Step 1: get a signed upload URL from our API
+      const prepRes = await fetch("/api/transcribe/prepare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name }),
+      });
+      if (!prepRes.ok) {
+        const d = await prepRes.json().catch(() => ({}));
+        setState({ phase: "error", message: d.error ?? "Failed to prepare upload" });
+        return;
+      }
+      const { signedUrl, path } = await prepRes.json();
 
-      const res = await fetch("/api/transcribe", { method: "POST", body: form });
+      // Step 2: PUT file directly to Supabase Storage (bypasses Vercel body limit)
+      setState({ phase: "uploading", file, progress: 5, label: "Uploading audio…" });
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = 5 + (e.loaded / e.total) * 65;
+            setState((s) =>
+              s.phase === "uploading" ? { ...s, progress: pct, label: "Uploading audio…" } : s
+            );
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload failed (${xhr.status})`));
+        };
+        xhr.onerror = () => reject(new Error("Network error during upload"));
+        xhr.open("PUT", signedUrl);
+        xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg");
+        xhr.send(file);
+      });
+
+      // Step 3: send path to our API — it downloads from Supabase and calls Whisper
+      setState({ phase: "uploading", file, progress: 72, label: "Transcribing with Whisper…" });
+
+      // Simulate progress while waiting for Whisper
+      let prog = 72;
+      const tick = setInterval(() => {
+        prog = Math.min(prog + Math.random() * 4, 92);
+        setState((s) =>
+          s.phase === "uploading" ? { ...s, progress: prog, label: "Transcribing with Whisper…" } : s
+        );
+      }, 800);
+
+      const transcribeRes = await fetch("/api/transcribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
       clearInterval(tick);
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setState({ phase: "error", message: data.error ?? "Transcription failed. Try again." });
+      if (!transcribeRes.ok) {
+        const d = await transcribeRes.json().catch(() => ({}));
+        setState({ phase: "error", message: d.error ?? "Transcription failed. Try again." });
         return;
       }
 
-      const data = await res.json();
+      const data = await transcribeRes.json();
       setState({ phase: "done", file, text: data.text ?? "", duration: data.duration ?? null });
-    } catch {
-      setState({ phase: "error", message: "Network error. Check your connection and try again." });
+    } catch (e: any) {
+      setState({ phase: "error", message: e.message ?? "Something went wrong. Try again." });
     }
   }, []);
 
@@ -140,7 +176,7 @@ export function AudioTranscriber() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {/* Drop zone — shown when idle or error */}
+      {/* Drop zone */}
       {(state.phase === "idle" || state.phase === "error") && (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -165,11 +201,10 @@ export function AudioTranscriber() {
             "mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border transition-colors",
             dragging ? "border-[#d4a853]/40 bg-[#d4a853]/10" : "border-border bg-white/[0.03]"
           )}>
-            {dragging ? (
-              <Upload className="h-6 w-6 text-[#d4a853]" />
-            ) : (
-              <FileAudio className="h-6 w-6 text-muted-foreground" />
-            )}
+            {dragging
+              ? <Upload className="h-6 w-6 text-[#d4a853]" />
+              : <FileAudio className="h-6 w-6 text-muted-foreground" />
+            }
           </div>
           <p className="text-sm font-semibold text-foreground">
             {dragging ? "Drop to transcribe" : "Drop audio here or click to browse"}
@@ -194,7 +229,7 @@ export function AudioTranscriber() {
             <Loader2 className="h-6 w-6 animate-spin text-[#d4a853]" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground">Transcribing…</p>
+            <p className="text-sm font-semibold text-foreground">{state.label}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{state.file.name} · {formatBytes(state.file.size)}</p>
           </div>
           <div className="w-full max-w-xs">
@@ -206,14 +241,13 @@ export function AudioTranscriber() {
             </div>
             <p className="mt-1.5 text-right text-[10px] text-muted-foreground">{Math.round(state.progress)}%</p>
           </div>
-          <p className="text-[11px] text-muted-foreground/60">Powered by OpenAI Whisper · may take 30–60s for large files</p>
+          <p className="text-[11px] text-muted-foreground/60">Powered by OpenAI Whisper · large files may take 30–60s</p>
         </div>
       )}
 
-      {/* Done — show transcript */}
+      {/* Done */}
       {state.phase === "done" && (
         <div className="space-y-4">
-          {/* File info + actions */}
           <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
               <FileAudio className="h-4 w-4 text-emerald-400" />
@@ -223,8 +257,7 @@ export function AudioTranscriber() {
               <p className="text-xs text-muted-foreground">
                 {formatBytes(state.file.size)}
                 {state.duration ? ` · ${formatDuration(state.duration)}` : ""}
-                {" · "}
-                {state.text.trim().split(/\s+/).length.toLocaleString()} words
+                {" · "}{state.text.trim().split(/\s+/).length.toLocaleString()} words
               </p>
             </div>
             <button onClick={reset} className="ml-auto shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
@@ -232,7 +265,6 @@ export function AudioTranscriber() {
             </button>
           </div>
 
-          {/* Transcript */}
           <div className="rounded-xl border border-border bg-white/[0.02]">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Transcript</p>
@@ -259,7 +291,6 @@ export function AudioTranscriber() {
             </div>
           </div>
 
-          {/* Transcribe another */}
           <button
             onClick={reset}
             className="w-full rounded-xl border border-dashed border-border py-3 text-sm text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground transition-colors"
