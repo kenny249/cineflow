@@ -1442,7 +1442,7 @@ export default function ProjectDetailTabs({
           </div>
 
           {callSheetOpen && (
-            <CallSheetGenerator project={project} onClose={() => setCallSheetOpen(false)} />
+            <CallSheetGenerator project={{ ...project, client_logo_url: displayClientLogoUrl || project.client_logo_url }} onClose={() => setCallSheetOpen(false)} />
           )}
         </div>
 
