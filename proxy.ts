@@ -19,6 +19,8 @@ const PUBLIC_PREFIXES = [
   "/update-password",
   "/api/auth",
   "/api/demo",
+  "/share",
+  "/api/share",
 ];
 
 function isPublic(pathname: string): boolean {
