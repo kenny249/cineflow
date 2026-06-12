@@ -576,7 +576,10 @@ function ScriptedEditor({ sheet, onChange }: { sheet: ScriptedSheet | InterviewS
 
 // ─── Inline editor for live event ────────────────────────────────────────────
 
-function LiveEventEditor({ sheet, onChange }: { sheet: LiveEventSheet; onChange: (s: GeneratedSheet) => void }) {
+function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime }: {
+  sheet: LiveEventSheet; onChange: (s: GeneratedSheet) => void;
+  crew: CrewWithCall[]; onCrewChange: (c: CrewWithCall[]) => void; defaultCallTime: string;
+}) {
   const [editCovIdx, setEditCovIdx] = useState<number | null>(null);
   const [editMomIdx, setEditMomIdx] = useState<number | null>(null);
   const [covDraft, setCovDraft] = useState<CoverageAssignment | null>(null);
@@ -597,6 +600,30 @@ function LiveEventEditor({ sheet, onChange }: { sheet: LiveEventSheet; onChange:
 
   return (
     <div className="space-y-6">
+      {/* Crew call times — editable inline */}
+      {crew.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Crew Call Times</p>
+          <div className="space-y-1.5">
+            {crew.map((m, idx) => (
+              <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">{m.name.charAt(0).toUpperCase()}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground">{m.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{m.role}</p>
+                </div>
+                <input
+                  type="time"
+                  value={m.callTime || defaultCallTime}
+                  onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: e.target.value }; onCrewChange(u); }}
+                  className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-xs font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Coverage */}
       <div>
         <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Coverage Assignments</p>
@@ -901,7 +928,7 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
                   </div>
                 )}
                 {sheet.format === "live_event"
-                  ? <LiveEventEditor sheet={sheet} onChange={setSheet} />
+                  ? <LiveEventEditor sheet={sheet} onChange={setSheet} crew={crew} onCrewChange={setCrew} defaultCallTime={formData.callTime} />
                   : <ScriptedEditor sheet={sheet as ScriptedSheet} onChange={setSheet} />
                 }
               </div>
