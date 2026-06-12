@@ -190,7 +190,11 @@ function SavedCutListCard({ cl }: { cl: CutListSave }) {
   );
 }
 
-export function TranscriptHistory() {
+interface TranscriptHistoryProps {
+  onLoadTranscript?: (t: ProjectTranscriptWithProject) => void;
+}
+
+export function TranscriptHistory({ onLoadTranscript }: TranscriptHistoryProps = {}) {
   const [transcripts, setTranscripts] = useState<ProjectTranscriptWithProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -317,10 +321,10 @@ export function TranscriptHistory() {
               const isEditingThis = editingId === t.id;
               return (
                 <div key={t.id} className="rounded-2xl border border-border bg-white/[0.02] overflow-hidden">
-                  {/* Row — entire row is clickable to expand */}
+                  {/* Row — click to load (sidebar mode) or expand (drawer mode) */}
                   <div
                     className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
-                    onClick={() => setExpanded((e) => ({ ...e, [t.id]: !isOpen }))}
+                    onClick={() => onLoadTranscript ? onLoadTranscript(t) : setExpanded((e) => ({ ...e, [t.id]: !isOpen }))}
                   >
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03]">
                       <FileAudio className="h-3.5 w-3.5 text-muted-foreground" />
@@ -352,14 +356,18 @@ export function TranscriptHistory() {
                       >
                         {deleting === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
-                      <div className="rounded-lg p-1.5 text-muted-foreground/50 pointer-events-none">
-                        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      </div>
+                      {onLoadTranscript ? (
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90 text-muted-foreground/30" />
+                      ) : (
+                        <div className="rounded-lg p-1.5 text-muted-foreground/50 pointer-events-none">
+                          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Expanded */}
-                  {isOpen && (
+                  {/* Expanded — only in drawer mode */}
+                  {isOpen && !onLoadTranscript && (
                     <div className={cn("border-t border-border/60 p-4 space-y-5")}>
                       {/* Transcript text */}
                       <div>

@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload, FileAudio, Copy, Download, CheckCheck, X, Loader2, AlertCircle,
-  FolderOpen, ChevronDown, ChevronUp, Pencil, Archive, Sparkles,
+  FolderOpen, ChevronDown, ChevronUp, Pencil, Archive, Sparkles, Library,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
 import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
 import { getProjects, saveProjectTranscript } from "@/lib/supabase/queries";
+import type { ProjectTranscriptWithProject } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 
 const ACCEPTED_EXT = [".mp3", ".mp4", ".m4a", ".wav", ".ogg", ".flac", ".aac", ".webm"];
@@ -240,31 +241,60 @@ export function AudioTranscriber() {
     try { localStorage.removeItem(LS_KEY); } catch {}
   }
 
-  // ── IDLE / ERROR ──────────────────────────────────────────────────────────
+  function loadTranscript(t: ProjectTranscriptWithProject) {
+    const fakeFile = new File([], t.filename, { type: "audio/mpeg" });
+    setState({ phase: "done", file: fakeFile, text: t.transcript, duration: t.duration_secs ?? null });
+    setSavedToProject(t.project_title ?? "Personal");
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        filename: t.filename, fileSize: 0, text: t.transcript, duration: t.duration_secs ?? null,
+      }));
+    } catch {}
+  }
+
+  // ── IDLE / ERROR ─────────────────────────────────────────────────────────
   if (state.phase === "idle" || state.phase === "error") {
     return (
-      <div className="flex h-full flex-col items-center justify-center p-8">
+      <div className="flex h-full overflow-hidden">
         <input ref={fileInputRef} type="file" accept={ACCEPTED_EXT.join(",")} className="hidden" onChange={onFileChange} />
-        <div
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={cn(
-            "flex w-full max-w-xl cursor-pointer select-none flex-col items-center justify-center rounded-2xl border-2 border-dashed px-8 py-20 text-center transition-colors",
-            dragging ? "border-[#d4a853] bg-[#d4a853]/5" : "border-border hover:border-[#d4a853]/50 hover:bg-white/[0.02]"
-          )}
-        >
-          <div className={cn("mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border transition-colors", dragging ? "border-[#d4a853]/40 bg-[#d4a853]/10" : "border-border bg-white/[0.03]")}>
-            {dragging ? <Upload className="h-6 w-6 text-[#d4a853]" /> : <FileAudio className="h-6 w-6 text-muted-foreground" />}
-          </div>
-          <p className="text-sm font-semibold text-foreground">{dragging ? "Drop to transcribe" : "Drop audio here or click to browse"}</p>
-          <p className="mt-1.5 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC · up to {MAX_MB} MB</p>
-          {state.phase === "error" && (
-            <div className="mt-5 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
-              <AlertCircle className="h-4 w-4 shrink-0" />{state.message}
+
+        {/* Left: Upload zone */}
+        <div className="flex flex-1 items-center justify-center border-r border-border p-8">
+          <div
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={onDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              "flex w-full max-w-md cursor-pointer select-none flex-col items-center justify-center rounded-2xl border-2 border-dashed px-8 py-20 text-center transition-colors",
+              dragging ? "border-[#d4a853] bg-[#d4a853]/5" : "border-border hover:border-[#d4a853]/50 hover:bg-white/[0.02]"
+            )}
+          >
+            <div className={cn("mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border transition-colors", dragging ? "border-[#d4a853]/40 bg-[#d4a853]/10" : "border-border bg-white/[0.03]")}>
+              {dragging ? <Upload className="h-6 w-6 text-[#d4a853]" /> : <FileAudio className="h-6 w-6 text-muted-foreground" />}
             </div>
-          )}
+            <p className="text-sm font-semibold text-foreground">{dragging ? "Drop to transcribe" : "Drop audio here or click to browse"}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC · up to {MAX_MB} MB</p>
+            {state.phase === "error" && (
+              <div className="mt-5 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />{state.message}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Library — always visible in idle state */}
+        <div className="flex w-[360px] xl:w-[400px] shrink-0 flex-col">
+          <div className="shrink-0 flex items-center gap-2.5 border-b border-border px-5 py-3.5">
+            <Library className="h-3.5 w-3.5 text-[#d4a853]" />
+            <div>
+              <p className="text-xs font-semibold text-foreground">Library</p>
+              <p className="text-[10px] text-muted-foreground/60">Click a transcript to open it</p>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4">
+            <TranscriptHistory key={historyKey} onLoadTranscript={loadTranscript} />
+          </div>
         </div>
       </div>
     );

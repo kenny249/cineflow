@@ -2,24 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown, MessageSquarePlus } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
+const LS_KEY = "admin_feedback_last_viewed";
+
 const NAV = [
-  { href: "/admin/war-room",     label: "War Room",     icon: Zap },
-  { href: "/admin/users",        label: "Users",        icon: Users },
-  { href: "/admin/analytics",    label: "Analytics",    icon: BarChart2 },
-  { href: "/admin/finances",     label: "Finances",     icon: DollarSign },
+  { href: "/admin/war-room",     label: "War Room",       icon: Zap },
+  { href: "/admin/users",        label: "Users",          icon: Users },
+  { href: "/admin/analytics",    label: "Analytics",      icon: BarChart2 },
+  { href: "/admin/finances",     label: "Finances",       icon: DollarSign },
   { href: "/admin/funnel",       label: "Churn & Funnel", icon: TrendingDown },
-  { href: "/admin/activity",     label: "Live Activity",icon: Radio },
-  { href: "/admin/broadcast",    label: "Broadcast",    icon: Send },
-  { href: "/admin/invite-links", label: "Invite Links", icon: Link2 },
-  { href: "/admin/referrals",    label: "Referrals",    icon: Share2 },
-  { href: "/admin/audit-log",    label: "Audit Log",    icon: ScrollText },
-  { href: "/admin/feature-flags",label: "Feature Flags",icon: Flag },
-  { href: "/admin/announcements",label: "Announcements",icon: Megaphone },
-  { href: "/admin/brand",        label: "Brand",        icon: Palette },
-  { href: "/admin/system",       label: "System",       icon: Settings2 },
+  { href: "/admin/activity",     label: "Live Activity",  icon: Radio },
+  { href: "/admin/broadcast",    label: "Broadcast",      icon: Send },
+  { href: "/admin/feedback",     label: "Feedback",       icon: MessageSquarePlus },
+  { href: "/admin/invite-links", label: "Invite Links",   icon: Link2 },
+  { href: "/admin/referrals",    label: "Referrals",      icon: Share2 },
+  { href: "/admin/audit-log",    label: "Audit Log",      icon: ScrollText },
+  { href: "/admin/feature-flags",label: "Feature Flags",  icon: Flag },
+  { href: "/admin/announcements",label: "Announcements",  icon: Megaphone },
+  { href: "/admin/brand",        label: "Brand",          icon: Palette },
+  { href: "/admin/system",       label: "System",         icon: Settings2 },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -30,6 +35,19 @@ const ROLE_LABELS: Record<string, string> = {
 
 export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adminRole?: string | null }) {
   const pathname = usePathname();
+  const [feedbackUnread, setFeedbackUnread] = useState(0);
+
+  useEffect(() => {
+    const lastViewed = localStorage.getItem(LS_KEY);
+    const supabase = createClient();
+    let query = supabase
+      .from("feedback")
+      .select("id", { count: "exact", head: true });
+    if (lastViewed) {
+      query = query.gt("created_at", lastViewed) as typeof query;
+    }
+    query.then(({ count }) => setFeedbackUnread(count ?? 0));
+  }, [pathname]);
 
   return (
     <>
@@ -60,6 +78,7 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
         <nav className="flex-1 space-y-0.5 p-3">
           {NAV.map(({ href, label, icon: Icon }) => {
             const active = pathname.startsWith(href);
+            const isFeedback = href === "/admin/feedback";
             return (
               <Link
                 key={href}
@@ -73,6 +92,11 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 {label}
+                {isFeedback && feedbackUnread > 0 && (
+                  <span className="ml-auto rounded-full bg-[#d4a853] px-1.5 py-0.5 text-[9px] font-bold leading-none text-black">
+                    {feedbackUnread}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -113,12 +137,13 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
           <div className="flex gap-1 px-3 py-2 w-max">
             {NAV.map(({ href, label, icon: Icon }) => {
               const active = pathname.startsWith(href);
+              const isFeedback = href === "/admin/feedback";
               return (
                 <Link
                   key={href}
                   href={href}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors",
+                    "relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors",
                     active
                       ? "bg-[#d4a853]/10 text-[#d4a853]"
                       : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300"
@@ -126,6 +151,11 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0" />
                   {label}
+                  {isFeedback && feedbackUnread > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#d4a853] text-[8px] font-bold text-black">
+                      {feedbackUnread > 9 ? "9+" : feedbackUnread}
+                    </span>
+                  )}
                 </Link>
               );
             })}
