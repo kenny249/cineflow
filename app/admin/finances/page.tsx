@@ -153,7 +153,7 @@ export default async function FinancesPage() {
 
   if (!data) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-white">Finances</h1>
           <p className="text-sm text-zinc-500 mt-0.5">Cineflow subscription revenue</p>
@@ -182,8 +182,8 @@ export default async function FinancesPage() {
     .map(k => ({ key: k, ...data.planCounts[k] }));
 
   return (
-    <div className="p-8">
-      <div className="mb-6 flex items-start justify-between">
+    <div className="p-4 md:p-8">
+      <div className="mb-6 flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-white">Finances</h1>
           <p className="text-sm text-zinc-500 mt-0.5">
@@ -225,7 +225,7 @@ export default async function FinancesPage() {
       )}
 
       {/* KPI row */}
-      <div className="mb-8 grid grid-cols-4 gap-4">
+      <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         {metrics.map(({ label, value, icon: Icon, note, color }) => (
           <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
             <div className="flex items-center justify-between mb-3">
@@ -238,10 +238,10 @@ export default async function FinancesPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:gap-6">
 
         {/* Plan breakdown */}
-        <div className="col-span-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <div className="md:col-span-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
           <h2 className="text-sm font-semibold text-zinc-300 mb-4">Revenue by Plan</h2>
           {planRows.length === 0 ? (
             <p className="text-sm text-zinc-600">No verified paid subscriptions yet.</p>
@@ -324,13 +324,13 @@ export default async function FinancesPage() {
         </div>
 
         {/* Monthly revenue chart */}
-        <div className="col-span-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <div className="md:col-span-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
           <h2 className="text-sm font-semibold text-zinc-300 mb-4">Revenue — last 6 months</h2>
           <MrrChart data={data.monthlyRevenue} />
         </div>
 
         {/* Recent subscription events */}
-        <div className="col-span-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <div className="md:col-span-4 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
           <h2 className="text-sm font-semibold text-zinc-300 mb-4">Recent Subscription Events</h2>
           {data.events.length === 0 ? (
             <p className="text-sm text-zinc-600">No recent events.</p>

@@ -152,7 +152,7 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
   };
 
   return (
-    <div className="space-y-12 p-8">
+    <div className="space-y-12 p-4 md:p-8">
 
       {/* Header */}
       <div>

@@ -102,7 +102,7 @@ export function WarRoomClient({ data: initial }: { data: WarRoomData }) {
   const refreshLabel = secsAgo < 5 ? "just now" : secsAgo < 60 ? `${secsAgo}s ago` : `${Math.floor(secsAgo / 60)}m ago`;
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>

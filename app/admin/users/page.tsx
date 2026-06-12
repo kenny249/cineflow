@@ -92,14 +92,14 @@ export default async function UsersPage() {
   const newThisMonth = users.filter((u) => new Date(u.created_at) >= thisMonth).length;
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-white">Users</h1>
         <p className="text-sm text-zinc-500 mt-0.5">All real accounts (demo accounts excluded)</p>
       </div>
 
       {/* Stats row */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-3 gap-3 md:gap-4">
         {[
           { label: "Total users", value: totalUsers },
           { label: "New today", value: newToday },

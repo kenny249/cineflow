@@ -33,14 +33,14 @@ export default async function SystemPage() {
   ];
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-white">System</h1>
         <p className="text-sm text-zinc-500 mt-0.5">Demo accounts, cron jobs, and platform health</p>
       </div>
 
       {/* Demo stats */}
-      <div className="mb-6 grid grid-cols-3 gap-4">
+      <div className="mb-6 grid grid-cols-3 gap-3 md:gap-4">
         {[
           { label: "Total demo accounts", value: demoUsers.length, icon: Users },
           { label: "Active (< 7 days)", value: active.length, icon: Activity },

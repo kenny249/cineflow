@@ -20,7 +20,7 @@ export default async function AnnouncementsPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-white">Announcements</h1>
         <p className="text-sm text-zinc-500 mt-0.5">Banners shown to all users in the app</p>
