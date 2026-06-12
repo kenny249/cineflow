@@ -2017,6 +2017,21 @@ export type CutListSave = {
   saved_at: string;
 };
 
+export type ProjectTranscriptWithProject = ProjectTranscript & { project_title: string };
+
+export async function getAllUserTranscripts(): Promise<ProjectTranscriptWithProject[]> {
+  const client = createClient();
+  const { data, error } = await client
+    .from("project_transcripts")
+    .select("*, projects(title)")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((t: any) => ({
+    ...t,
+    project_title: t.projects?.title ?? "Unknown Project",
+  })) as ProjectTranscriptWithProject[];
+}
+
 export async function getProjectTranscripts(projectId: string): Promise<ProjectTranscript[]> {
   const client = createClient();
   const { data, error } = await client

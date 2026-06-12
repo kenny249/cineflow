@@ -8,6 +8,7 @@ import { SessionLog } from "@/components/editor-tools/SessionLog";
 import { TimecodeCalc } from "@/components/editor-tools/TimecodeCalc";
 import { DeliverySpecs } from "@/components/editor-tools/DeliverySpecs";
 import { AudioTranscriber } from "@/components/editor-tools/AudioTranscriber";
+import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -87,7 +88,19 @@ export default function EditorToolsPage() {
           )}
           {tab === "timecode" && <TimecodeCalc />}
           {tab === "delivery" && <DeliverySpecs />}
-          {tab === "transcribe" && <AudioTranscriber />}
+          {tab === "transcribe" && (
+            <div className="space-y-10">
+              <AudioTranscriber />
+              <div>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-border" />
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">Saved Transcripts</p>
+                  <div className="h-px flex-1 bg-border" />
+                </div>
+                <TranscriptHistory />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
