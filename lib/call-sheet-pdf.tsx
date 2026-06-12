@@ -139,7 +139,7 @@ function fmtDate(iso: string) {
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  page: { fontFamily: "Helvetica", backgroundColor: WHITE, paddingHorizontal: 32, paddingVertical: 28, fontSize: 9, color: BLACK },
+  page: { fontFamily: "Helvetica", backgroundColor: WHITE, paddingHorizontal: 32, paddingVertical: 28, fontSize: 10, color: BLACK },
 
   // Header
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", paddingBottom: 10, marginBottom: 12, borderBottomWidth: 2.5, borderBottomColor: BLACK },
@@ -152,13 +152,13 @@ const s = StyleSheet.create({
   projectTitle: { fontSize: 18, fontFamily: "Helvetica-Bold", letterSpacing: 1, textTransform: "uppercase" },
   clientLine: { fontSize: 7, color: GRAY, marginTop: 2 },
   callSheetLabel: { fontSize: 8, fontFamily: "Helvetica-Bold", marginTop: 2 },
-  confidentialBadge: { borderWidth: 1.5, borderColor: BLACK, paddingHorizontal: 5, paddingVertical: 2, fontSize: 6, fontFamily: "Helvetica-Bold", letterSpacing: 1.5 },
-  genBy: { fontSize: 6, color: LGRAY, marginTop: 3 },
+  confidentialBadge: { borderWidth: 1.5, borderColor: BLACK, paddingHorizontal: 5, paddingVertical: 2, fontSize: 7, fontFamily: "Helvetica-Bold", letterSpacing: 1.5 },
+  genBy: { fontSize: 7, color: LGRAY, marginTop: 3 },
   clientLogo: { height: 28, maxWidth: 100, objectFit: "contain", marginBottom: 5 },
 
   // Call time bar
   callBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: BLACK, borderRadius: 4, paddingHorizontal: 14, paddingVertical: 9, marginBottom: 10 },
-  callBarLabel: { fontSize: 6, fontFamily: "Helvetica-Bold", letterSpacing: 2, textTransform: "uppercase", color: LGRAY, marginBottom: 2 },
+  callBarLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", letterSpacing: 2, textTransform: "uppercase", color: LGRAY, marginBottom: 2 },
   callTime: { fontSize: 24, fontFamily: "Helvetica-Bold", color: WHITE, letterSpacing: 1 },
   wrapTime: { fontSize: 16, fontFamily: "Helvetica-Bold", color: WHITE },
   callBarSmall: { fontSize: 9, fontFamily: "Helvetica-Bold", color: WHITE },
@@ -171,87 +171,87 @@ const s = StyleSheet.create({
   // Section header
   sectionRow: { flexDirection: "row", alignItems: "center", marginBottom: 7 },
   sectionBar: { width: 3, height: 11, backgroundColor: BLACK, borderRadius: 1, marginRight: 6 },
-  sectionTitle: { fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 2, color: BLACK },
+  sectionTitle: { fontSize: 8, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 2, color: BLACK },
   sectionLine: { flex: 1, height: 1, backgroundColor: BORDER, marginLeft: 6 },
 
   // Crew call times
   crewGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
   crewCard: { width: "48.5%", borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" },
   crewDeptHeader: { backgroundColor: FAINT, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 4 },
-  crewDeptLabel: { fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151" },
+  crewDeptLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151" },
   crewRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 4 },
-  crewName: { fontSize: 8, fontFamily: "Helvetica-Bold", flex: 1 },
-  crewRole: { fontSize: 7, color: GRAY, flex: 1 },
-  crewPhone: { fontSize: 6, color: LGRAY, width: 70 },
-  crewCall: { fontSize: 8, fontFamily: "Helvetica-Bold", width: 38, textAlign: "right" },
+  crewName: { fontSize: 9, fontFamily: "Helvetica-Bold", flex: 1 },
+  crewRole: { fontSize: 8, color: GRAY, flex: 1 },
+  crewPhone: { fontSize: 7, color: LGRAY, width: 70 },
+  crewCall: { fontSize: 9, fontFamily: "Helvetica-Bold", width: 38, textAlign: "right" },
 
   // Crew contact table (live event)
   crewTableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 4 },
-  crewTableName: { fontSize: 8, fontFamily: "Helvetica-Bold", width: "22%" },
-  crewTableRole: { fontSize: 7, color: GRAY, width: "30%" },
-  crewTablePhone: { fontSize: 7, color: LGRAY, flex: 1 },
-  crewTableCall: { fontSize: 8, fontFamily: "Helvetica-Bold", width: 55, textAlign: "right" },
+  crewTableName: { fontSize: 9, fontFamily: "Helvetica-Bold", width: "22%" },
+  crewTableRole: { fontSize: 8, color: GRAY, width: "30%" },
+  crewTablePhone: { fontSize: 8, color: LGRAY, flex: 1 },
+  crewTableCall: { fontSize: 9, fontFamily: "Helvetica-Bold", width: 55, textAlign: "right" },
 
   // Locations
   locGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
   locCard: { width: "48.5%", borderWidth: 1, borderColor: BORDER, borderRadius: 3, padding: 8 },
   locNameRow: { flexDirection: "row", alignItems: "center", marginBottom: 3 },
   locBubble: { width: 14, height: 14, backgroundColor: BLACK, borderRadius: 7, alignItems: "center", justifyContent: "center", marginRight: 5 },
-  locBubbleText: { fontSize: 6, fontFamily: "Helvetica-Bold", color: WHITE },
-  locName: { fontSize: 9, fontFamily: "Helvetica-Bold", flex: 1 },
-  locDetail: { fontSize: 7, color: "#374151", marginBottom: 1, marginLeft: 19 },
-  locMuted: { fontSize: 7, color: GRAY, marginBottom: 1, marginLeft: 19 },
+  locBubbleText: { fontSize: 7, fontFamily: "Helvetica-Bold", color: WHITE },
+  locName: { fontSize: 10, fontFamily: "Helvetica-Bold", flex: 1 },
+  locDetail: { fontSize: 8, color: "#374151", marginBottom: 1, marginLeft: 19 },
+  locMuted: { fontSize: 8, color: GRAY, marginBottom: 1, marginLeft: 19 },
 
   // Legend
   legendRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 6 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 3 },
-  legendDot: { width: 5, height: 5, borderRadius: 3 },
-  legendLabel: { fontSize: 6, color: GRAY },
+  legendDot: { width: 6, height: 6, borderRadius: 3 },
+  legendLabel: { fontSize: 7, color: GRAY },
 
   // Scripted schedule
   schedTable: { marginBottom: 14 },
   schedHead: { flexDirection: "row", backgroundColor: BLACK, paddingHorizontal: 8, paddingVertical: 5 },
-  schedHeadCell: { fontSize: 7, fontFamily: "Helvetica-Bold", color: WHITE },
+  schedHeadCell: { fontSize: 8, fontFamily: "Helvetica-Bold", color: WHITE },
   schedRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 4 },
   schedTime: { width: 52, flexDirection: "row", alignItems: "center", gap: 4 },
   schedDot: { width: 6, height: 6, borderRadius: 3 },
-  schedTimeText: { fontSize: 8, fontFamily: "Helvetica-Bold" },
-  schedDesc: { flex: 1, fontSize: 8, paddingRight: 8 },
-  schedLoc: { width: 110, fontSize: 7, color: GRAY },
+  schedTimeText: { fontSize: 9, fontFamily: "Helvetica-Bold" },
+  schedDesc: { flex: 1, fontSize: 9, paddingRight: 8 },
+  schedLoc: { width: 110, fontSize: 8, color: GRAY },
 
   // Coverage (live event)
   covGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 14 },
   covCard: { width: "48.5%", borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" },
   covHeader: { backgroundColor: BLACK, paddingHorizontal: 9, paddingVertical: 7 },
-  covPerson: { fontSize: 10, fontFamily: "Helvetica-Bold", color: WHITE },
-  covRole: { fontSize: 7, color: LGRAY, marginTop: 2 },
-  covEquip: { fontSize: 7, color: GOLD, marginTop: 2 },
+  covPerson: { fontSize: 11, fontFamily: "Helvetica-Bold", color: WHITE },
+  covRole: { fontSize: 8, color: LGRAY, marginTop: 2 },
+  covEquip: { fontSize: 8, color: GOLD, marginTop: 2 },
   covBody: { padding: 9 },
   covBullet: { flexDirection: "row", marginBottom: 4, gap: 5 },
   covDot: { fontSize: 9, color: GRAY, marginTop: 0 },
-  covText: { fontSize: 7, color: "#374151", flex: 1, lineHeight: 1.5 },
+  covText: { fontSize: 8, color: "#374151", flex: 1, lineHeight: 1.5 },
 
   // Static cameras
   staticTable: { marginBottom: 14 },
   staticRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 5 },
-  staticName: { fontSize: 8, fontFamily: "Helvetica-Bold", width: "30%" },
-  staticRole: { fontSize: 7, color: GRAY, width: "70%", lineHeight: 1.4 },
+  staticName: { fontSize: 9, fontFamily: "Helvetica-Bold", width: "30%" },
+  staticRole: { fontSize: 8, color: GRAY, width: "70%", lineHeight: 1.4 },
 
   // Key moments
   momTable: { marginBottom: 14 },
   momRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 6 },
   momDotWrap: { flexDirection: "row", alignItems: "flex-start", gap: 5, width: "44%" },
   momDot: { width: 6, height: 6, borderRadius: 3, marginTop: 1.5, flexShrink: 0 },
-  momLabel: { fontSize: 8, fontFamily: "Helvetica-Bold", flex: 1, lineHeight: 1.4 },
-  momDesc: { fontSize: 7, color: "#374151", width: "56%", lineHeight: 1.5 },
+  momLabel: { fontSize: 9, fontFamily: "Helvetica-Bold", flex: 1, lineHeight: 1.4 },
+  momDesc: { fontSize: 8, color: "#374151", width: "56%", lineHeight: 1.5 },
 
   // Director note
   noteBox: { borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3, borderLeftColor: BLACK, borderRadius: 3, padding: 8, marginBottom: 12 },
-  noteLabel: { fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 2, color: LGRAY, marginBottom: 4 },
+  noteLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 2, color: LGRAY, marginBottom: 4 },
   noteText: { fontSize: 8, lineHeight: 1.7, fontFamily: "Helvetica-Oblique" },
 
   // Footer
-  footer: { borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 5, fontSize: 6, color: LGRAY, textAlign: "center" },
+  footer: { borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 5, fontSize: 7, color: LGRAY, textAlign: "center" },
 });
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -343,32 +343,32 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, backgroundColor: FAINT, borderWidth: 1, borderColor: BORDER, borderRadius: 3, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10 }}>
           {formData.emergencyContact ? (
             <View style={{ flexDirection: "row", gap: 4 }}>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Key Contact: </Text>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.emergencyContact}</Text>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Key Contact: </Text>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.emergencyContact}</Text>
             </View>
           ) : null}
           {formData.weather ? (
             <View style={{ flexDirection: "row", gap: 4 }}>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Weather: </Text>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.weather}</Text>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Weather: </Text>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.weather}</Text>
             </View>
           ) : null}
           {formData.hospital ? (
             <View style={{ flexDirection: "row", gap: 4 }}>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Hospital: </Text>
-              <Text style={{ fontSize: 6, color: BLACK }}>{formData.hospital}</Text>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Hospital: </Text>
+              <Text style={{ fontSize: 7, color: BLACK }}>{formData.hospital}</Text>
             </View>
           ) : null}
           {formData.walkieChannels ? (
             <View style={{ flexDirection: "row", gap: 4 }}>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Walkie: </Text>
-              <Text style={{ fontSize: 6, color: BLACK }}>{formData.walkieChannels}</Text>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Walkie: </Text>
+              <Text style={{ fontSize: 7, color: BLACK }}>{formData.walkieChannels}</Text>
             </View>
           ) : null}
           {formData.interviewSubjects ? (
             <View style={{ flexDirection: "row", gap: 4 }}>
-              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Subject(s): </Text>
-              <Text style={{ fontSize: 6, color: BLACK }}>{formData.interviewSubjects}</Text>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Subject(s): </Text>
+              <Text style={{ fontSize: 7, color: BLACK }}>{formData.interviewSubjects}</Text>
             </View>
           ) : null}
         </View>
@@ -433,10 +433,10 @@ export function CallSheetPDFDocument({
               <SectionHeader>Crew Call Times</SectionHeader>
               <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
                 <View style={{ flexDirection: "row", backgroundColor: FAINT, borderBottomWidth: 1, borderBottomColor: BORDER, paddingHorizontal: 8, paddingVertical: 4 }}>
-                  <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: "25%" }}>Name</Text>
-                  <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", flex: 1 }}>Role</Text>
-                  <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: "25%" }}>Phone</Text>
-                  <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: 52, textAlign: "right" }}>Call Time</Text>
+                  <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: "25%" }}>Name</Text>
+                  <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", flex: 1 }}>Role</Text>
+                  <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: "25%" }}>Phone</Text>
+                  <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: "#374151", width: 52, textAlign: "right" }}>Call Time</Text>
                 </View>
                 {crew.map((m, i) => (
                   <View key={m.id} style={[s.crewTableRow, { backgroundColor: i % 2 === 0 ? WHITE : FAINT }]} wrap={false}>
@@ -467,7 +467,7 @@ export function CallSheetPDFDocument({
                           {c.equipment ? <Text style={s.covEquip}>{c.equipment}</Text> : null}
                         </View>
                         <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
-                          <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", letterSpacing: 1.5, textTransform: "uppercase", color: LGRAY, marginBottom: 2 }}>CALL</Text>
+                          <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", letterSpacing: 1.5, textTransform: "uppercase", color: LGRAY, marginBottom: 2 }}>CALL</Text>
                           <Text style={{ fontSize: 11, fontFamily: "Helvetica-Bold", color: WHITE }}>{callTime}</Text>
                         </View>
                       </View>
@@ -510,7 +510,7 @@ export function CallSheetPDFDocument({
                 {([ ["pre", "Pre-Show"], ["during", "During"], ["post", "Post-Show"], ["logistics", "Logistics"] ] as const).map(([type, label]) => (
                   <View key={type} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
                     <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: MOMENT_DOT[type] }} />
-                    <Text style={{ fontSize: 6, color: GRAY }}>{label}</Text>
+                    <Text style={{ fontSize: 7, color: GRAY }}>{label}</Text>
                   </View>
                 ))}
               </View>

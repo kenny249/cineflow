@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  X, ChevronRight, ChevronLeft, Loader2, Printer,
+  X, ChevronRight, ChevronLeft, Loader2, Printer, Download,
   MapPin, Users, Clock, Calendar, AlertTriangle, FileText, Check,
   Edit3, Film, Radio, Mic2, CheckCircle2,
 } from "lucide-react";
@@ -1043,12 +1043,21 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "PDF generation failed"); }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `call-sheet-${project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
-      toast.success("Call sheet downloaded");
+      const filename = `call-sheet-${project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`;
+      // iOS Safari ignores <a download> on blob URLs — open in new tab so the native PDF viewer handles it
+      const isIOS = /iP(ad|hone|od)/.test(navigator.userAgent);
+      if (isIOS) {
+        const newTab = window.open(url, "_blank");
+        if (!newTab) toast.error("Allow popups to open the PDF");
+        else toast.success("PDF opened — tap the share button to save to your device");
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        toast.success("Call sheet downloaded");
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err: any) { toast.error(err.message ?? "Failed to generate PDF"); }
     finally { setPdfLoading(false); }
   };
@@ -1141,9 +1150,16 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
               </div>
               {/* Right: live preview */}
               <div className="w-1/2 overflow-y-auto bg-zinc-100 p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Preview</p>
-                  <span className="text-[10px] text-muted-foreground">Updates as you edit</span>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Preview</p>
+                  <button
+                    onClick={handleSavePDF}
+                    disabled={pdfLoading}
+                    className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-50 transition-colors"
+                  >
+                    {pdfLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    {pdfLoading ? "Generating…" : "Save PDF"}
+                  </button>
                 </div>
                 <div className="rounded-xl border border-border bg-white shadow-lg p-6">
                   <PrintSheet
