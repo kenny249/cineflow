@@ -165,7 +165,7 @@ export const BRIEF = {
   },
 
   market: {
-    tam: { value: "$5.7B", label: "Global video production software market (2024)", growth: "8.2% CAGR" },
+    tam: { value: "$6.7B", label: "Global video production software market (2026 est.)", growth: "8.2% CAGR" },
     sam: { value: "$1.2B", label: "Freelance & independent production company segment" },
     target: { value: "750K+", label: "Freelance video editors & small production companies in the US alone" },
     tailwinds: [
