@@ -3289,6 +3289,7 @@ export default function ProjectDetailTabs({
       {showImportBrief && (
         <ImportBriefModal
           projectId={project.id}
+          projectType={project.type}
           onClose={() => setShowImportBrief(false)}
           onImported={(summary) => {
             setShowImportBrief(false);

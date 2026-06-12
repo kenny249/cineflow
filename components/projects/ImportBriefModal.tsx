@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, FileUp, FileText, Loader2, CheckCircle2, Circle, AlertCircle, Camera, Users, ListChecks, MapPin, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -121,19 +121,98 @@ function SectionHeader({ icon: Icon, label, count, color }: { icon: React.Elemen
   );
 }
 
+// ─── Loading message cycles ───────────────────────────────────────────────────
+
+const PARSE_MESSAGES: Record<string, string[]> = {
+  live_event: [
+    "Reading the brief…",
+    "Mapping the show schedule…",
+    "Extracting crew assignments…",
+    "Scanning the artist lineup…",
+    "Planning coverage positions…",
+    "Identifying key moments…",
+    "Building your run-of-show…",
+    "Locking in the venue details…",
+    "Organizing production roles…",
+    "Almost there…",
+  ],
+  music_video: [
+    "Reading the brief…",
+    "Extracting crew roles…",
+    "Building the shot list…",
+    "Scanning performance setups…",
+    "Mapping locations…",
+    "Identifying equipment needs…",
+    "Organizing scene breakdowns…",
+    "Almost there…",
+  ],
+  wedding: [
+    "Reading the brief…",
+    "Mapping the day-of timeline…",
+    "Extracting crew assignments…",
+    "Identifying key moments…",
+    "Scanning venue details…",
+    "Organizing coverage plan…",
+    "Almost there…",
+  ],
+  podcast: [
+    "Reading the brief…",
+    "Extracting guest lineup…",
+    "Scanning episode details…",
+    "Identifying equipment setup…",
+    "Organizing recording plan…",
+    "Almost there…",
+  ],
+  default: [
+    "Reading the brief…",
+    "Extracting crew members…",
+    "Building the shot list…",
+    "Scanning equipment needs…",
+    "Mapping locations…",
+    "Organizing scene breakdowns…",
+    "Identifying key assets…",
+    "Reviewing production details…",
+    "Pulling it all together…",
+    "Almost there…",
+  ],
+};
+
+const IMPORT_MESSAGES = [
+  "Adding crew to project…",
+  "Logging equipment…",
+  "Creating shot list…",
+  "Saving locations…",
+  "Updating project details…",
+  "Writing to project…",
+];
+
+function useRotatingMessage(messages: string[], active: boolean, intervalMs = 1800) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (!active) { setIdx(0); return; }
+    const id = setInterval(() => setIdx((i) => (i + 1) % messages.length), intervalMs);
+    return () => clearInterval(id);
+  }, [active, messages, intervalMs]);
+  return messages[idx];
+}
+
 // ─── Main modal ───────────────────────────────────────────────────────────────
 
 interface ImportBriefModalProps {
   projectId: string;
+  projectType?: string;
   onClose: () => void;
   onImported: (summary: string) => void;
 }
 
 type Step = "upload" | "parsing" | "preview" | "importing" | "done";
 
-export function ImportBriefModal({ projectId, onClose, onImported }: ImportBriefModalProps) {
+export function ImportBriefModal({ projectId, projectType, onClose, onImported }: ImportBriefModalProps) {
   const [step, setStep] = useState<Step>("upload");
   const [dragOver, setDragOver] = useState(false);
+  const parseMessages = PARSE_MESSAGES[projectType ?? ""] ?? PARSE_MESSAGES.default;
+  const parseMsg = useRotatingMessage(parseMessages, step === "parsing");
+  const importMsg = useRotatingMessage(IMPORT_MESSAGES, step === "importing");
   const [pastedText, setPastedText] = useState("");
   const [fileName, setFileName] = useState("");
   const [result, setResult] = useState<BriefResult | null>(null);
@@ -423,8 +502,8 @@ export function ImportBriefModal({ projectId, onClose, onImported }: ImportBrief
             <div className="flex flex-col items-center justify-center gap-4 py-16">
               <Loader2 className="h-10 w-10 animate-spin text-[#d4a853]" />
               <div className="text-center">
-                <p className="text-sm font-medium text-foreground">Reading your brief…</p>
-                <p className="mt-1 text-xs text-muted-foreground">Claude is extracting crew, equipment, shots, and more.</p>
+                <p className="text-sm font-semibold text-foreground transition-all duration-300">{parseMsg}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Claude is reading your brief…</p>
               </div>
             </div>
           )}
@@ -548,7 +627,7 @@ export function ImportBriefModal({ projectId, onClose, onImported }: ImportBrief
           {step === "importing" && (
             <div className="flex flex-col items-center justify-center gap-4 py-16">
               <Loader2 className="h-10 w-10 animate-spin text-[#d4a853]" />
-              <p className="text-sm font-medium text-foreground">Importing to project…</p>
+              <p className="text-sm font-semibold text-foreground transition-all duration-300">{importMsg}</p>
             </div>
           )}
 

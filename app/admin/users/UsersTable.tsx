@@ -441,6 +441,8 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                     </button>
 
                     {openMenu === u.id && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
                       <div className="absolute right-0 top-8 z-50 min-w-[200px] rounded-xl border border-white/[0.08] bg-[#141414] p-1 shadow-xl">
                         {/* Change plan */}
                         <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Change plan</p>
@@ -554,6 +556,7 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                           Delete user
                         </button>
                       </div>
+                      </>
                     )}
                   </div>
                 </td>

@@ -92,8 +92,8 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
 
       {/* Mobile horizontal tab strip */}
       <div className="md:hidden flex flex-col border-b border-white/[0.06] bg-[#0b0b0b]">
-        {/* Header row */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]">
+        {/* Header row — safe area top padding for iPhone notch/island */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.04]" style={{ paddingTop: "max(12px, env(safe-area-inset-top))" }}>
           <div className="flex items-center gap-2">
             <div className="flex h-6 w-6 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10">
               <Film className="h-3 w-3 text-[#d4a853]" />
