@@ -2991,8 +2991,9 @@ export default function ProjectDetailTabs({
                         if (error) throw error;
                         const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
                         setEditClientLogoUrl(publicUrl);
-                      } catch {
-                        toast.error("Logo upload failed");
+                      } catch (err: any) {
+                        console.error("Logo upload error:", err);
+                        toast.error(`Logo upload failed: ${err?.message ?? err}`)
                       } finally {
                         setUploadingClientLogo(false);
                       }
