@@ -54,14 +54,19 @@ export function FeedbackButton() {
 
   return (
     <>
-      {/* Floating trigger — above mobile nav, bottom-right on desktop */}
+      {/* Vertical right-edge tab */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-40 flex items-center gap-2 rounded-full border border-[#d4a853]/20 bg-card/95 px-3.5 py-2 text-xs font-medium text-[#d4a853] shadow-lg backdrop-blur-md transition-all hover:border-[#d4a853]/40 hover:shadow-[0_0_18px_rgba(212,168,83,0.15)] md:bottom-6 md:right-6"
         aria-label="Send feedback"
+        className="fixed right-0 top-1/2 z-40 -translate-y-1/2 flex flex-col items-center gap-2 rounded-l-xl border border-r-0 border-[#d4a853]/20 bg-card/95 px-2.5 py-4 shadow-lg backdrop-blur-md transition-all duration-200 hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5 hover:shadow-[0_0_20px_rgba(212,168,83,0.12)]"
       >
-        <MessageSquarePlus className="h-3.5 w-3.5" />
-        <span>Feedback</span>
+        <MessageSquarePlus className="h-3.5 w-3.5 text-[#d4a853]" />
+        <span
+          className="text-[10px] font-semibold uppercase tracking-widest text-[#d4a853]"
+          style={{ writingMode: "vertical-lr", transform: "rotate(180deg)" }}
+        >
+          Feedback
+        </span>
       </button>
 
       {/* Modal overlay */}
