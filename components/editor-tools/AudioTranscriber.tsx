@@ -1,10 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Upload, FileAudio, Copy, Download, CheckCheck, X, Loader2, AlertCircle, FolderOpen, ChevronDown, Pencil } from "lucide-react";
+import {
+  Upload, FileAudio, Copy, Download, CheckCheck, X, Loader2, AlertCircle,
+  FolderOpen, ChevronDown, ChevronUp, Pencil, Archive, Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
+import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
 import { getProjects, saveProjectTranscript } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 
@@ -21,6 +25,8 @@ type State =
   | { phase: "done"; file: File; text: string; duration: number | null }
   | { phase: "error"; message: string };
 
+type MobileTab = "transcript" | "ai";
+
 function formatBytes(b: number) {
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
   return `${(b / (1024 * 1024)).toFixed(1)} MB`;
@@ -32,29 +38,28 @@ function formatDuration(secs: number) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: () => void }) {
+export function AudioTranscriber() {
   const [state, setState] = useState<State>({ phase: "idle" });
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
-  // Save to project
   const [projects, setProjects] = useState<Project[]>([]);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
   const [savedToProject, setSavedToProject] = useState<string | null>(null);
-  // Inline editing
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [historyKey, setHistoryKey] = useState(0);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("transcript");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Restore from localStorage on mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (!raw) return;
       const saved: DoneState = JSON.parse(raw);
       if (saved.text) {
-        // Reconstruct a minimal File-like object for display
         const fakeFile = new File([], saved.filename, { type: "audio/mpeg" });
         Object.defineProperty(fakeFile, "size", { value: saved.fileSize });
         setState({ phase: "done", file: fakeFile, text: saved.text, duration: saved.duration });
@@ -62,7 +67,6 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
     } catch {}
   }, []);
 
-  // Fetch projects when picker opens
   useEffect(() => {
     if (showProjectPicker && projects.length === 0) {
       getProjects().then(setProjects).catch(() => {});
@@ -79,10 +83,8 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
   const transcribe = useCallback(async (file: File) => {
     const err = validateFile(file);
     if (err) { setState({ phase: "error", message: err }); return; }
-
     setSavedToProject(null);
     setState({ phase: "uploading", file, progress: 0, label: "Preparing upload…" });
-
     try {
       const prepRes = await fetch("/api/transcribe/prepare", {
         method: "POST",
@@ -135,8 +137,6 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
       const data = await res.json();
       const done: DoneState = { filename: file.name, fileSize: file.size, text: data.text ?? "", duration: data.duration ?? null };
       setState({ phase: "done", file, text: done.text, duration: done.duration });
-
-      // Persist to localStorage so refresh doesn't lose it
       try { localStorage.setItem(LS_KEY, JSON.stringify(done)); } catch {}
     } catch (e: any) {
       setState({ phase: "error", message: e.message ?? "Something went wrong. Try again." });
@@ -180,7 +180,7 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
       const isIOS = /iP(ad|hone|od)/.test(navigator.userAgent);
       if (isIOS) {
         window.open(url, "_blank");
-        toast.success("PDF opened — tap share to save to your device");
+        toast.success("PDF opened — tap share to save");
       } else {
         const a = document.createElement("a");
         a.href = url; a.download = `${basename}-transcript.pdf`;
@@ -206,8 +206,9 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
       });
       setSavedToProject(label);
       setShowProjectPicker(false);
-      toast.success(project ? `Saved to "${label}"` : "Saved to Personal transcripts");
-      onTranscriptSaved?.();
+      setHistoryKey((k) => k + 1);
+      setTimeout(() => setLibraryOpen(true), 400);
+      toast.success(project ? `Saved to "${label}"` : "Saved to Personal");
     } catch { toast.error("Failed to save"); }
     finally { setSavingProject(false); }
   }
@@ -223,10 +224,7 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
     setState({ ...state, text: editText });
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        localStorage.setItem(LS_KEY, JSON.stringify({ ...parsed, text: editText }));
-      }
+      if (raw) localStorage.setItem(LS_KEY, JSON.stringify({ ...JSON.parse(raw), text: editText }));
     } catch {}
     setIsEditing(false);
     toast.success("Transcript updated");
@@ -237,40 +235,46 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
     setCopied(false);
     setSavedToProject(null);
     setShowProjectPicker(false);
+    setIsEditing(false);
+    setLibraryOpen(false);
     try { localStorage.removeItem(LS_KEY); } catch {}
   }
 
-  return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      {/* Drop zone */}
-      {(state.phase === "idle" || state.phase === "error") && (
+  // ── IDLE / ERROR ──────────────────────────────────────────────────────────
+  if (state.phase === "idle" || state.phase === "error") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center p-8">
+        <input ref={fileInputRef} type="file" accept={ACCEPTED_EXT.join(",")} className="hidden" onChange={onFileChange} />
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
           onClick={() => fileInputRef.current?.click()}
           className={cn(
-            "relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-8 py-16 text-center transition-colors cursor-pointer select-none",
+            "flex w-full max-w-xl cursor-pointer select-none flex-col items-center justify-center rounded-2xl border-2 border-dashed px-8 py-20 text-center transition-colors",
             dragging ? "border-[#d4a853] bg-[#d4a853]/5" : "border-border hover:border-[#d4a853]/50 hover:bg-white/[0.02]"
           )}
         >
-          <input ref={fileInputRef} type="file" accept={ACCEPTED_EXT.join(",")} className="hidden" onChange={onFileChange} />
           <div className={cn("mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border transition-colors", dragging ? "border-[#d4a853]/40 bg-[#d4a853]/10" : "border-border bg-white/[0.03]")}>
             {dragging ? <Upload className="h-6 w-6 text-[#d4a853]" /> : <FileAudio className="h-6 w-6 text-muted-foreground" />}
           </div>
           <p className="text-sm font-semibold text-foreground">{dragging ? "Drop to transcribe" : "Drop audio here or click to browse"}</p>
           <p className="mt-1.5 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC · up to {MAX_MB} MB</p>
           {state.phase === "error" && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
+            <div className="mt-5 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
               <AlertCircle className="h-4 w-4 shrink-0" />{state.message}
             </div>
           )}
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* Uploading */}
-      {state.phase === "uploading" && (
-        <div className="flex flex-col items-center gap-5 rounded-2xl border border-border bg-white/[0.02] px-8 py-14 text-center">
+  // ── UPLOADING ─────────────────────────────────────────────────────────────
+  if (state.phase === "uploading") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center p-8">
+        <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-2xl border border-border bg-white/[0.02] px-8 py-14 text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10">
             <Loader2 className="h-6 w-6 animate-spin text-[#d4a853]" />
           </div>
@@ -278,7 +282,7 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
             <p className="text-sm font-semibold text-foreground">{state.label}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">{state.file.name} · {formatBytes(state.file.size)}</p>
           </div>
-          <div className="w-full max-w-xs">
+          <div className="w-full">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
               <div className="h-full rounded-full bg-[#d4a853] transition-all duration-500" style={{ width: `${state.progress}%` }} />
             </div>
@@ -286,132 +290,209 @@ export function AudioTranscriber({ onTranscriptSaved }: { onTranscriptSaved?: ()
           </div>
           <p className="text-[11px] text-muted-foreground/60">Powered by OpenAI Whisper · large files may take 30–60s</p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* Done */}
-      {state.phase === "done" && (
-        <div className="space-y-4">
-          {/* File info bar */}
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
-              <FileAudio className="h-4 w-4 text-emerald-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">{state.file.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {state.file.size ? formatBytes(state.file.size) : ""}
-                {state.duration ? ` · ${formatDuration(state.duration)}` : ""}
-                {" · "}{state.text.trim().split(/\s+/).length.toLocaleString()} words
-                {savedToProject && <span className="ml-2 text-emerald-400">· saved to &ldquo;{savedToProject}&rdquo;</span>}
-              </p>
-            </div>
-            <button onClick={reset} className="ml-auto shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+  // ── DONE: split workspace ─────────────────────────────────────────────────
+  const wordCount = state.text.trim().split(/\s+/).length;
 
-          {/* Transcript card */}
-          <div className="rounded-xl border border-border bg-white/[0.02]">
-            <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-auto">Transcript</p>
-              {isEditing ? (
-                <>
-                  <button onClick={() => setIsEditing(false)} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
-                    Cancel
-                  </button>
-                  <button onClick={saveEdit} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 transition-colors">
-                    Save edits
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button onClick={startEdit} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
-                    <Pencil className="h-3.5 w-3.5" /> Edit
-                  </button>
-                  <button onClick={copyText} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors">
-                    {copied ? <CheckCheck className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                    {copied ? "Copied" : "Copy"}
-                  </button>
-                  <button onClick={downloadPDF} disabled={pdfLoading} className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-50 transition-colors">
-                    {pdfLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                    {pdfLoading ? "Generating…" : "Download PDF"}
-                  </button>
-                </>
-              )}
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
 
-              {/* Save to Project picker */}
-              <div className="relative">
+      {/* ── File bar ── */}
+      <div className="shrink-0 flex items-center gap-3 border-b border-emerald-500/20 bg-emerald-500/[0.04] px-5 py-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15">
+          <FileAudio className="h-4 w-4 text-emerald-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="truncate text-sm font-medium text-foreground">{state.file.name}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {state.file.size ? formatBytes(state.file.size) : ""}
+            {state.duration ? ` · ${formatDuration(state.duration)}` : ""}
+            {" · "}{wordCount.toLocaleString()} words
+            {savedToProject && <span className="ml-2 text-emerald-400">· saved to &ldquo;{savedToProject}&rdquo;</span>}
+          </p>
+        </div>
+
+        {/* Save button */}
+        <div className="relative shrink-0">
+          <button
+            onClick={() => setShowProjectPicker((v) => !v)}
+            disabled={savingProject || !!savedToProject}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+              savedToProject
+                ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                : "bg-[#d4a853] text-black hover:bg-[#d4a853]/90 disabled:opacity-50"
+            )}
+          >
+            {savingProject ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
+            {savedToProject ? "Saved" : "Save"}
+            {!savedToProject && !savingProject && <ChevronDown className="h-3 w-3" />}
+          </button>
+
+          {showProjectPicker && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowProjectPicker(false)} />
+              <div className="absolute right-0 top-10 z-50 w-64 overflow-hidden rounded-xl border border-border bg-[#111] shadow-2xl">
+                <p className="border-b border-border px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Save transcript</p>
                 <button
-                  onClick={() => setShowProjectPicker((v) => !v)}
-                  disabled={savingProject || !!savedToProject}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                    savedToProject
-                      ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                      : "bg-[#d4a853] text-black hover:bg-[#d4a853]/90 disabled:opacity-50"
-                  )}
+                  onClick={() => saveToProject(null)}
+                  className="flex w-full items-center border-b border-border/50 px-4 py-2.5 text-left text-sm text-muted-foreground hover:bg-white/[0.05] hover:text-foreground transition-colors"
                 >
-                  {savingProject ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FolderOpen className="h-3.5 w-3.5" />}
-                  {savedToProject ? "Saved" : "Save"}
-                  {!savedToProject && !savingProject && <ChevronDown className="h-3 w-3" />}
+                  Personal (no project)
                 </button>
-
-                {showProjectPicker && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowProjectPicker(false)} />
-                    <div className="absolute right-0 top-9 z-50 w-64 rounded-xl border border-border bg-[#111] shadow-2xl overflow-hidden">
-                      <p className="border-b border-border px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Save transcript</p>
-                      {/* Personal option always at top */}
+                {projects.length === 0 ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
+                  </div>
+                ) : (
+                  <div className="max-h-52 overflow-y-auto">
+                    {projects.map((p) => (
                       <button
-                        onClick={() => saveToProject(null)}
-                        className="flex w-full items-center gap-2 border-b border-border/50 px-4 py-2.5 text-left text-sm text-muted-foreground hover:bg-white/[0.05] hover:text-foreground transition-colors"
+                        key={p.id}
+                        onClick={() => saveToProject(p)}
+                        className="flex w-full items-center px-4 py-2.5 text-left text-sm text-foreground hover:bg-white/[0.05] transition-colors"
                       >
-                        <span className="flex-1 truncate">Personal (no project)</span>
+                        <span className="truncate">{p.title}</span>
                       </button>
-                      {projects.length === 0 ? (
-                        <div className="flex items-center justify-center py-6">
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
-                        </div>
-                      ) : (
-                        <div className="max-h-52 overflow-y-auto">
-                          {projects.map((p) => (
-                            <button
-                              key={p.id}
-                              onClick={() => saveToProject(p)}
-                              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-foreground hover:bg-white/[0.05] transition-colors"
-                            >
-                              <span className="flex-1 truncate">{p.title}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
-            <div className="max-h-[480px] overflow-y-auto custom-scrollbar p-5">
-              {isEditing ? (
-                <textarea
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  className="w-full resize-none rounded-lg border border-[#d4a853]/30 bg-white/[0.03] p-3 text-sm leading-7 text-foreground focus:border-[#d4a853]/60 focus:outline-none transition-colors"
-                  rows={Math.max(10, editText.split("\n").length)}
-                />
-              ) : (
-                <p className="whitespace-pre-wrap text-sm leading-7 text-foreground/90">{state.text}</p>
+            </>
+          )}
+        </div>
+
+        <button
+          onClick={reset}
+          title="New transcript"
+          className="shrink-0 rounded-lg p-1.5 text-muted-foreground/50 hover:bg-white/[0.06] hover:text-foreground transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* ── Mobile tab switcher ── */}
+      <div className="md:hidden shrink-0 border-b border-border px-5">
+        <div className="flex">
+          {([["transcript", "Transcript"], ["ai", "AI Cut List"]] as [MobileTab, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setMobileTab(key)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-all",
+                mobileTab === key
+                  ? "border-[#d4a853] text-foreground"
+                  : "border-transparent text-muted-foreground"
               )}
-            </div>
+            >
+              {key === "ai" && <Sparkles className="h-3.5 w-3.5" />}
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Split workspace ── */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+
+        {/* Left: Transcript */}
+        <div className={cn(
+          "flex flex-col flex-1 min-w-0",
+          "border-r border-border",
+          mobileTab !== "transcript" && "hidden md:flex"
+        )}>
+          {/* Transcript toolbar */}
+          <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
+            <p className="mr-auto text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Transcript</p>
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEdit}
+                  className="rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 transition-colors"
+                >
+                  Save edits
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={startEdit}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </button>
+                <button
+                  onClick={copyText}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+                >
+                  {copied ? <CheckCheck className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+                <button
+                  onClick={downloadPDF}
+                  disabled={pdfLoading}
+                  className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-50 transition-colors"
+                >
+                  {pdfLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  {pdfLoading ? "…" : "PDF"}
+                </button>
+              </>
+            )}
           </div>
 
-          {/* AI panel — no save callback (standalone/ephemeral cut lists) */}
-          <AIContentPanel transcript={state.text} filename={state.file.name} />
-
-          <button onClick={reset} className="w-full rounded-xl border border-dashed border-border py-3 text-sm text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground transition-colors">
-            + Transcribe another file
-          </button>
+          {/* Transcript body */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+            {isEditing ? (
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                autoFocus
+                className="h-full w-full resize-none bg-transparent text-sm leading-8 text-foreground focus:outline-none"
+              />
+            ) : (
+              <p className="whitespace-pre-wrap text-sm leading-8 text-foreground/90">{state.text}</p>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* Right: AI Content Intelligence */}
+        <div className={cn(
+          "w-[400px] xl:w-[440px] shrink-0 overflow-y-auto custom-scrollbar",
+          mobileTab !== "ai" && "hidden md:block"
+        )}>
+          <AIContentPanel transcript={state.text} filename={state.file.name} />
+        </div>
+      </div>
+
+      {/* ── Library drawer ── */}
+      <div className="shrink-0 border-t border-border">
+        <button
+          onClick={() => setLibraryOpen((v) => !v)}
+          className="flex w-full items-center gap-2.5 px-5 py-3 hover:bg-white/[0.02] transition-colors"
+        >
+          <Archive className="h-3.5 w-3.5 text-muted-foreground/40" />
+          <span className="text-xs font-semibold text-muted-foreground/60">Library</span>
+          <span className="text-[10px] text-muted-foreground/30">saved transcripts</span>
+          {libraryOpen
+            ? <ChevronDown className="ml-auto h-3.5 w-3.5 text-muted-foreground/30" />
+            : <ChevronUp className="ml-auto h-3.5 w-3.5 text-muted-foreground/30" />
+          }
+        </button>
+        {libraryOpen && (
+          <div className="max-h-80 overflow-y-auto custom-scrollbar border-t border-border px-5 py-4">
+            <TranscriptHistory key={historyKey} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -8,7 +8,6 @@ import { SessionLog } from "@/components/editor-tools/SessionLog";
 import { TimecodeCalc } from "@/components/editor-tools/TimecodeCalc";
 import { DeliverySpecs } from "@/components/editor-tools/DeliverySpecs";
 import { AudioTranscriber } from "@/components/editor-tools/AudioTranscriber";
-import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -24,8 +23,6 @@ export default function EditorToolsPage() {
   const [tab, setTab]           = useState<Tab>("log");
   const [sessions, setSessions] = useState<EditSession[]>([]);
   const [loading, setLoading]   = useState(true);
-  const [historyKey, setHistoryKey] = useState(0);
-
   // Persist active tab in URL hash so refresh restores the same tab
   useEffect(() => {
     const hash = window.location.hash.slice(1) as Tab;
@@ -86,34 +83,30 @@ export default function EditorToolsPage() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
-        <div className="px-6 py-6">
-          {tab === "log" && (
-            loading ? (
+      {/* Content — transcribe gets full height workspace, others get scrollable padding */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {tab === "log" && (
+          <div className="h-full overflow-y-auto custom-scrollbar px-6 py-6">
+            {loading ? (
               <div className="flex items-center justify-center py-24">
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-border border-t-[#d4a853]" />
               </div>
             ) : (
               <SessionLog sessions={sessions} onDelete={handleDelete} onAdd={handleAdd} />
-            )
-          )}
-          {tab === "timecode" && <TimecodeCalc />}
-          {tab === "delivery" && <DeliverySpecs />}
-          {tab === "transcribe" && (
-            <div className="space-y-10">
-              <AudioTranscriber onTranscriptSaved={() => setHistoryKey((k) => k + 1)} />
-              <div>
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="h-px flex-1 bg-border" />
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40">Saved Transcripts</p>
-                  <div className="h-px flex-1 bg-border" />
-                </div>
-                <TranscriptHistory key={historyKey} />
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
+        {tab === "timecode" && (
+          <div className="h-full overflow-y-auto custom-scrollbar px-6 py-6">
+            <TimecodeCalc />
+          </div>
+        )}
+        {tab === "delivery" && (
+          <div className="h-full overflow-y-auto custom-scrollbar px-6 py-6">
+            <DeliverySpecs />
+          </div>
+        )}
+        {tab === "transcribe" && <AudioTranscriber />}
       </div>
     </div>
   );
