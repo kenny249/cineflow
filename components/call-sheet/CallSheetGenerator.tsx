@@ -500,7 +500,12 @@ function PrintSheet(props: {
 
 // ─── Inline editor for scripted schedule ─────────────────────────────────────
 
-function ScriptedEditor({ sheet, onChange }: { sheet: ScriptedSheet | InterviewSheet; onChange: (s: GeneratedSheet) => void }) {
+function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations, onLocationsChange, crew, onCrewChange }: {
+  sheet: ScriptedSheet | InterviewSheet; onChange: (s: GeneratedSheet) => void;
+  formData: FormData; onFormDataChange: (f: FormData) => void;
+  locations: LocationWithParking[]; onLocationsChange: (l: LocationWithParking[]) => void;
+  crew: CrewWithCall[]; onCrewChange: (c: CrewWithCall[]) => void;
+}) {
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [draft, setDraft] = useState<ScheduleItem | null>(null);
 
@@ -518,8 +523,87 @@ function ScriptedEditor({ sheet, onChange }: { sheet: ScriptedSheet | InterviewS
     onChange({ ...sheet, schedule: updated });
   }
 
+  const set = (k: keyof FormData, v: any) => onFormDataChange({ ...formData, [k]: v });
+
   return (
-    <div className="space-y-1">
+    <div className="space-y-6">
+      {/* Sheet details */}
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Sheet Details</p>
+        <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Date</label>
+              <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Crew Call</label>
+              <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
+              <input type="time" value={formData.wrapTime} onChange={(e) => set("wrapTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Weather</label>
+              <input value={formData.weather} onChange={(e) => set("weather", e.target.value)} placeholder="e.g. 72°F Sunny" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            {sheet.format === "scripted" && <>
+              <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Shoot Day</label>
+                <input value={formData.shootDay} onChange={(e) => set("shootDay", e.target.value)} placeholder="e.g. Day 1 of 3" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Script Revision</label>
+                <input value={formData.scriptRevision} onChange={(e) => set("scriptRevision", e.target.value)} placeholder="e.g. Blue Rev." className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            </>}
+            {sheet.format === "interview" && <div className="col-span-2">
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Interview Subjects</label>
+              <input value={formData.interviewSubjects} onChange={(e) => set("interviewSubjects", e.target.value)} placeholder="Subject names" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+            </div>}
+          </div>
+          <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Nearest Hospital</label>
+            <input value={formData.hospital} onChange={(e) => set("hospital", e.target.value)} placeholder="Hospital name — address" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Key Contact</label>
+              <input value={formData.emergencyContact} onChange={(e) => set("emergencyContact", e.target.value)} placeholder="Name — Phone" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Walkie Channels</label>
+              <input value={formData.walkieChannels} onChange={(e) => set("walkieChannels", e.target.value)} placeholder="e.g. CH1: Production" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Venue */}
+      {locations.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Locations</p>
+          <div className="space-y-2">
+            {locations.map((loc, idx) => (
+              <div key={loc.id} className="rounded-xl border border-border bg-card p-3 space-y-1.5">
+                <input value={loc.name} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], name: e.target.value }; onLocationsChange(u); }}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                <input value={loc.address || ""} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], address: e.target.value }; onLocationsChange(u); }}
+                  placeholder="Address" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Crew call times */}
+      {crew.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Crew Call Times</p>
+          <div className="space-y-1.5">
+            {crew.map((m, idx) => (
+              <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">{m.name.charAt(0).toUpperCase()}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground">{m.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{m.role}</p>
+                </div>
+                <input type="time" value={m.callTime || formData.callTime}
+                  onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: e.target.value }; onCrewChange(u); }}
+                  className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-xs font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Schedule rows */}
+      <div>
+      <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Schedule</p>
+      <div className="space-y-1">
       {sheet.schedule.map((item, i) => (
         <div key={i}>
           {editIdx === i && draft ? (
@@ -570,20 +654,35 @@ function ScriptedEditor({ sheet, onChange }: { sheet: ScriptedSheet | InterviewS
           )}
         </div>
       ))}
+      </div>
+      </div>
     </div>
   );
 }
 
 // ─── Inline editor for live event ────────────────────────────────────────────
 
-function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime }: {
+function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime, formData, onFormDataChange, locations, onLocationsChange }: {
   sheet: LiveEventSheet; onChange: (s: GeneratedSheet) => void;
   crew: CrewWithCall[]; onCrewChange: (c: CrewWithCall[]) => void; defaultCallTime: string;
+  formData: FormData; onFormDataChange: (f: FormData) => void;
+  locations: LocationWithParking[]; onLocationsChange: (l: LocationWithParking[]) => void;
 }) {
   const [editCovIdx, setEditCovIdx] = useState<number | null>(null);
   const [editMomIdx, setEditMomIdx] = useState<number | null>(null);
+  const [editCamIdx, setEditCamIdx] = useState<number | null>(null);
   const [covDraft, setCovDraft] = useState<CoverageAssignment | null>(null);
   const [momDraft, setMomDraft] = useState<KeyMoment | null>(null);
+  const [camDraft, setCamDraft] = useState<StaticCamera | null>(null);
+
+  function saveCamera() {
+    if (editCamIdx === null || !camDraft) return;
+    const updated = [...sheet.staticCameras]; updated[editCamIdx] = camDraft;
+    onChange({ ...sheet, staticCameras: updated });
+    setEditCamIdx(null); setCamDraft(null);
+  }
+
+  const set = (k: keyof FormData, v: any) => onFormDataChange({ ...formData, [k]: v });
 
   function saveCoverage() {
     if (editCovIdx === null || !covDraft) return;
@@ -600,6 +699,52 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime 
 
   return (
     <div className="space-y-6">
+      {/* Sheet details */}
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Sheet Details</p>
+        <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Date</label>
+              <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">General Crew Call</label>
+              <input type="time" value={formData.callTime} onChange={(e) => set("callTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Doors Open</label>
+              <input type="time" value={formData.doorsTime} onChange={(e) => set("doorsTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Show Start</label>
+              <input type="time" value={formData.showTime} onChange={(e) => set("showTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
+              <input type="time" value={formData.wrapTime} onChange={(e) => set("wrapTime", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Weather</label>
+              <input value={formData.weather} onChange={(e) => set("weather", e.target.value)} placeholder="e.g. 72°F Sunny" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+          </div>
+          <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Nearest Hospital</label>
+            <input value={formData.hospital} onChange={(e) => set("hospital", e.target.value)} placeholder="Hospital name — address" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Key Contact</label>
+              <input value={formData.emergencyContact} onChange={(e) => set("emergencyContact", e.target.value)} placeholder="Name — Phone" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Walkie Channels</label>
+              <input value={formData.walkieChannels} onChange={(e) => set("walkieChannels", e.target.value)} placeholder="e.g. CH1: Production" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Venue */}
+      {locations.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Venue</p>
+          <div className="space-y-2">
+            {locations.map((loc, idx) => (
+              <div key={loc.id} className="rounded-xl border border-border bg-card p-3 space-y-1.5">
+                <input value={loc.name} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], name: e.target.value }; onLocationsChange(u); }}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                <input value={loc.address || ""} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], address: e.target.value }; onLocationsChange(u); }}
+                  placeholder="Address" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Crew call times — editable inline */}
       {crew.length > 0 && (
         <div>
@@ -684,11 +829,32 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime 
       {sheet.staticCameras.length > 0 && (
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Static / Mounted Cameras</p>
-          <div className="rounded-xl border border-border bg-card divide-y divide-border">
+          <div className="space-y-1.5">
             {sheet.staticCameras.map((cam, i) => (
-              <div key={i} className="flex items-start gap-3 px-4 py-2.5">
-                <span className="min-w-0 w-40 shrink-0 text-xs font-semibold text-foreground">{cam.name}</span>
-                <span className="text-xs text-muted-foreground">{cam.role}</span>
+              <div key={i}>
+                {editCamIdx === i && camDraft ? (
+                  <div className="rounded-xl border border-[#d4a853]/40 bg-[#d4a853]/5 p-3 space-y-2">
+                    <input value={camDraft.name} onChange={(e) => setCamDraft({ ...camDraft, name: e.target.value })} placeholder="Camera name"
+                      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                    <input value={camDraft.role} onChange={(e) => setCamDraft({ ...camDraft, role: e.target.value })} placeholder="Position and purpose"
+                      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setEditCamIdx(null); setCamDraft(null); }} className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent">Cancel</button>
+                      <button onClick={saveCamera} className="rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black">Save</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="group flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-2.5 hover:border-border/80 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-foreground">{cam.name}</p>
+                      <p className="text-xs text-muted-foreground">{cam.role}</p>
+                    </div>
+                    <button onClick={() => { setEditCamIdx(i); setCamDraft({ ...cam }); }}
+                      className="shrink-0 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-accent transition-all">
+                      <Edit3 className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -928,8 +1094,8 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
                   </div>
                 )}
                 {sheet.format === "live_event"
-                  ? <LiveEventEditor sheet={sheet} onChange={setSheet} crew={crew} onCrewChange={setCrew} defaultCallTime={formData.callTime} />
-                  : <ScriptedEditor sheet={sheet as ScriptedSheet} onChange={setSheet} />
+                  ? <LiveEventEditor sheet={sheet} onChange={setSheet} crew={crew} onCrewChange={setCrew} defaultCallTime={formData.callTime} formData={formData} onFormDataChange={setFormData} locations={locations} onLocationsChange={setLocations} />
+                  : <ScriptedEditor sheet={sheet as ScriptedSheet} onChange={setSheet} formData={formData} onFormDataChange={setFormData} locations={locations} onLocationsChange={setLocations} crew={crew} onCrewChange={setCrew} />
                 }
               </div>
               {/* Right: live preview */}
