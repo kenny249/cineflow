@@ -2983,17 +2983,15 @@ export default function ProjectDetailTabs({
                       if (!file) return;
                       setUploadingClientLogo(true);
                       try {
-                        const { createClient } = await import("@/lib/supabase/client");
-                        const supabase = createClient();
-                        const ext = file.name.split(".").pop();
-                        const path = `${project.id}/client-logo/logo.${ext}`;
-                        const { error } = await supabase.storage.from("uploads").upload(path, file, { upsert: true });
-                        if (error) throw error;
-                        const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(path);
-                        setEditClientLogoUrl(publicUrl);
+                        const form = new FormData();
+                        form.append("file", file);
+                        form.append("projectId", project.id);
+                        const res = await fetch("/api/upload/logo", { method: "POST", body: form });
+                        const json = await res.json();
+                        if (!res.ok) throw new Error(json.error ?? "Upload failed");
+                        setEditClientLogoUrl(json.url);
                       } catch (err: any) {
-                        console.error("Logo upload error:", err);
-                        toast.error(`Logo upload failed: ${err?.message ?? err}`)
+                        toast.error(`Logo upload failed: ${err?.message ?? err}`);
                       } finally {
                         setUploadingClientLogo(false);
                       }
