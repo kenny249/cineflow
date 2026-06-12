@@ -156,50 +156,52 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
         </div>
       </div>
 
-      {/* Call time bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#111", color: "#fff", borderRadius: 6, padding: "10px 16px", marginBottom: 6 }}>
-        <div>
+      {/* Call time bar — crew call large left, all other times compact right */}
+      <div style={{ display: "flex", alignItems: "stretch", background: "#111", color: "#fff", borderRadius: 6, padding: "10px 16px", marginBottom: 6, gap: 16 }}>
+        <div style={{ paddingRight: 16, borderRight: "1px solid #333", flexShrink: 0 }}>
           <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>General Crew Call</p>
           <p style={{ fontSize: 28, fontWeight: 900, fontFamily: "monospace", margin: 0, letterSpacing: "0.05em" }}>{to12h(formData.callTime)}</p>
         </div>
-        {formData.format === "live_event" && (formData.doorsTime || formData.soundCheckTime || formData.showTime) ? (
-          <>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", flex: 1 }}>
+          {formData.format === "live_event" ? (<>
             {formData.doorsTime && <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Doors Open</p>
-              <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.doorsTime)}</p>
+              <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Doors Open</p>
+              <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.doorsTime)}</p>
             </div>}
             {formData.soundCheckTime && <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Sound Check</p>
-              <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.soundCheckTime)}</p>
+              <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Sound Check</p>
+              <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.soundCheckTime)}</p>
             </div>}
             {formData.showTime && <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Show Start</p>
-              <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.showTime)}</p>
+              <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Show Start</p>
+              <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.showTime)}</p>
             </div>}
-          </>
-        ) : (formData.shootDay || formData.scriptRevision) ? (
-          <div style={{ textAlign: "center" }}>
-            {formData.shootDay && <p style={{ fontSize: 11, fontWeight: 700, color: "#fff", margin: 0 }}>{formData.shootDay}</p>}
-            {formData.scriptRevision && <p style={{ fontSize: 9, color: "#9ca3af", margin: "2px 0 0" }}>{formData.scriptRevision}</p>}
-          </div>
-        ) : null}
-        <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Wrap</p>
-          <p style={{ fontSize: 18, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.wrapTime)}</p>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Weather</p>
-          <p style={{ fontSize: 11, fontWeight: 600, margin: 0 }}>{formData.weather || "—"}</p>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <p style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Nearest Hospital</p>
-          <p style={{ fontSize: 10, fontWeight: 600, margin: 0 }}>{formData.hospital || "See location contact"}</p>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Wrap</p>
+              <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.wrapTime)}</p>
+            </div>
+          </>) : (<>
+            {(formData.shootDay || formData.scriptRevision) && <div>
+              {formData.shootDay && <p style={{ fontSize: 11, fontWeight: 700, color: "#fff", margin: 0 }}>{formData.shootDay}</p>}
+              {formData.scriptRevision && <p style={{ fontSize: 9, color: "#9ca3af", margin: "2px 0 0" }}>{formData.scriptRevision}</p>}
+            </div>}
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Wrap</p>
+              <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.wrapTime)}</p>
+            </div>
+          </>)}
         </div>
       </div>
 
-      {/* Supplemental info strip — key contact + walkie channels */}
-      {(formData.emergencyContact || formData.walkieChannels || formData.interviewSubjects) && (
+      {/* Supplemental strip — weather, hospital, key contact, walkie */}
+      {(formData.weather || formData.hospital || formData.emergencyContact || formData.walkieChannels || formData.interviewSubjects) && (
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 4, padding: "5px 12px", marginBottom: 10, fontSize: 9 }}>
+          {formData.weather && (
+            <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Weather: </span><span style={{ color: "#111", fontWeight: 600 }}>{formData.weather}</span></span>
+          )}
+          {formData.hospital && (
+            <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Hospital: </span><span style={{ color: "#111" }}>{formData.hospital}</span></span>
+          )}
           {formData.emergencyContact && (
             <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Key Contact: </span><span style={{ color: "#111", fontWeight: 600 }}>{formData.emergencyContact}</span></span>
           )}

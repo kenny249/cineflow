@@ -301,49 +301,58 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
         </View>
       </View>
 
-      <View style={[s.callBar, { marginBottom: 6 }]}>
-        <View>
+      {/* Call bar — large crew call left, compact times right */}
+      <View style={[s.callBar, { marginBottom: 6, alignItems: "stretch" }]}>
+        <View style={{ paddingRight: 14, borderRightWidth: 1, borderRightColor: "#333", marginRight: 4 }}>
           <Text style={s.callBarLabel}>General Crew Call</Text>
           <Text style={s.callTime}>{to12h(formData.callTime)}</Text>
         </View>
-        {formData.format === "live_event" && (formData.doorsTime || formData.soundCheckTime || formData.showTime) ? (
-          <>
+        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          {formData.format === "live_event" ? (<>
             {formData.doorsTime ? <View style={{ alignItems: "center" }}>
               <Text style={s.callBarLabel}>Doors Open</Text>
-              <Text style={s.wrapTime}>{to12h(formData.doorsTime)}</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.doorsTime)}</Text>
             </View> : null}
             {formData.soundCheckTime ? <View style={{ alignItems: "center" }}>
               <Text style={s.callBarLabel}>Sound Check</Text>
-              <Text style={s.wrapTime}>{to12h(formData.soundCheckTime)}</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.soundCheckTime)}</Text>
             </View> : null}
             {formData.showTime ? <View style={{ alignItems: "center" }}>
               <Text style={s.callBarLabel}>Show Start</Text>
-              <Text style={s.wrapTime}>{to12h(formData.showTime)}</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.showTime)}</Text>
             </View> : null}
-          </>
-        ) : (formData.shootDay || formData.scriptRevision) ? (
-          <View style={{ alignItems: "center" }}>
-            {formData.shootDay ? <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: WHITE }}>{formData.shootDay}</Text> : null}
-            {formData.scriptRevision ? <Text style={{ fontSize: 7, color: LGRAY, marginTop: 2 }}>{formData.scriptRevision}</Text> : null}
-          </View>
-        ) : null}
-        <View style={{ alignItems: "center" }}>
-          <Text style={s.callBarLabel}>Wrap</Text>
-          <Text style={s.wrapTime}>{to12h(formData.wrapTime)}</Text>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={s.callBarLabel}>Weather</Text>
-          <Text style={s.callBarSmall}>{formData.weather || "—"}</Text>
-        </View>
-        <View style={{ alignItems: "flex-end" }}>
-          <Text style={s.callBarLabel}>Nearest Hospital</Text>
-          <Text style={s.callBarSmall}>{formData.hospital || "See location contact"}</Text>
+            <View style={{ alignItems: "center" }}>
+              <Text style={s.callBarLabel}>Wrap</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.wrapTime)}</Text>
+            </View>
+          </>) : (<>
+            {(formData.shootDay || formData.scriptRevision) ? <View style={{ alignItems: "center" }}>
+              {formData.shootDay ? <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: WHITE }}>{formData.shootDay}</Text> : null}
+              {formData.scriptRevision ? <Text style={{ fontSize: 7, color: LGRAY, marginTop: 2 }}>{formData.scriptRevision}</Text> : null}
+            </View> : null}
+            <View style={{ alignItems: "center" }}>
+              <Text style={s.callBarLabel}>Wrap</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.wrapTime)}</Text>
+            </View>
+          </>)}
         </View>
       </View>
 
-      {/* Supplemental strip — key contact, walkie channels, interview subjects */}
-      {(formData.emergencyContact || formData.walkieChannels || formData.interviewSubjects) ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16, backgroundColor: FAINT, borderWidth: 1, borderColor: BORDER, borderRadius: 3, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10 }}>
+      {/* Supplemental strip — weather, hospital, key contact, walkie, subjects */}
+      {(formData.weather || formData.hospital || formData.emergencyContact || formData.walkieChannels || formData.interviewSubjects) ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, backgroundColor: FAINT, borderWidth: 1, borderColor: BORDER, borderRadius: 3, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10 }}>
+          {formData.weather ? (
+            <View style={{ flexDirection: "row", gap: 4 }}>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Weather: </Text>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.weather}</Text>
+            </View>
+          ) : null}
+          {formData.hospital ? (
+            <View style={{ flexDirection: "row", gap: 4 }}>
+              <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Hospital: </Text>
+              <Text style={{ fontSize: 6, color: BLACK }}>{formData.hospital}</Text>
+            </View>
+          ) : null}
           {formData.emergencyContact ? (
             <View style={{ flexDirection: "row", gap: 4 }}>
               <Text style={{ fontSize: 6, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Key Contact: </Text>
