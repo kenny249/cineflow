@@ -38,6 +38,7 @@ import { DroneTab } from "@/components/projects/tabs/DroneTab";
 import { DroneIcon } from "@/components/icons/DroneIcon";
 import { EquipmentTab } from "@/components/projects/tabs/EquipmentTab";
 import { AudioTab } from "@/components/projects/tabs/AudioTab";
+import { BoardTab } from "@/components/projects/tabs/BoardTab";
 import { ImportBriefModal } from "@/components/projects/ImportBriefModal";
 import { saveVideoBlob, getOrFetchUrl, cacheUrl, addRevisionMeta } from "@/lib/revision-store";
 import type { RevisionMeta } from "@/lib/revision-store";
@@ -1708,6 +1709,7 @@ export default function ProjectDetailTabs({
                 { value: "audio",          label: "Audio" },
                 { value: "review",         label: `Review${revisions.length ? ` (${revisions.length})` : ""}` },
                 { value: "final-cuts",     label: "Final Cuts" },
+                { value: "board",          label: "Board" },
                 { value: "people",         label: "People" },
                 ...(isAdmin ? [{ value: "finance", label: "Finance 🔒" }] : []),
               ].map((tab) => {
@@ -2880,6 +2882,11 @@ export default function ProjectDetailTabs({
             {/* ── Audio: Transcription + AI Cut Lists ── */}
             <TabsContent value="audio" className="m-0 p-5 sm:p-6">
               <AudioTab projectId={project.id} />
+            </TabsContent>
+
+            {/* ── Board: Visual creative canvas ── */}
+            <TabsContent value="board" className="m-0 h-full">
+              <BoardTab projectId={project.id} />
             </TabsContent>
 
             {/* ── People: Agency Team + External Contributors + Chat ── */}

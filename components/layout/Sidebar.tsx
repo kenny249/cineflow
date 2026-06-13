@@ -7,6 +7,7 @@ import { useEditSession } from "@/contexts/EditSessionContext";
 import {
   LayoutDashboard,
   FolderKanban,
+  LayoutGrid,
   Calendar,
   CheckSquare,
   ClipboardList,
@@ -76,6 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Production",
     items: [
+      { label: "Boards",         href: "/boards",         icon: LayoutGrid },
       { label: "Storyboard",    href: "/storyboard",    icon: Clapperboard },
       { label: "Shot Lists",    href: "/shot-lists",    icon: ListChecks },
       { label: "Scripts",       href: "/scripts",       icon: ScrollText, soloHidden: true },
