@@ -9,6 +9,7 @@ type Flag = {
   key: string;
   description: string | null;
   enabled: boolean;
+  show_new_badge: boolean;
   user_ids: string[] | null;
   plans: string[] | null;
   updated_at: string;
@@ -50,6 +51,19 @@ export function FeatureFlagsClient({ initial }: { initial: Flag[] }) {
       setFlags((prev) => prev.map((f) => f.id === id ? { ...f, enabled: !enabled } : f));
     } else {
       toast.error("Failed to toggle");
+    }
+  }
+
+  async function toggleBadge(id: string, show_new_badge: boolean) {
+    const res = await fetch("/api/admin/feature-flags", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, show_new_badge: !show_new_badge }),
+    });
+    if (res.ok) {
+      setFlags((prev) => prev.map((f) => f.id === id ? { ...f, show_new_badge: !show_new_badge } : f));
+    } else {
+      toast.error("Failed to toggle badge");
     }
   }
 
@@ -105,7 +119,7 @@ export function FeatureFlagsClient({ initial }: { initial: Flag[] }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/[0.06]">
-                {["Key", "Description", "Targeting", "Enabled", "Updated", ""].map((h) => (
+                {["Key", "Description", "Targeting", "Enabled", "New Badge", "Updated", ""].map((h) => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-zinc-600">{h}</th>
                 ))}
               </tr>
@@ -125,6 +139,19 @@ export function FeatureFlagsClient({ initial }: { initial: Flag[] }) {
                         : <ToggleLeft className="h-5 w-5 text-zinc-600" />
                       }
                     </button>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => toggleBadge(f.id, f.show_new_badge)} className="text-zinc-400 hover:text-white transition-colors">
+                        {f.show_new_badge
+                          ? <ToggleRight className="h-5 w-5 text-[#d4a853]" />
+                          : <ToggleLeft className="h-5 w-5 text-zinc-600" />
+                        }
+                      </button>
+                      {f.show_new_badge && (
+                        <span className="rounded-full bg-[#d4a853] px-1.5 py-0.5 text-[9px] font-bold leading-none text-black">NEW</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-zinc-500">
                     {new Date(f.updated_at).toLocaleDateString()}

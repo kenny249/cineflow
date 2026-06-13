@@ -16,7 +16,7 @@ export default async function FeatureFlagsPage() {
 
   const { data: flags } = await supabase
     .from("feature_flags")
-    .select("id, key, description, enabled, user_ids, plans, updated_at")
+    .select("id, key, description, enabled, show_new_badge, user_ids, plans, updated_at")
     .order("key");
 
   return (

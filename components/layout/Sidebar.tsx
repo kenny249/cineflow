@@ -127,10 +127,12 @@ function NavLink({
   item,
   collapsed,
   isActive,
+  showNewBadge,
 }: {
   item: NavItem;
   collapsed: boolean;
   isActive: boolean;
+  showNewBadge?: boolean;
 }) {
   const link = (
     <Link
@@ -155,7 +157,17 @@ function NavLink({
         )}
       />
       {!collapsed && (
-        <span className="truncate transition-opacity duration-200">{item.label}</span>
+        <>
+          <span className="truncate transition-opacity duration-200">{item.label}</span>
+          {showNewBadge && (
+            <span className="ml-auto shrink-0 rounded-full bg-[#d4a853] px-1.5 py-0.5 text-[8px] font-bold leading-none text-black tracking-wide">
+              NEW
+            </span>
+          )}
+        </>
+      )}
+      {collapsed && showNewBadge && (
+        <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-[#d4a853]" />
       )}
     </Link>
   );
@@ -325,6 +337,14 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const [sidebarPins,   setSidebarPins]   = useState<string[]>([]);
   const [sidebarHidden, setSidebarHidden] = useState<string[]>([]);
   const [contextMenu,   setContextMenu]   = useState<{ href: string; x: number; y: number } | null>(null);
+  const [newBadgeKeys,  setNewBadgeKeys]  = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch("/api/feature-flags")
+      .then((r) => r.json())
+      .then((d) => { if (d.badgeKeys) setNewBadgeKeys(new Set(d.badgeKeys as string[])); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -505,6 +525,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                       item={item}
                       collapsed={collapsed}
                       isActive={isActive(item.href)}
+                      showNewBadge={newBadgeKeys.has(item.href.slice(1))}
                     />
                   </div>
                 ))}
@@ -542,7 +563,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                 )}
                 {moreExpanded && hiddenItems.map(item => (
                   <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
-                    <NavLink item={item} collapsed={collapsed} isActive={isActive(item.href)} />
+                    <NavLink item={item} collapsed={collapsed} isActive={isActive(item.href)} showNewBadge={newBadgeKeys.has(item.href.slice(1))} />
                   </div>
                 ))}
               </div>
@@ -596,6 +617,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               item={item}
               collapsed={collapsed}
               isActive={isActive(item.href)}
+              showNewBadge={newBadgeKeys.has(item.href.slice(1))}
             />
           ))}
           <Separator className="my-2" />

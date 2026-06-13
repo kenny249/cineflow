@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown, MessageSquarePlus, BookOpen } from "lucide-react";
+import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown, MessageSquarePlus, BookOpen, Code2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +26,7 @@ const NAV = [
   { href: "/admin/announcements",label: "Announcements",  icon: Megaphone },
   { href: "/admin/brand",        label: "Brand",          icon: Palette },
   { href: "/admin/system",       label: "System",         icon: Settings2 },
+  { href: "/admin/code-stats",   label: "Code Stats",     icon: Code2 },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
