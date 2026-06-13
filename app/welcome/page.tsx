@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { Film, Layers, Eye, Users, List, UploadCloud } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Film, ArrowRight, Check } from "lucide-react";
 import { getOrCreateDisplayName, setDisplayName, generateDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
-import { isSoloPlan } from "@/types";
+import { cn } from "@/lib/utils";
 
 type WPt = { x: number; y: number; vx: number; vy: number; r: number; gold: boolean; o: number };
 
-// Interactive cursor-reactive particles with DNA-like connections (matches login page)
 function InteractiveParticles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouse     = useRef({ x: -9999, y: -9999 });
@@ -117,243 +116,44 @@ function InteractiveParticles() {
   return <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-0" aria-hidden="true" />;
 }
 
-const FEATURES_STUDIO = [
-  {
-    icon: Layers,
-    eyebrow: "Projects & Shot Lists",
-    headline: "Every production,\norganized.",
-    sub: "From pre-prod to delivery: schedules, shot lists, and crew all in one place.",
-  },
-  {
-    icon: Eye,
-    eyebrow: "Revisions & Feedback",
-    headline: "Share cuts.\nCapture notes.",
-    sub: "Frame-accurate comments, approval tracking, and a clean revision history.",
-  },
-  {
-    icon: Users,
-    eyebrow: "Client Hub",
-    headline: "A portal your\nclients will love.",
-    sub: "Professional review pages. No logins, no confusion, just feedback.",
-  },
-] as const;
+const ROLES = [
+  { value: "solo_editor",        label: "Solo Editor",          sub: "You handle everything yourself" },
+  { value: "cinematographer",    label: "Cinematographer / DP", sub: "Camera work & visual storytelling" },
+  { value: "production_company", label: "Production Company",   sub: "Full-service video production" },
+  { value: "agency",             label: "Creative Agency",      sub: "Client-facing studio with a team" },
+];
 
-const FEATURES_SOLO = [
-  {
-    icon: List,
-    eyebrow: "Shot Lists & Planning",
-    headline: "Plan every frame,\nbefore you shoot.",
-    sub: "Build shot lists, set daily tasks, and schedule your shoots — all built for solo crews.",
-  },
-  {
-    icon: UploadCloud,
-    eyebrow: "Cuts & Feedback",
-    headline: "Send cuts.\nGet approval fast.",
-    sub: "Upload your edit, share a link, and get frame-accurate feedback without the email chains.",
-  },
-  {
-    icon: Users,
-    eyebrow: "Client Portal",
-    headline: "Your clients\nstay in the loop.",
-    sub: "A professional review page they can access without an account. Just a link.",
-  },
-] as const;
+const CONTENT_TYPES = [
+  { value: "commercials", label: "Commercials & Branded", sub: "Ad campaigns & brand videos" },
+  { value: "weddings",    label: "Weddings & Events",     sub: "Celebrations & live events" },
+  { value: "films",       label: "Films & Narrative",     sub: "Short films, docs, features" },
+  { value: "corporate",   label: "Corporate",             sub: "Internal & business content" },
+  { value: "social",      label: "Social Content",        sub: "YouTube, TikTok, Reels" },
+];
 
-const FEATURE_BTNS = ["Action", "Scene", "Wrap"] as const;
+const TEAM_SIZES = [
+  { value: "just_me",      label: "Just me",      sub: "Solo operation" },
+  { value: "small_team",   label: "Small team",   sub: "2–5 people" },
+  { value: "growing_team", label: "Growing team", sub: "6+ people" },
+];
 
-type FeatureItem = { icon: React.ElementType; eyebrow: string; headline: string; sub: string };
-
-function FeatureSlide({
-  idx,
-  total,
-  features,
-  onNext,
-}: {
-  idx: number;
-  total: number;
-  features: readonly FeatureItem[];
-  onNext: () => void;
-}) {
-  const feature  = features[idx];
-  const Icon     = feature.icon;
-  const cardRef  = useRef<HTMLDivElement>(null);
-  const btnRef   = useRef<HTMLButtonElement>(null);
-  const [tilt, setTilt]             = useState({ x: 0, y: 0 });
-  const [btnShift, setBtnShift]     = useState({ x: 0, y: 0 });
-  const [showRipple, setShowRipple] = useState(false);
-  const [rippleKey, setRippleKey]   = useState(0);
-  const pending = useRef(false);
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const card = cardRef.current;
-    if (!card) return;
-    const r  = card.getBoundingClientRect();
-    const cx = r.left + r.width  / 2;
-    const cy = r.top  + r.height / 2;
-    const nx = (e.clientX - cx) / (r.width  / 2);
-    const ny = (e.clientY - cy) / (r.height / 2);
-    setTilt({ x: -ny * 7, y: nx * 7 });
-    const btn = btnRef.current;
-    if (btn) {
-      const br   = btn.getBoundingClientRect();
-      const bdx  = e.clientX - (br.left + br.width  / 2);
-      const bdy  = e.clientY - (br.top  + br.height / 2);
-      const dist = Math.sqrt(bdx * bdx + bdy * bdy);
-      setBtnShift(dist < 90 ? { x: bdx * 0.38, y: bdy * 0.38 } : { x: 0, y: 0 });
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setTilt({ x: 0, y: 0 });
-    setBtnShift({ x: 0, y: 0 });
-  };
-
-  const handleNext = () => {
-    if (pending.current) return;
-    pending.current = true;
-    setRippleKey(k => k + 1);
-    setShowRipple(true);
-    setTimeout(() => setShowRipple(false), 700);
-    setTimeout(() => { pending.current = false; onNext(); }, 160);
-  };
-
-  const progress = (idx + 1) / total;
-  const btnLabel = FEATURE_BTNS[idx] ?? "Next";
-
-  return (
-    <div
-      ref={cardRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onClick={(e) => e.stopPropagation()}
-      className="flex flex-col items-center"
-      style={{
-        transform: `perspective(900px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-        transition: "transform 150ms ease-out",
-        transformStyle: "preserve-3d",
-      }}
-    >
-      {/* Icon with scan line + pulse rings */}
-      <div
-        className="relative mb-6 flex items-center justify-center"
-        style={{ animation: "wt-feature-in 500ms cubic-bezier(0.22,1,0.36,1) both" }}
-      >
-        <div className="absolute h-24 w-24 rounded-full border border-[#d4a853]/15" style={{ animation: "wt-pulse-ring 2.4s ease-out infinite" }} />
-        <div className="absolute h-24 w-24 rounded-full border border-[#d4a853]/[0.08]" style={{ animation: "wt-pulse-ring 2.4s ease-out 0.9s infinite" }} />
-        <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-[#d4a853]/40 bg-[#d4a853]/10 shadow-[0_0_60px_rgba(212,168,83,0.3)]">
-          <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
-            <div
-              className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[#d4a853]/70 to-transparent"
-              style={{ animation: "wt-scan 2.5s linear infinite" }}
-            />
-          </div>
-          <Icon className="relative z-10 h-8 w-8 text-[#d4a853]" />
-        </div>
-      </div>
-
-      {/* Eyebrow */}
-      <p
-        className="mb-3 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]"
-        style={{ animation: "wt-feature-in 500ms 80ms cubic-bezier(0.22,1,0.36,1) both" }}
-      >
-        {feature.eyebrow}
-      </p>
-
-      {/* Headline */}
-      <h3
-        className="mb-3 font-display text-3xl font-bold leading-tight text-white sm:text-4xl"
-        style={{ whiteSpace: "pre-line", animation: "wt-feature-in 500ms 180ms cubic-bezier(0.22,1,0.36,1) both" }}
-      >
-        {feature.headline}
-      </h3>
-
-      {/* Sub */}
-      <p
-        className="max-w-xs text-sm leading-relaxed text-zinc-400"
-        style={{ animation: "wt-feature-in 500ms 300ms cubic-bezier(0.22,1,0.36,1) both" }}
-      >
-        {feature.sub}
-      </p>
-
-      {/* Cinematic progress bar */}
-      <div
-        className="relative mt-8 h-px w-48 overflow-hidden rounded-full bg-white/[0.07]"
-        style={{ animation: "wt-feature-in 400ms 420ms ease both" }}
-      >
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-[#d4a853]/60 to-[#d4a853]"
-          style={{ width: `${progress * 100}%`, transition: "width 600ms cubic-bezier(0.22,1,0.36,1)" }}
-        />
-        <div
-          className="absolute inset-y-0 w-8 rounded-full"
-          style={{
-            background: "linear-gradient(90deg, transparent, rgba(255,245,210,0.5), transparent)",
-            left: `calc(${progress * 100}% - 16px)`,
-            transition: "left 600ms cubic-bezier(0.22,1,0.36,1)",
-          }}
-        />
-      </div>
-      <p
-        className="mt-2 text-[0.5rem] font-bold uppercase tracking-[0.4em] text-zinc-600"
-        style={{ animation: "wt-feature-in 400ms 460ms ease both" }}
-      >
-        {idx + 1} of {total}
-      </p>
-
-      {/* Magnetic Next button with ripple */}
-      <div
-        className="mt-8"
-        style={{
-          transform: `translate(${btnShift.x}px, ${btnShift.y}px)`,
-          transition: "transform 200ms cubic-bezier(0.34,1.56,0.64,1)",
-          animation: "wt-feature-in 500ms 540ms cubic-bezier(0.22,1,0.36,1) both",
-        }}
-      >
-        <button
-          ref={btnRef}
-          onClick={handleNext}
-          className="group relative overflow-hidden rounded-full border border-[#d4a853]/30 bg-[#d4a853]/[0.08] px-8 py-3 text-[0.65rem] font-bold uppercase tracking-[0.35em] text-[#d4a853] backdrop-blur-sm transition-all duration-200 hover:border-[#d4a853]/70 hover:bg-[#d4a853]/[0.18] hover:shadow-[0_0_30px_rgba(212,168,83,0.25)] active:scale-95"
-        >
-          {showRipple && (
-            <span
-              key={rippleKey}
-              className="pointer-events-none absolute left-1/2 top-1/2 h-40 w-40 rounded-full bg-[#d4a853]/20"
-              style={{ animation: "wt-ripple 700ms ease-out forwards" }}
-            />
-          )}
-          <span className="relative z-10">{btnLabel} →</span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-type Phase =
-  | "dormant"
-  | "logo"
-  | "name_ask"
-  | "name_ack"
-  | "features"
-  | "headline"
-  | "exit"
-  | "gone";
+type Phase = "dormant" | "logo" | "name_ask" | "name_ack" | "setup" | "headline" | "exit" | "gone";
 
 export default function WelcomePage() {
-  const [phase, setPhase]         = useState<Phase>("dormant");
-  const [nameInput, setNameInput] = useState("");
+  const [phase, setPhase]               = useState<Phase>("dormant");
+  const [nameInput, setNameInput]       = useState("");
   const [resolvedName, setResolvedName] = useState("");
-  const [featureIdx, setFeatureIdx] = useState(0);
-  const [plan, setPlan]           = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
-  );
-  const inputRef      = useRef<HTMLInputElement>(null);
-  const isReturning   = useRef(false);
-  const autoTimer     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [setupStep, setSetupStep]       = useState(1);
+  const [stepVisible, setStepVisible]   = useState(true);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [selectedContentTypes, setSelectedContentTypes] = useState<string[]>([]);
+  const [selectedTeamSize, setSelectedTeamSize]         = useState<string | null>(null);
+  const [usesDrone, setUsesDrone]       = useState(false);
 
-  const FEATURES = isSoloPlan(plan) ? FEATURES_SOLO : FEATURES_STUDIO;
+  const inputRef    = useRef<HTMLInputElement>(null);
+  const isReturning = useRef(false);
+  const autoTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Boot sequence — checks Supabase first so localStorage state never wrongly
-  // treats an existing user as new (e.g. after clearing storage or on a new device)
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
     let cancelled = false;
@@ -365,31 +165,22 @@ export default function WelcomePage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("plan, first_name, last_name")
+        .select("first_name, last_name")
         .eq("id", user.id)
         .single();
 
       if (cancelled) return;
 
-      // Sync plan
-      if (profile?.plan) {
-        setPlan(profile.plan);
-        sessionStorage.setItem("cf_plan", profile.plan);
-      }
-
-      // A first_name that contains "@" is a corrupted value (email stored as name) — ignore it
       const validFirst = profile?.first_name && !profile.first_name.includes("@")
         ? profile.first_name : null;
       const profileName = validFirst
         ? [validFirst, profile?.last_name].filter(Boolean).join(" ")
         : null;
 
-      // Returning = has a real name in DB, OR localStorage says they've been through before
       const ret = Boolean(profileName || localStorage.getItem("cf_onboarded"));
       isReturning.current = ret;
 
       if (ret) {
-        // Use the DB name as source of truth; keep localStorage in sync
         const name = profileName ?? getOrCreateDisplayName();
         if (profileName) {
           setDisplayName(profileName);
@@ -413,7 +204,6 @@ export default function WelcomePage() {
 
     boot();
     return () => { cancelled = true; timers.forEach(clearTimeout); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function advanceFromName(raw: string) {
@@ -423,72 +213,89 @@ export default function WelcomePage() {
     setResolvedName(final);
     setPhase("name_ack");
 
-    // Persist name to Supabase profile (fire-and-forget)
     const supabase = createClient();
     void (async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const parts = final.split(" ");
-          const first_name = parts[0];
-          const last_name = parts.slice(1).join(" ") || null;
-          await supabase
-            .from("profiles")
-            .upsert({ id: user.id, first_name, last_name, updated_at: new Date().toISOString() }, { onConflict: "id" });
+          await supabase.from("profiles").upsert({
+            id: user.id,
+            first_name: parts[0],
+            last_name: parts.slice(1).join(" ") || null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "id" });
         }
       } catch { /* fire-and-forget */ }
     })();
 
-    setTimeout(() => { setPhase("features"); setFeatureIdx(0); }, 1800);
+    setTimeout(() => { setPhase("setup"); setSetupStep(1); setStepVisible(true); }, 1800);
   }
 
-  // Director's "Cut" — skip straight to dashboard
   function handleCut() {
     if (phase === "exit" || phase === "gone") return;
     if (autoTimer.current) { clearTimeout(autoTimer.current); autoTimer.current = null; }
     setPhase("exit");
     localStorage.setItem("cf_onboarded", "1");
-    localStorage.setItem("cf_onboarded_v3", "1"); // dismiss AppLayout's OnboardingIntro
     setTimeout(() => window.location.assign("/dashboard"), 350);
   }
 
-  // Click background to advance (features phase handled by manual buttons)
-  function handleBgClick() {
-    if (phase === "dormant" || phase === "name_ask" || phase === "features" || phase === "exit" || phase === "gone") return;
-    if (phase === "logo") return;
-    if (phase === "name_ack") { setPhase("features"); setFeatureIdx(0); return; }
-    if (phase === "headline") handleCut();
+  function toggleContentType(v: string) {
+    setSelectedContentTypes(prev =>
+      prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v]
+    );
   }
 
-  function handleFeatureNext() {
-    if (featureIdx < FEATURES.length - 1) {
-      setFeatureIdx(i => i + 1);
-    } else {
-      setPhase("headline");
+  async function handleSetupNext() {
+    if (setupStep < 3) {
+      setStepVisible(false);
+      setTimeout(() => { setSetupStep(s => s + 1); setStepVisible(true); }, 280);
+      return;
     }
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("profiles").upsert({
+          id: user.id,
+          user_role: selectedRole,
+          content_types: selectedContentTypes.length > 0 ? selectedContentTypes : null,
+          team_size: selectedTeamSize,
+          uses_drone: usesDrone,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+      }
+    } catch { /* fire-and-forget */ }
+    setPhase("headline");
   }
 
-  // Exit after headline
   useEffect(() => {
     if (phase !== "headline") return;
-    const t1 = setTimeout(() => {
+    const t = setTimeout(() => {
       setPhase("exit");
       localStorage.setItem("cf_onboarded", "1");
-      localStorage.setItem("cf_onboarded_v3", "1"); // dismiss AppLayout's OnboardingIntro
-      // Navigate as the black overlay starts — it IS the transition
       setTimeout(() => window.location.assign("/dashboard"), 350);
     }, 1900);
-    return () => clearTimeout(t1);
+    return () => clearTimeout(t);
   }, [phase]);
+
+  function handleBgClick() {
+    if (["dormant", "name_ask", "setup", "exit", "gone", "logo"].includes(phase)) return;
+    if (phase === "name_ack") { setPhase("setup"); setSetupStep(1); setStepVisible(true); return; }
+    if (phase === "headline") handleCut();
+  }
 
   const isExit    = phase === "exit" || phase === "gone";
   const firstName = resolvedName.split(" ")[0] ?? resolvedName;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060606]" onClick={handleBgClick}>
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#060606]"
+      onClick={handleBgClick}
+    >
       <InteractiveParticles />
 
-      {/* ─── "Cut" — one-word film skip button ─── */}
+      {/* Skip button */}
       <button
         onClick={(e) => { e.stopPropagation(); handleCut(); }}
         style={{
@@ -499,10 +306,10 @@ export default function WelcomePage() {
         className="fixed right-5 top-5 z-40 flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-black/20 px-4 py-1.5 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-zinc-500 backdrop-blur-sm hover:border-[#d4a853]/40 hover:text-[#d4a853] transition-colors duration-200"
       >
         <Film className="h-2.5 w-2.5" />
-        Skip Intro
+        Skip
       </button>
 
-      {/* Radial ambient glow */}
+      {/* Ambient glow */}
       <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_60%_55%_at_50%_50%,rgba(212,168,83,0.07)_0%,transparent_70%)]" />
 
       {/* Film grain */}
@@ -522,16 +329,15 @@ export default function WelcomePage() {
         style={{ opacity: isExit ? 1 : 0, transitionDuration: isExit ? "480ms" : "0ms", transitionTimingFunction: "cubic-bezier(0.4,0,1,1)" }}
       />
 
-      {/* ── LOGO (shown in all phases except dormant) ── */}
+      {/* ── LOGO + HEADLINE ── */}
       <div
         className="fixed inset-0 z-10 flex flex-col items-center justify-center gap-5"
         style={{
-          opacity: phase === "dormant" || phase === "name_ask" || phase === "name_ack" || phase === "features" ? 0 : 1,
+          opacity: phase === "dormant" || phase === "name_ask" || phase === "name_ack" || phase === "setup" ? 0 : 1,
           pointerEvents: "none",
           transition: "opacity 500ms ease",
         }}
       >
-        {/* Film icon */}
         <div
           style={{
             opacity: phase === "dormant" ? 0 : 1,
@@ -547,7 +353,6 @@ export default function WelcomePage() {
           </div>
         </div>
 
-        {/* Gold line */}
         <div
           className="h-px bg-gradient-to-r from-transparent via-[#d4a853] to-transparent"
           style={{
@@ -557,7 +362,6 @@ export default function WelcomePage() {
           }}
         />
 
-        {/* Headline — returning user OR "finally" */}
         <div
           style={{
             opacity: phase === "headline" ? 1 : 0,
@@ -586,7 +390,6 @@ export default function WelcomePage() {
           )}
         </div>
 
-        {/* Wordmark */}
         <div
           className="mt-2 flex flex-col items-center gap-2"
           style={{
@@ -618,7 +421,7 @@ export default function WelcomePage() {
         <h2 className="mb-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
           What should we<br />call you?
         </h2>
-        <p className="mb-7 text-sm text-zinc-500">We&apos;ll personalise your studio experience.</p>
+        <p className="mb-7 text-sm text-zinc-500">We&apos;ll personalise your studio.</p>
         <div className="relative w-full">
           <input
             ref={inputRef}
@@ -652,7 +455,7 @@ export default function WelcomePage() {
 
       {/* ── NAME ACK ── */}
       <div
-        className="pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-center text-center px-6"
+        className="pointer-events-none fixed inset-0 z-20 flex flex-col items-center justify-center px-6 text-center"
         style={{
           opacity: phase === "name_ack" ? 1 : 0,
           transform: phase === "name_ack" ? "translateY(0)" : "translateY(20px)",
@@ -667,44 +470,162 @@ export default function WelcomePage() {
         </h2>
       </div>
 
-      {/* ── FEATURES ── */}
+      {/* ── SETUP ── */}
       <div
-        className="fixed inset-0 z-20 flex flex-col items-center justify-center text-center px-8"
+        className="fixed inset-0 z-20 flex flex-col items-center justify-center px-6 overflow-y-auto py-20"
         style={{
-          opacity: phase === "features" ? 1 : 0,
-          pointerEvents: phase === "features" ? "auto" : "none",
+          opacity: phase === "setup" ? 1 : 0,
+          pointerEvents: phase === "setup" ? "auto" : "none",
           transition: "opacity 600ms ease",
         }}
       >
-        <FeatureSlide
-          key={featureIdx}
-          idx={featureIdx}
-          features={FEATURES}
-          total={FEATURES.length}
-          onNext={handleFeatureNext}
-        />
-      </div>
+        {/* Step dots */}
+        <div className="flex items-center gap-1.5 mb-8">
+          {[1, 2, 3].map(s => (
+            <div
+              key={s}
+              className="rounded-full transition-all duration-500"
+              style={{
+                width: s === setupStep ? 22 : 5,
+                height: 5,
+                background: s < setupStep
+                  ? "rgba(212,168,83,0.35)"
+                  : s === setupStep
+                  ? "#d4a853"
+                  : "rgba(255,255,255,0.1)",
+              }}
+            />
+          ))}
+        </div>
 
-      <style>{`
-        @keyframes wt-feature-in {
-          from { opacity: 0; transform: translateY(28px) scale(0.97); filter: blur(6px); }
-          to   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0);  }
-        }
-        @keyframes wt-pulse-ring {
-          0%   { transform: scale(1);   opacity: 0.4; }
-          100% { transform: scale(2.0); opacity: 0;   }
-        }
-        @keyframes wt-scan {
-          0%   { top: 0%;   opacity: 0; }
-          10%  { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { top: 100%; opacity: 0; }
-        }
-        @keyframes wt-ripple {
-          from { transform: translate(-50%, -50%) scale(0); opacity: 0.7; }
-          to   { transform: translate(-50%, -50%) scale(5); opacity: 0;   }
-        }
-      `}</style>
+        <div
+          className="flex w-full max-w-md flex-col items-center text-center"
+          style={{
+            opacity: stepVisible ? 1 : 0,
+            transform: stepVisible ? "translateY(0)" : "translateY(10px)",
+            transition: "opacity 280ms ease, transform 280ms ease",
+          }}
+        >
+          {/* Step 1: Role */}
+          {setupStep === 1 && (
+            <>
+              <p className="mb-3 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">Step 1 of 3</p>
+              <h2 className="mb-1 text-2xl font-bold text-white">What describes your work?</h2>
+              <p className="mb-7 text-sm text-white/40">We&apos;ll set up your workspace to match.</p>
+              <div className="grid w-full grid-cols-2 gap-3">
+                {ROLES.map(role => (
+                  <button
+                    key={role.value}
+                    onClick={() => setSelectedRole(role.value)}
+                    className={cn(
+                      "rounded-2xl border p-4 text-left transition-all duration-200 active:scale-[0.98]",
+                      selectedRole === role.value
+                        ? "border-[#d4a853]/60 bg-[#d4a853]/[0.10] shadow-[0_0_20px_rgba(212,168,83,0.12)]"
+                        : "border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]"
+                    )}
+                  >
+                    <p className={cn("mb-0.5 text-sm font-semibold transition-colors", selectedRole === role.value ? "text-[#d4a853]" : "text-white")}>
+                      {role.label}
+                    </p>
+                    <p className="text-[11px] leading-tight text-white/40">{role.sub}</p>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Step 2: Content types (multi-select) */}
+          {setupStep === 2 && (
+            <>
+              <p className="mb-3 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">Step 2 of 3</p>
+              <h2 className="mb-1 text-2xl font-bold text-white">What content do you create?</h2>
+              <p className="mb-7 text-sm text-white/40">Select all that apply.</p>
+              <div className="flex w-full flex-wrap justify-center gap-2.5">
+                {CONTENT_TYPES.map(ct => {
+                  const sel = selectedContentTypes.includes(ct.value);
+                  return (
+                    <button
+                      key={ct.value}
+                      onClick={() => toggleContentType(ct.value)}
+                      className={cn(
+                        "rounded-2xl border px-4 py-3 text-left transition-all duration-200 active:scale-[0.98]",
+                        sel
+                          ? "border-[#d4a853]/60 bg-[#d4a853]/[0.10]"
+                          : "border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]"
+                      )}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {sel && <Check className="h-3 w-3 shrink-0 text-[#d4a853]" />}
+                        <p className={cn("text-xs font-semibold", sel ? "text-[#d4a853]" : "text-white")}>{ct.label}</p>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-white/40">{ct.sub}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Step 3: Team size + drone */}
+          {setupStep === 3 && (
+            <>
+              <p className="mb-3 text-[0.6rem] font-bold uppercase tracking-[0.35em] text-[#d4a853]">Step 3 of 3</p>
+              <h2 className="mb-1 text-2xl font-bold text-white">Last one. How do you work?</h2>
+              <p className="mb-7 text-sm text-white/40">This sets up your team tools.</p>
+              <div className="mb-4 flex w-full gap-3">
+                {TEAM_SIZES.map(ts => (
+                  <button
+                    key={ts.value}
+                    onClick={() => setSelectedTeamSize(ts.value)}
+                    className={cn(
+                      "flex-1 rounded-2xl border px-3 py-4 text-center transition-all duration-200 active:scale-[0.98]",
+                      selectedTeamSize === ts.value
+                        ? "border-[#d4a853]/60 bg-[#d4a853]/[0.10]"
+                        : "border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15] hover:bg-white/[0.05]"
+                    )}
+                  >
+                    <p className={cn("text-xs font-semibold", selectedTeamSize === ts.value ? "text-[#d4a853]" : "text-white")}>{ts.label}</p>
+                    <p className="mt-0.5 text-[10px] text-white/40">{ts.sub}</p>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setUsesDrone(d => !d)}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-2xl border px-4 py-3.5 transition-all duration-200",
+                  usesDrone
+                    ? "border-[#d4a853]/60 bg-[#d4a853]/[0.08]"
+                    : "border-white/[0.08] bg-white/[0.03] hover:border-white/[0.15]"
+                )}
+              >
+                <div className="text-left">
+                  <p className={cn("text-sm font-semibold", usesDrone ? "text-[#d4a853]" : "text-white")}>Do you fly drones?</p>
+                  <p className="text-[11px] text-white/40">Enables FAA logs &amp; flight planning tools</p>
+                </div>
+                <div className={cn("relative h-6 w-11 rounded-full border transition-all", usesDrone ? "border-[#d4a853]/40 bg-[#d4a853]/20" : "border-white/[0.12] bg-white/[0.06]")}>
+                  <div className={cn("absolute top-0.5 h-5 w-5 rounded-full transition-all", usesDrone ? "left-5 bg-[#d4a853]" : "left-0.5 bg-white/30")} />
+                </div>
+              </button>
+            </>
+          )}
+
+          {/* Continue / Enter */}
+          <button
+            onClick={handleSetupNext}
+            disabled={setupStep === 1 && !selectedRole}
+            className="mt-8 flex items-center gap-2.5 rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black transition-all hover:bg-[#c9a040] hover:shadow-[0_0_28px_rgba(212,168,83,0.3)] active:scale-[0.97] disabled:opacity-40"
+          >
+            {setupStep === 3 ? "Enter CineFlow" : "Continue"}
+            <ArrowRight className="h-4 w-4" />
+          </button>
+          <button
+            onClick={handleCut}
+            className="mt-4 text-[11px] text-white/25 transition-colors hover:text-white/50"
+          >
+            Skip setup
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

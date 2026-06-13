@@ -28,6 +28,7 @@ import {
   Wrench,
   Calculator,
   ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
 import { DroneIcon } from "@/components/icons/DroneIcon";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,23 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+type UserPrefs = { user_role: string | null; team_size: string | null; uses_drone: boolean };
+
+function isHiddenByPrefs(href: string, prefs: UserPrefs): boolean {
+  if (!prefs.user_role) return false;
+  switch (href) {
+    case "/drones":       return !prefs.uses_drone;
+    case "/crew":         return prefs.user_role === "solo_editor" || prefs.user_role === "agency";
+    case "/team":         return prefs.team_size === "just_me" || prefs.user_role === "solo_editor";
+    case "/retainers":    return !["agency", "production_company"].includes(prefs.user_role);
+    case "/editor-tools": return ["production_company", "agency"].includes(prefs.user_role);
+    case "/storyboard":   return prefs.user_role === "solo_editor" || prefs.user_role === "agency";
+    case "/shot-lists":   return prefs.user_role === "solo_editor" || prefs.user_role === "agency";
+    case "/scripts":      return prefs.user_role === "solo_editor" || prefs.user_role === "agency";
+    default:              return false;
+  }
+}
 
 const NAV_BOTTOM: NavItem[] = [
   { label: "Settings", href: "/settings", icon: Settings },
@@ -293,12 +311,16 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan_status") : null) ?? ""
   );
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
+  const [userPrefs, setUserPrefs] = useState<UserPrefs>({ user_role: null, team_size: null, uses_drone: false });
+  const [moreExpanded, setMoreExpanded] = useState(() =>
+    typeof window !== "undefined" ? localStorage.getItem("sidebar-more") === "1" : false
+  );
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("profiles").select("first_name, last_name, plan, plan_status, trial_ends_at, is_admin").eq("id", user.id).single()
+      supabase.from("profiles").select("first_name, last_name, plan, plan_status, trial_ends_at, is_admin, user_role, team_size, uses_drone").eq("id", user.id).single()
         .then(({ data }) => {
           if (data?.plan) {
             setPlan(data.plan);
@@ -310,6 +332,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
           }
           if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at);
           if (data?.is_admin) setIsAdmin(true);
+          if (data?.user_role) setUserPrefs({ user_role: data.user_role, team_size: data.team_size ?? null, uses_drone: data.uses_drone ?? false });
           if (data?.first_name || data?.last_name) {
             setDisplayName(`${data.first_name ?? ""} ${data.last_name ?? ""}`.trim());
           } else {
@@ -394,19 +417,20 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
         <nav className="flex flex-1 flex-col overflow-y-auto p-2 pt-3 custom-scrollbar gap-4">
           {NAV_GROUPS.map((group, gi) => {
             const visibleItems = group.items.filter(
-              (item) => !(solo && item.soloHidden) && !(item.producerOnly && !isProducer)
+              (item) =>
+                !(solo && item.soloHidden) &&
+                !(item.producerOnly && !isProducer) &&
+                !isHiddenByPrefs(item.href, userPrefs)
             );
             if (visibleItems.length === 0) return null;
 
             return (
               <div key={gi} className="flex flex-col gap-0.5">
-                {/* Section label — hidden when collapsed */}
                 {group.label && !collapsed && (
                   <p className="mb-1 px-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/20">
                     {group.label}
                   </p>
                 )}
-                {/* Collapsed divider between groups (except first) */}
                 {group.label && collapsed && gi > 0 && (
                   <div className="mx-auto mb-1 h-px w-5 bg-white/10" />
                 )}
@@ -421,6 +445,38 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               </div>
             );
           })}
+
+          {/* More tools — items hidden by persona prefs */}
+          {(() => {
+            const hiddenItems = NAV_GROUPS.flatMap(g => g.items).filter(item => {
+              if (solo && item.soloHidden) return false;
+              if (item.producerOnly && !isProducer) return false;
+              return isHiddenByPrefs(item.href, userPrefs);
+            });
+            if (hiddenItems.length === 0) return null;
+            return (
+              <div className="flex flex-col gap-0.5">
+                {collapsed && <div className="mx-auto mb-1 h-px w-5 bg-white/10" />}
+                <button
+                  onClick={() => {
+                    const next = !moreExpanded;
+                    setMoreExpanded(next);
+                    if (typeof window !== "undefined") localStorage.setItem("sidebar-more", next ? "1" : "0");
+                  }}
+                  className={cn(
+                    "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[11px] transition-all duration-150 text-white/25 hover:text-white/45",
+                    collapsed ? "justify-center w-9 px-0" : ""
+                  )}
+                >
+                  <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200", moreExpanded && "rotate-180")} />
+                  {!collapsed && <span>{moreExpanded ? "Show less" : `${hiddenItems.length} more tools`}</span>}
+                </button>
+                {moreExpanded && hiddenItems.map(item => (
+                  <NavLink key={item.href} item={item} collapsed={collapsed} isActive={isActive(item.href)} />
+                ))}
+              </div>
+            );
+          })()}
         </nav>
 
         <SessionIndicator collapsed={collapsed} />

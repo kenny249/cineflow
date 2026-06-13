@@ -13,7 +13,6 @@ import { TopBar } from "./TopBar";
 import { MobileSplash } from "./MobileSplash";
 import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
-import { OnboardingIntro } from "./OnboardingIntro";
 import { DemoBanner } from "./DemoBanner";
 import { LifetimeWelcome } from "@/components/shared/LifetimeWelcome";
 import { TrialExpiredGate } from "@/components/shared/TrialExpiredGate";
@@ -209,7 +208,6 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   return (
     <div className="relative flex h-screen overflow-hidden bg-background">
       <MobileSplash />
-      <OnboardingIntro />
       <LifetimeWelcome plan={plan} />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <FeedbackButton />
