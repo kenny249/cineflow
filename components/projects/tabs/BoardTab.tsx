@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
-import type { Board, BoardColumn } from "@/lib/boards";
+import type { BoardWithCards } from "@/lib/boards";
 import { getBoardByProject, createBoard } from "@/lib/boards";
 import { BoardView } from "@/components/boards/BoardView";
 
@@ -12,7 +12,7 @@ interface BoardTabProps {
 }
 
 export function BoardTab({ projectId }: BoardTabProps) {
-  const [board, setBoard] = useState<(Board & { columns: BoardColumn[] }) | null>(null);
+  const [board, setBoard] = useState<BoardWithCards | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
 
@@ -28,7 +28,7 @@ export function BoardTab({ projectId }: BoardTabProps) {
   async function handleCreate() {
     setCreating(true);
     try {
-      const newBoard = await createBoard("Project Board", projectId);
+      await createBoard("Project Board", projectId);
       const full = await getBoardByProject(projectId);
       setBoard(full);
     } catch {
@@ -54,7 +54,7 @@ export function BoardTab({ projectId }: BoardTabProps) {
         </div>
         <div className="text-center">
           <p className="text-sm font-medium text-foreground">No board yet</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Create a board to visually plan this project</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Create a visual planning board for this project</p>
         </div>
         <button
           onClick={handleCreate}

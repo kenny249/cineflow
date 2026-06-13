@@ -1,227 +1,285 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  DndContext,
-  DragEndEvent,
-  DragOverEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  TouchSensor,
-  closestCorners,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
-import {
-  Plus, Share2, Copy, Check, Loader2, Settings2, Printer, Trash2, X,
+  StickyNote, ScrollText, Camera, CheckSquare, Link2, Image as ImageIcon, Video,
+  Share2, Copy, Check, Loader2, Trash2, X, ZoomIn, ZoomOut, Maximize2, Plus, Printer,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Board, BoardColumn, BoardCard, CardType } from "@/lib/boards";
+import type { Board, BoardCard, CardType, BoardWithCards } from "@/lib/boards";
 import {
-  createColumn,
-  updateColumnPositions,
-  updateCardPositions,
-  generateShareToken,
-  revokeShareToken,
-  pushShotToShotList,
-  pushScriptToNotes,
+  createCard, updateCardPosition, generateShareToken, revokeShareToken,
+  pushShotToShotList, pushScriptToNotes,
 } from "@/lib/boards";
-import { BoardColumnComponent } from "./BoardColumn";
 import { BoardCardComponent } from "./BoardCard";
 import { CardEditModal } from "./CardEditModal";
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type DragState =
+  | { type: "card"; cardId: string; cardStartX: number; cardStartY: number; pointerStartX: number; pointerStartY: number; currentDx: number; currentDy: number }
+  | { type: "pan"; panStartX: number; panStartY: number; pointerStartX: number; pointerStartY: number };
+
+// ── Default card content per type ─────────────────────────────────────────────
+
+const DEFAULT_CONTENT: Record<CardType, Record<string, unknown>> = {
+  note:      { title: "", text: "" },
+  script:    { title: "", content: "" },
+  shot:      { scene_type: "INT", location: "", time: "DAY", camera_angle: "", notes: "" },
+  image:     { url: "", caption: "" },
+  video:     { url: "", title: "", notes: "" },
+  checklist: { title: "", items: [] },
+  link:      { url: "", title: "", description: "" },
+};
+
+const TOOLBAR_TYPES: { type: CardType; icon: React.ReactNode; label: string }[] = [
+  { type: "note",      icon: <StickyNote  className="h-4 w-4" />, label: "Note"      },
+  { type: "script",    icon: <ScrollText  className="h-4 w-4" />, label: "Script"    },
+  { type: "shot",      icon: <Camera      className="h-4 w-4" />, label: "Shot"      },
+  { type: "checklist", icon: <CheckSquare className="h-4 w-4" />, label: "Checklist" },
+  { type: "link",      icon: <Link2       className="h-4 w-4" />, label: "Link"      },
+  { type: "image",     icon: <ImageIcon   className="h-4 w-4" />, label: "Image"     },
+  { type: "video",     icon: <Video       className="h-4 w-4" />, label: "Video"     },
+];
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
 interface BoardViewProps {
-  board: Board & { columns: BoardColumn[] };
+  board: BoardWithCards;
   projectId?: string;
   readonly?: boolean;
 }
 
 export function BoardView({ board: initialBoard, projectId, readonly }: BoardViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<DragState | null>(null);
+
+  // React state (source of truth on commit)
+  const [cards, _setCards] = useState<BoardCard[]>(initialBoard.cards);
+  const [pan, _setPan] = useState({ x: 60, y: 60 });
+  const [zoom, _setZoom] = useState(1);
   const [board, setBoard] = useState(initialBoard);
-  const [editingCard, setEditingCard] = useState<BoardCard | null>(null);
-  const [aiCard, setAiCard] = useState<BoardCard | null>(null);
-  const [activeCard, setActiveCard] = useState<BoardCard | null>(null);
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [modalCard, setModalCard] = useState<BoardCard | null>(null);
+  const [newCardId, setNewCardId] = useState<string | null>(null); // auto-opens inline edit
   const [shareOpen, setShareOpen] = useState(false);
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [addingColumn, setAddingColumn] = useState(false);
+  const [addingType, setAddingType] = useState<CardType | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
-  );
+  // Refs mirror state for use inside event handlers (avoid stale closures)
+  const cardsRef = useRef<BoardCard[]>(initialBoard.cards);
+  const panRef = useRef({ x: 60, y: 60 });
+  const zoomRef = useRef(1);
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // Stable updaters that keep ref + state in sync
+  const setCards = useCallback((fn: (c: BoardCard[]) => BoardCard[]) => {
+    const next = fn(cardsRef.current);
+    cardsRef.current = next;
+    _setCards(next);
+  }, []);
 
-  function findCard(cardId: string): { card: BoardCard; column: BoardColumn } | null {
-    for (const col of board.columns) {
-      const card = col.cards.find((c) => c.id === cardId);
-      if (card) return { card, column: col };
-    }
-    return null;
-  }
+  const setPan = useCallback((p: { x: number; y: number }) => {
+    panRef.current = p;
+    _setPan(p);
+  }, []);
 
-  function updateColumns(fn: (cols: BoardColumn[]) => BoardColumn[]) {
-    setBoard((b) => ({ ...b, columns: fn(b.columns) }));
-  }
+  const setZoom = useCallback((z: number) => {
+    zoomRef.current = z;
+    _setZoom(z);
+  }, []);
 
-  // ── DnD handlers ─────────────────────────────────────────────────────────────
+  // ── Window pointer event listeners ───────────────────────────────────────────
 
-  function handleDragStart(event: DragStartEvent) {
-    const data = event.active.data.current;
-    if (data?.type === "card") setActiveCard(data.card);
-  }
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      const dr = dragRef.current;
+      if (!dr) return;
 
-  function handleDragOver(event: DragOverEvent) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const activeData = active.data.current;
-    if (activeData?.type !== "card") return;
-
-    const activeCardId = active.id as string;
-    const overData = over.data.current;
-
-    // Find source column
-    const srcResult = findCard(activeCardId);
-    if (!srcResult) return;
-    const { column: srcCol } = srcResult;
-
-    let destColId: string;
-    if (overData?.type === "column") {
-      destColId = overData.columnId as string;
-    } else if (overData?.type === "card") {
-      const destResult = findCard(over.id as string);
-      if (!destResult) return;
-      destColId = destResult.column.id;
-    } else {
-      return;
-    }
-
-    if (srcCol.id === destColId) return;
-
-    // Move card between columns optimistically
-    updateColumns((cols) => {
-      const src = cols.find((c) => c.id === srcCol.id)!;
-      const dest = cols.find((c) => c.id === destColId)!;
-      const movingCard = src.cards.find((c) => c.id === activeCardId)!;
-      return cols.map((col) => {
-        if (col.id === srcCol.id) return { ...col, cards: col.cards.filter((c) => c.id !== activeCardId) };
-        if (col.id === destColId) return { ...col, cards: [...col.cards, { ...movingCard, column_id: destColId }] };
-        return col;
-      });
-    });
-  }
-
-  async function handleDragEnd(event: DragEndEvent) {
-    setActiveCard(null);
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeData = active.data.current;
-    if (activeData?.type !== "card") return;
-
-    const activeCardId = active.id as string;
-    const overData = over.data.current;
-
-    // Determine destination column and index
-    let destColId: string;
-    let overCardId: string | null = null;
-
-    if (overData?.type === "column") {
-      destColId = overData.columnId as string;
-    } else if (overData?.type === "card") {
-      const destResult = findCard(over.id as string);
-      if (!destResult) return;
-      destColId = destResult.column.id;
-      overCardId = over.id as string;
-    } else {
-      return;
-    }
-
-    const destCol = board.columns.find((c) => c.id === destColId);
-    if (!destCol) return;
-
-    let finalCards = [...destCol.cards];
-    const activeIdx = finalCards.findIndex((c) => c.id === activeCardId);
-
-    if (overCardId && overCardId !== activeCardId) {
-      const overIdx = finalCards.findIndex((c) => c.id === overCardId);
-      if (activeIdx !== -1 && overIdx !== -1) {
-        finalCards = arrayMove(finalCards, activeIdx, overIdx);
+      if (dr.type === "card") {
+        const dx = (e.clientX - dr.pointerStartX) / zoomRef.current;
+        const dy = (e.clientY - dr.pointerStartY) / zoomRef.current;
+        dr.currentDx = dx;
+        dr.currentDy = dy;
+        // Direct DOM manipulation for smooth drag (no React re-render per frame)
+        const el = document.querySelector(`[data-card-id="${dr.cardId}"]`) as HTMLElement | null;
+        if (el) {
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          el.style.zIndex = "50";
+        }
+      } else {
+        const x = dr.panStartX + (e.clientX - dr.pointerStartX);
+        const y = dr.panStartY + (e.clientY - dr.pointerStartY);
+        panRef.current = { x, y };
+        if (worldRef.current) {
+          worldRef.current.style.transform = `translate(${x}px, ${y}px) scale(${zoomRef.current})`;
+        }
       }
     }
 
-    // Assign new positions
-    const updates = finalCards.map((c, i) => ({ id: c.id, column_id: destColId, position: i }));
-    updateColumns((cols) =>
-      cols.map((col) =>
-        col.id === destColId
-          ? { ...col, cards: finalCards.map((c, i) => ({ ...c, position: i, column_id: destColId })) }
-          : col
-      )
-    );
+    async function onUp() {
+      const dr = dragRef.current;
+      dragRef.current = null;
 
-    try {
-      await updateCardPositions(updates);
-    } catch {
-      toast.error("Failed to save card position");
+      if (!dr) return;
+
+      if (dr.type === "card") {
+        const el = document.querySelector(`[data-card-id="${dr.cardId}"]`) as HTMLElement | null;
+        if (el) {
+          el.style.transform = "";
+          el.style.zIndex = "";
+        }
+
+        const dx = dr.currentDx;
+        const dy = dr.currentDy;
+
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+          const newX = dr.cardStartX + dx;
+          const newY = dr.cardStartY + dy;
+          setCards((prev) => prev.map((c) => c.id === dr.cardId ? { ...c, x: newX, y: newY } : c));
+          updateCardPosition(dr.cardId, newX, newY).catch(() => toast.error("Failed to save position"));
+        }
+
+        setDraggingCardId(null);
+      } else {
+        // Commit pan to React state
+        setPan({ x: panRef.current.x, y: panRef.current.y });
+      }
     }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [setCards, setPan]);
+
+  // ── Wheel zoom ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      const rect = el!.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      const oldZoom = zoomRef.current;
+      const factor = e.deltaY > 0 ? 0.92 : 1.08;
+      const newZoom = Math.max(0.2, Math.min(3, oldZoom * factor));
+
+      const wx = (mx - panRef.current.x) / oldZoom;
+      const wy = (my - panRef.current.y) / oldZoom;
+      const newPan = { x: mx - wx * newZoom, y: my - wy * newZoom };
+
+      zoomRef.current = newZoom;
+      panRef.current = newPan;
+
+      if (worldRef.current) {
+        worldRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${newZoom})`;
+      }
+
+      setZoom(newZoom);
+      setPan(newPan);
+    }
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [setZoom, setPan]);
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  function getViewCenter(): { x: number; y: number } {
+    const rect = containerRef.current?.getBoundingClientRect() ?? { width: 800, height: 600 };
+    return {
+      x: (rect.width / 2 - panRef.current.x) / zoomRef.current - 120,
+      y: (rect.height / 2 - panRef.current.y) / zoomRef.current - 80,
+    };
   }
 
-  // ── Column management ─────────────────────────────────────────────────────────
+  function screenToWorld(sx: number, sy: number): { x: number; y: number } {
+    const rect = containerRef.current!.getBoundingClientRect();
+    return {
+      x: (sx - rect.left - panRef.current.x) / zoomRef.current,
+      y: (sy - rect.top - panRef.current.y) / zoomRef.current,
+    };
+  }
 
-  async function addColumn() {
-    setAddingColumn(true);
+  // ── Canvas pointer events ─────────────────────────────────────────────────────
+
+  function handleCanvasPointerDown(e: React.PointerEvent) {
+    if (readonly || e.button !== 0) return;
+    dragRef.current = {
+      type: "pan",
+      panStartX: panRef.current.x,
+      panStartY: panRef.current.y,
+      pointerStartX: e.clientX,
+      pointerStartY: e.clientY,
+    };
+  }
+
+  function handleCanvasDoubleClick(e: React.PointerEvent) {
+    if (readonly) return;
+    const pos = screenToWorld(e.clientX, e.clientY);
+    addCardAt("note", pos.x - 120, pos.y - 40);
+  }
+
+  // ── Card drag start (called by card component) ────────────────────────────────
+
+  function startCardDrag(card: BoardCard, startEvent: { clientX: number; clientY: number }) {
+    dragRef.current = {
+      type: "card",
+      cardId: card.id,
+      cardStartX: card.x,
+      cardStartY: card.y,
+      pointerStartX: startEvent.clientX,
+      pointerStartY: startEvent.clientY,
+      currentDx: 0,
+      currentDy: 0,
+    };
+    setDraggingCardId(card.id);
+  }
+
+  // ── Add card ──────────────────────────────────────────────────────────────────
+
+  async function addCardAt(type: CardType, x: number, y: number) {
+    setAddingType(type);
     try {
-      const position = (board.columns.at(-1)?.position ?? 0) + 1;
-      const col = await createColumn(board.id, "Untitled", position);
-      updateColumns((cols) => [...cols, col]);
+      const card = await createCard(board.id, type, DEFAULT_CONTENT[type], x, y);
+      setCards((prev) => [...prev, card]);
+      if (type === "note" || type === "script") {
+        setNewCardId(card.id);
+      } else {
+        setModalCard(card);
+      }
     } catch {
-      toast.error("Failed to add column");
+      toast.error("Failed to add card");
     } finally {
-      setAddingColumn(false);
+      setAddingType(null);
     }
   }
 
-  function handleColumnUpdate(updated: BoardColumn) {
-    updateColumns((cols) => cols.map((c) => (c.id === updated.id ? { ...c, title: updated.title } : c)));
+  function addCardAtCenter(type: CardType) {
+    const center = getViewCenter();
+    // Stagger if cards exist near center
+    const offset = cards.length * 20;
+    addCardAt(type, center.x + (offset % 100), center.y + (offset % 60));
   }
 
-  function handleColumnDelete(columnId: string) {
-    updateColumns((cols) => cols.filter((c) => c.id !== columnId));
+  // ── Card callbacks ────────────────────────────────────────────────────────────
+
+  function handleCardUpdate(updated: BoardCard) {
+    setCards((prev) => prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c));
+    setNewCardId(null);
   }
 
-  // ── Card management ───────────────────────────────────────────────────────────
-
-  function handleCardAdded(card: BoardCard, columnId: string) {
-    updateColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId ? { ...col, cards: [...col.cards, card] } : col
-      )
-    );
+  function handleCardDelete(cardId: string) {
+    setCards((prev) => prev.filter((c) => c.id !== cardId));
   }
-
-  function handleCardDelete(cardId: string, columnId: string) {
-    updateColumns((cols) =>
-      cols.map((col) =>
-        col.id === columnId ? { ...col, cards: col.cards.filter((c) => c.id !== cardId) } : col
-      )
-    );
-  }
-
-  function handleCardSaved(updated: BoardCard) {
-    updateColumns((cols) =>
-      cols.map((col) => ({
-        ...col,
-        cards: col.cards.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
-      }))
-    );
-  }
-
-  // ── Push to production tools ──────────────────────────────────────────────────
 
   async function handlePush(card: BoardCard) {
     if (!projectId) return;
@@ -238,6 +296,45 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     }
   }
 
+  // ── Zoom controls ─────────────────────────────────────────────────────────────
+
+  function adjustZoom(factor: number) {
+    const newZoom = Math.max(0.2, Math.min(3, zoomRef.current * factor));
+    const rect = containerRef.current?.getBoundingClientRect() ?? { width: 800, height: 600 };
+    const cx = rect.width / 2;
+    const cy = rect.height / 2;
+    const wx = (cx - panRef.current.x) / zoomRef.current;
+    const wy = (cy - panRef.current.y) / zoomRef.current;
+    const newPan = { x: cx - wx * newZoom, y: cy - wy * newZoom };
+    setZoom(newZoom);
+    setPan(newPan);
+    if (worldRef.current) {
+      worldRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${newZoom})`;
+    }
+  }
+
+  function fitToScreen() {
+    if (cards.length === 0) { setZoom(1); setPan({ x: 60, y: 60 }); return; }
+    const PADDING = 80;
+    const minX = Math.min(...cards.map((c) => c.x));
+    const minY = Math.min(...cards.map((c) => c.y));
+    const maxX = Math.max(...cards.map((c) => c.x + 240));
+    const maxY = Math.max(...cards.map((c) => c.y + 160));
+    const rect = containerRef.current?.getBoundingClientRect() ?? { width: 800, height: 600 };
+    const scaleX = (rect.width - PADDING * 2) / (maxX - minX);
+    const scaleY = (rect.height - PADDING * 2) / (maxY - minY);
+    const newZoom = Math.max(0.2, Math.min(1, Math.min(scaleX, scaleY)));
+    const newPan = {
+      x: PADDING - minX * newZoom,
+      y: PADDING - minY * newZoom,
+    };
+    setZoom(newZoom);
+    setPan(newPan);
+    if (worldRef.current) {
+      worldRef.current.style.transform = `translate(${newPan.x}px, ${newPan.y}px) scale(${newZoom})`;
+    }
+  }
+
   // ── Share ─────────────────────────────────────────────────────────────────────
 
   const shareUrl = board.share_token
@@ -249,11 +346,8 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     try {
       const token = await generateShareToken(board.id);
       setBoard((b) => ({ ...b, share_token: token }));
-    } catch {
-      toast.error("Failed to generate share link");
-    } finally {
-      setShareLoading(false);
-    }
+    } catch { toast.error("Failed to generate link"); }
+    finally { setShareLoading(false); }
   }
 
   async function handleRevokeShare() {
@@ -261,11 +355,8 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     try {
       await revokeShareToken(board.id);
       setBoard((b) => ({ ...b, share_token: null }));
-    } catch {
-      toast.error("Failed to revoke share link");
-    } finally {
-      setShareLoading(false);
-    }
+    } catch { toast.error("Failed to revoke link"); }
+    finally { setShareLoading(false); }
   }
 
   async function copyShareUrl() {
@@ -275,156 +366,164 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     setTimeout(() => setCopied(false), 2000);
   }
 
-  // ── Print ─────────────────────────────────────────────────────────────────────
-
-  function handlePrint() {
-    window.print();
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Toolbar */}
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#0a0a0a]">
+      {/* Top toolbar */}
       {!readonly && (
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
-          <p className="text-xs text-muted-foreground">
-            {board.columns.length} column{board.columns.length !== 1 ? "s" : ""} ·{" "}
-            {board.columns.reduce((n, col) => n + col.cards.length, 0)} card{board.columns.reduce((n, col) => n + col.cards.length, 0) !== 1 ? "s" : ""}
-          </p>
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setShareOpen((o) => !o)}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              <Share2 className="h-3 w-3" /> Share
-            </button>
-            <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              <Printer className="h-3 w-3" /> Print
-            </button>
-          </div>
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
+          <button
+            onClick={() => setShareOpen((o) => !o)}
+            className="flex items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
+          >
+            <Share2 className="h-3.5 w-3.5" /> Share
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
+          >
+            <Printer className="h-3.5 w-3.5" /> Print
+          </button>
         </div>
       )}
 
       {/* Share panel */}
       {shareOpen && (
-        <div className="border-b border-border bg-card/50 px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-foreground">Share link</p>
+        <div className="absolute top-12 right-3 z-30 w-80 rounded-2xl border border-border bg-card shadow-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-foreground">Share board</p>
             <button onClick={() => setShareOpen(false)} className="text-muted-foreground hover:text-foreground">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
           {shareUrl ? (
-            <div className="flex items-center gap-2">
-              <input
-                readOnly
-                value={shareUrl}
-                className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground font-mono truncate"
-              />
-              <button
-                onClick={copyShareUrl}
-                className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs hover:bg-accent transition-colors shrink-0"
-              >
-                {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                {copied ? "Copied!" : "Copy"}
-              </button>
-              <button
-                onClick={handleRevokeShare}
-                disabled={shareLoading}
-                className="flex items-center gap-1 rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
-              >
-                <Trash2 className="h-3 w-3" /> Revoke
-              </button>
+            <div className="space-y-2">
+              <input readOnly value={shareUrl} className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] text-muted-foreground font-mono truncate" />
+              <div className="flex gap-2">
+                <button onClick={copyShareUrl} className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-border py-1.5 text-xs hover:bg-accent transition-colors">
+                  {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                  {copied ? "Copied!" : "Copy link"}
+                </button>
+                <button onClick={handleRevokeShare} disabled={shareLoading} className="flex items-center gap-1 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10 disabled:opacity-50 transition-colors">
+                  <Trash2 className="h-3 w-3" /> Revoke
+                </button>
+              </div>
             </div>
           ) : (
-            <button
-              onClick={handleGenerateShare}
-              disabled={shareLoading}
-              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
-            >
-              {shareLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Share2 className="h-3 w-3" />}
+            <button onClick={handleGenerateShare} disabled={shareLoading} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#d4a853] px-3 py-2 text-xs font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors">
+              {shareLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
               Generate share link
             </button>
           )}
-          <p className="mt-1.5 text-[10px] text-muted-foreground/50">Anyone with this link can view (read-only).</p>
+          <p className="text-[10px] text-muted-foreground/50">Anyone with the link can view (read-only).</p>
         </div>
       )}
 
-      {/* Board canvas */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
+      {/* Canvas */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-hidden"
+        style={{ cursor: dragRef.current?.type === "pan" ? "grabbing" : "default" }}
+        onPointerDown={handleCanvasPointerDown}
+        onDoubleClick={handleCanvasDoubleClick as unknown as React.MouseEventHandler}
+      >
+        {/* Empty state hint */}
+        {cards.length === 0 && !readonly && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none select-none z-10">
+            <p className="text-sm text-muted-foreground/40">Double-click anywhere to add a note</p>
+            <p className="text-xs text-muted-foreground/25">or use the toolbar below</p>
+          </div>
+        )}
+
+        {/* World — all cards live here */}
+        <div
+          ref={worldRef}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            transformOrigin: "0 0",
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            willChange: "transform",
+          }}
         >
-          <div className="flex h-full items-start gap-4 p-4">
-            {board.columns.map((col) => (
-              <BoardColumnComponent
-                key={col.id}
-                column={col}
-                boardId={board.id}
+          {cards.map((card) => (
+            <div
+              key={card.id}
+              style={{
+                position: "absolute",
+                left: card.x,
+                top: card.y,
+              }}
+            >
+              <BoardCardComponent
+                card={card}
                 projectId={projectId}
                 readonly={readonly}
-                onColumnUpdate={handleColumnUpdate}
-                onColumnDelete={handleColumnDelete}
-                onCardEdit={setEditingCard}
-                onCardAI={setAiCard}
-                onCardPush={handlePush}
-                onCardDelete={handleCardDelete}
-                onCardAdded={handleCardAdded}
+                isDragging={draggingCardId === card.id}
+                startInlineEdit={newCardId === card.id}
+                onDragStart={startCardDrag}
+                onUpdate={handleCardUpdate}
+                onOpenModal={setModalCard}
+                onAI={setModalCard}
+                onPush={handlePush}
+                onDelete={handleCardDelete}
               />
-            ))}
-
-            {/* Add column button */}
-            {!readonly && (
-              <button
-                onClick={addColumn}
-                disabled={addingColumn}
-                className="flex h-10 w-48 shrink-0 items-center justify-center gap-1.5 rounded-2xl border border-dashed border-border/50 text-xs text-muted-foreground/50 hover:border-[#d4a853]/40 hover:text-[#d4a853]/70 transition-colors"
-              >
-                {addingColumn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                Add column
-              </button>
-            )}
-          </div>
-
-          {/* Drag overlay */}
-          <DragOverlay>
-            {activeCard && (
-              <div className="opacity-90 rotate-1 shadow-2xl">
-                <BoardCardComponent
-                  card={activeCard}
-                  projectId={projectId}
-                  readonly
-                  onEdit={() => {}}
-                  onAI={() => {}}
-                  onPush={() => {}}
-                  onDelete={() => {}}
-                />
-              </div>
-            )}
-          </DragOverlay>
-        </DndContext>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Edit Modal */}
-      <CardEditModal
-        card={editingCard}
-        onClose={() => setEditingCard(null)}
-        onSaved={handleCardSaved}
-      />
+      {/* Bottom toolbar */}
+      {!readonly && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 rounded-2xl border border-border bg-card/95 backdrop-blur-md px-3 py-2.5 shadow-xl">
+          {TOOLBAR_TYPES.map(({ type, icon, label }) => (
+            <button
+              key={type}
+              title={label}
+              onClick={() => addCardAtCenter(type)}
+              disabled={addingType !== null}
+              className="flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
+            >
+              {addingType === type ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+              <span className="text-[9px] font-medium">{label}</span>
+            </button>
+          ))}
 
-      {/* AI Modal — reuses CardEditModal opened from AI context */}
+          <div className="mx-1.5 h-6 w-px bg-border" />
+
+          {/* Zoom controls */}
+          <button onClick={() => adjustZoom(0.85)} title="Zoom out" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+            <ZoomOut className="h-3.5 w-3.5" />
+          </button>
+          <span className="min-w-[38px] text-center text-[11px] text-muted-foreground/60 font-mono tabular-nums">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button onClick={() => adjustZoom(1.18)} title="Zoom in" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+            <ZoomIn className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={fitToScreen} title="Fit to screen" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Keyboard hint */}
+      {!readonly && cards.length > 0 && (
+        <div className="absolute bottom-5 right-4 z-10 flex items-center gap-2 text-[10px] text-muted-foreground/30 select-none pointer-events-none">
+          <span>Scroll to zoom · Drag canvas to pan · Double-click to add note</span>
+        </div>
+      )}
+
+      {/* Edit modal (for complex card types) */}
       <CardEditModal
-        card={aiCard}
-        onClose={() => setAiCard(null)}
-        onSaved={handleCardSaved}
+        card={modalCard}
+        onClose={() => setModalCard(null)}
+        onSaved={(updated) => {
+          handleCardUpdate(updated);
+          setModalCard(null);
+        }}
       />
     </div>
   );

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { BoardCard, CardType } from "@/lib/boards";
 import { updateCard } from "@/lib/boards";
-import { CARD_COLORS, CARD_TYPE_ICONS } from "./BoardCard";
+import { CARD_COLORS, CARD_TYPE_META } from "./BoardCard";
 
 type AIAction = "expand" | "rewrite" | "screenplay" | "variations" | "shot_notes";
 
@@ -94,7 +94,7 @@ export function CardEditModal({ card, onClose, onSaved }: CardEditModalProps) {
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
-            <span className="text-muted-foreground">{CARD_TYPE_ICONS[card.type]}</span>
+            <span className="text-muted-foreground">{CARD_TYPE_META[card.type].icon}</span>
             Edit {card.type.charAt(0).toUpperCase() + card.type.slice(1)} Card
           </DialogTitle>
         </DialogHeader>
@@ -106,10 +106,10 @@ export function CardEditModal({ card, onClose, onSaved }: CardEditModalProps) {
             <div className="flex gap-1.5">
               {CARD_COLORS.map((c) => (
                 <button
-                  key={c.label}
-                  title={c.label}
+                  key={String(c.value)}
+                  title={c.value ?? "Default"}
                   onClick={() => setColor(c.value)}
-                  className={`h-5 w-5 rounded-full border-2 transition-all ${c.bg} ${color === c.value ? "border-foreground scale-110" : "border-transparent"}`}
+                  className={`h-4 w-4 rounded-full border-2 transition-all ${c.dot} ${color === c.value ? "border-foreground scale-125" : "border-transparent"}`}
                 />
               ))}
             </div>

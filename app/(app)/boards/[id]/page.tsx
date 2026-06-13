@@ -1,28 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Loader2, Pencil, Check } from "lucide-react";
 import { toast } from "sonner";
-import { getBoard, updateBoardTitle, deleteBoard } from "@/lib/boards";
-import type { Board, BoardColumn } from "@/lib/boards";
+import { getBoard, updateBoardTitle } from "@/lib/boards";
+import type { BoardWithCards } from "@/lib/boards";
 import { BoardView } from "@/components/boards/BoardView";
 
 export default function BoardDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const [board, setBoard] = useState<(Board & { columns: BoardColumn[] }) | null>(null);
+  const [board, setBoard] = useState<BoardWithCards | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleInput, setTitleInput] = useState("");
 
   useEffect(() => {
     getBoard(id)
-      .then((b) => {
-        setBoard(b);
-        setTitleInput(b?.title ?? "");
-      })
+      .then((b) => { setBoard(b); setTitleInput(b?.title ?? ""); })
       .catch(() => toast.error("Failed to load board"))
       .finally(() => setLoading(false));
   }, [id]);
@@ -58,8 +54,7 @@ export default function BoardDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Page header */}
-      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-border px-4 py-2.5 shrink-0">
         <Link href="/boards" className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-4 w-4" />
         </Link>
@@ -73,9 +68,7 @@ export default function BoardDetailPage() {
               className="flex-1 bg-transparent text-sm font-semibold text-foreground outline-none border-b border-[#d4a853]/50"
               autoFocus
             />
-            <button onClick={saveTitle} className="text-[#d4a853]">
-              <Check className="h-3.5 w-3.5" />
-            </button>
+            <button onClick={saveTitle} className="text-[#d4a853]"><Check className="h-3.5 w-3.5" /></button>
           </div>
         ) : (
           <div className="flex items-center gap-2 flex-1">
@@ -92,7 +85,6 @@ export default function BoardDetailPage() {
         )}
       </div>
 
-      {/* Board canvas */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <BoardView board={board} projectId={board.project_id ?? undefined} />
       </div>

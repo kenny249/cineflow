@@ -4,21 +4,18 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, LayoutGrid, Lock } from "lucide-react";
 import { getPublicBoard } from "@/lib/boards";
-import type { Board, BoardColumn } from "@/lib/boards";
+import type { BoardWithCards } from "@/lib/boards";
 import { BoardView } from "@/components/boards/BoardView";
 
 export default function SharedBoardPage() {
   const { token } = useParams<{ token: string }>();
-  const [board, setBoard] = useState<(Board & { columns: BoardColumn[] }) | null>(null);
+  const [board, setBoard] = useState<BoardWithCards | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     getPublicBoard(token)
-      .then((b) => {
-        if (!b) setNotFound(true);
-        else setBoard(b);
-      })
+      .then((b) => { if (!b) setNotFound(true); else setBoard(b); })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [token]);
@@ -46,21 +43,17 @@ export default function SharedBoardPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Minimal header */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div className="flex min-h-screen flex-col bg-background" style={{ height: "100dvh" }}>
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5 shrink-0">
         <div className="flex items-center gap-2">
           <LayoutGrid className="h-4 w-4 text-[#d4a853]" />
           <span className="font-display text-sm font-semibold text-foreground">{board.title}</span>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
-          <Lock className="h-3 w-3" />
-          Read-only view · Powered by CineFlow
+          <Lock className="h-3 w-3" /> Read-only · Powered by CineFlow
         </div>
       </div>
-
-      {/* Board (read-only) */}
-      <div className="flex-1 overflow-hidden" style={{ height: "calc(100vh - 49px)" }}>
+      <div className="flex-1 min-h-0 overflow-hidden">
         <BoardView board={board} readonly />
       </div>
     </div>
