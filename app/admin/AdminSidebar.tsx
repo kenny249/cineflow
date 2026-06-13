@@ -55,15 +55,24 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
     <>
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[#0b0b0b]">
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-5 py-4">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10">
-            <Film className="h-3.5 w-3.5 text-[#d4a853]" />
+        {/* Logo + back to app */}
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10">
+              <Film className="h-3.5 w-3.5 text-[#d4a853]" />
+            </div>
+            <div>
+              <p className="text-[0.6rem] font-bold tracking-[0.3em] text-[#d4a853] uppercase">Cineflow</p>
+              <p className="text-[0.55rem] text-zinc-600 uppercase tracking-wider">Admin</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[0.6rem] font-bold tracking-[0.3em] text-[#d4a853] uppercase">Cineflow</p>
-            <p className="text-[0.55rem] text-zinc-600 uppercase tracking-wider">Admin</p>
-          </div>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] text-zinc-600 transition-colors hover:bg-white/[0.04] hover:text-zinc-400"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            App
+          </Link>
         </div>
 
         {/* Admin identity */}
@@ -104,16 +113,6 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
           })}
         </nav>
 
-        {/* Back to app */}
-        <div className="border-t border-white/[0.06] p-3">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-zinc-600 transition-colors hover:text-zinc-400"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back to app
-          </Link>
-        </div>
       </aside>
 
       {/* Mobile horizontal tab strip */}
