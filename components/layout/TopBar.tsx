@@ -48,6 +48,7 @@ interface TopBarProps {
   userFullName?: string;
   plan?: string;
   planStatus?: string;
+  studioName?: string;
 }
 
 function planLabel(plan?: string, planStatus?: string): string {
@@ -60,7 +61,7 @@ function planLabel(plan?: string, planStatus?: string): string {
   return "CineFlow Member";
 }
 
-export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userAvatarUrl, userFullName, plan, planStatus }: TopBarProps) {
+export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userAvatarUrl, userFullName, plan, planStatus, studioName }: TopBarProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("Studio User");
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -267,9 +268,12 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
                   {getInitials(displayName)}
                 </AvatarFallback>
               </Avatar>
-              <span className="hidden text-xs font-medium text-foreground md:block">
-                {displayName.split(" ")[0]}
-              </span>
+              <div className="hidden md:flex flex-col items-start leading-tight">
+                {studioName && (
+                  <span className="text-[9px] text-muted-foreground/50 truncate max-w-[100px]">{studioName}</span>
+                )}
+                <span className="text-xs font-medium text-foreground">{displayName.split(" ")[0]}</span>
+              </div>
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>

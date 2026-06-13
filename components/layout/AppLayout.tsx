@@ -92,6 +92,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [isDemoUser, setIsDemoUser] = useState(false);
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
+  const [profileStudioName, setProfileStudioName] = useState<string>("");
   const [workspaceRole, setWorkspaceRole] = useState<"owner" | "admin" | "member">("owner");
   const [isAdmin, setIsAdmin] = useState(false);
   const [announcements, setAnnouncements] = useState<{ id: string; message: string; type: string }[]>([]);
@@ -105,7 +106,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
       if (!user) return;
       if (user.user_metadata?.is_demo === true) setIsDemoUser(true);
       Promise.all([
-        supabase.from("profiles").select("plan, plan_status, trial_ends_at, first_name, last_name, avatar_url, workspace_id, is_admin").eq("id", user.id).single(),
+        supabase.from("profiles").select("plan, plan_status, trial_ends_at, first_name, last_name, avatar_url, workspace_id, is_admin, business_name").eq("id", user.id).single(),
         supabase.rpc("get_member_role"),
       ]).then(([{ data }, { data: role }]) => {
           if (data?.plan) {
@@ -125,6 +126,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
             if (emailName) setProfileName(emailName);
           }
           if (data?.avatar_url) setProfileAvatarUrl(data.avatar_url);
+          if (data?.business_name) setProfileStudioName(data.business_name);
           if (data?.is_admin) setIsAdmin(true);
           if (role) setWorkspaceRole(role as "owner" | "admin" | "member");
         }).catch(() => { setProfileLoaded(true); });
@@ -238,7 +240,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
-          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} plan={plan} planStatus={planStatus} />
+          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} plan={plan} planStatus={planStatus} studioName={profileStudioName || undefined} />
         </Suspense>
         <DemoBanner />
         {announcements.map((a) => (

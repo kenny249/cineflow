@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useStudioBranding, PoweredByCineFlow } from "@/components/shared/StudioBranding";
 import { toast } from "sonner";
 import {
   Play, Pause, Volume2, VolumeX, Maximize, Download,
@@ -320,6 +321,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
   const [data, setData] = useState<PortalData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const brand = useStudioBranding(token, "review");
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
@@ -488,10 +490,19 @@ export default function ReviewPortalClient({ token }: { token: string }) {
         <header className="sticky top-0 z-30 border-b border-white/[0.05] bg-[#070707]/95 backdrop-blur-xl">
           <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-5">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10">
-                <Film className="h-3.5 w-3.5 text-[#d4a853]" />
-              </div>
-              <span className="text-sm font-bold tracking-[0.15em] text-[#d4a853] uppercase">CineFlow</span>
+              {brand?.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={brand.logo_url} alt={brand.business_name ?? "Studio"} className="h-7 max-w-[120px] object-contain" />
+              ) : (
+                <div className="flex h-7 w-7 items-center justify-center rounded-md border border-[#d4a853]/30 bg-[#d4a853]/10">
+                  <Film className="h-3.5 w-3.5 text-[#d4a853]" />
+                </div>
+              )}
+              {(brand?.business_name || !brand?.logo_url) && (
+                <span className="text-sm font-bold tracking-[0.15em] text-[#d4a853] uppercase">
+                  {brand?.business_name ?? "CineFlow"}
+                </span>
+              )}
             </div>
             <div className="text-right">
               <p className="text-[10px] uppercase tracking-widest text-zinc-600">Logged in as</p>
@@ -986,8 +997,11 @@ export default function ReviewPortalClient({ token }: { token: string }) {
         </main>
 
         <footer className="mt-16 border-t border-white/[0.04] py-8 text-center">
-          <p className="text-xs text-zinc-800">Powered by <span className="text-[#d4a853]/40 font-semibold">CineFlow</span></p>
+          {brand?.business_name && (
+            <p className="text-xs text-zinc-700 mb-1">{brand.business_name}</p>
+          )}
         </footer>
+        <PoweredByCineFlow />
       </div>
 
       {/* ── Modals ── */}

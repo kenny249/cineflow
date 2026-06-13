@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Film, ExternalLink, Search, Youtube, Globe, Mic, Link2, Filter, Clapperboard } from "lucide-react";
+import { useStudioBranding, PoweredByCineFlow } from "@/components/shared/StudioBranding";
 
 interface Project {
   id: string;
@@ -174,6 +175,7 @@ export default function ClientPortalPage({ token }: { token: string }) {
   const [search, setSearch] = useState("");
   const [filterProject, setFilterProject] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const brand = useStudioBranding(token, "client");
 
   useEffect(() => {
     fetch(`/api/client/${token}`)
@@ -244,7 +246,15 @@ export default function ClientPortalPage({ token }: { token: string }) {
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d4a853]/60">Cineflow</span>
+                {brand?.logo_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={brand.logo_url} alt={brand.business_name ?? "Studio"} className="h-6 max-w-[100px] object-contain" />
+                ) : null}
+                {brand?.business_name ? (
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50">{brand.business_name}</span>
+                ) : (
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d4a853]/60">Cineflow</span>
+                )}
               </div>
               <h1 className="font-display text-2xl font-bold text-white tracking-tight">
                 {data.client_name}
@@ -253,9 +263,14 @@ export default function ClientPortalPage({ token }: { token: string }) {
                 {data.deliverables.length} {data.deliverables.length === 1 ? "deliverable" : "deliverables"} across {data.projects.length} {data.projects.length === 1 ? "project" : "projects"}
               </p>
             </div>
-            <div className="h-10 w-10 flex items-center justify-center rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/10">
-              <Film className="h-5 w-5 text-[#d4a853]" />
-            </div>
+            {brand?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brand.logo_url} alt={brand.business_name ?? "Studio"} className="h-10 max-w-[80px] object-contain opacity-80" />
+            ) : (
+              <div className="h-10 w-10 flex items-center justify-center rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/10">
+                <Film className="h-5 w-5 text-[#d4a853]" />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -340,9 +355,12 @@ export default function ClientPortalPage({ token }: { token: string }) {
       {/* Footer */}
       <div className="border-t border-white/8 px-6 py-4 mt-4">
         <div className="mx-auto max-w-5xl flex items-center justify-center">
-          <p className="text-[10px] text-white/20 tracking-widest uppercase">Powered by Cineflow</p>
+          {brand?.business_name && (
+            <p className="text-[10px] text-white/20 tracking-widest uppercase">{brand.business_name}</p>
+          )}
         </div>
       </div>
+      <PoweredByCineFlow />
     </div>
   );
 }
