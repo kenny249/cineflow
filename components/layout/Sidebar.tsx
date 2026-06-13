@@ -39,7 +39,7 @@ import { getInitials } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import { isSoloPlan } from "@/types";
 import { trialDaysLeft } from "@/lib/billing";
-import { Zap } from "lucide-react";
+import { Zap, X } from "lucide-react";
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 
@@ -315,6 +315,11 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const [moreExpanded, setMoreExpanded] = useState(() =>
     typeof window !== "undefined" ? localStorage.getItem("sidebar-more") === "1" : false
   );
+  const [trialDismissed, setTrialDismissed] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const v = localStorage.getItem("trial_banner_dismissed");
+    return v ? parseInt(v) : null;
+  });
 
   useEffect(() => {
     const supabase = createClient();
@@ -481,14 +486,26 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
 
         <SessionIndicator collapsed={collapsed} />
 
-        {/* Trial countdown */}
+        {/* Trial countdown — only at 7, 3, 1 day milestones */}
         {planStatus === "trialing" && trialEndsAt && !collapsed && (() => {
           const days = trialDaysLeft(trialEndsAt);
           if (days <= 0) return null;
+          const milestone = days <= 1 ? 1 : days <= 3 ? 3 : days <= 7 ? 7 : null;
+          if (!milestone || trialDismissed === milestone) return null;
           const urgent = days <= 3;
           return (
-            <div className="mx-2 mb-2 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/[0.06] p-3">
-              <p className={`text-[11px] font-semibold ${urgent ? "text-orange-400" : "text-[#d4a853]"}`}>
+            <div className="relative mx-2 mb-2 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/[0.06] p-3">
+              <button
+                onClick={() => {
+                  localStorage.setItem("trial_banner_dismissed", String(milestone));
+                  setTrialDismissed(milestone);
+                }}
+                className="absolute right-2 top-2 text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Dismiss"
+              >
+                <X className="h-3 w-3" />
+              </button>
+              <p className={`pr-4 text-[11px] font-semibold ${urgent ? "text-orange-400" : "text-[#d4a853]"}`}>
                 {days === 1 ? "Trial ends today" : `${days} days left in trial`}
               </p>
               <p className="mt-0.5 text-[10px] text-muted-foreground">Upgrade to keep your work.</p>
