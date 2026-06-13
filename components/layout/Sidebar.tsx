@@ -320,12 +320,15 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
     const v = localStorage.getItem("trial_banner_dismissed");
     return v ? parseInt(v) : null;
   });
+  const [sidebarPins,   setSidebarPins]   = useState<string[]>([]);
+  const [sidebarHidden, setSidebarHidden] = useState<string[]>([]);
+  const [contextMenu,   setContextMenu]   = useState<{ href: string; x: number; y: number } | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      supabase.from("profiles").select("first_name, last_name, plan, plan_status, trial_ends_at, is_admin, user_role, team_size, uses_drone").eq("id", user.id).single()
+      supabase.from("profiles").select("first_name, last_name, plan, plan_status, trial_ends_at, is_admin, user_role, team_size, uses_drone, sidebar_pins, sidebar_hidden").eq("id", user.id).single()
         .then(({ data }) => {
           if (data?.plan) {
             setPlan(data.plan);
@@ -338,6 +341,8 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
           if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at);
           if (data?.is_admin) setIsAdmin(true);
           if (data?.user_role) setUserPrefs({ user_role: data.user_role, team_size: data.team_size ?? null, uses_drone: data.uses_drone ?? false });
+          if (data?.sidebar_pins)   setSidebarPins(data.sidebar_pins as string[]);
+          if (data?.sidebar_hidden) setSidebarHidden(data.sidebar_hidden as string[]);
           if (data?.first_name || data?.last_name) {
             setDisplayName(`${data.first_name ?? ""} ${data.last_name ?? ""}`.trim());
           } else {
@@ -357,6 +362,59 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
+
+  // User overrides take priority over onboarding prefs
+  const isInMore = (href: string): boolean => {
+    if (sidebarPins.includes(href))   return false;
+    if (sidebarHidden.includes(href)) return true;
+    return isHiddenByPrefs(href, userPrefs);
+  };
+
+  function openCtx(e: React.MouseEvent, href: string) {
+    e.preventDefault();
+    setContextMenu({ href, x: e.clientX, y: e.clientY });
+  }
+
+  function pinItem(href: string) {
+    const pins   = [...sidebarPins.filter(h => h !== href), href];
+    const hidden = sidebarHidden.filter(h => h !== href);
+    setSidebarPins(pins); setSidebarHidden(hidden);
+    saveCustomization(pins, hidden);
+    setContextMenu(null);
+  }
+
+  function hideItem(href: string) {
+    const hidden = [...sidebarHidden.filter(h => h !== href), href];
+    const pins   = sidebarPins.filter(h => h !== href);
+    setSidebarHidden(hidden); setSidebarPins(pins);
+    saveCustomization(pins, hidden);
+    setContextMenu(null);
+  }
+
+  function resetItem(href: string) {
+    const pins   = sidebarPins.filter(h => h !== href);
+    const hidden = sidebarHidden.filter(h => h !== href);
+    setSidebarPins(pins); setSidebarHidden(hidden);
+    saveCustomization(pins, hidden);
+    setContextMenu(null);
+  }
+
+  function saveCustomization(pins: string[], hidden: string[]) {
+    const supabase = createClient();
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) void supabase.from("profiles").update({ sidebar_pins: pins, sidebar_hidden: hidden }).eq("id", user.id);
+    });
+  }
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const key   = (e: KeyboardEvent) => { if (e.key === "Escape") setContextMenu(null); };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("click", close); document.removeEventListener("keydown", key); };
+  }, [contextMenu]);
 
   const solo       = isSoloPlan(plan);
   const isProducer = role === "owner" || role === "admin";
@@ -425,7 +483,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               (item) =>
                 !(solo && item.soloHidden) &&
                 !(item.producerOnly && !isProducer) &&
-                !isHiddenByPrefs(item.href, userPrefs)
+                !isInMore(item.href)
             );
             if (visibleItems.length === 0) return null;
 
@@ -440,23 +498,24 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                   <div className="mx-auto mb-1 h-px w-5 bg-white/10" />
                 )}
                 {visibleItems.map((item) => (
-                  <NavLink
-                    key={item.href}
-                    item={item}
-                    collapsed={collapsed}
-                    isActive={isActive(item.href)}
-                  />
+                  <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
+                    <NavLink
+                      item={item}
+                      collapsed={collapsed}
+                      isActive={isActive(item.href)}
+                    />
+                  </div>
                 ))}
               </div>
             );
           })}
 
-          {/* More tools — items hidden by persona prefs */}
+          {/* More tools — items hidden by prefs or user choice */}
           {(() => {
             const hiddenItems = NAV_GROUPS.flatMap(g => g.items).filter(item => {
               if (solo && item.soloHidden) return false;
               if (item.producerOnly && !isProducer) return false;
-              return isHiddenByPrefs(item.href, userPrefs);
+              return isInMore(item.href);
             });
             if (hiddenItems.length === 0) return null;
             return (
@@ -476,8 +535,13 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                   <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200", moreExpanded && "rotate-180")} />
                   {!collapsed && <span>{moreExpanded ? "Show less" : `${hiddenItems.length} more tools`}</span>}
                 </button>
+                {!collapsed && (
+                  <p className="px-2.5 pb-0.5 text-[9px] text-white/15">Right-click any item to customize</p>
+                )}
                 {moreExpanded && hiddenItems.map(item => (
-                  <NavLink key={item.href} item={item} collapsed={collapsed} isActive={isActive(item.href)} />
+                  <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
+                    <NavLink item={item} collapsed={collapsed} isActive={isActive(item.href)} />
+                  </div>
                 ))}
               </div>
             );
@@ -559,6 +623,39 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
           </div>
         </div>
       </aside>
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-[300] min-w-[170px] overflow-hidden rounded-xl border border-white/[0.08] bg-[#161616] shadow-2xl"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isInMore(contextMenu.href) ? (
+            <button
+              onClick={() => pinItem(contextMenu.href)}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs text-white/70 hover:bg-white/[0.06] hover:text-white transition-colors"
+            >
+              Move to sidebar
+            </button>
+          ) : (
+            <button
+              onClick={() => hideItem(contextMenu.href)}
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-xs text-white/70 hover:bg-white/[0.06] hover:text-white transition-colors"
+            >
+              Move to More tools
+            </button>
+          )}
+          {(sidebarPins.includes(contextMenu.href) || sidebarHidden.includes(contextMenu.href)) && (
+            <button
+              onClick={() => resetItem(contextMenu.href)}
+              className="flex w-full items-center gap-2.5 border-t border-white/[0.06] px-3 py-2.5 text-left text-xs text-white/30 hover:bg-white/[0.06] hover:text-white/60 transition-colors"
+            >
+              Reset to default
+            </button>
+          )}
+        </div>
+      )}
     </TooltipProvider>
   );
 }
