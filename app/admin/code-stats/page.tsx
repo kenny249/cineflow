@@ -6,6 +6,7 @@ import { Loader2, Code2, FileCode2, GitBranch, Clock, Database, LayoutTemplate, 
 interface Stats {
   totalFiles: number;
   totalLines: number;
+  totalEffectiveLines: number;
   byDir: Record<string, number>;
   byExt: Record<string, number>;
   apiRoutes: number;
@@ -14,16 +15,17 @@ interface Stats {
   appPages: number;
   estimatedHours: number;
   projectAgeDays: number;
+  projectStartDate: string;
   commitCount: number;
 }
 
 function StatCard({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string | number; sub?: string }) {
   return (
     <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-      <div className="flex items-start justify-between">
-        <div className="text-zinc-500">{icon}</div>
-      </div>
-      <p className="mt-3 text-2xl font-bold text-white tabular-nums">{typeof value === "number" ? value.toLocaleString() : value}</p>
+      <div className="text-zinc-500">{icon}</div>
+      <p className="mt-3 text-2xl font-bold text-white tabular-nums">
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </p>
       <p className="mt-0.5 text-xs text-zinc-500">{label}</p>
       {sub && <p className="mt-1 text-[10px] text-zinc-700">{sub}</p>}
     </div>
@@ -67,8 +69,8 @@ export default function CodeStatsPage() {
     .sort((a, b) => b[1] - a[1])
     .filter(([, v]) => v > 0);
 
-  const linesPerDay = stats.projectAgeDays > 0
-    ? Math.round(stats.totalLines / stats.projectAgeDays)
+  const blankPct = stats.totalLines > 0
+    ? Math.round(((stats.totalLines - stats.totalEffectiveLines) / stats.totalLines) * 100)
     : 0;
 
   return (
@@ -78,28 +80,31 @@ export default function CodeStatsPage() {
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           <Code2 className="h-5 w-5 text-[#d4a853]" /> Codebase Stats
         </h1>
-        <p className="text-xs text-zinc-600 mt-1">A live read of the CineFlow source tree — generated on demand</p>
+        <p className="text-xs text-zinc-600 mt-1">
+          Live read of the CineFlow source tree · AI-assisted development
+          {stats.projectStartDate && ` · started ${stats.projectStartDate}`}
+        </p>
       </div>
 
       {/* Primary stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard
           icon={<FileCode2 className="h-4 w-4" />}
-          label="Lines of code"
+          label="Total lines"
           value={stats.totalLines}
-          sub={`across ${stats.totalFiles.toLocaleString()} files`}
+          sub={`${stats.totalEffectiveLines.toLocaleString()} effective (${blankPct}% blank/comments)`}
         />
         <StatCard
           icon={<Clock className="h-4 w-4" />}
-          label="Estimated dev hours"
+          label="Est. active hours"
           value={stats.estimatedHours}
-          sub="at ~40 production lines/hr"
+          sub="effective LOC ÷ 300 (AI-assisted pace)"
         />
         <StatCard
           icon={<GitBranch className="h-4 w-4" />}
           label="Git commits"
           value={stats.commitCount || "—"}
-          sub={stats.projectAgeDays > 0 ? `over ${stats.projectAgeDays} days` : undefined}
+          sub={stats.projectAgeDays > 0 ? `over ${stats.projectAgeDays} calendar days` : "git not available at runtime"}
         />
         <StatCard
           icon={<Layers className="h-4 w-4" />}
@@ -131,9 +136,9 @@ export default function CodeStatsPage() {
         />
         <StatCard
           icon={<Code2 className="h-4 w-4" />}
-          label="Lines per day"
-          value={linesPerDay}
-          sub="avg velocity since start"
+          label="Across"
+          value={stats.totalFiles}
+          sub="source files scanned"
         />
       </div>
 
@@ -190,17 +195,33 @@ export default function CodeStatsPage() {
         </table>
       </div>
 
-      {/* Fun facts */}
+      {/* At a glance */}
       <div className="rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/[0.03] p-5">
         <h2 className="text-sm font-semibold text-[#d4a853] mb-3">At a glance</h2>
         <ul className="space-y-1.5 text-xs text-zinc-500">
-          <li>· CineFlow has <span className="text-zinc-300 font-medium">{stats.totalLines.toLocaleString()} lines</span> of hand-written code across <span className="text-zinc-300 font-medium">{stats.totalFiles}</span> source files</li>
-          <li>· That&apos;s roughly <span className="text-zinc-300 font-medium">{stats.estimatedHours.toLocaleString()} hours</span> of development (~{Math.round(stats.estimatedHours / 40)} weeks of full-time work)</li>
-          {stats.projectAgeDays > 0 && <li>· Built over <span className="text-zinc-300 font-medium">{stats.projectAgeDays} days</span> — about {Math.round(stats.projectAgeDays / 7)} weeks</li>}
-          {stats.commitCount > 0 && <li>· <span className="text-zinc-300 font-medium">{stats.commitCount} commits</span> — roughly {Math.round(stats.commitCount / Math.max(1, stats.projectAgeDays / 7))} per week</li>}
-          <li>· <span className="text-zinc-300 font-medium">{stats.apiRoutes}</span> API endpoints powering the backend</li>
-          <li>· <span className="text-zinc-300 font-medium">{stats.migrations}</span> database migrations keeping the schema clean</li>
+          <li>
+            · <span className="text-zinc-300 font-medium">{stats.totalEffectiveLines.toLocaleString()} effective lines</span> of
+            code ({stats.totalLines.toLocaleString()} total including blank lines &amp; comments)
+          </li>
+          <li>
+            · Roughly <span className="text-zinc-300 font-medium">{stats.estimatedHours} active hours</span> of development
+            — estimated at AI-assisted pace (~300 effective LOC/hr with Claude Code)
+          </li>
+          {stats.commitCount > 0 && (
+            <li>
+              · <span className="text-zinc-300 font-medium">{stats.commitCount} commits</span>
+              {stats.projectAgeDays > 0 && (
+                <> over <span className="text-zinc-300 font-medium">{stats.projectAgeDays} calendar days</span>
+                {" "}— that&apos;s about {Math.round(stats.commitCount / Math.max(1, stats.projectAgeDays / 7))} commits/week</>
+              )}
+            </li>
+          )}
+          <li>· <span className="text-zinc-300 font-medium">{stats.apiRoutes}</span> API endpoints + <span className="text-zinc-300 font-medium">{stats.appPages}</span> pages across the app</li>
+          <li>· <span className="text-zinc-300 font-medium">{stats.migrations}</span> database migrations — every schema change tracked</li>
         </ul>
+        <p className="mt-3 text-[10px] text-zinc-700">
+          Hours are an estimate based on effective LOC only (blank lines and comments excluded). Traditional hand-coding estimates (~40 LOC/hr) don&apos;t apply to AI-assisted workflows.
+        </p>
       </div>
     </div>
   );

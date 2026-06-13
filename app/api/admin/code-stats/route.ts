@@ -33,9 +33,15 @@ const SCAN_DIRS = ["app", "components", "lib", "types", "hooks", "contexts", "st
 const CODE_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".css", ".sql"]);
 const SKIP_DIRS = new Set(["node_modules", ".next", ".git", "dist", "build", ".vercel"]);
 
-function scanDir(root: string, dir: string): { files: number; lines: number; byExt: Record<string, number> } {
+function isBlankOrComment(line: string): boolean {
+  const t = line.trim();
+  return t === "" || t.startsWith("//") || t.startsWith("*") || t.startsWith("/*") || t.startsWith("--");
+}
+
+function scanDir(root: string, dir: string): { files: number; lines: number; effectiveLines: number; byExt: Record<string, number> } {
   let files = 0;
   let lines = 0;
+  let effectiveLines = 0;
   const byExt: Record<string, number> = {};
 
   function walk(current: string) {
@@ -54,17 +60,19 @@ function scanDir(root: string, dir: string): { files: number; lines: number; byE
         if (!CODE_EXTS.has(ext)) continue;
         try {
           const content = fs.readFileSync(full, "utf8");
-          const lineCount = content.split("\n").length;
+          const allLines = content.split("\n");
+          const effective = allLines.filter((l) => !isBlankOrComment(l)).length;
           files++;
-          lines += lineCount;
-          byExt[ext] = (byExt[ext] ?? 0) + lineCount;
+          lines += allLines.length;
+          effectiveLines += effective;
+          byExt[ext] = (byExt[ext] ?? 0) + allLines.length;
         } catch { /* skip unreadable files */ }
       }
     }
   }
 
   walk(path.join(root, dir));
-  return { files, lines, byExt };
+  return { files, lines, effectiveLines, byExt };
 }
 
 export async function GET() {
@@ -75,6 +83,7 @@ export async function GET() {
 
   let totalFiles = 0;
   let totalLines = 0;
+  let totalEffectiveLines = 0;
   const byExt: Record<string, number> = {};
   const byDir: Record<string, number> = {};
 
@@ -84,6 +93,7 @@ export async function GET() {
     const result = scanDir(root, dir);
     totalFiles += result.files;
     totalLines += result.lines;
+    totalEffectiveLines += result.effectiveLines;
     byDir[dir] = result.lines;
     for (const [ext, count] of Object.entries(result.byExt)) {
       byExt[ext] = (byExt[ext] ?? 0) + count;
@@ -96,29 +106,10 @@ export async function GET() {
   const components = countFiles(path.join(root, "components"), ".tsx") +
                      countFiles(path.join(root, "components"), ".ts");
   const migrations = countFiles(path.join(root, "supabase", "migrations"), ".sql");
-
-  // Count pages
   const appPages = countFiles(path.join(root, "app"), "page.tsx") +
                    countFiles(path.join(root, "app"), "page.ts");
 
-  // Estimated hours: roughly 40 meaningful lines/hour for production code
-  const estimatedHours = Math.round(totalLines / 40);
-
-  // Project age in days (first migration date as proxy)
-  let projectAgeDays = 0;
-  try {
-    const migrationFiles = fs.readdirSync(path.join(root, "supabase", "migrations")).sort();
-    if (migrationFiles[0]) {
-      const dateStr = migrationFiles[0].substring(0, 8); // YYYYMMDD
-      const year = parseInt(dateStr.substring(0, 4));
-      const month = parseInt(dateStr.substring(4, 6)) - 1;
-      const day = parseInt(dateStr.substring(6, 8));
-      const start = new Date(year, month, day);
-      projectAgeDays = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
-    }
-  } catch { /* ignore */ }
-
-  // Git commit count (available in dev; may not be available on Vercel)
+  // Git commit count
   let commitCount = 0;
   try {
     const { execSync } = await import("child_process");
@@ -126,9 +117,27 @@ export async function GET() {
     commitCount = parseInt(output) || 0;
   } catch { commitCount = 0; }
 
+  // Estimated hours: AI-assisted development runs ~300 effective lines/hour
+  // (much faster than traditional ~40/hr; reflects Claude Code workflow)
+  const estimatedHours = Math.round(totalEffectiveLines / 300);
+
+  // First git commit date (more accurate than migration file date)
+  let projectAgeDays = 0;
+  let projectStartDate = "";
+  try {
+    const { execSync } = await import("child_process");
+    const firstCommit = execSync("git log --reverse --format=%ci HEAD | head -1", { cwd: root, timeout: 3000 }).toString().trim();
+    if (firstCommit) {
+      const start = new Date(firstCommit);
+      projectAgeDays = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
+      projectStartDate = start.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    }
+  } catch { /* git not available on Vercel runtime */ }
+
   return NextResponse.json({
     totalFiles,
     totalLines,
+    totalEffectiveLines,
     byDir,
     byExt,
     apiRoutes,
@@ -137,6 +146,7 @@ export async function GET() {
     appPages,
     estimatedHours,
     projectAgeDays,
+    projectStartDate,
     commitCount,
   });
 }
