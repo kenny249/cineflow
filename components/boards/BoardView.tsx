@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   StickyNote, ScrollText, Camera, CheckSquare, Link2, Image as ImageIcon, Video,
-  Share2, Copy, Check, Loader2, Trash2, X, ZoomIn, ZoomOut, Maximize2, Plus, Printer,
+  MapPin, User, Share2, Copy, Check, Loader2, Trash2, X, ZoomIn, ZoomOut,
+  Maximize2, Printer, Download, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Board, BoardCard, CardType, BoardWithCards } from "@/lib/boards";
@@ -13,6 +14,8 @@ import {
 } from "@/lib/boards";
 import { BoardCardComponent } from "./BoardCard";
 import { CardEditModal } from "./CardEditModal";
+import { ImportPanel } from "./ImportPanel";
+import { BreakdownPanel } from "./BreakdownPanel";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -30,12 +33,16 @@ const DEFAULT_CONTENT: Record<CardType, Record<string, unknown>> = {
   video:     { url: "", title: "", notes: "" },
   checklist: { title: "", items: [] },
   link:      { url: "", title: "", description: "" },
+  location:  { name: "", address: "", time_of_day: "DAY", requirements: "", notes: "" },
+  character: { character_name: "", actor: "", appears_in: "", notes: "" },
 };
 
 const TOOLBAR_TYPES: { type: CardType; icon: React.ReactNode; label: string }[] = [
   { type: "note",      icon: <StickyNote  className="h-4 w-4" />, label: "Note"      },
   { type: "script",    icon: <ScrollText  className="h-4 w-4" />, label: "Script"    },
   { type: "shot",      icon: <Camera      className="h-4 w-4" />, label: "Shot"      },
+  { type: "location",  icon: <MapPin      className="h-4 w-4" />, label: "Location"  },
+  { type: "character", icon: <User        className="h-4 w-4" />, label: "Character" },
   { type: "checklist", icon: <CheckSquare className="h-4 w-4" />, label: "Checklist" },
   { type: "link",      icon: <Link2       className="h-4 w-4" />, label: "Link"      },
   { type: "image",     icon: <ImageIcon   className="h-4 w-4" />, label: "Image"     },
@@ -55,25 +62,24 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
   const worldRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
 
-  // React state (source of truth on commit)
   const [cards, _setCards] = useState<BoardCard[]>(initialBoard.cards);
   const [pan, _setPan] = useState({ x: 60, y: 60 });
   const [zoom, _setZoom] = useState(1);
   const [board, setBoard] = useState(initialBoard);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [modalCard, setModalCard] = useState<BoardCard | null>(null);
-  const [newCardId, setNewCardId] = useState<string | null>(null); // auto-opens inline edit
+  const [newCardId, setNewCardId] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [addingType, setAddingType] = useState<CardType | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
-  // Refs mirror state for use inside event handlers (avoid stale closures)
   const cardsRef = useRef<BoardCard[]>(initialBoard.cards);
   const panRef = useRef({ x: 60, y: 60 });
   const zoomRef = useRef(1);
 
-  // Stable updaters that keep ref + state in sync
   const setCards = useCallback((fn: (c: BoardCard[]) => BoardCard[]) => {
     const next = fn(cardsRef.current);
     cardsRef.current = next;
@@ -102,7 +108,6 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
         const dy = (e.clientY - dr.pointerStartY) / zoomRef.current;
         dr.currentDx = dx;
         dr.currentDy = dy;
-        // Direct DOM manipulation for smooth drag (no React re-render per frame)
         const el = document.querySelector(`[data-card-id="${dr.cardId}"]`) as HTMLElement | null;
         if (el) {
           el.style.transform = `translate(${dx}px, ${dy}px)`;
@@ -121,29 +126,22 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     async function onUp() {
       const dr = dragRef.current;
       dragRef.current = null;
-
       if (!dr) return;
 
       if (dr.type === "card") {
         const el = document.querySelector(`[data-card-id="${dr.cardId}"]`) as HTMLElement | null;
-        if (el) {
-          el.style.transform = "";
-          el.style.zIndex = "";
-        }
+        if (el) { el.style.transform = ""; el.style.zIndex = ""; }
 
         const dx = dr.currentDx;
         const dy = dr.currentDy;
-
         if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
           const newX = dr.cardStartX + dx;
           const newY = dr.cardStartY + dy;
           setCards((prev) => prev.map((c) => c.id === dr.cardId ? { ...c, x: newX, y: newY } : c));
           updateCardPosition(dr.cardId, newX, newY).catch(() => toast.error("Failed to save position"));
         }
-
         setDraggingCardId(null);
       } else {
-        // Commit pan to React state
         setPan({ x: panRef.current.x, y: panRef.current.y });
       }
     }
@@ -228,7 +226,7 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     addCardAt("note", pos.x - 120, pos.y - 40);
   }
 
-  // ── Card drag start (called by card component) ────────────────────────────────
+  // ── Card drag start ──────────────────────────────────────────────────────────
 
   function startCardDrag(card: BoardCard, startEvent: { clientX: number; clientY: number }) {
     dragRef.current = {
@@ -251,11 +249,8 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     try {
       const card = await createCard(board.id, type, DEFAULT_CONTENT[type], x, y);
       setCards((prev) => [...prev, card]);
-      if (type === "note" || type === "script") {
-        setNewCardId(card.id);
-      } else {
-        setModalCard(card);
-      }
+      // open inline edit for all types (checklist and link use modal-style inline editor)
+      setNewCardId(card.id);
     } catch {
       toast.error("Failed to add card");
     } finally {
@@ -265,7 +260,6 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
 
   function addCardAtCenter(type: CardType) {
     const center = getViewCenter();
-    // Stagger if cards exist near center
     const offset = cards.length * 20;
     addCardAt(type, center.x + (offset % 100), center.y + (offset % 60));
   }
@@ -296,6 +290,10 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     }
   }
 
+  function handlePanelCards(newCards: BoardCard[]) {
+    setCards((prev) => [...prev, ...newCards]);
+  }
+
   // ── Zoom controls ─────────────────────────────────────────────────────────────
 
   function adjustZoom(factor: number) {
@@ -324,10 +322,7 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     const scaleX = (rect.width - PADDING * 2) / (maxX - minX);
     const scaleY = (rect.height - PADDING * 2) / (maxY - minY);
     const newZoom = Math.max(0.2, Math.min(1, Math.min(scaleX, scaleY)));
-    const newPan = {
-      x: PADDING - minX * newZoom,
-      y: PADDING - minY * newZoom,
-    };
+    const newPan = { x: PADDING - minX * newZoom, y: PADDING - minY * newZoom };
     setZoom(newZoom);
     setPan(newPan);
     if (worldRef.current) {
@@ -370,7 +365,7 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
 
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#0a0a0a]">
-      {/* Top toolbar */}
+      {/* Top right actions */}
       {!readonly && (
         <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
           <button
@@ -420,6 +415,25 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
         </div>
       )}
 
+      {/* Import panel */}
+      {importOpen && projectId && (
+        <ImportPanel
+          boardId={board.id}
+          projectId={projectId}
+          onClose={() => setImportOpen(false)}
+          onImported={handlePanelCards}
+        />
+      )}
+
+      {/* AI Breakdown panel */}
+      {breakdownOpen && (
+        <BreakdownPanel
+          boardId={board.id}
+          onClose={() => setBreakdownOpen(false)}
+          onAdded={handlePanelCards}
+        />
+      )}
+
       {/* Canvas */}
       <div
         ref={containerRef}
@@ -428,15 +442,14 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
         onPointerDown={handleCanvasPointerDown}
         onDoubleClick={handleCanvasDoubleClick as unknown as React.MouseEventHandler}
       >
-        {/* Empty state hint */}
         {cards.length === 0 && !readonly && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none select-none z-10">
             <p className="text-sm text-muted-foreground/40">Double-click anywhere to add a note</p>
-            <p className="text-xs text-muted-foreground/25">or use the toolbar below</p>
+            <p className="text-xs text-muted-foreground/25">or use the toolbar below to add cards</p>
           </div>
         )}
 
-        {/* World — all cards live here */}
+        {/* World */}
         <div
           ref={worldRef}
           style={{
@@ -449,14 +462,7 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
           }}
         >
           {cards.map((card) => (
-            <div
-              key={card.id}
-              style={{
-                position: "absolute",
-                left: card.x,
-                top: card.y,
-              }}
-            >
+            <div key={card.id} style={{ position: "absolute", left: card.x, top: card.y }}>
               <BoardCardComponent
                 card={card}
                 projectId={projectId}
@@ -477,14 +483,14 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
 
       {/* Bottom toolbar */}
       {!readonly && (
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 rounded-2xl border border-border bg-card/95 backdrop-blur-md px-3 py-2.5 shadow-xl">
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 rounded-2xl border border-border bg-card/95 backdrop-blur-md px-2.5 py-2 shadow-xl">
           {TOOLBAR_TYPES.map(({ type, icon, label }) => (
             <button
               key={type}
               title={label}
               onClick={() => addCardAtCenter(type)}
               disabled={addingType !== null}
-              className="flex flex-col items-center gap-1 rounded-xl px-3 py-1.5 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
+              className="flex flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
             >
               {addingType === type ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
               <span className="text-[9px] font-medium">{label}</span>
@@ -493,7 +499,34 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
 
           <div className="mx-1.5 h-6 w-px bg-border" />
 
-          {/* Zoom controls */}
+          {/* Production tools */}
+          {projectId && (
+            <button
+              title="Import from project"
+              onClick={() => { setBreakdownOpen(false); setImportOpen((o) => !o); }}
+              className={`flex flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 transition-colors ${
+                importOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              }`}
+            >
+              <Download className="h-4 w-4" />
+              <span className="text-[9px] font-medium">Import</span>
+            </button>
+          )}
+
+          <button
+            title="AI Scene Breakdown"
+            onClick={() => { setImportOpen(false); setBreakdownOpen((o) => !o); }}
+            className={`flex flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 transition-colors ${
+              breakdownOpen ? "bg-[#d4a853]/20 text-[#d4a853]" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            }`}
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="text-[9px] font-medium">AI Break</span>
+          </button>
+
+          <div className="mx-1.5 h-6 w-px bg-border" />
+
+          {/* Zoom */}
           <button onClick={() => adjustZoom(0.85)} title="Zoom out" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
@@ -509,14 +542,14 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
         </div>
       )}
 
-      {/* Keyboard hint */}
+      {/* Hint */}
       {!readonly && cards.length > 0 && (
         <div className="absolute bottom-5 right-4 z-10 flex items-center gap-2 text-[10px] text-muted-foreground/30 select-none pointer-events-none">
           <span>Scroll to zoom · Drag canvas to pan · Double-click to add note</span>
         </div>
       )}
 
-      {/* Edit modal (for complex card types) */}
+      {/* Edit modal (AI Enhance) */}
       <CardEditModal
         card={modalCard}
         onClose={() => setModalCard(null)}

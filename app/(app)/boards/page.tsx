@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LayoutGrid, Plus, Clock, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { getAllBoards, createBoard } from "@/lib/boards";
+import { getAllBoards } from "@/lib/boards";
 import type { Board } from "@/lib/boards";
 import { formatRelative } from "@/lib/utils";
+import { TemplatePicker } from "@/components/boards/TemplatePicker";
 
 export default function BoardsPage() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
     getAllBoards()
@@ -20,16 +21,9 @@ export default function BoardsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleCreate() {
-    setCreating(true);
-    try {
-      const board = await createBoard("New Board");
-      setBoards((prev) => [board, ...prev]);
-    } catch {
-      toast.error("Failed to create board");
-    } finally {
-      setCreating(false);
-    }
+  function handleCreated(board: Board) {
+    setBoards((prev) => [board, ...prev]);
+    setShowPicker(false);
   }
 
   return (
@@ -41,12 +35,10 @@ export default function BoardsPage() {
           <p className="text-xs text-muted-foreground mt-0.5">Visual creative planning boards across all projects</p>
         </div>
         <button
-          onClick={handleCreate}
-          disabled={creating}
-          className="flex items-center gap-1.5 rounded-xl bg-[#d4a853] px-3.5 py-2 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
+          onClick={() => setShowPicker(true)}
+          className="flex items-center gap-1.5 rounded-xl bg-[#d4a853] px-3.5 py-2 text-sm font-semibold text-black hover:bg-[#c49843] transition-colors"
         >
-          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-          New board
+          <Plus className="h-3.5 w-3.5" /> New board
         </button>
       </div>
 
@@ -64,7 +56,7 @@ export default function BoardsPage() {
             <p className="text-xs text-muted-foreground mt-1">Create a board to start planning visually</p>
           </div>
           <button
-            onClick={handleCreate}
+            onClick={() => setShowPicker(true)}
             className="flex items-center gap-1.5 rounded-xl bg-[#d4a853] px-4 py-2 text-sm font-semibold text-black hover:bg-[#c49843] transition-colors"
           >
             <Plus className="h-3.5 w-3.5" /> Create board
@@ -94,6 +86,13 @@ export default function BoardsPage() {
             </Link>
           ))}
         </div>
+      )}
+
+      {showPicker && (
+        <TemplatePicker
+          onClose={() => setShowPicker(false)}
+          onCreated={handleCreated}
+        />
       )}
     </div>
   );

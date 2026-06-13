@@ -336,6 +336,50 @@ function FormFields({
     </div>
   );
 
+  if (card.type === "location") return (
+    <div className="space-y-3">
+      <Field label="Location Name">
+        <Input value={f("name")} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Rooftop — Downtown" />
+      </Field>
+      <Field label="Address">
+        <Input value={f("address")} onChange={(e) => set("address", e.target.value)} placeholder="Street address or description…" />
+      </Field>
+      <Field label="Time of Day">
+        <select
+          value={f("time_of_day")}
+          onChange={(e) => set("time_of_day", e.target.value)}
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/40"
+        >
+          <option value="">Select…</option>
+          {["DAY", "NIGHT", "DAWN", "DUSK", "MAGIC HOUR"].map((v) => <option key={v} value={v}>{v}</option>)}
+        </select>
+      </Field>
+      <Field label="Requirements">
+        <Input value={f("requirements")} onChange={(e) => set("requirements", e.target.value)} placeholder="Permits, parking, power…" />
+      </Field>
+      <Field label="Notes">
+        <Textarea value={f("notes")} onChange={(e) => set("notes", e.target.value)} rows={3} placeholder="Scouting notes…" />
+      </Field>
+    </div>
+  );
+
+  if (card.type === "character") return (
+    <div className="space-y-3">
+      <Field label="Character Name">
+        <Input value={f("character_name")} onChange={(e) => set("character_name", e.target.value)} placeholder="e.g. SARAH" />
+      </Field>
+      <Field label="Actor / Talent">
+        <Input value={f("actor")} onChange={(e) => set("actor", e.target.value)} placeholder="Cast member name…" />
+      </Field>
+      <Field label="Appears In">
+        <Input value={f("appears_in")} onChange={(e) => set("appears_in", e.target.value)} placeholder="Scenes, episodes…" />
+      </Field>
+      <Field label="Notes">
+        <Textarea value={f("notes")} onChange={(e) => set("notes", e.target.value)} rows={4} placeholder="Character arc, wardrobe, special requirements…" />
+      </Field>
+    </div>
+  );
+
   return null;
 }
 

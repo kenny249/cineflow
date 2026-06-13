@@ -22,11 +22,66 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });
 
-  const { text, action } = await req.json() as { text: string; action: ActionKey };
-  if (!text?.trim()) return NextResponse.json({ error: "No text provided" }, { status: 400 });
-  if (!ACTIONS[action]) return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+  const body = await req.json() as { text?: string; action: string; scene?: string };
 
-  const instruction = ACTIONS[action];
+  // ── AI Scene Breakdown (special action) ──────────────────────────────────────
+  if (body.action === "breakdown") {
+    const scene = body.scene?.trim();
+    if (!scene) return NextResponse.json({ error: "No scene text provided" }, { status: 400 });
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        max_tokens: 2000,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `You are a professional script supervisor and director of photography assistant. Break down the provided screenplay scene into individual shots. Output ONLY valid JSON in this format:
+{
+  "shots": [
+    {
+      "scene_type": "INT" | "EXT" | "INT/EXT",
+      "location": "Location name",
+      "time": "DAY" | "NIGHT" | "DAWN" | "DUSK" | "MAGIC HOUR" | "CONTINUOUS",
+      "camera_angle": "Shot type and angle (e.g. Medium Shot, Eye Level)",
+      "notes": "Brief action description and shot motivation"
+    }
+  ]
+}
+Generate between 3 and 10 shots based on the complexity of the scene. Be specific and production-ready.`,
+          },
+          {
+            role: "user",
+            content: scene,
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      return NextResponse.json({ error: `OpenAI error: ${err}` }, { status: 500 });
+    }
+
+    const json = await res.json();
+    const raw = json.choices?.[0]?.message?.content ?? "{}";
+    try {
+      const parsed = JSON.parse(raw);
+      return NextResponse.json({ shots: parsed.shots ?? [] });
+    } catch {
+      return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
+    }
+  }
+
+  // ── Standard AI Enhance ───────────────────────────────────────────────────────
+  const { text, action } = body as { text: string; action: ActionKey };
+  if (!text?.trim()) return NextResponse.json({ error: "No text provided" }, { status: 400 });
+  if (!ACTIONS[action as ActionKey]) return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+
+  const instruction = ACTIONS[action as ActionKey];
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
