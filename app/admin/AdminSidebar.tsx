@@ -54,7 +54,7 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[#0b0b0b]">
+      <aside className="hidden md:flex w-56 shrink-0 flex-col border-r border-white/[0.06] bg-[#0b0b0b] h-screen overflow-y-auto">
         {/* Logo + back to app */}
         <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-4">
           <div className="flex items-center gap-2.5">
