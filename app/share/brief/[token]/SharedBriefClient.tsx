@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  RadarChart, Radar, PolarGrid, PolarAngleAxis, Cell,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis,
 } from "recharts";
 import {
   TrendingUp, ChevronRight, Check, X as XIcon, ExternalLink, Sparkles,
@@ -46,14 +46,6 @@ export function SharedBriefClient({ token }: { token: string }) {
       .then((d) => { if (!d.error) setMetrics({ ...d, activeRecently: d.activeRecently ?? 0 }); })
       .catch(() => {});
   }, [token]);
-
-  const pricingChartData = [
-    { name: "CineFlow", price: 39, fill: GOLD },
-    { name: "Frame.io", price: 25, fill: "#6b7280" },
-    { name: "StudioBinder", price: 29, fill: "#6b7280" },
-    { name: "Wipster", price: 25, fill: "#6b7280" },
-    { name: "Notion", price: 16, fill: "#6b7280" },
-  ];
 
   const savingsChartData = BRIEF.roi.savings.map(s => ({
     name: s.tool.replace(" (Pro)", "").replace(" (Indie)", ""),
@@ -107,7 +99,7 @@ export function SharedBriefClient({ token }: { token: string }) {
 
         {/* Live Traction */}
         <div>
-          <SectionHeader label="Live Traction" number="00" />
+          <SectionHeader label="Live Traction" number="01" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard value={metrics.totalUsers.toLocaleString()} label="Real Users" sub="All-time signups" />
             <StatCard value={metrics.activeRecently.toLocaleString()} label="Active (30d)" sub="Logged in last 30 days" />
@@ -118,7 +110,7 @@ export function SharedBriefClient({ token }: { token: string }) {
 
         {/* Problem */}
         <div>
-          <SectionHeader label={BRIEF.problem.headline} number="01" />
+          <SectionHeader label={BRIEF.problem.headline} number="02" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {BRIEF.problem.points.map((p) => (
               <div key={p.stat} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
@@ -132,15 +124,15 @@ export function SharedBriefClient({ token }: { token: string }) {
 
         {/* Solution */}
         <div>
-          <SectionHeader label={BRIEF.solution.headline} number="02" />
+          <SectionHeader label={BRIEF.solution.headline} number="03" />
           <p className="text-base text-zinc-300 leading-relaxed max-w-3xl">{BRIEF.solution.description}</p>
         </div>
 
         {/* Features */}
         <div>
-          <SectionHeader label="Product Features" number="03" />
+          <SectionHeader label="Product Features" number="04" />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {BRIEF.features.map((f) => (
+            {BRIEF.features.slice(0, 6).map((f) => (
               <div key={f.name} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <p className="text-sm font-bold text-white mb-1.5">{f.name}</p>
                 <p className="text-xs text-zinc-500 leading-relaxed mb-3">{f.description}</p>
@@ -159,7 +151,7 @@ export function SharedBriefClient({ token }: { token: string }) {
 
         {/* Pricing */}
         <div>
-          <SectionHeader label="Pricing" number="04" />
+          <SectionHeader label="Pricing" number="05" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             {BRIEF.pricing.tiers.map((t) => (
               <div key={t.name} className={cn(
@@ -192,7 +184,7 @@ export function SharedBriefClient({ token }: { token: string }) {
 
         {/* Market */}
         <div>
-          <SectionHeader label="Market Opportunity" number="05" />
+          <SectionHeader label="Market Opportunity" number="06" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             {[BRIEF.market.tam, BRIEF.market.sam, BRIEF.market.target].map((m, i) => (
               <div key={i} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
@@ -217,32 +209,18 @@ export function SharedBriefClient({ token }: { token: string }) {
 
         {/* Competitive */}
         <div>
-          <SectionHeader label="Competitive Landscape" number="06" />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Feature Coverage vs. Market</p>
-              <ResponsiveContainer width="100%" height={220}>
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="#ffffff10" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: "#71717a", fontSize: 10 }} />
-                  <Radar name="CineFlow" dataKey="CineFlow" stroke={GOLD} fill={GOLD} fillOpacity={0.15} strokeWidth={2} />
-                  <Radar name="Competitors" dataKey="Others" stroke="#6b7280" fill="#6b7280" fillOpacity={0.08} strokeWidth={1.5} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Monthly Price Comparison</p>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={pricingChartData} barSize={28}>
-                  <XAxis dataKey="name" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
-                  <Tooltip contentStyle={{ background: "#111", border: "1px solid #ffffff15", borderRadius: 8, fontSize: 12 }} formatter={(v) => [`$${v}/mo`, "Price"]} />
-                  <Bar dataKey="price" radius={[4, 4, 0, 0]}>
-                    {pricingChartData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <SectionHeader label="Competitive Landscape" number="07" />
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 mb-6">
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Feature Coverage vs. Market</p>
+            <p className="text-[11px] text-zinc-600 mb-4">CineFlow (gold) vs. the average competitor (grey) across six core capability areas</p>
+            <ResponsiveContainer width="100%" height={260}>
+              <RadarChart data={radarData}>
+                <PolarGrid stroke="#ffffff10" />
+                <PolarAngleAxis dataKey="subject" tick={{ fill: "#71717a", fontSize: 11 }} />
+                <Radar name="CineFlow" dataKey="CineFlow" stroke={GOLD} fill={GOLD} fillOpacity={0.15} strokeWidth={2} />
+                <Radar name="Competitors" dataKey="Others" stroke="#6b7280" fill="#6b7280" fillOpacity={0.08} strokeWidth={1.5} />
+              </RadarChart>
+            </ResponsiveContainer>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-white/[0.06]">
@@ -283,7 +261,7 @@ export function SharedBriefClient({ token }: { token: string }) {
 
         {/* ROI */}
         <div>
-          <SectionHeader label="ROI — Why Filmmakers Switch" number="07" />
+          <SectionHeader label="ROI — Why Filmmakers Switch" number="08" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
               <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Tools CineFlow Replaces</p>
@@ -291,7 +269,7 @@ export function SharedBriefClient({ token }: { token: string }) {
                 <BarChart data={savingsChartData} layout="vertical" barSize={16}>
                   <XAxis type="number" tick={{ fill: "#71717a", fontSize: 10 }} tickFormatter={(v) => `$${v}`} axisLine={false} tickLine={false} />
                   <YAxis type="category" dataKey="name" tick={{ fill: "#a1a1aa", fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
-                  <Tooltip contentStyle={{ background: "#111", border: "1px solid #ffffff15", borderRadius: 8, fontSize: 12 }} formatter={(v) => [`$${v}/mo`, "Cost"]} />
+                  <Tooltip contentStyle={{ background: "#111", border: "1px solid #ffffff15", borderRadius: 8, fontSize: 12, color: "#fff" }} formatter={(v) => [`$${v}/mo`, "Cost"]} />
                   <Bar dataKey="cost" fill="#6b7280" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -315,7 +293,7 @@ export function SharedBriefClient({ token }: { token: string }) {
 
         {/* Tech */}
         <div>
-          <SectionHeader label="Technology" number="08" />
+          <SectionHeader label="Technology" number="09" />
           <div className="flex flex-wrap gap-2 mb-4">
             {BRIEF.tech.stack.map((t) => (
               <span key={t} className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-xs text-zinc-300">{t}</span>
