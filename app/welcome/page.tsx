@@ -165,7 +165,7 @@ export default function WelcomePage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("first_name, last_name")
+        .select("first_name, last_name, user_role")
         .eq("id", user.id)
         .single();
 
@@ -177,8 +177,8 @@ export default function WelcomePage() {
         ? [validFirst, profile?.last_name].filter(Boolean).join(" ")
         : null;
 
-      const ret = Boolean(profileName || localStorage.getItem("cf_onboarded"));
-      isReturning.current = ret;
+      const ret = Boolean(profile?.user_role || localStorage.getItem("cf_onboarded"));
+      isReturning.current = Boolean(profileName);
 
       if (ret) {
         const name = profileName ?? getOrCreateDisplayName();
