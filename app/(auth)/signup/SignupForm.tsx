@@ -117,9 +117,8 @@ export function SignupForm({
         return;
       }
 
-      toast.success("Welcome to CineFlow!");
       try { (window as any).fbq?.("track","CompleteRegistration"); (window as any).gtag?.("event","sign_up"); (window as any).ttq?.track("CompleteRegistration"); } catch {}
-      window.location.assign("/dashboard");
+      window.location.assign("/welcome");
     } finally {
       setIsLoading(false);
     }
