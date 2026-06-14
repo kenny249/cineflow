@@ -1228,6 +1228,12 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
     finally { setPdfLoading(false); }
   };
 
+  const handleDone = async () => {
+    await autoSave(true);
+    onClose();
+    toast.success("Call sheet saved — find it in Production → Call Sheets");
+  };
+
   const handlePrint = () => {
     const portalEl = document.getElementById("call-sheet-print-portal");
     if (!portalEl) { toast.error("No call sheet to print"); return; }
@@ -1433,8 +1439,12 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
                 <Printer className="h-4 w-4" /> Print
               </button>
               <button onClick={handleSavePDF} disabled={pdfLoading}
-                className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-50 transition-colors">
+                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50 transition-colors">
                 {pdfLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><FileText className="h-4 w-4" /> Save PDF</>}
+              </button>
+              <button onClick={handleDone}
+                className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 transition-colors">
+                Done
               </button>
             </div>
           )}

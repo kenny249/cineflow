@@ -9,6 +9,19 @@ import type { DocumentProps } from "@react-pdf/renderer";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
+async function urlToDataUri(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const b64 = Buffer.from(buf).toString("base64");
+    const ct = res.headers.get("content-type") ?? "image/jpeg";
+    return `data:${ct};base64,${b64}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -16,17 +29,27 @@ export async function POST(req: NextRequest) {
 
   const { project, profile, formData, crew, locations, sheet } = await req.json();
 
-  // Verify the caller owns the project before writing any files
-  const { count } = await supabase
+  // Verify the caller has access to this project (RLS handles owner + collaborators)
+  const { data: projectCheck } = await supabase
     .from("projects")
-    .select("id", { count: "exact", head: true })
+    .select("id")
     .eq("id", project?.id)
-    .eq("created_by", user.id);
-  if (!count || count === 0) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    .single();
+  if (!projectCheck) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   try {
+    // Pre-fetch logo images as base64 so react-pdf doesn't fetch external URLs
+    // (Supabase storage URLs can fail when fetched from Vercel's server environment)
+    const [logoData, clientLogoData] = await Promise.all([
+      profile?.logo_url ? urlToDataUri(profile.logo_url) : Promise.resolve(null),
+      project?.client_logo_url ? urlToDataUri(project.client_logo_url) : Promise.resolve(null),
+    ]);
+
+    const pdfProfile = profile ? { ...profile, logo_url: logoData ?? undefined } : profile;
+    const pdfProject = { ...project, client_logo_url: clientLogoData ?? undefined };
+
     const element = createElement(CallSheetPDFDocument, {
-      project, profile, formData, crew, locations, sheet,
+      project: pdfProject, profile: pdfProfile, formData, crew, locations, sheet,
     }) as unknown as ReactElement<DocumentProps>;
 
     const buffer = await renderToBuffer(element);
@@ -50,7 +73,6 @@ export async function POST(req: NextRequest) {
       console.error("[call-sheet/pdf] storage upload failed:", uploadError.message);
       // Non-fatal — still return the PDF for download
     } else {
-      // Get public URL and save the project_files record
       const { data: urlData } = supabase.storage
         .from("project-files")
         .getPublicUrl(storagePath);
