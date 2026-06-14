@@ -50,6 +50,13 @@ interface InterviewSheet  { format: "interview";  schedule: ScheduleItem[];     
 
 type GeneratedSheet = ScriptedSheet | LiveEventSheet | InterviewSheet;
 
+interface SavedCallSheet {
+  id: string;
+  title: string;
+  shoot_date: string | null;
+  updated_at: string;
+}
+
 interface FormData {
   format: CallSheetFormat;
   shootDate: string;
@@ -612,6 +619,12 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
                   className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
                 <input value={loc.address || ""} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], address: e.target.value }; onLocationsChange(u); }}
                   placeholder="Address" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                <div className="grid grid-cols-2 gap-1.5">
+                  <input value={loc.contact_name || ""} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], contact_name: e.target.value }; onLocationsChange(u); }}
+                    placeholder="Contact name" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                  <input value={loc.contact_phone || ""} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], contact_phone: e.target.value }; onLocationsChange(u); }}
+                    placeholder="Contact phone" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                </div>
               </div>
             ))}
           </div>
@@ -780,6 +793,12 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                   className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
                 <input value={loc.address || ""} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], address: e.target.value }; onLocationsChange(u); }}
                   placeholder="Address" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                <div className="grid grid-cols-2 gap-1.5">
+                  <input value={loc.contact_name || ""} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], contact_name: e.target.value }; onLocationsChange(u); }}
+                    placeholder="Contact name" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                  <input value={loc.contact_phone || ""} onChange={(e) => { const u = [...locations]; u[idx] = { ...u[idx], contact_phone: e.target.value }; onLocationsChange(u); }}
+                    placeholder="Contact phone" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                </div>
               </div>
             ))}
           </div>
@@ -962,8 +981,8 @@ function StepDot({ n, current, total }: { n: number; current: number; total: num
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function CallSheetGenerator({ project, onClose }: { project: Project; onClose: () => void }) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+export function CallSheetGenerator({ project, onClose, initialSheetId }: { project: Project; onClose: () => void; initialSheetId?: string }) {
+  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4 | 5>(initialSheetId ? 1 : 1);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [sheet, setSheet] = useState<GeneratedSheet | null>(null);
@@ -974,6 +993,11 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
   const [shotItems, setShotItems] = useState<ShotListItem[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
+  const [savedSheetId, setSavedSheetId] = useState<string | null>(initialSheetId ?? null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [existingSheets, setExistingSheets] = useState<SavedCallSheet[]>([]);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     format: (project.type === "live_event" ? "live_event" : project.type === "documentary" || project.type === "podcast" ? "interview" : "scripted") as CallSheetFormat,
@@ -999,22 +1023,93 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
   useEffect(() => {
     async function load() {
       try {
-        const [crewData, locData, shotListData, profileData] = await Promise.all([
+        const [crewData, locData, shotListData, profileData, sheetsRes] = await Promise.all([
           getCrewContacts(project.id),
           getProjectLocations(project.id),
           getShotLists(project.id),
           getProfile(),
+          fetch(`/api/call-sheets?project_id=${project.id}`).then((r) => r.json()),
         ]);
-        setCrew(crewData.map((c) => ({ ...c, callTime: "" })));
-        setLocations(locData.map((l) => ({ ...l, parkingNotes: "" })));
+        const freshCrew = crewData.map((c) => ({ ...c, callTime: "" }));
+        const freshLocs = locData.map((l) => ({ ...l, parkingNotes: "" }));
+        setCrew(freshCrew);
+        setLocations(freshLocs);
         const items = (shotListData[0] as any)?.shot_list_items ?? (shotListData[0] as any)?.items ?? [];
         setShotItems(items);
         setProfile(profileData);
+
+        const sheets: SavedCallSheet[] = Array.isArray(sheetsRes) ? sheetsRes : [];
+        setExistingSheets(sheets);
+
+        if (initialSheetId) {
+          // Load specific sheet passed in (e.g. from ProductionDocsTab card)
+          const res = await fetch(`/api/call-sheets/${initialSheetId}`);
+          if (res.ok) {
+            const saved = await res.json();
+            restoreFromSaved(saved, freshCrew, freshLocs);
+          }
+        } else if (sheets.length > 0 && !initialSheetId) {
+          // Show selection screen
+          setStep(0);
+        }
       } catch { toast.error("Failed to load project data"); }
       finally { setLoading(false); }
     }
     load();
-  }, [project.id]);
+  }, [project.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function restoreFromSaved(saved: any, freshCrew?: CrewWithCall[], freshLocs?: LocationWithParking[]) {
+    const d = saved.data ?? {};
+    if (d.sheet) setSheet(d.sheet);
+    if (d.crew) setCrew(d.crew);
+    else if (freshCrew) setCrew(freshCrew);
+    if (d.locations) setLocations(d.locations);
+    else if (freshLocs) setLocations(freshLocs);
+    if (d.formData) setFormData(d.formData);
+    setSavedSheetId(saved.id);
+    setSavedAt(new Date(saved.updated_at));
+    setStep(5);
+  }
+
+  // Auto-save while editing step 5
+  useEffect(() => {
+    if (step !== 5 || !sheet) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => { autoSave(false); }, 2000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [sheet, crew, locations, formData, step]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function autoSave(immediate: boolean, overrideSheet?: GeneratedSheet) {
+    const currentSheet = overrideSheet ?? sheet;
+    if (!currentSheet) return;
+    if (saveTimerRef.current && !immediate) clearTimeout(saveTimerRef.current);
+    setSaving(true);
+    const shootDate = formData.shootDate || null;
+    const dateLabel = shootDate
+      ? new Date(shootDate + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      : null;
+    const title = dateLabel ? `Call Sheet — ${dateLabel}` : "Call Sheet";
+    const payload = { title, shoot_date: shootDate, data: { sheet: currentSheet, crew, locations, formData } };
+    try {
+      if (savedSheetId) {
+        await fetch(`/api/call-sheets/${savedSheetId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        const res = await fetch("/api/call-sheets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ project_id: project.id, ...payload }),
+        });
+        const created = await res.json();
+        if (created.id) setSavedSheetId(created.id);
+      }
+      setSavedAt(new Date());
+    } catch { /* silent — PDF still works */ }
+    finally { setSaving(false); }
+  }
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -1028,6 +1123,8 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
       const data = await res.json();
       setSheet(data);
       setStep(5);
+      // Save immediately on first generate
+      await autoSave(true, data);
     } catch { toast.error("Failed to generate call sheet — try again"); }
     finally { setGenerating(false); }
   };
@@ -1116,6 +1213,11 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
                 {sheet.format === "live_event" ? "Live Event" : sheet.format === "interview" ? "Interview" : "Scripted"} Format
               </span>
             )}
+            {step === 5 && (
+              <span className="ml-2 hidden sm:block text-[10px] text-muted-foreground/60">
+                {saving ? "Saving…" : savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
@@ -1124,6 +1226,52 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
 
         {/* Step content */}
         <div className="flex-1 overflow-y-auto">
+          {step === 0 && (
+            <div className="mx-auto max-w-lg px-6 py-8 space-y-4">
+              <div>
+                <h3 className="font-display text-base font-semibold text-foreground">Call Sheets</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">Pick an existing sheet to edit, or create a new one.</p>
+              </div>
+              <button
+                onClick={() => setStep(1)}
+                className="flex w-full items-center gap-3 rounded-xl border-2 border-dashed border-[#d4a853]/30 bg-[#d4a853]/5 px-4 py-3 text-left hover:border-[#d4a853]/60 hover:bg-[#d4a853]/10 transition-colors"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#d4a853]/15">
+                  <FileText className="h-4 w-4 text-[#d4a853]" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">New Call Sheet</p>
+                  <p className="text-[11px] text-muted-foreground">Start the wizard for a new shoot day</p>
+                </div>
+              </button>
+              <div className="space-y-2">
+                {existingSheets.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={async () => {
+                      setLoading(true);
+                      try {
+                        const res = await fetch(`/api/call-sheets/${s.id}`);
+                        if (res.ok) { const saved = await res.json(); restoreFromSaved(saved); }
+                      } finally { setLoading(false); }
+                    }}
+                    className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left hover:bg-accent transition-colors"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{s.title}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Last edited {new Date(s.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {step === 1 && <Step1 formData={formData} onChange={setFormData} />}
           {step === 2 && <Step2 locations={locations} onChange={setLocations} onHospitalFound={(h) => setFormData((f) => ({ ...f, hospital: f.hospital || h }))} />}
           {step === 3 && <Step3 crew={crew} formData={formData} onChange={setCrew} />}
@@ -1192,14 +1340,14 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
         {/* Bottom nav */}
         <div className="no-print shrink-0 flex items-center justify-between border-t border-border px-6 py-4">
           <button
-            onClick={step === 1 ? onClose : () => setStep((s) => (s > 1 ? (s - 1) as any : 1))}
+            onClick={step === 0 || step === 1 ? onClose : step === 5 && existingSheets.length > 0 ? () => setStep(0) : () => setStep((s) => (s > 1 ? (s - 1) as any : 1))}
             className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           >
             <ChevronLeft className="h-4 w-4" />
-            {step === 1 ? "Cancel" : "Back"}
+            {step === 0 || step === 1 ? "Cancel" : step === 5 && existingSheets.length > 0 ? "All Sheets" : "Back"}
           </button>
-          {step < 4 && (
-            <button onClick={() => setStep((s) => (s < 4 ? (s + 1) as any : 4))}
+          {step > 0 && step < 4 && (
+            <button onClick={() => setStep((s) => (s > 0 && s < 4 ? (s + 1) as any : 4))}
               className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 transition-colors">
               Next <ChevronRight className="h-4 w-4" />
             </button>
@@ -1458,21 +1606,23 @@ function Step3({ crew, formData, onChange }: { crew: CrewWithCall[]; formData: F
             {members.map((m) => {
               const idx = crew.findIndex((c) => c.id === m.id);
               return (
-                <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-2.5">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">{m.name.charAt(0).toUpperCase()}</div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.role}</p>
+                <div key={m.id} className="rounded-xl border border-border bg-card px-4 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">{m.name.charAt(0).toUpperCase()}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">{m.role}</p>
+                    </div>
+                    <TimeInput value={m.callTime || formData.callTime}
+                      onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onChange(u); }}
+                      className="shrink-0 w-24 rounded-lg border border-border bg-background px-2 py-1 text-sm font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />
                   </div>
                   <input
                     value={m.phone ?? ""}
                     onChange={(e) => { const u = [...crew]; u[idx] = { ...u[idx], phone: e.target.value }; onChange(u); }}
-                    placeholder="Phone"
-                    className="hidden w-32 rounded-lg border border-border bg-background px-2 py-1 text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:border-[#d4a853]/50 focus:outline-none sm:block"
+                    placeholder="Phone number"
+                    className="mt-2 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:border-[#d4a853]/50 focus:outline-none"
                   />
-                  <TimeInput value={m.callTime || formData.callTime}
-                    onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onChange(u); }}
-                    className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-sm font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />
                 </div>
               );
             })}

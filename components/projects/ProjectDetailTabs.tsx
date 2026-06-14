@@ -756,6 +756,7 @@ export default function ProjectDetailTabs({
   const [shotListSubMode, setShotListSubMode] = useState<"shots" | "storyboard">("shots");
   const [showShootDays, setShowShootDays] = useState(false);
   const [callSheetOpen, setCallSheetOpen] = useState(false);
+  const [callSheetInitialId, setCallSheetInitialId] = useState<string | undefined>(undefined);
 
   // ── Inline video player state ──
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
@@ -1442,7 +1443,7 @@ export default function ProjectDetailTabs({
           </div>
 
           {callSheetOpen && (
-            <CallSheetGenerator project={{ ...project, client_logo_url: displayClientLogoUrl || project.client_logo_url }} onClose={() => setCallSheetOpen(false)} />
+            <CallSheetGenerator project={{ ...project, client_logo_url: displayClientLogoUrl || project.client_logo_url }} onClose={() => { setCallSheetOpen(false); setCallSheetInitialId(undefined); }} initialSheetId={callSheetInitialId} />
           )}
         </div>
 
@@ -2438,7 +2439,7 @@ export default function ProjectDetailTabs({
 
             {/* ── Production Docs ── */}
             <TabsContent value="docs" className="m-0">
-              <ProductionDocsTab projectId={project.id} canEdit={canEdit} />
+              <ProductionDocsTab projectId={project.id} canEdit={canEdit} onOpenCallSheet={(id) => { setCallSheetInitialId(id); setCallSheetOpen(true); }} />
             </TabsContent>
 
             {/* ── Crew + Locations ── */}
