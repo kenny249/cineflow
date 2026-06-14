@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const ip = getClientIp(req);
-  if (isRateLimited(`review-get:${ip}`, 60, 60_000)) {
+  if (await isRateLimited(`review-get:${ip}`, 60, 60_000)) {
     console.warn("[review/GET] rate limited", ip);
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -77,7 +77,7 @@ export async function POST(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const ip = getClientIp(req);
-  if (isRateLimited(`review-post:${ip}`, 20, 60_000)) {
+  if (await isRateLimited(`review-post:${ip}`, 20, 60_000)) {
     console.warn("[review/POST] rate limited", ip);
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -153,7 +153,7 @@ export async function PATCH(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const ip = getClientIp(req);
-  if (isRateLimited(`review-patch:${ip}`, 10, 60_000)) {
+  if (await isRateLimited(`review-patch:${ip}`, 10, 60_000)) {
     console.warn("[review/PATCH] rate limited", ip);
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }

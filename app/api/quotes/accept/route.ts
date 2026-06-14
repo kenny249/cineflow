@@ -120,7 +120,7 @@ async function sendQuoteEmails(supabase: ReturnType<typeof getAdminClient>, quot
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  if (isRateLimited(`quotes-accept:${ip}`, 10, 60_000)) {
+  if (await isRateLimited(`quotes-accept:${ip}`, 10, 60_000)) {
     console.warn("[quotes/accept] rate limited ip:", ip);
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }

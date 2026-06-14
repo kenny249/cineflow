@@ -51,7 +51,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 // POST /api/forms/[token] — public: submit a response
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const ip = getClientIp(req);
-  if (isRateLimited(`form:${ip}`, 20, 10 * 60 * 1000)) {
+  if (await isRateLimited(`form:${ip}`, 20, 10 * 60 * 1000)) {
     return NextResponse.json({ error: "Too many submissions. Please try again later." }, { status: 429 });
   }
 

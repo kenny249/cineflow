@@ -12,7 +12,7 @@ function getAdminClient() {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  if (isRateLimited(`otp:${ip}`, 5, 15 * 60 * 1000)) {
+  if (await isRateLimited(`otp:${ip}`, 5, 15 * 60 * 1000)) {
     return NextResponse.json({ error: "Too many requests. Please wait before requesting another code." }, { status: 429 });
   }
 

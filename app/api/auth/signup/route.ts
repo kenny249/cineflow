@@ -17,7 +17,7 @@ function generateReferralCode(): string {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  if (isRateLimited(`signup:${ip}`, 5, 60 * 60 * 1000)) {
+  if (await isRateLimited(`signup:${ip}`, 5, 60 * 60 * 1000)) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
 

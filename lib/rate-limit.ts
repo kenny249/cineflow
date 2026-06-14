@@ -1,9 +1,29 @@
 /**
- * Simple in-memory rate limiter. Per-instance (not distributed), but effective
- * against single-IP abuse in Vercel's single-region invocations and appropriate
- * for a beta product. Upgrade to Upstash Redis if multi-instance rate limiting
- * becomes necessary.
+ * Distributed rate limiter using Upstash Redis when UPSTASH_REDIS_REST_URL
+ * is configured, with an in-memory fallback for local development.
+ *
+ * Redis uses a fixed-window counter with atomic INCR + EXPIRE, which works
+ * correctly across all Vercel function instances. In-memory is per-instance
+ * and only suitable for local dev / single-instance deployments.
  */
+
+import { Redis } from "@upstash/redis";
+
+// ── Redis client (lazy, only if env vars are present) ─────────────────────────
+
+let redis: Redis | null = null;
+
+function getRedis(): Redis | null {
+  if (redis) return redis;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (url && token) {
+    redis = new Redis({ url, token });
+  }
+  return redis;
+}
+
+// ── In-memory fallback ────────────────────────────────────────────────────────
 
 interface Bucket {
   count: number;
@@ -12,7 +32,6 @@ interface Bucket {
 
 const store = new Map<string, Bucket>();
 
-// Clean up expired entries periodically to prevent memory leaks
 setInterval(() => {
   const now = Date.now();
   for (const [key, bucket] of store) {
@@ -20,24 +39,44 @@ setInterval(() => {
   }
 }, 60_000);
 
-/**
- * Returns true if the request should be blocked.
- * @param key      Unique identifier (IP + endpoint)
- * @param limit    Max requests per window
- * @param windowMs Time window in milliseconds
- */
-export function isRateLimited(key: string, limit: number, windowMs: number): boolean {
+function isRateLimitedMemory(key: string, limit: number, windowMs: number): boolean {
   const now = Date.now();
   const bucket = store.get(key);
-
   if (!bucket || bucket.resetAt < now) {
     store.set(key, { count: 1, resetAt: now + windowMs });
     return false;
   }
-
   bucket.count++;
-  if (bucket.count > limit) return true;
-  return false;
+  return bucket.count > limit;
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the request should be blocked.
+ * Async when Redis is available; synchronous in-memory otherwise.
+ */
+export async function isRateLimited(
+  key: string,
+  limit: number,
+  windowMs: number
+): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return isRateLimitedMemory(key, limit, windowMs);
+
+  try {
+    const windowSecs = Math.ceil(windowMs / 1000);
+    const redisKey = `rl:${key}`;
+    const count = await r.incr(redisKey);
+    if (count === 1) {
+      // First request in this window — set TTL
+      await r.expire(redisKey, windowSecs);
+    }
+    return count > limit;
+  } catch {
+    // Redis unavailable — fall back to in-memory so the app keeps running
+    return isRateLimitedMemory(key, limit, windowMs);
+  }
 }
 
 /** Extract the best available client IP from a Request. */

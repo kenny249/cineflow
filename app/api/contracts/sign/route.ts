@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 // POST /api/contracts/sign?token=xxx — submit signature
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  if (isRateLimited(`sign:${ip}`, 10, 60 * 60 * 1000)) {
+  if (await isRateLimited(`sign:${ip}`, 10, 60 * 60 * 1000)) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
 

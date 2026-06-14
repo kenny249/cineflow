@@ -15,7 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const ip = getClientIp(request);
-  if (isRateLimited(`client-portal:${ip}`, 30, 60_000)) {
+  if (await isRateLimited(`client-portal:${ip}`, 30, 60_000)) {
     console.warn("[client/portal] rate limited ip:", ip);
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
