@@ -451,11 +451,11 @@ export function CallSheetPDFDocument({
           )}
 
           {/* Coverage Assignments — call time shown in each card header */}
-          {sheet.coverage.length > 0 && (
+          {(sheet.coverage ?? []).length > 0 && (
             <View style={{ marginBottom: 14 }}>
               <SectionHeader>Coverage Assignments</SectionHeader>
               <View style={s.covGrid}>
-                {sheet.coverage.map((c, i) => {
+                {(sheet.coverage ?? []).map((c, i) => {
                   const member = crew.find((m) => m.name.toLowerCase() === c.person.toLowerCase());
                   const callTime = to12h(member?.callTime || formData.callTime);
                   return (
@@ -487,11 +487,11 @@ export function CallSheetPDFDocument({
           )}
 
           {/* Static Cameras */}
-          {sheet.staticCameras.length > 0 && (
+          {(sheet.staticCameras ?? []).length > 0 && (
             <View style={s.staticTable} wrap={false}>
               <SectionHeader>Static / Mounted Cameras</SectionHeader>
               <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
-                {sheet.staticCameras.map((cam, i) => (
+                {(sheet.staticCameras ?? []).map((cam, i) => (
                   <View key={i} style={[s.staticRow, { backgroundColor: i % 2 === 0 ? FAINT : WHITE }]} wrap={false}>
                     <Text style={s.staticName}>{cam.name}</Text>
                     <Text style={s.staticRole}>{cam.role}</Text>
@@ -502,7 +502,7 @@ export function CallSheetPDFDocument({
           )}
 
           {/* Key Moments */}
-          {sheet.keyMoments.length > 0 && (
+          {(sheet.keyMoments ?? []).length > 0 && (
             <View style={s.momTable}>
               <SectionHeader>Key Moments</SectionHeader>
               {/* Legend */}
@@ -515,7 +515,7 @@ export function CallSheetPDFDocument({
                 ))}
               </View>
               <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
-                {sheet.keyMoments.map((m, i) => (
+                {(sheet.keyMoments ?? []).map((m, i) => (
                   <View key={i} style={[s.momRow, { backgroundColor: WHITE }]} wrap={false}>
                     <View style={s.momDotWrap}>
                       <View style={[s.momDot, { backgroundColor: MOMENT_DOT[m.type] ?? LGRAY }]} />
@@ -592,7 +592,7 @@ export function CallSheetPDFDocument({
               <Text style={[s.schedHeadCell, { flex: 1 }]}>Description</Text>
               <Text style={[s.schedHeadCell, { width: 110 }]}>Location</Text>
             </View>
-            {sheet.schedule.map((item, i) => (
+            {(sheet.schedule ?? []).map((item, i) => (
               <View key={i} style={[s.schedRow, { backgroundColor: ROW_BG[item.type] ?? WHITE }]} wrap={false}>
                 <View style={s.schedTime}>
                   <View style={[s.schedDot, { backgroundColor: ROW_DOT[item.type] ?? LGRAY }]} />
