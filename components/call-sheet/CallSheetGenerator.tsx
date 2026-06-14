@@ -1201,10 +1201,14 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
     if (!sheet) return;
     setPdfLoading(true);
     try {
+      // Strip to only the fields CSProject/CSProfile need — project.thumbnail_url can be a
+      // multi-MB base64 string that causes a 413 if the full object is sent
+      const pdfProject = { id: project.id, title: project.title, client_name: project.client_name ?? null, client_logo_url: project.client_logo_url ?? null };
+      const pdfProfile = profile ? { first_name: profile.first_name, last_name: profile.last_name, business_name: profile.business_name, logo_url: profile.logo_url } : null;
       const res = await fetch("/api/call-sheet/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project, profile, formData, crew, locations, sheet }),
+        body: JSON.stringify({ project: pdfProject, profile: pdfProfile, formData, crew, locations, sheet }),
       });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: `Server error ${res.status}` })); throw new Error(err.error || `PDF generation failed (${res.status})`); }
       const blob = await res.blob();
