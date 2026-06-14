@@ -99,7 +99,8 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    console.error("[call-sheet/pdf]", err);
-    return NextResponse.json({ error: err.message ?? "PDF generation failed" }, { status: 500 });
+    const msg = err?.message || String(err) || "unknown error";
+    console.error("[call-sheet/pdf] renderToBuffer failed:", msg, err?.stack);
+    return NextResponse.json({ error: `PDF render failed: ${msg}` }, { status: 500 });
   }
 }

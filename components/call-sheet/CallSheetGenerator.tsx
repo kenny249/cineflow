@@ -1206,7 +1206,7 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project, profile, formData, crew, locations, sheet }),
       });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error ?? "PDF generation failed"); }
+      if (!res.ok) { const err = await res.json().catch(() => ({ error: `Server error ${res.status}` })); throw new Error(err.error || `PDF generation failed (${res.status})`); }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const filename = `call-sheet-${project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`;

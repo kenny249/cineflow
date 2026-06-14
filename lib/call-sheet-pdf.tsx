@@ -456,14 +456,15 @@ export function CallSheetPDFDocument({
               <SectionHeader>Coverage Assignments</SectionHeader>
               <View style={s.covGrid}>
                 {(sheet.coverage ?? []).map((c, i) => {
-                  const member = crew.find((m) => m.name.toLowerCase() === c.person.toLowerCase());
+                  const person = c.person ?? "";
+                  const member = crew.find((m) => (m.name ?? "").toLowerCase() === person.toLowerCase());
                   const callTime = to12h(member?.callTime || formData.callTime);
                   return (
                     <View key={i} style={s.covCard} wrap={false}>
                       <View style={[s.covHeader, { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }]}>
                         <View style={{ flex: 1 }}>
-                          <Text style={s.covPerson}>{c.person}</Text>
-                          <Text style={s.covRole}>{c.role}</Text>
+                          <Text style={s.covPerson}>{person}</Text>
+                          <Text style={s.covRole}>{c.role ?? ""}</Text>
                           {c.equipment ? <Text style={s.covEquip}>{c.equipment}</Text> : null}
                         </View>
                         <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
@@ -472,10 +473,10 @@ export function CallSheetPDFDocument({
                         </View>
                       </View>
                       <View style={s.covBody}>
-                        {c.responsibilities.map((r, j) => (
+                        {(c.responsibilities ?? []).map((r, j) => (
                           <View key={j} style={s.covBullet}>
                             <Text style={s.covDot}>•</Text>
-                            <Text style={s.covText}>{r}</Text>
+                            <Text style={s.covText}>{r ?? ""}</Text>
                           </View>
                         ))}
                       </View>
