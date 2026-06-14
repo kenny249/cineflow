@@ -156,9 +156,8 @@ function TimeInput({ value, onChange, className: _className }: { value: string; 
         ))}
       </select>
       <span className="self-center text-[#d4a853]/30 font-mono text-base px-0.5">:</span>
-      <select value={hasValue ? min : ""} onChange={(e) => emit(h12 || 12, parseInt(e.target.value) || 0, isPM)}
+      <select value={hasValue ? min : 0} onChange={(e) => emit(h12 || 12, parseInt(e.target.value) || 0, isPM)}
         className={`${CINEMA_SELECT} px-2 py-2.5 w-14`}>
-        {!hasValue && <option value="">MM</option>}
         {Array.from({ length: 60 }, (_, i) => (
           <option key={i} value={i}>{String(i).padStart(2,"0")}</option>
         ))}
@@ -710,9 +709,10 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
                   <p className="text-xs font-medium text-foreground">{m.name}</p>
                   <p className="text-[10px] text-muted-foreground">{m.role}</p>
                 </div>
-                <TimeInput value={m.callTime || formData.callTime}
-                  onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }}
-                  className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-xs font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />
+                <div className="shrink-0">
+                  <TimeInput value={m.callTime || formData.callTime}
+                    onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }} />
+                </div>
               </div>
             ))}
           </div>
@@ -884,11 +884,12 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                   <p className="text-xs font-medium text-foreground">{m.name}</p>
                   <p className="text-[10px] text-muted-foreground">{m.role}</p>
                 </div>
-                <TimeInput
-                  value={m.callTime || defaultCallTime}
-                  onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }}
-                  className="w-28 rounded-lg border border-border bg-background px-2 py-1 text-xs font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none"
-                />
+                <div className="shrink-0">
+                  <TimeInput
+                    value={m.callTime || defaultCallTime}
+                    onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }}
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -1680,9 +1681,10 @@ function Step3({ crew, formData, onChange }: { crew: CrewWithCall[]; formData: F
                       <p className="text-sm font-medium text-foreground">{m.name}</p>
                       <p className="text-xs text-muted-foreground">{m.role}</p>
                     </div>
-                    <TimeInput value={m.callTime || formData.callTime}
-                      onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onChange(u); }}
-                      className="shrink-0 w-24 rounded-lg border border-border bg-background px-2 py-1 text-sm font-mono text-foreground [color-scheme:dark] focus:border-[#d4a853]/50 focus:outline-none" />
+                    <div className="shrink-0">
+                      <TimeInput value={m.callTime || formData.callTime}
+                        onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onChange(u); }} />
+                    </div>
                   </div>
                   <input
                     value={m.phone ?? ""}
