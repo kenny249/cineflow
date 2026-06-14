@@ -88,20 +88,87 @@ function cleanTimeValue(v: string) {
   return parts.length >= 2 ? `${parts[0]}:${parts[1]}` : v;
 }
 
-function TimeInput({ value, onChange, className }: { value: string; onChange: (v: string) => void; className?: string }) {
+// Cinematic date + time inputs — replaces native browser pickers
+const MONTHS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+const CINEMA_SELECT = "bg-transparent text-[#d4a853] font-mono text-sm focus:outline-none cursor-pointer appearance-none text-center";
+const CINEMA_DIVIDER = <span className="self-stretch w-px bg-[#d4a853]/10 shrink-0" />;
+const CINEMA_WRAP = "flex items-stretch overflow-hidden rounded-xl border border-[#d4a853]/20 bg-[#0a0a0a] focus-within:border-[#d4a853]/50 transition-colors w-full";
+
+function CinematicDateInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const parts = value ? value.split("-") : [];
+  const year = parseInt(parts[0]) || 0;
+  const month = parseInt(parts[1]) || 0;
+  const day = parseInt(parts[2]) || 0;
+  const daysInMonth = month && year ? new Date(year, month, 0).getDate() : 31;
+  const curYear = new Date().getFullYear();
+
+  function emit(y: number, m: number, d: number) {
+    if (y && m && d) onChange(`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`);
+  }
+
   return (
-    <input
-      type="time"
-      value={value}
-      className={className}
-      onFocus={(e) => {
-        if (!e.target.value) {
-          const h = String((new Date().getHours() + 1) % 24).padStart(2, "0");
-          e.target.value = `${h}:00`;
-        }
-      }}
-      onChange={(e) => onChange(cleanTimeValue(e.target.value))}
-    />
+    <div className={CINEMA_WRAP}>
+      <select value={month || ""} onChange={(e) => emit(year, parseInt(e.target.value) || 0, day)}
+        className={`${CINEMA_SELECT} px-3 py-2.5 flex-1`}>
+        <option value="">MON</option>
+        {MONTHS.map((m, i) => <option key={i} value={i+1}>{m}</option>)}
+      </select>
+      {CINEMA_DIVIDER}
+      <select value={day || ""} onChange={(e) => emit(year, month, parseInt(e.target.value) || 0)}
+        className={`${CINEMA_SELECT} px-2 py-2.5 w-14`}>
+        <option value="">DD</option>
+        {Array.from({ length: daysInMonth }, (_, i) => (
+          <option key={i+1} value={i+1}>{String(i+1).padStart(2,"0")}</option>
+        ))}
+      </select>
+      {CINEMA_DIVIDER}
+      <select value={year || ""} onChange={(e) => emit(parseInt(e.target.value) || 0, month, day)}
+        className={`${CINEMA_SELECT} px-3 py-2.5 flex-1`}>
+        <option value="">YYYY</option>
+        {Array.from({ length: 5 }, (_, i) => curYear + i).map(y => (
+          <option key={y} value={y}>{y}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function TimeInput({ value, onChange, className: _className }: { value: string; onChange: (v: string) => void; className?: string }) {
+  const [h24Str, minStr] = value ? value.split(":") : ["", ""];
+  const h24 = parseInt(h24Str);
+  const min = parseInt(minStr) || 0;
+  const hasValue = !isNaN(h24);
+  const isPM = hasValue ? h24 >= 12 : false;
+  const h12 = !hasValue ? 0 : h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+
+  function emit(newH12: number, newMin: number, newPM: boolean) {
+    const h = newPM ? (newH12 === 12 ? 12 : newH12 + 12) : (newH12 === 12 ? 0 : newH12);
+    onChange(`${String(h).padStart(2,"0")}:${String(newMin).padStart(2,"0")}`);
+  }
+
+  return (
+    <div className={CINEMA_WRAP}>
+      <select value={hasValue ? h12 : ""} onChange={(e) => emit(parseInt(e.target.value) || 12, min, isPM)}
+        className={`${CINEMA_SELECT} px-3 py-2.5 w-14`}>
+        {!hasValue && <option value="">HH</option>}
+        {[12,1,2,3,4,5,6,7,8,9,10,11].map(h => (
+          <option key={h} value={h}>{String(h).padStart(2,"0")}</option>
+        ))}
+      </select>
+      <span className="self-center text-[#d4a853]/30 font-mono text-base px-0.5">:</span>
+      <select value={hasValue ? min : ""} onChange={(e) => emit(h12 || 12, parseInt(e.target.value) || 0, isPM)}
+        className={`${CINEMA_SELECT} px-2 py-2.5 w-14`}>
+        {!hasValue && <option value="">MM</option>}
+        {Array.from({ length: 60 }, (_, i) => (
+          <option key={i} value={i}>{String(i).padStart(2,"0")}</option>
+        ))}
+      </select>
+      {CINEMA_DIVIDER}
+      <button type="button" onClick={() => hasValue ? emit(h12 || 12, min, !isPM) : emit(12, 0, false)}
+        className="px-3 font-mono text-xs font-bold text-[#d4a853]/50 hover:text-[#d4a853] hover:bg-[#d4a853]/5 transition-colors shrink-0">
+        {hasValue ? (isPM ? "PM" : "AM") : "AM"}
+      </button>
+    </div>
   );
 }
 
@@ -579,7 +646,7 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
         <div className="rounded-xl border border-border bg-card p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Date</label>
-              <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <CinematicDateInput value={formData.shootDate} onChange={(v) => set("shootDate", v)} /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Crew Call</label>
               <TimeInput value={formData.callTime} onChange={(v) => set("callTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
@@ -757,7 +824,7 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
         <div className="rounded-xl border border-border bg-card p-3 space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Date</label>
-              <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+              <CinematicDateInput value={formData.shootDate} onChange={(v) => set("shootDate", v)} /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">General Crew Call</label>
               <TimeInput value={formData.callTime} onChange={(v) => set("callTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Doors Open</label>
@@ -1426,7 +1493,7 @@ function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormD
       <div className="space-y-4">
         <h3 className="font-display text-sm font-semibold text-foreground">Shoot Details</h3>
         <Field label="Shoot Date" required>
-          <input type="date" value={formData.shootDate} onChange={(e) => set("shootDate", e.target.value)} className="input-style [color-scheme:dark]" />
+          <CinematicDateInput value={formData.shootDate} onChange={(v) => set("shootDate", v)} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="General Crew Call" required>
