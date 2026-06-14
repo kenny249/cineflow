@@ -973,6 +973,7 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
   const [locations, setLocations] = useState<LocationWithParking[]>([]);
   const [shotItems, setShotItems] = useState<ShotListItem[]>([]);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
 
   const [formData, setFormData] = useState<FormData>({
     format: (project.type === "live_event" ? "live_event" : project.type === "documentary" || project.type === "podcast" ? "interview" : "scripted") as CallSheetFormat,
@@ -1128,9 +1129,24 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
           {step === 3 && <Step3 crew={crew} formData={formData} onChange={setCrew} />}
           {step === 4 && <Step4 formData={formData} onChange={setFormData} shotCount={shotItems.length} crewCount={crew.length} />}
           {step === 5 && sheet && (
-            <div className="flex h-full">
+            <div className="flex flex-col md:flex-row h-full">
+              {/* Mobile toggle */}
+              <div className="flex md:hidden shrink-0 border-b border-border">
+                <button
+                  onClick={() => setMobileView("edit")}
+                  className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${mobileView === "edit" ? "border-b-2 border-[#d4a853] text-foreground" : "text-muted-foreground"}`}
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setMobileView("preview")}
+                  className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${mobileView === "preview" ? "border-b-2 border-[#d4a853] text-foreground" : "text-muted-foreground"}`}
+                >
+                  Preview
+                </button>
+              </div>
               {/* Left: editable source */}
-              <div className="w-1/2 border-r border-border overflow-y-auto p-5">
+              <div className={`md:w-1/2 md:border-r border-border overflow-y-auto p-5 ${mobileView === "edit" ? "flex-1 md:flex-none" : "hidden md:block"}`}>
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold text-foreground">Edit</p>
@@ -1149,7 +1165,7 @@ export function CallSheetGenerator({ project, onClose }: { project: Project; onC
                 }
               </div>
               {/* Right: live preview */}
-              <div className="w-1/2 overflow-y-auto bg-zinc-100 p-5">
+              <div className={`md:w-1/2 overflow-y-auto bg-zinc-100 p-5 ${mobileView === "preview" ? "flex-1 md:flex-none" : "hidden md:block"}`}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0">Preview</p>
                   <button

@@ -1406,7 +1406,7 @@ export default function ProjectDetailTabs({
                     View client portal
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem onClick={() => setActiveTab("portal")}>
+                  <DropdownMenuItem onClick={() => setActiveTab("client-portal")}>
                     <ExternalLink className="mr-2 h-4 w-4" />
                     Set up client portal
                   </DropdownMenuItem>
@@ -1698,8 +1698,8 @@ export default function ProjectDetailTabs({
         );
       })()}
 
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); tabScrollRef.current?.scrollTo({ top: 0, behavior: "instant" }); }} className="flex h-full flex-col">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); tabScrollRef.current?.scrollTo({ top: 0, behavior: "instant" }); }} className="flex flex-col flex-1 min-h-0">
           <div className="border-b border-border">
             <div className="overflow-x-auto no-scrollbar">
               <TabsList className="flex h-10 w-max min-w-full bg-transparent gap-0 rounded-none border-b-0 p-0 px-4 sm:px-6">
