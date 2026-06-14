@@ -59,9 +59,11 @@ export interface CSFormData {
   doorsTime?: string;
   soundCheckTime?: string;
   showTime?: string;
+  loadInTime?: string;
   shootDay?: string;
   scriptRevision?: string;
   interviewSubjects?: string;
+  dresscode?: string;
 }
 export interface CSProfile {
   first_name?: string;
@@ -309,6 +311,10 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
         </View>
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           {formData.format === "live_event" ? (<>
+            {formData.loadInTime ? <View style={{ alignItems: "center" }}>
+              <Text style={s.callBarLabel}>Load-In</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.loadInTime)}</Text>
+            </View> : null}
             {formData.soundCheckTime ? <View style={{ alignItems: "center" }}>
               <Text style={s.callBarLabel}>Sound Check</Text>
               <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold", color: WHITE }}>{to12h(formData.soundCheckTime)}</Text>
@@ -339,7 +345,7 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
       </View>
 
       {/* Supplemental strip — key contact, weather, hospital, walkie, subjects */}
-      {(formData.emergencyContact || formData.weather || formData.hospital || formData.walkieChannels || formData.interviewSubjects) ? (
+      {(formData.emergencyContact || formData.weather || formData.hospital || formData.walkieChannels || formData.dresscode || formData.interviewSubjects) ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14, backgroundColor: FAINT, borderWidth: 1, borderColor: BORDER, borderRadius: 3, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10 }}>
           {formData.emergencyContact ? (
             <View style={{ flexDirection: "row", gap: 4 }}>
@@ -363,6 +369,12 @@ function PageHeader({ project, profile, formData }: { project: CSProject; profil
             <View style={{ flexDirection: "row", gap: 4 }}>
               <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Walkie: </Text>
               <Text style={{ fontSize: 7, color: BLACK }}>{formData.walkieChannels}</Text>
+            </View>
+          ) : null}
+          {formData.dresscode ? (
+            <View style={{ flexDirection: "row", gap: 4 }}>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, color: GRAY }}>Attire: </Text>
+              <Text style={{ fontSize: 7, fontFamily: "Helvetica-Bold", color: BLACK }}>{formData.dresscode}</Text>
             </View>
           ) : null}
           {formData.interviewSubjects ? (

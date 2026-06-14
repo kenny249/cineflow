@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import {
   X, ChevronRight, ChevronLeft, Loader2, Printer, Download,
   MapPin, Users, Clock, Calendar, AlertTriangle, FileText, Check,
-  Edit3, Film, Radio, Mic2, CheckCircle2,
+  Edit3, Film, Radio, Mic2, CheckCircle2, Minimize2, Maximize2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -73,11 +73,14 @@ interface FormData {
   doorsTime: string;
   soundCheckTime: string;
   showTime: string;
+  loadInTime: string;
   // Scripted / Interview
   shootDay: string;
   scriptRevision: string;
   // Interview
   interviewSubjects: string;
+  // All formats
+  dresscode: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -260,6 +263,10 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1 }}>
           {formData.format === "live_event" ? (<>
+            {formData.loadInTime && <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Load-In</p>
+              <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.loadInTime)}</p>
+            </div>}
             {formData.soundCheckTime && <div style={{ textAlign: "center" }}>
               <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Sound Check</p>
               <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.soundCheckTime)}</p>
@@ -289,8 +296,8 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
         </div>
       </div>
 
-      {/* Supplemental strip — key contact, weather, hospital, walkie */}
-      {(formData.emergencyContact || formData.weather || formData.hospital || formData.walkieChannels || formData.interviewSubjects) && (
+      {/* Supplemental strip — key contact, weather, hospital, walkie, dresscode */}
+      {(formData.emergencyContact || formData.weather || formData.hospital || formData.walkieChannels || formData.interviewSubjects || formData.dresscode) && (
         <div style={{ display: "flex", gap: 20, flexWrap: "wrap", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 4, padding: "5px 12px", marginBottom: 10, fontSize: 9 }}>
           {formData.emergencyContact && (
             <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Key Contact: </span><span style={{ color: "#111", fontWeight: 600 }}>{formData.emergencyContact}</span></span>
@@ -303,6 +310,9 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
           )}
           {formData.walkieChannels && (
             <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Walkie: </span><span style={{ color: "#111" }}>{formData.walkieChannels}</span></span>
+          )}
+          {formData.dresscode && (
+            <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Attire: </span><span style={{ color: "#111", fontWeight: 600 }}>{formData.dresscode}</span></span>
           )}
           {formData.interviewSubjects && (
             <span><span style={{ fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#6b7280" }}>Subject(s): </span><span style={{ color: "#111" }}>{formData.interviewSubjects}</span></span>
@@ -781,11 +791,12 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
 
 // ─── Inline editor for live event ────────────────────────────────────────────
 
-function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime, formData, onFormDataChange, locations, onLocationsChange }: {
+function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime, formData, onFormDataChange, locations, onLocationsChange, projectTitle }: {
   sheet: LiveEventSheet; onChange: (s: GeneratedSheet) => void;
   crew: CrewWithCall[]; onCrewChange: (c: CrewWithCall[]) => void; defaultCallTime: string;
   formData: FormData; onFormDataChange: (f: FormData) => void;
   locations: LocationWithParking[]; onLocationsChange: (l: LocationWithParking[]) => void;
+  projectTitle?: string;
 }) {
   const [editCovIdx, setEditCovIdx] = useState<number | null>(null);
   const [editMomIdx, setEditMomIdx] = useState<number | null>(null);
@@ -793,6 +804,28 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
   const [covDraft, setCovDraft] = useState<CoverageAssignment | null>(null);
   const [momDraft, setMomDraft] = useState<KeyMoment | null>(null);
   const [camDraft, setCamDraft] = useState<StaticCamera | null>(null);
+  const [refining, setRefining] = useState<Record<number, "tighten" | "expand" | null>>({});
+
+  async function handleRefine(idx: number, mode: "tighten" | "expand", projectTitle?: string) {
+    const c = sheet.coverage[idx];
+    setRefining((prev) => ({ ...prev, [idx]: mode }));
+    try {
+      const res = await fetch("/api/call-sheet/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ person: c.person, role: c.role, equipment: c.equipment, responsibilities: c.responsibilities, mode, projectTitle }),
+      });
+      if (!res.ok) throw new Error("Refine failed");
+      const { responsibilities } = await res.json();
+      const updated = [...sheet.coverage];
+      updated[idx] = { ...c, responsibilities };
+      onChange({ ...sheet, coverage: updated });
+    } catch {
+      toast.error("AI refine failed — try again");
+    } finally {
+      setRefining((prev) => ({ ...prev, [idx]: null }));
+    }
+  }
 
   function saveCamera() {
     if (editCamIdx === null || !camDraft) return;
@@ -831,6 +864,8 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
               <TimeInput value={formData.doorsTime} onChange={(v) => set("doorsTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Sound Check</label>
               <TimeInput value={formData.soundCheckTime} onChange={(v) => set("soundCheckTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Load-In</label>
+              <TimeInput value={formData.loadInTime} onChange={(v) => set("loadInTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Show Start</label>
               <TimeInput value={formData.showTime} onChange={(v) => set("showTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
@@ -846,6 +881,8 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Walkie Channels</label>
               <input value={formData.walkieChannels} onChange={(e) => set("walkieChannels", e.target.value)} placeholder="e.g. CH1: Production" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
           </div>
+          <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Dress Code / Credentials</label>
+            <input value={formData.dresscode} onChange={(e) => set("dresscode", e.target.value)} placeholder="e.g. All black, media credentials required" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
         </div>
       </div>
 
@@ -908,10 +945,28 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                   <p className="text-xs text-muted-foreground">{c.role}</p>
                   {c.equipment && <p className="text-xs text-[#d4a853]">{c.equipment}</p>}
                 </div>
-                <button onClick={() => { setEditCovIdx(i); setCovDraft({ ...c, responsibilities: [...c.responsibilities] }); }}
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
-                  <Edit3 className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => handleRefine(i, "tighten", projectTitle)}
+                    disabled={!!refining[i]}
+                    title="Make concise"
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 transition-colors"
+                  >
+                    {refining[i] === "tighten" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Minimize2 className="h-3.5 w-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => handleRefine(i, "expand", projectTitle)}
+                    disabled={!!refining[i]}
+                    title="Make detailed"
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 transition-colors"
+                  >
+                    {refining[i] === "expand" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                  </button>
+                  <button onClick={() => { setEditCovIdx(i); setCovDraft({ ...c, responsibilities: [...c.responsibilities] }); }}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+                    <Edit3 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
               {editCovIdx === i && covDraft ? (
                 <div className="px-4 py-3 space-y-2 border-t border-border bg-[#d4a853]/5">
@@ -1081,9 +1136,11 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
     doorsTime: "",
     soundCheckTime: "",
     showTime: "",
+    loadInTime: "",
     shootDay: "",
     scriptRevision: "",
     interviewSubjects: "",
+    dresscode: "",
   });
 
   useEffect(() => { setIsMounted(true); }, []);
@@ -1386,7 +1443,7 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
                   </div>
                 )}
                 {sheet.format === "live_event"
-                  ? <LiveEventEditor sheet={sheet} onChange={setSheet} crew={crew} onCrewChange={setCrew} defaultCallTime={formData.callTime} formData={formData} onFormDataChange={setFormData} locations={locations} onLocationsChange={setLocations} />
+                  ? <LiveEventEditor sheet={sheet} onChange={setSheet} crew={crew} onCrewChange={setCrew} defaultCallTime={formData.callTime} formData={formData} onFormDataChange={setFormData} locations={locations} onLocationsChange={setLocations} projectTitle={project.title} />
                   : <ScriptedEditor sheet={sheet as ScriptedSheet} onChange={setSheet} formData={formData} onFormDataChange={setFormData} locations={locations} onLocationsChange={setLocations} crew={crew} onCrewChange={setCrew} />
                 }
               </div>
@@ -1578,6 +1635,9 @@ function Step1({ formData, onChange }: { formData: FormData; onChange: (f: FormD
         </Field>
         <Field label="Walkie Channels" hint="Radio channel assignments for departments">
           <input placeholder="e.g. Ch.1 — AD / Ch.2 — Camera / Ch.3 — Sound" value={formData.walkieChannels} onChange={(e) => set("walkieChannels", e.target.value)} className="input-style" />
+        </Field>
+        <Field label="Dress Code / Credentials" hint="Attire requirements or access badge instructions">
+          <input placeholder="e.g. All black attire, media credentials required" value={formData.dresscode} onChange={(e) => set("dresscode", e.target.value)} className="input-style" />
         </Field>
         <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card p-4">
           <input type="checkbox" checked={formData.confidential} onChange={(e) => set("confidential", e.target.checked)} className="h-4 w-4 rounded accent-[#d4a853]" />
