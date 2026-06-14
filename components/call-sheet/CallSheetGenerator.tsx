@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  X, ChevronRight, ChevronLeft, Loader2, Printer, Download,
+  X, ChevronRight, ChevronLeft, Loader2, Printer, Download, Share2,
   MapPin, Users, Clock, Calendar, AlertTriangle, FileText, Check,
   Edit3, Film, Radio, Mic2, CheckCircle2, Minimize2, Maximize2,
 } from "lucide-react";
@@ -1269,21 +1269,30 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
       });
       if (!res.ok) { const err = await res.json().catch(() => ({ error: `Server error ${res.status}` })); throw new Error(err.error || `PDF generation failed (${res.status})`); }
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
       const filename = `call-sheet-${project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`;
-      // iOS Safari ignores <a download> on blob URLs — open in new tab so the native PDF viewer handles it
-      const isIOS = /iP(ad|hone|od)/.test(navigator.userAgent);
-      if (isIOS) {
-        const newTab = window.open(url, "_blank");
-        if (!newTab) toast.error("Allow popups to open the PDF");
-        else toast.success("PDF opened — tap the share button to save to your device");
-      } else {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a); a.click(); a.remove();
-        toast.success("Call sheet downloaded");
+
+      // Web Share API (iOS 15+ / Android Chrome 89+): native share sheet lets users
+      // save to Files app on iOS or trigger a download on Android
+      const file = new File([blob], filename, { type: "application/pdf" });
+      if (typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: filename });
+          toast.success("PDF shared — tap 'Save to Files' to keep it on your device");
+          return;
+        } catch (shareErr: any) {
+          // User cancelled share — not an error
+          if (shareErr?.name === "AbortError") return;
+          // Share failed (shouldn't happen), fall through to download
+        }
       }
+
+      // Desktop / older iOS fallback: anchor download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast.success("Call sheet downloaded");
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err: any) { toast.error(err.message ?? "Failed to generate PDF"); }
     finally { setPdfLoading(false); }
@@ -1320,7 +1329,7 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
     <>
       <div className="csg-modal fixed inset-0 z-50 flex flex-col bg-background">
         {/* Top bar */}
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/10">
               <FileText className="h-4 w-4 text-[#d4a853]" />
@@ -1456,7 +1465,8 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
                     disabled={pdfLoading}
                     className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-bold text-black hover:bg-[#d4a853]/90 disabled:opacity-50 transition-colors"
                   >
-                    {pdfLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    {pdfLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Share2 className="h-3 w-3 sm:hidden" />}
+                    {!pdfLoading && <Download className="h-3 w-3 hidden sm:block" />}
                     {pdfLoading ? "Generating…" : "Save PDF"}
                   </button>
                 </div>
@@ -1473,7 +1483,7 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
         </div>
 
         {/* Bottom nav */}
-        <div className="no-print shrink-0 flex items-center justify-between border-t border-border px-6 py-4">
+        <div className="no-print shrink-0 flex items-center justify-between border-t border-border px-4 py-3 sm:px-6 sm:py-4">
           <button
             onClick={step === 0 || step === 1 ? onClose : step === 5 && existingSheets.length > 0 ? () => setStep(0) : () => setStep((s) => (s > 1 ? (s - 1) as any : 1))}
             className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -1495,16 +1505,19 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
           )}
           {step === 5 && (
             <div className="flex items-center gap-2">
+              {/* Print — desktop only, not useful on mobile */}
               <button onClick={handlePrint}
-                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors">
+                className="hidden sm:flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent transition-colors">
                 <Printer className="h-4 w-4" /> Print
               </button>
               <button onClick={handleSavePDF} disabled={pdfLoading}
-                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50 transition-colors">
-                {pdfLoading ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><FileText className="h-4 w-4" /> Save PDF</>}
+                className="flex items-center gap-1.5 sm:gap-2 rounded-lg border border-border px-3 sm:px-4 py-2 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50 transition-colors">
+                {pdfLoading
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /><span className="hidden sm:inline">Generating…</span></>
+                  : <><Share2 className="h-4 w-4 sm:hidden" /><FileText className="h-4 w-4 hidden sm:block" /><span>Save PDF</span></>}
               </button>
               <button onClick={handleDone}
-                className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 transition-colors">
+                className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-4 sm:px-5 py-2 text-sm font-bold text-black hover:bg-[#d4a853]/90 transition-colors">
                 Done
               </button>
             </div>
