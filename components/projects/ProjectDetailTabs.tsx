@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp, Plus } from "lucide-react";
 import { CallSheetGenerator } from "@/components/call-sheet/CallSheetGenerator";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
@@ -292,6 +292,26 @@ export default function ProjectDetailTabs({
     } catch { return new Set<string>(); }
   });
 
+  const [customChecklistItems, setCustomChecklistItems] = useState<Array<{ phaseId: string; id: string; label: string }>>(
+    (project.custom_checklist_items as Array<{ phaseId: string; id: string; label: string }>) ?? []
+  );
+  const [addingToPhase, setAddingToPhase] = useState<string | null>(null);
+  const [newItemText, setNewItemText] = useState("");
+
+  const addCustomItem = (phaseId: string) => {
+    const label = newItemText.trim();
+    if (!label) return;
+    const id = `custom_${phaseId}_${Date.now()}`;
+    setCustomChecklistItems((prev) => [...prev, { phaseId, id, label }]);
+    setNewItemText("");
+    setAddingToPhase(null);
+  };
+
+  const removeCustomItem = (itemId: string) => {
+    setCustomChecklistItems((prev) => prev.filter((ci) => ci.id !== itemId));
+    setCheckedPhaseItems((prev) => { const next = new Set(prev); next.delete(itemId); return next; });
+  };
+
   const completedShots = useMemo(
     () => shotList?.items?.filter((item) => item.is_complete).length ?? 0,
     [shotList]
@@ -306,12 +326,14 @@ export default function ProjectDetailTabs({
       if (phase.id === "shoot") {
         pct += totalShots > 0 ? (completedShots / totalShots) * 40 : 0;
       } else {
-        const done = phase.items.filter((i) => checkedPhaseItems.has(i.id)).length;
-        pct += phase.items.length > 0 ? (done / phase.items.length) * phase.weight : 0;
+        const phaseCustom = customChecklistItems.filter((ci) => ci.phaseId === phase.id);
+        const allItems = [...phase.items, ...phaseCustom];
+        const done = allItems.filter((i) => checkedPhaseItems.has(i.id)).length;
+        pct += allItems.length > 0 ? (done / allItems.length) * phase.weight : 0;
       }
     }
     return Math.round(pct);
-  }, [checkedPhaseItems, completedShots, totalShots]);
+  }, [checkedPhaseItems, completedShots, totalShots, customChecklistItems]);
 
   // Auto-save computed progress + phase_items to Supabase (debounced 2s)
   const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -346,6 +368,18 @@ export default function ProjectDetailTabs({
     return () => { if (progressSaveTimer.current) clearTimeout(progressSaveTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [computedProgress]);
+
+  const customItemsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (customItemsSaveTimer.current) clearTimeout(customItemsSaveTimer.current);
+    customItemsSaveTimer.current = setTimeout(async () => {
+      try {
+        await updateProject(project.id, { custom_checklist_items: customChecklistItems });
+      } catch { /* silent */ }
+    }, 1000);
+    return () => { if (customItemsSaveTimer.current) clearTimeout(customItemsSaveTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customChecklistItems]);
 
   const burst = useCompletionBurst();
 
@@ -1772,10 +1806,12 @@ export default function ProjectDetailTabs({
                     <div className="space-y-2">
                       {PROD_PHASES.map((phase, phaseIndex) => {
                         const isShoot = phase.id === "shoot";
+                        const phaseCustom = customChecklistItems.filter((ci) => ci.phaseId === phase.id);
+                        const allPhaseItems = [...phase.items, ...phaseCustom];
                         const checkedCount = isShoot
                           ? completedShots
-                          : phase.items.filter((i) => checkedPhaseItems.has(i.id)).length;
-                        const total = isShoot ? totalShots : phase.items.length;
+                          : allPhaseItems.filter((i) => checkedPhaseItems.has(i.id)).length;
+                        const total = isShoot ? totalShots : allPhaseItems.length;
                         const phasePct = total > 0 ? checkedCount / total : 0;
                         const isComplete = total > 0 && phasePct >= 1;
                         const isPast = phaseIndex < currentPhaseIndex;
@@ -1865,6 +1901,65 @@ export default function ProjectDetailTabs({
                                       </button>
                                     );
                                   })}
+                                  {phaseCustom.map((item) => {
+                                    const done = checkedPhaseItems.has(item.id);
+                                    return (
+                                      <div key={item.id} className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-accent/50 transition-colors group">
+                                        <button
+                                          type="button"
+                                          className="flex flex-1 items-center gap-2 text-left min-w-0"
+                                          onClick={(e) => togglePhaseItem(item.id, e.nativeEvent)}
+                                        >
+                                          <div className={`h-3.5 w-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                            done
+                                              ? "bg-[#d4a853] border-[#d4a853]"
+                                              : "border-muted-foreground/40 group-hover:border-[#d4a853]/50"
+                                          }`}>
+                                            {done && <Check className="h-2 w-2 text-black" />}
+                                          </div>
+                                          <span className={`text-[11px] transition-colors truncate ${done ? "line-through text-muted-foreground" : isCurrent ? "text-foreground" : "text-muted-foreground"}`}>
+                                            {item.label}
+                                          </span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeCustomItem(item.id)}
+                                          className="ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/50 hover:text-destructive"
+                                          title="Remove item"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                  {addingToPhase === phase.id ? (
+                                    <div className="flex items-center gap-1.5 px-1 pt-0.5">
+                                      <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30 shrink-0" />
+                                      <input
+                                        autoFocus
+                                        type="text"
+                                        value={newItemText}
+                                        onChange={(e) => setNewItemText(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") addCustomItem(phase.id);
+                                          if (e.key === "Escape") { setAddingToPhase(null); setNewItemText(""); }
+                                        }}
+                                        placeholder="New item…"
+                                        className="flex-1 bg-transparent text-[11px] text-foreground outline-none placeholder:text-muted-foreground/40"
+                                      />
+                                      <button type="button" onClick={() => addCustomItem(phase.id)} className="text-[10px] text-[#d4a853] font-medium hover:text-[#c49843]">Add</button>
+                                      <button type="button" onClick={() => { setAddingToPhase(null); setNewItemText(""); }} className="text-muted-foreground/50 hover:text-muted-foreground"><X className="h-3 w-3" /></button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setAddingToPhase(phase.id)}
+                                      className="flex items-center gap-1.5 px-1 py-0.5 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors w-full"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                      Add item
+                                    </button>
+                                  )}
                                 </div>
                               )}
 

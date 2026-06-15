@@ -144,10 +144,14 @@ export function FileUploadZone({
     const client = createClient();
     const { data: { user } } = await client.auth.getUser();
 
+    // Track accumulated files locally so each iteration builds on the previous,
+    // avoiding the stale-closure bug where onFilesChange([created, ...files])
+    // always references the original `files` prop and drops earlier uploads.
+    let accumulated = [...files];
+
     for (const file of arr) {
       setUploading((prev) => [...prev, file.name]);
       try {
-        // Use chunked multipart upload via Supabase storage
         const storagePath = `${projectId}/${tab}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
         const { error: uploadError } = await client.storage
           .from("project-files")
@@ -174,7 +178,8 @@ export function FileUploadZone({
           uploaded_by: user?.id,
         });
 
-        onFilesChange([created, ...files]);
+        accumulated = [created, ...accumulated];
+        onFilesChange(accumulated);
         toast.success(`${file.name} uploaded`);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
