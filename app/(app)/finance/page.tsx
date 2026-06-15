@@ -828,7 +828,7 @@ export default function FinancePage() {
               <div>
                 <p className="fin-section-label">Line Items</p>
                 <div className="rounded-xl border border-border overflow-x-auto">
-                 <div className="min-w-[420px]">
+                 <div className="min-w-[320px]">
                   {/* Column headers */}
                   <div className="grid grid-cols-[1fr_3.5rem_5.5rem_5rem_1.5rem] gap-2 bg-muted/20 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     <span>Description</span>

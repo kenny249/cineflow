@@ -384,12 +384,12 @@ export default function CalendarPage() {
           <div className="flex overflow-hidden rounded-md border border-border">
             <button
               onClick={() => setViewMode("month")}
-              className={`flex h-8 w-8 items-center justify-center text-xs transition-colors ${viewMode === "month" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+              className={`flex h-10 w-10 items-center justify-center text-xs transition-colors ${viewMode === "month" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
               title="Month view"
             ><Grid3x3 className="h-3.5 w-3.5" /></button>
             <button
               onClick={() => setViewMode("list")}
-              className={`flex h-8 w-8 items-center justify-center text-xs transition-colors ${viewMode === "list" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+              className={`flex h-10 w-10 items-center justify-center text-xs transition-colors ${viewMode === "list" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
               title="List view"
             ><List className="h-3.5 w-3.5" /></button>
           </div>

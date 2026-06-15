@@ -252,7 +252,7 @@ function ProjectsPageInner() {
                       setDensity(d);
                       localStorage.setItem("projects-density", d);
                     }}
-                    className={`flex h-8 w-8 items-center justify-center transition-colors ${
+                    className={`flex h-10 w-10 items-center justify-center transition-colors ${
                       density === d ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -273,7 +273,7 @@ function ProjectsPageInner() {
                   key={m}
                   onClick={() => setViewMode(m)}
                   title={m.charAt(0).toUpperCase() + m.slice(1)}
-                  className={`flex h-8 w-8 items-center justify-center transition-colors ${
+                  className={`flex h-10 w-10 items-center justify-center transition-colors ${
                     viewMode === m
                       ? "bg-foreground text-background"
                       : "text-muted-foreground hover:text-foreground"

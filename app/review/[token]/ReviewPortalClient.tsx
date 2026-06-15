@@ -800,7 +800,7 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                               />
                             </div>
                           </div>
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-0.5">
                               <button onClick={() => { if (!videoRef.current) return; isPlaying ? videoRef.current.pause() : videoRef.current.play(); }} className="rounded-lg p-2 text-white/80 hover:bg-white/10 transition-colors">
                                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -808,20 +808,21 @@ export default function ReviewPortalClient({ token }: { token: string }) {
                               <button onClick={() => { const n = !isMuted; setIsMuted(n); if (videoRef.current) videoRef.current.muted = n; }} className="rounded-lg p-2 text-white/80 hover:bg-white/10 transition-colors">
                                 {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
                               </button>
+                              {/* Volume slider — hidden on mobile; device volume handles it */}
                               <input type="range" min={0} max={1} step={0.05} value={isMuted ? 0 : volume}
                                 onChange={(e) => { const v = parseFloat(e.target.value); setVolume(v); setIsMuted(v === 0); if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; } }}
-                                className="h-1 w-16 cursor-pointer accent-[#d4a853]"
+                                className="hidden sm:block h-1 w-16 cursor-pointer accent-[#d4a853]"
                               />
-                              <span className="ml-2 font-mono text-[11px] text-white/50">{formatTime(currentTime)} / {formatTime(duration)}</span>
+                              <span className="ml-1 font-mono text-[11px] text-white/50 tabular-nums">{formatTime(currentTime)} / {formatTime(duration)}</span>
                             </div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <button
                                 type="button"
                                 onClick={captureTimestamp}
-                                className="flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1.5 text-[11px] font-medium text-white hover:bg-white/20 transition-colors active:scale-95"
+                                className="flex items-center gap-1.5 rounded-lg bg-white/10 px-2 py-1.5 text-[11px] font-medium text-white hover:bg-white/20 transition-colors active:scale-95"
                               >
-                                <MessageSquare className="h-3.5 w-3.5" />
-                                Note · {formatTime(currentTime)}
+                                <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                                <span className="hidden sm:inline">Note · </span>{formatTime(currentTime)}
                               </button>
                               <button onClick={handleFullscreen} className="rounded-lg p-2 text-white/80 hover:bg-white/10 transition-colors">
                                 <Maximize className="h-4 w-4" />

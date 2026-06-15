@@ -288,16 +288,16 @@ export function PayPage({ invoice, biz, sessionId }: PayPageProps & { sessionId?
         <div className="rounded-2xl bg-white shadow-xl overflow-hidden">
 
           {/* Header */}
-          <div className="flex items-start justify-between bg-zinc-900 px-10 py-8">
-            <div>
-              <p className="text-xl font-bold text-white">{biz.name}</p>
-              {biz.address && <p className="mt-1 text-xs text-zinc-400">{biz.address}</p>}
+          <div className="flex items-start justify-between gap-4 bg-zinc-900 px-5 py-6 sm:px-10 sm:py-8">
+            <div className="min-w-0">
+              <p className="text-lg font-bold text-white sm:text-xl">{biz.name}</p>
+              {biz.address && <p className="mt-1 text-xs text-zinc-400 break-words">{biz.address}</p>}
               {biz.phone && <p className="text-xs text-zinc-400">{biz.phone}</p>}
-              {biz.email && <p className="text-xs text-zinc-400">{biz.email}</p>}
+              {biz.email && <p className="text-xs text-zinc-400 break-all">{biz.email}</p>}
               {biz.website && <p className="text-xs text-zinc-400">{biz.website}</p>}
             </div>
-            <div className="text-right">
-              <p className="text-3xl font-black tracking-tight text-[#d4a853]">INVOICE</p>
+            <div className="text-right shrink-0">
+              <p className="text-2xl font-black tracking-tight text-[#d4a853] sm:text-3xl">INVOICE</p>
               <p className="mt-1 font-mono text-sm font-semibold text-white">{invoice.invoice_number}</p>
               <p className="mt-3 text-xs text-zinc-400">
                 Issued: {formatDate(invoice.created_at?.split("T")[0])}
@@ -314,7 +314,7 @@ export function PayPage({ invoice, biz, sessionId }: PayPageProps & { sessionId?
           </div>
 
           {/* Bill To */}
-          <div className="border-b border-zinc-100 bg-zinc-50 px-10 py-6">
+          <div className="border-b border-zinc-100 bg-zinc-50 px-5 py-5 sm:px-10 sm:py-6">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Bill To</p>
             <p className="text-base font-semibold text-zinc-900">{invoice.client_name || "Client"}</p>
             {invoice.description && (
@@ -323,31 +323,39 @@ export function PayPage({ invoice, biz, sessionId }: PayPageProps & { sessionId?
           </div>
 
           {/* Line Items */}
-          <div className="px-10 py-6">
+          <div className="px-5 py-5 sm:px-10 sm:py-6">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-200">
                   <th className="pb-3 text-left text-[10px] font-bold uppercase tracking-widest text-zinc-400">Description</th>
-                  <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-16">Qty</th>
-                  <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-28">Rate</th>
-                  <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-28">Amount</th>
+                  <th className="hidden pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 sm:table-cell w-16">Qty</th>
+                  <th className="hidden pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 sm:table-cell w-28">Rate</th>
+                  <th className="pb-3 text-right text-[10px] font-bold uppercase tracking-widest text-zinc-400 w-24">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {lineItems.length > 0 ? (
                   lineItems.map((li, i) => (
                     <tr key={li.id ?? i} className="border-b border-zinc-100">
-                      <td className="py-3 pr-4 text-zinc-800">{li.description || "—"}</td>
-                      <td className="py-3 text-right text-zinc-600">{li.quantity}</td>
-                      <td className="py-3 text-right text-zinc-600">{fmt(li.rate)}</td>
+                      <td className="py-3 pr-4 text-zinc-800">
+                        {li.description || "—"}
+                        {/* Show qty×rate below description on mobile */}
+                        {(li.quantity !== 1 || li.rate !== li.quantity * li.rate) && (
+                          <span className="block text-xs text-zinc-400 sm:hidden">
+                            {li.quantity} × {fmt(li.rate)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="hidden py-3 text-right text-zinc-600 sm:table-cell">{li.quantity}</td>
+                      <td className="hidden py-3 text-right text-zinc-600 sm:table-cell">{fmt(li.rate)}</td>
                       <td className="py-3 text-right font-medium text-zinc-900">{fmt(li.quantity * li.rate)}</td>
                     </tr>
                   ))
                 ) : (
                   <tr className="border-b border-zinc-100">
                     <td className="py-3 text-zinc-800">{invoice.description || "Services rendered"}</td>
-                    <td className="py-3 text-right text-zinc-600">1</td>
-                    <td className="py-3 text-right text-zinc-600">{fmt(invoice.amount)}</td>
+                    <td className="hidden py-3 text-right text-zinc-600 sm:table-cell">1</td>
+                    <td className="hidden py-3 text-right text-zinc-600 sm:table-cell">{fmt(invoice.amount)}</td>
                     <td className="py-3 text-right font-medium text-zinc-900">{fmt(invoice.amount)}</td>
                   </tr>
                 )}
@@ -356,7 +364,7 @@ export function PayPage({ invoice, biz, sessionId }: PayPageProps & { sessionId?
 
             {/* Totals */}
             <div className="mt-4 flex justify-end">
-              <div className="w-64 space-y-2">
+              <div className="w-full max-w-xs space-y-2 sm:w-64">
                 {lineItems.length > 0 && (
                   <div className="flex justify-between text-sm text-zinc-600">
                     <span>Subtotal</span><span>{fmt(subtotal)}</span>
@@ -382,7 +390,7 @@ export function PayPage({ invoice, biz, sessionId }: PayPageProps & { sessionId?
 
           {/* Notes */}
           {invoice.notes && (
-            <div className="border-t border-zinc-100 px-10 pb-6 pt-4">
+            <div className="border-t border-zinc-100 px-5 pb-5 pt-4 sm:px-10 sm:pb-6">
               <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">Notes</p>
               <p className="text-sm text-zinc-600 whitespace-pre-wrap">{invoice.notes}</p>
             </div>
