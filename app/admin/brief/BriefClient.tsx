@@ -60,6 +60,113 @@ function SectionHeader({ label, number }: { label: string; number: string }) {
   );
 }
 
+function buildAIBrief(metrics: LiveMetrics): string {
+  const mrrLine = metrics.mrr != null ? `$${metrics.mrr.toLocaleString()}/mo MRR` : "pre-revenue (beta)";
+  return `# CineFlow — Full AI Context Brief
+Generated from: ${BRIEF.company.website} | Stage: ${BRIEF.company.stage}
+
+---
+
+## What is CineFlow?
+${BRIEF.company.name} is ${BRIEF.company.tagline}
+
+Mission: ${BRIEF.company.mission}
+Vision: ${BRIEF.company.vision}
+
+## Target User
+${BRIEF.company.targetUser}
+
+---
+
+## The Problem
+${BRIEF.problem.headline}
+
+${BRIEF.problem.points.map(p => `- ${p.stat} ${p.label}: ${p.detail}`).join("\n")}
+
+## The Solution
+${BRIEF.solution.headline}
+${BRIEF.solution.description}
+
+---
+
+## Core Features (${BRIEF.features.length} modules)
+
+${BRIEF.features.map(f => `### ${f.name}\n${f.description}\nKey capabilities: ${f.highlights.join(", ")}`).join("\n\n")}
+
+---
+
+## Pricing
+
+${BRIEF.pricing.tiers.map(t => `- **${t.name}** — $${t.price}/mo · ${t.seats === 999 ? "unlimited" : t.seats} seat${t.seats !== 1 ? "s" : ""} · ${t.tagline}\n  Includes: ${t.highlights.join(", ")}`).join("\n")}
+- **Lifetime Deal** — $${BRIEF.pricing.lifetime.price} one-time · ${BRIEF.pricing.lifetime.description}
+
+---
+
+## Competitive Positioning
+
+Competitors: ${BRIEF.competitors.columns.slice(1).join(", ")}
+
+CineFlow is the ONLY platform that combines: project management, client review portal, AI production tools, invoicing, contracts, shot lists, crew management, audio transcription, drone ops, and retainer management — all built specifically for filmmakers.
+
+Key moat: ${BRIEF.competitors.savingsNote}
+
+A filmmaker using competitor tools pays $${BRIEF.roi.totalReplaced}/mo across 5+ subscriptions. CineFlow replaces all of them for $${BRIEF.roi.cineflowCost}/mo — saving $${BRIEF.roi.monthlySavings}/mo ($${BRIEF.roi.annualSavings}/yr).
+
+Time saved: ${BRIEF.roi.timePerWeek}.
+
+Tools CineFlow replaces:
+${BRIEF.roi.savings.map(s => `- ${s.tool} ($${s.cost}/mo) → ${s.replacedBy}`).join("\n")}
+
+---
+
+## Market Opportunity
+
+- TAM: ${BRIEF.market.tam.value} — ${BRIEF.market.tam.label} (${BRIEF.market.tam.growth})
+- SAM: ${BRIEF.market.sam.value} — ${BRIEF.market.sam.label}
+- Target segment: ${BRIEF.market.target.value} — ${BRIEF.market.target.label}
+
+Tailwinds:
+${BRIEF.market.tailwinds.map(t => `- ${t}`).join("\n")}
+
+---
+
+## Live Traction (real users only, demo/test excluded)
+
+- Total users: ${metrics.totalUsers.toLocaleString()}
+- Active in last 30 days: ${metrics.activeRecently.toLocaleString()}
+- Active trials: ${metrics.activeTrials.toLocaleString()}
+- Total projects created: ${metrics.totalProjects.toLocaleString()}
+- Revenue: ${mrrLine}
+
+---
+
+## Technology Stack
+
+${BRIEF.tech.stack.join(", ")}
+
+${BRIEF.tech.highlights.map(h => `- ${h}`).join("\n")}
+
+---
+
+## Distribution & Go-to-Market
+
+- Direct: usecineflow.com (SEO, social, word of mouth)
+- Referral system: built-in custom referral program
+- Mac desktop app: available as a native .dmg download
+- Extended trials (90-day) being used for early adopter seeding in film communities
+- Target channels: film schools, DP/editor communities, indie production Facebook groups, YouTube filmmaking creators
+
+---
+
+## Founder Context
+
+Solo bootstrapped founder with a background in the film/production industry. Built the entire platform from scratch. Deep domain expertise in filmmaker workflows — this is not a generic SaaS company trying to enter the space.
+
+Website: https://${BRIEF.company.website}
+Founded: ${BRIEF.company.founded}
+`;
+}
+
 export function BriefClient() {
   const [metrics, setMetrics] = useState<LiveMetrics>({ totalUsers: 0, activeTrials: 0, activeRecently: 0, totalProjects: 0, mrr: null });
   const [generating, setGenerating] = useState<Format | null>(null);
@@ -68,6 +175,7 @@ export function BriefClient() {
   const [activeFormat, setActiveFormat] = useState<Format | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [aiBriefCopied, setAiBriefCopied] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/brief/metrics")
@@ -118,6 +226,13 @@ export function BriefClient() {
     }
   }
 
+  async function copyAIBrief() {
+    await navigator.clipboard.writeText(buildAIBrief(metrics));
+    setAiBriefCopied(true);
+    toast.success("AI brief copied — paste into Claude, ChatGPT, or any AI");
+    setTimeout(() => setAiBriefCopied(false), 3000);
+  }
+
   async function copyGenerated(format: Format) {
     const text = generated[format];
     if (!text) return;
@@ -151,6 +266,13 @@ export function BriefClient() {
           <p className="text-[10px] text-zinc-600">Company Brief · Auto-updates on deploy</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={copyAIBrief}
+            className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/40 bg-[#d4a853]/10 px-3 py-1.5 text-xs font-semibold text-[#d4a853] transition-colors hover:bg-[#d4a853]/20"
+          >
+            {aiBriefCopied ? <CheckCheck className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {aiBriefCopied ? "Copied!" : "Copy AI Brief"}
+          </button>
           {shareToken && (
             <button
               onClick={copyShareLink}
@@ -471,6 +593,30 @@ export function BriefClient() {
               </pre>
             </div>
           )}
+        </div>
+
+        {/* ── AI Brief Prompt ── */}
+        <div>
+          <SectionHeader label="AI Context Brief" number="11" />
+          <p className="text-sm text-zinc-500 mb-5">
+            A single plain-text brief you can paste into Claude, ChatGPT, or any AI to instantly give it full context on CineFlow.
+            Auto-updates from this config — includes live traction metrics.
+          </p>
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+              <p className="text-xs font-semibold text-zinc-400">CineFlow Full AI Context Brief</p>
+              <button
+                onClick={copyAIBrief}
+                className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/5 px-3 py-1.5 text-xs font-semibold text-[#d4a853] transition-colors hover:bg-[#d4a853]/10"
+              >
+                {aiBriefCopied ? <CheckCheck className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
+                {aiBriefCopied ? "Copied to clipboard!" : "Copy to clipboard"}
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap p-5 text-xs text-zinc-400 leading-relaxed font-mono max-h-96 overflow-y-auto">
+              {buildAIBrief(metrics)}
+            </pre>
+          </div>
         </div>
 
         {/* Footer */}
