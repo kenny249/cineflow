@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { requireActivePlan } from "@/lib/billing-server";
+import { isRateLimited } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const planError = await requireActivePlan(supabase, user.id);
   if (planError) return planError;
+  if (await isRateLimited(`ai:transcribe-ai:${user.id}`, 20, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
 
   const { transcript, format, brief, vibes } = await req.json();
   if (!transcript) return NextResponse.json({ error: "No transcript provided" }, { status: 400 });

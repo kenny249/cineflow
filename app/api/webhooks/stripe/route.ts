@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "node:crypto";
+import { getPaymentCredentials } from "@/lib/payment-credentials";
 
 // Stripe webhook endpoint — handles payment confirmation automatically.
 //
@@ -102,14 +103,8 @@ export async function POST(req: NextRequest) {
 
   // Verify the webhook signature using the owner's stored webhook secret.
   // We always require a valid signature — no bypass if secret is unconfigured.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("payment_settings")
-    .eq("id", invoice.created_by)
-    .single();
-
-  const webhookSecret = (profile?.payment_settings as Record<string, string> | null)
-    ?.stripe_webhook_secret;
+  const creds = await getPaymentCredentials(supabase, invoice.created_by);
+  const webhookSecret = creds.stripe_webhook_secret;
 
   if (!webhookSecret || !signature) {
     console.warn("[webhook/stripe] missing webhook secret or signature for invoice:", invoice.id);

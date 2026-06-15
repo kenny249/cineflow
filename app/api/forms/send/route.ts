@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
-import type { PaymentSettings } from "@/types";
+import { getPaymentCredentials } from "@/lib/payment-credentials";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://usecineflow.com";
 
@@ -14,15 +14,16 @@ export async function POST(req: NextRequest) {
   const { form_id, to_email, to_name } = body as { form_id: string; to_email: string; to_name?: string };
   if (!form_id || !to_email) return NextResponse.json({ error: "form_id and to_email required" }, { status: 400 });
 
-  const [{ data: form }, { data: profile }] = await Promise.all([
+  const [{ data: form }, { data: profile }, creds] = await Promise.all([
     supabase.from("cine_forms").select("id, title, token, description").eq("id", form_id).single(),
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("profiles").select("business_name, company, full_name, payment_settings").eq("id", user.id).single(),
+    getPaymentCredentials(supabase, user.id),
   ]);
 
   if (!form) return NextResponse.json({ error: "Form not found" }, { status: 404 });
 
-  const ps = (profile?.payment_settings ?? {}) as PaymentSettings & Record<string, string>;
-  const resendKey = ps.resend_api_key || process.env.RESEND_API_KEY;
+  const ps = (profile?.payment_settings ?? {}) as { invoice_from_email?: string };
+  const resendKey = creds.resend_api_key || process.env.RESEND_API_KEY;
   if (!resendKey) return NextResponse.json({ error: "Resend API key not configured. Add it in Settings → Invoice Email." }, { status: 400 });
 
   const bizName = profile?.business_name || profile?.company || profile?.full_name || "Your Studio";

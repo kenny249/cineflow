@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import type { PaymentSettings } from "@/types";
 import { isRateLimited, getClientIp } from "@/lib/rate-limit";
+import { getPaymentCredentials } from "@/lib/payment-credentials";
 
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -129,16 +129,15 @@ async function sendSignedConfirmations({
   origin: string;
   now: string;
 }) {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("email, full_name, business_name, company, payment_settings")
-    .eq("id", contract.created_by)
-    .single();
+  const [{ data: profile }, creds] = await Promise.all([
+    supabase.from("profiles").select("email, full_name, business_name, company, payment_settings").eq("id", contract.created_by).single(),
+    getPaymentCredentials(supabase, contract.created_by),
+  ]);
 
   if (!profile) return;
 
-  const ps = (profile.payment_settings ?? {}) as PaymentSettings;
-  const resendKey = ps.resend_api_key || process.env.RESEND_API_KEY;
+  const ps = (profile.payment_settings ?? {}) as { invoice_from_name?: string; invoice_from_email?: string };
+  const resendKey = creds.resend_api_key || process.env.RESEND_API_KEY;
   if (!resendKey) return;
 
   const resend = new Resend(resendKey);

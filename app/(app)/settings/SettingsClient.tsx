@@ -14,6 +14,7 @@ import { getProfile, updateProfile, getProjectTemplates, createProjectTemplate, 
 import { setDisplayName } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import type { PaymentSettings } from "@/types";
+import type { PaymentCredentials } from "@/lib/payment-credentials";
 import { RateCardSection } from "@/components/quote-calculator/RateCardSection";
 
 function RateCardSectionLazy() {
@@ -92,6 +93,7 @@ export default function SettingsClient() {
   // Payment settings
   const [paymentTab, setPaymentTab] = useState<PaymentTab>("stripe");
   const [paySettings, setPaySettings] = useState<PaymentSettings>({});
+  const [payCredentials, setPayCredentials] = useState<PaymentCredentials>({});
   const [isSavingPayment, setIsSavingPayment] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState<PaymentTab | null>("stripe");
 
@@ -146,6 +148,13 @@ export default function SettingsClient() {
           setBusinessPhone(profile.business_phone ?? "");
           setBusinessWebsite(profile.business_website ?? "");
           setPaySettings((profile.payment_settings as PaymentSettings) ?? {});
+          // Load sensitive credentials from separate table
+          const supabase = createClient();
+          const { data: credRow } = await supabase
+            .from("payment_credentials")
+            .select("stripe_secret_key, stripe_webhook_secret, resend_api_key")
+            .single();
+          if (credRow) setPayCredentials(credRow);
           if (profile.plan) setPlan(profile.plan);
           if (profile.plan_status) setPlanStatus(profile.plan_status);
           if (profile.trial_ends_at) setTrialEndsAt(profile.trial_ends_at);
@@ -244,7 +253,20 @@ export default function SettingsClient() {
   const handleSavePayment = async () => {
     setIsSavingPayment(true);
     try {
-      await updateProfile({ payment_settings: paySettings });
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      await Promise.all([
+        updateProfile({ payment_settings: paySettings }),
+        supabase.from("payment_credentials").upsert({
+          user_id: user.id,
+          stripe_secret_key: payCredentials.stripe_secret_key ?? null,
+          stripe_webhook_secret: payCredentials.stripe_webhook_secret ?? null,
+          resend_api_key: payCredentials.resend_api_key ?? null,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id" }),
+      ]);
       toast.success("Payment settings saved.");
     } catch {
       toast.error("Failed to save payment settings.");
@@ -253,8 +275,15 @@ export default function SettingsClient() {
     }
   };
 
-  const setPay = (key: keyof PaymentSettings, value: string) =>
-    setPaySettings((prev) => ({ ...prev, [key]: value || undefined }));
+  const CREDENTIAL_KEYS: (keyof PaymentCredentials)[] = ["stripe_secret_key", "stripe_webhook_secret", "resend_api_key"];
+
+  const setPay = (key: keyof PaymentSettings, value: string) => {
+    if (CREDENTIAL_KEYS.includes(key as keyof PaymentCredentials)) {
+      setPayCredentials((prev) => ({ ...prev, [key]: value || null }));
+    } else {
+      setPaySettings((prev) => ({ ...prev, [key]: value || undefined }));
+    }
+  };
 
   const handleUpdatePassword = async () => {
     if (!newPassword || !confirmPassword) {
@@ -580,7 +609,7 @@ export default function SettingsClient() {
                 label="Stripe"
                 badge="Auto-generates payment links"
                 badgeColor="text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
-                configured={!!paySettings.stripe_secret_key}
+                configured={!!payCredentials.stripe_secret_key}
                 open={paymentOpen === "stripe"}
                 onToggle={() => setPaymentOpen(paymentOpen === "stripe" ? null : "stripe")}
               >
@@ -591,7 +620,7 @@ export default function SettingsClient() {
                   <div className="space-y-1.5">
                     <Label>Stripe Secret Key</Label>
                     <SecretInput
-                      value={paySettings.stripe_secret_key ?? ""}
+                      value={payCredentials.stripe_secret_key ?? ""}
                       onChange={(v) => setPay("stripe_secret_key", v)}
                       placeholder="sk_live_… or sk_test_…"
                     />
@@ -602,7 +631,7 @@ export default function SettingsClient() {
                   <div className="space-y-1.5">
                     <Label>Stripe Webhook Secret <span className="text-muted-foreground/50 font-normal">(optional)</span></Label>
                     <SecretInput
-                      value={paySettings.stripe_webhook_secret ?? ""}
+                      value={payCredentials.stripe_webhook_secret ?? ""}
                       onChange={(v) => setPay("stripe_webhook_secret", v)}
                       placeholder="whsec_…"
                     />
@@ -793,7 +822,7 @@ export default function SettingsClient() {
               <div className="space-y-1.5">
                 <Label>Resend API Key</Label>
                 <SecretInput
-                  value={paySettings.resend_api_key ?? ""}
+                  value={payCredentials.resend_api_key ?? ""}
                   onChange={(v) => setPay("resend_api_key", v)}
                   placeholder="re_…"
                 />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isRateLimited, getClientIp } from "@/lib/rate-limit";
+import { getPaymentCredentials } from "@/lib/payment-credentials";
 
 function getAdmin() {
   return createClient(
@@ -35,13 +36,8 @@ export async function POST(req: NextRequest) {
   if (!invoice) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   if (invoice.status === "paid") return NextResponse.json({ ok: true, alreadyPaid: true });
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("payment_settings")
-    .eq("id", invoice.created_by)
-    .single();
-
-  const stripeKey = (profile?.payment_settings as Record<string, string> | null)?.stripe_secret_key;
+  const creds = await getPaymentCredentials(supabase, invoice.created_by);
+  const stripeKey = creds.stripe_secret_key;
   if (!stripeKey) return NextResponse.json({ error: "Stripe not configured" }, { status: 400 });
 
   // Verify with Stripe that this session is actually paid

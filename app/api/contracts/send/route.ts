@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
-import type { PaymentSettings } from "@/types";
+import { getPaymentCredentials } from "@/lib/payment-credentials";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -17,10 +17,11 @@ export async function POST(req: NextRequest) {
 
   if (!body.contractId) return NextResponse.json({ error: "contractId required" }, { status: 400 });
 
-  // Load contract + profile
-  const [{ data: contract, error: contractErr }, { data: profile }] = await Promise.all([
+  // Load contract, profile, and credentials in parallel
+  const [{ data: contract, error: contractErr }, { data: profile }, creds] = await Promise.all([
     supabase.from("contracts").select("*").eq("id", body.contractId).eq("created_by", user.id).single(),
     supabase.from("profiles").select("full_name, company, business_name, email, payment_settings").eq("id", user.id).single(),
+    getPaymentCredentials(supabase, user.id),
   ]);
 
   if (contractErr || !contract) {
@@ -31,8 +32,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Recipient email is required to send. Edit the contract first." }, { status: 400 });
   }
 
-  const ps = (profile?.payment_settings ?? {}) as PaymentSettings;
-  const resendKey = ps.resend_api_key || process.env.RESEND_API_KEY;
+  const ps = (profile?.payment_settings ?? {}) as { invoice_from_name?: string; invoice_from_email?: string };
+  const resendKey = creds.resend_api_key || process.env.RESEND_API_KEY;
   if (!resendKey) {
     return NextResponse.json(
       { error: "Resend API key not configured. Add it in Settings → Invoice Email." },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getPaymentCredentials } from "@/lib/payment-credentials";
 
 async function stripePost(
   path: string,
@@ -32,15 +33,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's Stripe secret key from their profile (workspace_id for ownership check)
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("payment_settings, workspace_id")
-      .eq("id", user.id)
-      .single();
+    // Get workspace_id for ownership check and credentials in parallel
+    const [{ data: profile }, creds] = await Promise.all([
+      supabase.from("profiles").select("workspace_id").eq("id", user.id).single(),
+      getPaymentCredentials(supabase, user.id),
+    ]);
 
-    const stripeKey = (profile?.payment_settings as Record<string, string> | null)
-      ?.stripe_secret_key;
+    const stripeKey = creds.stripe_secret_key;
     if (!stripeKey) {
       return NextResponse.json(
         { error: "Stripe secret key not configured. Add it in Settings → Payment." },

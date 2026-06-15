@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireActivePlan } from "@/lib/billing-server";
+import { isRateLimited } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const planError = await requireActivePlan(supabase, user.id);
   if (planError) return planError;
+  if (await isRateLimited(`ai:venue:${user.id}`, 20, 60 * 60 * 1000)) {
+    return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+  }
 
   const { venueName, city } = await req.json();
   if (!venueName?.trim()) return NextResponse.json({ error: "No venue name" }, { status: 400 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
 import type { Invoice, PaymentSettings } from "@/types";
+import { getPaymentCredentials } from "@/lib/payment-credentials";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
@@ -250,17 +251,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get profile (needs Resend key + from info + biz name + workspace for ownership check)
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name, company, email, business_name, business_address, address_line1, address_line2, city, state, zip, payment_settings, workspace_id")
-      .eq("id", user.id)
-      .single();
+    // Get profile (biz info + workspace for ownership check) and credentials in parallel
+    const [{ data: profile }, creds] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("full_name, company, email, business_name, business_address, address_line1, address_line2, city, state, zip, payment_settings, workspace_id")
+        .eq("id", user.id)
+        .single(),
+      getPaymentCredentials(supabase, user.id),
+    ]);
 
     const ps = (profile?.payment_settings ?? {}) as PaymentSettings;
 
     // Per-user key takes priority; fall back to platform-level env var
-    const resendKey = ps.resend_api_key || process.env.RESEND_API_KEY;
+    const resendKey = creds.resend_api_key || process.env.RESEND_API_KEY;
     if (!resendKey) {
       return NextResponse.json(
         { error: "Resend API key not configured. Add it in Settings → Invoice Email." },

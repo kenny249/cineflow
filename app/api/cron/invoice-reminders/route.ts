@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 import type { Invoice, PaymentSettings } from "@/types";
+import { getPaymentCredentials } from "@/lib/payment-credentials";
 
 // Runs daily at 9 AM UTC (vercel.json schedule).
 // Does two things per run:
@@ -172,14 +173,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ processed: 0 });
   }
 
-  // Batch-load all owner profiles (Resend keys + biz info)
+  // Batch-load all owner profiles and credentials
   const ownerIds = [...new Set(invoices.map((i) => i.created_by).filter(Boolean))];
-  const { data: profiles } = await supabase
-    .from("profiles")
-    .select("id, full_name, company, business_name, email, payment_settings")
-    .in("id", ownerIds);
+  const [{ data: profiles }, { data: credentials }] = await Promise.all([
+    supabase.from("profiles").select("id, full_name, company, business_name, email, payment_settings").in("id", ownerIds),
+    supabase.from("payment_credentials").select("user_id, resend_api_key").in("user_id", ownerIds),
+  ]);
 
   const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]));
+  const credMap = Object.fromEntries((credentials ?? []).map((c) => [c.user_id, c]));
 
   let overdueFlipped = 0;
   let remindersSent = 0;
@@ -199,7 +201,7 @@ export async function GET(req: Request) {
     if (!profile || !inv.client_email) continue;
 
     const ps = (profile.payment_settings ?? {}) as PaymentSettings;
-    const resendKey = ps.resend_api_key || process.env.RESEND_API_KEY;
+    const resendKey = credMap[inv.created_by]?.resend_api_key || process.env.RESEND_API_KEY;
     if (!resendKey) continue;
 
     const bizName = profile.business_name || profile.company || profile.full_name || "Your Studio";
