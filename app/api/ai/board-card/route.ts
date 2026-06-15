@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireActivePlan } from "@/lib/billing-server";
 
 export const maxDuration = 30;
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const planError = await requireActivePlan(supabase, user.id);
+  if (planError) return planError;
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "AI not configured" }, { status: 503 });

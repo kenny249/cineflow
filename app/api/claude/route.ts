@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireActivePlan } from "@/lib/billing-server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -11,6 +12,8 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const planError = await requireActivePlan(supabase, user.id);
+    if (planError) return planError;
 
     const body = await req.json();
     if (JSON.stringify(body).length > 50_000) {

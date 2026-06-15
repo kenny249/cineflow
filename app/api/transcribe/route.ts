@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireActivePlan } from "@/lib/billing-server";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest) {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const planError = await requireActivePlan(supabase, user.id);
+  if (planError) return planError;
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "Transcription service not configured — OPENAI_API_KEY missing." }, { status: 503 });

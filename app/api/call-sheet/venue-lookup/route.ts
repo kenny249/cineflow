@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { requireActivePlan } from "@/lib/billing-server";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +92,12 @@ async function claudeVenueLookup(venueName: string): Promise<{ address: string |
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const planError = await requireActivePlan(supabase, user.id);
+  if (planError) return planError;
+
   const { venueName, city } = await req.json();
   if (!venueName?.trim()) return NextResponse.json({ error: "No venue name" }, { status: 400 });
 

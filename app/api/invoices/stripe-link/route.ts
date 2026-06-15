@@ -32,10 +32,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get user's Stripe secret key from their profile
+    // Get user's Stripe secret key from their profile (workspace_id for ownership check)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("payment_settings")
+      .select("payment_settings, workspace_id")
       .eq("id", user.id)
       .single();
 
@@ -48,11 +48,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get invoice
+    // Scope invoice fetch to the user's workspace — defense in depth alongside RLS.
+    const workspaceOwnerId = (profile as { workspace_id?: string } | null)?.workspace_id ?? user.id;
     const { data: invoice, error: invError } = await supabase
       .from("invoices")
       .select("*")
       .eq("id", invoiceId)
+      .eq("created_by", workspaceOwnerId)
       .single();
 
     if (invError || !invoice) {

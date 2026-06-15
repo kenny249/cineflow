@@ -250,10 +250,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get profile (needs Resend key + from info + biz name)
+    // Get profile (needs Resend key + from info + biz name + workspace for ownership check)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, company, email, business_name, business_address, address_line1, address_line2, city, state, zip, payment_settings")
+      .select("full_name, company, email, business_name, business_address, address_line1, address_line2, city, state, zip, payment_settings, workspace_id")
       .eq("id", user.id)
       .single();
 
@@ -268,11 +268,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get invoice
+    // Get invoice — scoped to the user's workspace so a user can never send
+    // another workspace's invoice even if they know the UUID (defense in depth
+    // alongside RLS).
+    const workspaceOwnerId = (profile as { workspace_id?: string } | null)?.workspace_id ?? user.id;
     const { data: invoice, error: invError } = await supabase
       .from("invoices")
       .select("*")
       .eq("id", invoiceId)
+      .eq("created_by", workspaceOwnerId)
       .single();
 
     if (invError || !invoice) {
