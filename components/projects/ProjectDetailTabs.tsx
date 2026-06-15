@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp, Plus, RotateCcw } from "lucide-react";
 import { CallSheetGenerator } from "@/components/call-sheet/CallSheetGenerator";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
@@ -312,6 +312,20 @@ export default function ProjectDetailTabs({
     setCheckedPhaseItems((prev) => { const next = new Set(prev); next.delete(itemId); return next; });
   };
 
+  const [hiddenDefaultItems, setHiddenDefaultItems] = useState<string[]>(
+    project.hidden_default_items ?? []
+  );
+
+  const hideDefaultItem = (itemId: string) => {
+    setHiddenDefaultItems((prev) => prev.includes(itemId) ? prev : [...prev, itemId]);
+    setCheckedPhaseItems((prev) => { const next = new Set(prev); next.delete(itemId); return next; });
+  };
+
+  const restorePhaseDefaults = (phaseId: string) => {
+    const ids = PROD_PHASES.find((p) => p.id === phaseId)?.items.map((i) => i.id) ?? [];
+    setHiddenDefaultItems((prev) => prev.filter((id) => !ids.includes(id)));
+  };
+
   const completedShots = useMemo(
     () => shotList?.items?.filter((item) => item.is_complete).length ?? 0,
     [shotList]
@@ -324,16 +338,21 @@ export default function ProjectDetailTabs({
     let pct = 0;
     for (const phase of PROD_PHASES) {
       if (phase.id === "shoot") {
-        pct += totalShots > 0 ? (completedShots / totalShots) * 40 : 0;
+        if (checkedPhaseItems.has("shoot_complete")) {
+          pct += 40;
+        } else {
+          pct += totalShots > 0 ? (completedShots / totalShots) * 40 : 0;
+        }
       } else {
+        const visibleDefaults = phase.items.filter((i) => !hiddenDefaultItems.includes(i.id));
         const phaseCustom = customChecklistItems.filter((ci) => ci.phaseId === phase.id);
-        const allItems = [...phase.items, ...phaseCustom];
+        const allItems = [...visibleDefaults, ...phaseCustom];
         const done = allItems.filter((i) => checkedPhaseItems.has(i.id)).length;
         pct += allItems.length > 0 ? (done / allItems.length) * phase.weight : 0;
       }
     }
     return Math.round(pct);
-  }, [checkedPhaseItems, completedShots, totalShots, customChecklistItems]);
+  }, [checkedPhaseItems, completedShots, totalShots, customChecklistItems, hiddenDefaultItems]);
 
   // Auto-save computed progress + phase_items to Supabase (debounced 2s)
   const progressSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -380,6 +399,18 @@ export default function ProjectDetailTabs({
     return () => { if (customItemsSaveTimer.current) clearTimeout(customItemsSaveTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customChecklistItems]);
+
+  const hiddenItemsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (hiddenItemsSaveTimer.current) clearTimeout(hiddenItemsSaveTimer.current);
+    hiddenItemsSaveTimer.current = setTimeout(async () => {
+      try {
+        await updateProject(project.id, { hidden_default_items: hiddenDefaultItems });
+      } catch { /* silent */ }
+    }, 1000);
+    return () => { if (hiddenItemsSaveTimer.current) clearTimeout(hiddenItemsSaveTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hiddenDefaultItems]);
 
   const burst = useCompletionBurst();
 
@@ -1806,14 +1837,19 @@ export default function ProjectDetailTabs({
                     <div className="space-y-2">
                       {PROD_PHASES.map((phase, phaseIndex) => {
                         const isShoot = phase.id === "shoot";
+                        const shootOverride = isShoot && checkedPhaseItems.has("shoot_complete");
                         const phaseCustom = customChecklistItems.filter((ci) => ci.phaseId === phase.id);
-                        const allPhaseItems = [...phase.items, ...phaseCustom];
+                        const visibleDefaultItems = isShoot
+                          ? phase.items
+                          : phase.items.filter((i) => !hiddenDefaultItems.includes(i.id));
+                        const allPhaseItems = [...visibleDefaultItems, ...phaseCustom];
                         const checkedCount = isShoot
-                          ? completedShots
+                          ? shootOverride ? totalShots || 1 : completedShots
                           : allPhaseItems.filter((i) => checkedPhaseItems.has(i.id)).length;
-                        const total = isShoot ? totalShots : allPhaseItems.length;
-                        const phasePct = total > 0 ? checkedCount / total : 0;
-                        const isComplete = total > 0 && phasePct >= 1;
+                        const total = isShoot ? (shootOverride ? checkedCount : totalShots) : allPhaseItems.length;
+                        const phasePct = shootOverride ? 1 : total > 0 ? checkedCount / total : 0;
+                        const isComplete = shootOverride || (total > 0 && phasePct >= 1);
+                        const hiddenInPhase = phase.items.filter((i) => hiddenDefaultItems.includes(i.id));
                         const isPast = phaseIndex < currentPhaseIndex;
                         const isCurrent = phaseIndex === currentPhaseIndex;
                         const phaseMap = PHASE_STATUS_MAP[phase.id];
@@ -1868,37 +1904,66 @@ export default function ProjectDetailTabs({
 
                               {/* Phase items */}
                               {isShoot ? (
-                                <div className="flex items-center gap-1.5">
-                                  <Film className="h-3 w-3 text-muted-foreground shrink-0" />
-                                  <span className="text-[11px] text-muted-foreground">
-                                    {totalShots === 0
-                                      ? "Add shots to the shot list to track production"
-                                      : <><span className="text-foreground font-medium">{completedShots}</span> of {totalShots} shots complete</>
-                                    }
-                                  </span>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <Film className="h-3 w-3 text-muted-foreground shrink-0" />
+                                    <span className="text-[11px] text-muted-foreground">
+                                      {shootOverride
+                                        ? <span className="text-emerald-400 font-medium">Shoot marked as complete</span>
+                                        : totalShots === 0
+                                        ? "Add shots to the shot list to track production"
+                                        : <><span className="text-foreground font-medium">{completedShots}</span> of {totalShots} shots complete</>
+                                      }
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-accent/50 transition-colors group"
+                                    onClick={(e) => togglePhaseItem("shoot_complete", e.nativeEvent)}
+                                  >
+                                    <div className={`h-3.5 w-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                      shootOverride
+                                        ? "bg-[#d4a853] border-[#d4a853]"
+                                        : "border-muted-foreground/40 group-hover:border-[#d4a853]/50"
+                                    }`}>
+                                      {shootOverride && <Check className="h-2 w-2 text-black" />}
+                                    </div>
+                                    <span className={`text-[11px] transition-colors ${shootOverride ? "line-through text-muted-foreground" : isCurrent ? "text-foreground" : "text-muted-foreground"}`}>
+                                      Mark shoot as complete
+                                    </span>
+                                  </button>
                                 </div>
                               ) : (
                                 <div className="space-y-0.5">
-                                  {phase.items.map((item) => {
+                                  {visibleDefaultItems.map((item) => {
                                     const done = checkedPhaseItems.has(item.id);
                                     return (
-                                      <button
-                                        key={item.id}
-                                        type="button"
-                                        className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left hover:bg-accent/50 transition-colors group"
-                                        onClick={(e) => togglePhaseItem(item.id, e.nativeEvent)}
-                                      >
-                                        <div className={`h-3.5 w-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
-                                          done
-                                            ? "bg-[#d4a853] border-[#d4a853]"
-                                            : "border-muted-foreground/40 group-hover:border-[#d4a853]/50"
-                                        }`}>
-                                          {done && <Check className="h-2 w-2 text-black" />}
-                                        </div>
-                                        <span className={`text-[11px] transition-colors ${done ? "line-through text-muted-foreground" : isCurrent ? "text-foreground" : "text-muted-foreground"}`}>
-                                          {item.label}
-                                        </span>
-                                      </button>
+                                      <div key={item.id} className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-accent/50 transition-colors group">
+                                        <button
+                                          type="button"
+                                          className="flex flex-1 items-center gap-2 text-left min-w-0"
+                                          onClick={(e) => togglePhaseItem(item.id, e.nativeEvent)}
+                                        >
+                                          <div className={`h-3.5 w-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+                                            done
+                                              ? "bg-[#d4a853] border-[#d4a853]"
+                                              : "border-muted-foreground/40 group-hover:border-[#d4a853]/50"
+                                          }`}>
+                                            {done && <Check className="h-2 w-2 text-black" />}
+                                          </div>
+                                          <span className={`text-[11px] transition-colors truncate ${done ? "line-through text-muted-foreground" : isCurrent ? "text-foreground" : "text-muted-foreground"}`}>
+                                            {item.label}
+                                          </span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => hideDefaultItem(item.id)}
+                                          className="ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/50 hover:text-destructive"
+                                          title="Hide item"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      </div>
                                     );
                                   })}
                                   {phaseCustom.map((item) => {
@@ -1932,6 +1997,16 @@ export default function ProjectDetailTabs({
                                       </div>
                                     );
                                   })}
+                                  {hiddenInPhase.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => restorePhaseDefaults(phase.id)}
+                                      className="flex items-center gap-1 px-1 py-0.5 text-[10px] text-muted-foreground/50 hover:text-[#d4a853] transition-colors"
+                                    >
+                                      <RotateCcw className="h-2.5 w-2.5" />
+                                      Restore {hiddenInPhase.length} hidden
+                                    </button>
+                                  )}
                                   {addingToPhase === phase.id ? (
                                     <div className="flex items-center gap-1.5 px-1 pt-0.5">
                                       <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30 shrink-0" />
