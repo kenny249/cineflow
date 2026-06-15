@@ -117,6 +117,7 @@ export interface Project {
   type: ProjectType;
   progress: number;
   phase_items?: string[];
+  hidden_default_items?: string[];
   custom_checklist_items?: Array<{ phaseId: string; id: string; label: string }>;
   due_date?: string;
   shoot_date?: string;
