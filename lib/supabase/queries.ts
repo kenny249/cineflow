@@ -35,15 +35,38 @@ export async function getProject(id: string) {
 }
 
 export async function createProject(project: Omit<Project, 'id' | 'created_at' | 'updated_at'>) {
+  // Only send columns that exist in the schema — never spread the full TS type,
+  // which may contain fields added to types before the migration was applied.
+  const payload: Record<string, unknown> = {
+    title:          project.title,
+    client_name:    project.client_name    ?? null,
+    client_email:   project.client_email   ?? null,
+    status:         project.status,
+    type:           project.type,
+    custom_type:    project.custom_type    ?? null,
+    description:    project.description   ?? null,
+    due_date:       project.due_date       ?? null,
+    shoot_date:     project.shoot_date     ?? null,
+    progress:       project.progress       ?? 0,
+    thumbnail_url:  project.thumbnail_url  ?? null,
+    cover_position: project.cover_position ?? null,
+    client_logo_url:project.client_logo_url?? null,
+    created_by:     project.created_by     ?? null,
+    tags:           project.tags           ?? [],
+    delivery_platform: project.delivery_platform ?? null,
+    delivery_url:   project.delivery_url   ?? null,
+  };
+
   const { data, error } = await db()
     .from('projects')
-    .insert(project)
+    .insert(payload)
     .select()
     .single();
 
   if (error) {
-    const message = error.message || "Failed to create project";
-    throw new Error(message);
+    console.error('[createProject]', error.message, error.code);
+    // Never expose raw Postgres/PostgREST errors to users
+    throw new Error("Failed to create project. Please try again.");
   }
 
   logActivity({ project_id: data.id, type: 'project_created', description: 'Created project' }).catch(() => {});
