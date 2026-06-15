@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getSeatLimit } from "@/lib/billing";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -10,12 +11,27 @@ export async function POST(req: NextRequest) {
   // Only workspace owners can invite
   const { data: profile } = await supabase
     .from("profiles")
-    .select("workspace_id")
+    .select("workspace_id, plan, seat_count")
     .eq("id", user.id)
     .single();
 
   if (!profile || profile.workspace_id !== user.id) {
     return NextResponse.json({ error: "Only workspace owners can invite members" }, { status: 403 });
+  }
+
+  // Enforce seat limit server-side
+  const seatLimit = getSeatLimit(profile.plan);
+  const { count: activeCount } = await supabase
+    .from("team_members")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "active");
+
+  if ((activeCount ?? 0) >= seatLimit) {
+    console.log("[team/invite] seat limit reached", { userId: user.id, plan: profile.plan, seatLimit, activeCount });
+    return NextResponse.json(
+      { error: `You've reached your ${seatLimit}-seat limit. Upgrade your plan to add more team members.` },
+      { status: 402 }
+    );
   }
 
   const body = await req.json();

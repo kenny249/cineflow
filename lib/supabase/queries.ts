@@ -1659,12 +1659,12 @@ export const BETA_STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
 export async function getStorageUsageBytes(): Promise<number> {
   const client = db();
   const [filesRes, revisionsRes] = await Promise.all([
-    client.from('project_files').select('size').not('size', 'is', null),
-    client.from('revisions').select('file_size').not('file_size', 'is', null),
+    client.from('project_files').select('size.sum()').single(),
+    client.from('revisions').select('file_size.sum()').single(),
   ]);
-  const filesTotal = (filesRes.data ?? []).reduce((s: number, r: any) => s + (r.size ?? 0), 0);
-  const revisionsTotal = (revisionsRes.data ?? []).reduce((s: number, r: any) => s + (r.file_size ?? 0), 0);
-  return filesTotal + revisionsTotal;
+  const filesTotal = (filesRes.data as any)?.sum ?? 0;
+  const revisionsTotal = (revisionsRes.data as any)?.sum ?? 0;
+  return Number(filesTotal) + Number(revisionsTotal);
 }
 
 export async function deleteRetainerDeliverable(id: string): Promise<void> {

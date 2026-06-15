@@ -312,6 +312,58 @@ export function emailTrialExpiring({
   return { subject, html: base(subject, body, `You're receiving this because your CineFlow trial is ending soon.`) };
 }
 
+// ─── Template: Payment failed ─────────────────────────────────────────────────
+export function emailPaymentFailed({
+  firstName,
+  planName,
+  updateUrl,
+}: {
+  firstName: string;
+  planName: string;
+  updateUrl: string;
+}): { subject: string; html: string } {
+  const subject = "Action required: Your CineFlow payment failed";
+  const body = `
+    ${h1("We couldn't process your payment.")}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;">Hi${firstName ? ` ${firstName}` : ""}, we weren't able to charge your card for your <strong style="color:#f0f0f0;">${planName}</strong> subscription. Your account is still active for now, but access will be paused if payment isn't resolved.</p>
+    ${divider()}
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="background:#161616;border:1px solid #222;border-left:3px solid #ef4444;border-radius:0 8px 8px 0;padding:14px 16px;">
+          <p style="margin:0;font-size:13px;font-weight:700;color:#ef4444;">Payment failed</p>
+          <p style="margin:6px 0 0;font-size:12px;color:#666;">Update your payment method to keep your subscription active.</p>
+        </td>
+      </tr>
+    </table>
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#666666;">Click below to update your billing details. It only takes a moment.</p>
+    ${btn("Update payment method", updateUrl)}
+  `;
+  return { subject, html: base(subject, body, "You're receiving this because a payment on your CineFlow account failed.") };
+}
+
+// ─── Template: Subscription canceled ─────────────────────────────────────────
+export function emailSubscriptionCanceled({
+  firstName,
+  planName,
+  reactivateUrl,
+}: {
+  firstName: string;
+  planName: string;
+  reactivateUrl: string;
+}): { subject: string; html: string } {
+  const subject = "Your CineFlow subscription has been canceled";
+  const body = `
+    ${h1("Your subscription has been canceled.")}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;">Hi${firstName ? ` ${firstName}` : ""}, your <strong style="color:#f0f0f0;">${planName}</strong> subscription has been canceled. Your projects, clients, invoices, and all your data are safe and waiting for you.</p>
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#666666;">You can reactivate your subscription at any time to regain full access to CineFlow.</p>
+    ${btn("Reactivate subscription", reactivateUrl)}
+    <p style="margin:20px 0 0;font-size:12px;color:#444444;">If this was a mistake or you have questions, reply to this email and we'll help you out.</p>
+  `;
+  return { subject, html: base(subject, body, "You're receiving this because your CineFlow subscription was canceled.") };
+}
+
 // ─── Template: Owner — client requested changes ───────────────────────────────
 export function emailOwnerClientRequestedChanges({
   projectTitle,

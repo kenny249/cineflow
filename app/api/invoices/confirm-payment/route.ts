@@ -56,11 +56,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (session.payment_status !== "paid") {
+    console.log("[confirm-payment] session not paid", { invoiceId, sessionId, paymentStatus: session.payment_status });
     return NextResponse.json({ ok: false, paymentStatus: session.payment_status });
   }
 
-  // Mark invoice as paid
-  await supabase
+  // Atomic conditional update: only marks paid if still unpaid, preventing double-payment on concurrent requests.
+  const { data: updatedRows } = await supabase
     .from("invoices")
     .update({
       status: "paid",
@@ -68,7 +69,15 @@ export async function POST(req: NextRequest) {
       paid_date: new Date().toISOString().slice(0, 10),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", invoiceId);
+    .eq("id", invoiceId)
+    .neq("status", "paid")
+    .select("id");
 
+  if (!updatedRows || updatedRows.length === 0) {
+    console.log("[confirm-payment] already paid", { invoiceId });
+    return NextResponse.json({ ok: true, alreadyPaid: true });
+  }
+
+  console.log("[confirm-payment] marked paid", { invoiceId, sessionId });
   return NextResponse.json({ ok: true, paid: true });
 }

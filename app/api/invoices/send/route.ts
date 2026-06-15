@@ -309,6 +309,17 @@ export async function POST(req: NextRequest) {
 
     const resend = new Resend(resendKey);
 
+    // Mark as sent BEFORE emailing so a failed Supabase write can't cause duplicate sends on retry.
+    // Only advances from draft → sent; already-sent/paid invoices are unaffected.
+    const { data: markedRows } = await supabase
+      .from("invoices")
+      .update({ status: "sent", updated_at: new Date().toISOString() })
+      .eq("id", invoiceId)
+      .eq("status", "draft")
+      .select("id");
+
+    const justMarked = (markedRows?.length ?? 0) > 0;
+
     const { error: emailError } = await resend.emails.send({
       from: `${fromName} <${fromEmail}>`,
       to: [inv.client_email as string],
@@ -317,15 +328,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (emailError) {
-      return NextResponse.json({ error: emailError.message }, { status: 400 });
+      // Roll back the status change if we were the one who advanced it
+      if (justMarked) {
+        await supabase.from("invoices").update({ status: "draft", updated_at: new Date().toISOString() }).eq("id", invoiceId);
+      }
+      console.error("[invoices/send] Resend error:", emailError.message);
+      return NextResponse.json({ error: "Failed to send invoice email. Please try again." }, { status: 400 });
     }
-
-    // Mark as sent (only auto-advance from draft)
-    await supabase
-      .from("invoices")
-      .update({ status: "sent", updated_at: new Date().toISOString() })
-      .eq("id", invoiceId)
-      .eq("status", "draft");
 
     return NextResponse.json({ success: true, payUrl });
   } catch (e: unknown) {
