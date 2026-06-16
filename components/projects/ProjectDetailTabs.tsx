@@ -102,17 +102,10 @@ const PROD_PHASES = [
     label: "Pre-Production",
     weight: 20,
     items: [
-      { id: "script_ready",       label: "Script finalized" },
-      { id: "storyboard_done",    label: "Storyboard approved" },
-      { id: "locations_locked",   label: "Locations locked" },
-      { id: "permits_secured",    label: "Permits & insurance secured" },
-      { id: "crew_confirmed",     label: "Crew confirmed" },
-      { id: "talent_confirmed",   label: "Talent / cast confirmed" },
-      { id: "shot_list_built",    label: "Shot list created" },
-      { id: "gear_reserved",      label: "Gear reserved" },
-      { id: "call_sheet_sent",    label: "Call sheet sent" },
-      { id: "contract_signed",    label: "Contract signed" },
-      { id: "deposit_received",   label: "Deposit received" },
+      { id: "script_ready",     label: "Script finalized" },
+      { id: "locations_locked", label: "Locations locked" },
+      { id: "crew_confirmed",   label: "Crew confirmed" },
+      { id: "shot_list_built",  label: "Shot list created" },
     ],
   },
   {
@@ -126,11 +119,8 @@ const PROD_PHASES = [
     label: "Post-Production",
     weight: 25,
     items: [
-      { id: "footage_ingested",   label: "Footage ingested & backed up" },
-      { id: "rough_cut",          label: "Rough cut delivered" },
       { id: "editing_complete",   label: "Editing complete" },
       { id: "color_sound",        label: "Color & sound done" },
-      { id: "music_licensed",     label: "Music licensed / cleared" },
       { id: "revisions_approved", label: "Client revisions approved" },
     ],
   },
@@ -139,14 +129,40 @@ const PROD_PHASES = [
     label: "Delivery",
     weight: 15,
     items: [
-      { id: "final_export",           label: "Final export ready" },
-      { id: "files_uploaded",         label: "Files uploaded to client" },
-      { id: "delivered_to_client",    label: "Delivered to client" },
-      { id: "final_invoice_sent",     label: "Final invoice sent" },
-      { id: "payment_received",       label: "Payment received" },
+      { id: "final_export",        label: "Final export ready" },
+      { id: "delivered_to_client", label: "Delivered to client" },
     ],
   },
 ];
+
+const PHASE_SUGGESTIONS: Record<string, { id: string; label: string }[]> = {
+  pre_prod: [
+    { id: "storyboard_done",  label: "Storyboard approved" },
+    { id: "permits_secured",  label: "Permits & insurance" },
+    { id: "talent_confirmed", label: "Talent / cast confirmed" },
+    { id: "gear_reserved",    label: "Gear reserved" },
+    { id: "call_sheet_sent",  label: "Call sheet sent" },
+    { id: "contract_signed",  label: "Contract signed" },
+    { id: "deposit_received", label: "Deposit received" },
+  ],
+  shoot: [
+    { id: "broll_captured",   label: "B-roll captured" },
+    { id: "audio_checked",    label: "Audio levels checked" },
+    { id: "releases_signed",  label: "Release forms signed" },
+  ],
+  post_prod: [
+    { id: "footage_ingested", label: "Footage ingested & backed up" },
+    { id: "rough_cut",        label: "Rough cut delivered" },
+    { id: "music_licensed",   label: "Music licensed / cleared" },
+    { id: "captions_done",    label: "Captions / subtitles done" },
+  ],
+  delivery: [
+    { id: "files_uploaded",      label: "Files uploaded to client" },
+    { id: "final_invoice_sent",  label: "Final invoice sent" },
+    { id: "payment_received",    label: "Payment received" },
+    { id: "testimonial_request", label: "Testimonial requested" },
+  ],
+};
 
 // Phase → status relationship: which status means "this phase is active",
 // what to advance to when complete, and what the CTA button says.
@@ -2049,22 +2065,57 @@ export default function ProjectDetailTabs({
                                     </button>
                                   )}
                                   {addingToPhase === phase.id ? (
-                                    <div className="flex items-center gap-1.5 px-1 pt-0.5">
-                                      <div className="h-3.5 w-3.5 rounded-full border border-muted-foreground/30 shrink-0" />
-                                      <input
-                                        autoFocus
-                                        type="text"
-                                        value={newItemText}
-                                        onChange={(e) => setNewItemText(e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") addCustomItem(phase.id);
-                                          if (e.key === "Escape") { setAddingToPhase(null); setNewItemText(""); }
-                                        }}
-                                        placeholder="New item…"
-                                        className="flex-1 bg-transparent text-[11px] text-foreground outline-none placeholder:text-muted-foreground/40"
-                                      />
-                                      <button type="button" onClick={() => addCustomItem(phase.id)} className="text-[10px] text-[#d4a853] font-medium hover:text-[#c49843]">Add</button>
-                                      <button type="button" onClick={() => { setAddingToPhase(null); setNewItemText(""); }} className="text-muted-foreground/50 hover:text-muted-foreground"><X className="h-3 w-3" /></button>
+                                    <div className="mt-1 space-y-2 rounded-lg border border-border/60 bg-accent/30 p-2">
+                                      {/* Quick-add suggestions */}
+                                      {(() => {
+                                        const usedIds = new Set([
+                                          ...visibleDefaultItems.map((i) => i.id),
+                                          ...phaseCustom.map((i) => i.id),
+                                          ...hiddenInPhase.map((i) => i.id),
+                                        ]);
+                                        const suggestions = (PHASE_SUGGESTIONS[phase.id] ?? []).filter((s) => !usedIds.has(s.id));
+                                        if (suggestions.length === 0) return null;
+                                        return (
+                                          <div className="flex flex-wrap gap-1">
+                                            {suggestions.map((s) => (
+                                              <button
+                                                key={s.id}
+                                                type="button"
+                                                onClick={() => {
+                                                  const id = s.id;
+                                                  const label = s.label;
+                                                  setCustomChecklistItems((prev) => [...prev, { phaseId: phase.id, id, label }]);
+                                                  setAddingToPhase(null);
+                                                  setNewItemText("");
+                                                }}
+                                                className="rounded-full border border-border/60 bg-card px-2 py-0.5 text-[10px] text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground transition-colors"
+                                              >
+                                                + {s.label}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        );
+                                      })()}
+                                      {/* Custom text input */}
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="h-3 w-3 rounded-full border border-muted-foreground/30 shrink-0" />
+                                        <input
+                                          autoFocus
+                                          type="text"
+                                          value={newItemText}
+                                          onChange={(e) => setNewItemText(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") addCustomItem(phase.id);
+                                            if (e.key === "Escape") { setAddingToPhase(null); setNewItemText(""); }
+                                          }}
+                                          placeholder="Or type a custom item…"
+                                          className="flex-1 bg-transparent text-[11px] text-foreground outline-none placeholder:text-muted-foreground/40"
+                                        />
+                                        {newItemText.trim() && (
+                                          <button type="button" onClick={() => addCustomItem(phase.id)} className="text-[10px] text-[#d4a853] font-medium hover:text-[#c49843]">Add</button>
+                                        )}
+                                        <button type="button" onClick={() => { setAddingToPhase(null); setNewItemText(""); }} className="text-muted-foreground/50 hover:text-muted-foreground"><X className="h-3 w-3" /></button>
+                                      </div>
                                     </div>
                                   ) : (
                                     <button
