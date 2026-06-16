@@ -599,7 +599,7 @@ export function AudioTranscriber() {
         </button>
         {libraryOpen && (
           <div className="max-h-80 overflow-y-auto custom-scrollbar border-t border-border px-5 py-4">
-            <TranscriptHistory key={historyKey} />
+            <TranscriptHistory key={historyKey} onLoadTranscript={loadTranscript} />
           </div>
         )}
       </div>
