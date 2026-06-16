@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff, ChevronDown, Tv2, Sparkles, Check, BookTemplate, Plus, Trash2, X, Shield } from "lucide-react";
 import { ROLE_DEFINITIONS } from "@/lib/roles";
@@ -126,6 +127,16 @@ export default function SettingsClient() {
   const [isOwner, setIsOwner] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const section = searchParams.get("section");
+    if (section) {
+      setTimeout(() => {
+        document.getElementById(section)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     async function load() {
@@ -341,7 +352,7 @@ export default function SettingsClient() {
         <div className="mx-auto max-w-2xl space-y-8 p-6">
 
           {/* ── Profile ─────────────────────────────────────────── */}
-          <section>
+          <section id="profile">
             <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Profile</h2>
             <div className="rounded-xl border border-border bg-card p-6 space-y-4">
               <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -930,7 +941,7 @@ export default function SettingsClient() {
           </section>
 
           {/* ── Plan ─────────────────────────────────────────────── */}
-          <section>
+          <section id="billing">
             <h2 className="mb-4 font-display text-sm font-semibold text-foreground">Plan</h2>
 
             {plan === "lifetime" || planStatus === "founding" ? (

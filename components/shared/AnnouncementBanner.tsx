@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Info, AlertTriangle, CheckCircle } from "lucide-react";
 
 type Props = {
+  id: string;
   message: string;
   type: string;
 };
@@ -14,8 +15,19 @@ const STYLES: Record<string, { bg: string; text: string; border: string; Icon: R
   success: { bg: "bg-emerald-500/10", text: "text-emerald-300",border: "border-emerald-500/20",Icon: CheckCircle },
 };
 
-export function AnnouncementBanner({ message, type }: Props) {
+export function AnnouncementBanner({ id, message, type }: Props) {
+  const storageKey = `cf_banner_dismissed_${id}`;
   const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (localStorage.getItem(storageKey) === "1") setDismissed(true);
+  }, [storageKey]);
+
+  function dismiss() {
+    localStorage.setItem(storageKey, "1");
+    setDismissed(true);
+  }
+
   if (dismissed) return null;
 
   const s = STYLES[type] ?? STYLES.info;
@@ -24,7 +36,7 @@ export function AnnouncementBanner({ message, type }: Props) {
     <div className={`flex items-center gap-3 border-b ${s.border} ${s.bg} px-4 py-2.5`}>
       <s.Icon className={`h-4 w-4 shrink-0 ${s.text}`} />
       <p className={`flex-1 text-xs font-medium ${s.text}`}>{message}</p>
-      <button onClick={() => setDismissed(true)} className={`${s.text} opacity-60 hover:opacity-100 transition-opacity`}>
+      <button onClick={dismiss} className={`${s.text} opacity-60 hover:opacity-100 transition-opacity`}>
         <X className="h-3.5 w-3.5" />
       </button>
     </div>

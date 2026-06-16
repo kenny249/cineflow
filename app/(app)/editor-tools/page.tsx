@@ -1,18 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Wrench, Clock, Calculator, MonitorPlay, Mic2 } from "lucide-react";
+import { Wrench, Clock, MonitorPlay, Mic2 } from "lucide-react";
 import { getEditSessions } from "@/lib/supabase/queries";
 import type { EditSession } from "@/types";
 import { SessionLog } from "@/components/editor-tools/SessionLog";
-import { TimecodeCalc } from "@/components/editor-tools/TimecodeCalc";
 import { DeliverySpecs } from "@/components/editor-tools/DeliverySpecs";
 import { AudioTranscriber } from "@/components/editor-tools/AudioTranscriber";
 import { cn } from "@/lib/utils";
 
 const TABS = [
   { key: "log",        label: "Session Log",   icon: Clock },
-  { key: "timecode",   label: "Timecode Calc", icon: Calculator },
   { key: "delivery",   label: "Delivery Specs",icon: MonitorPlay },
   { key: "transcribe", label: "Transcribe",    icon: Mic2 },
 ] as const;
@@ -58,7 +56,7 @@ export default function EditorToolsPage() {
         </div>
         <div>
           <h1 className="font-display text-xl font-bold tracking-tight text-foreground">Editor Tools</h1>
-          <p className="text-[11px] text-muted-foreground/50">Session logging, timecode math, delivery specs, and audio transcription</p>
+          <p className="text-[11px] text-muted-foreground/50">Session logging, delivery specs, and audio transcription</p>
         </div>
       </div>
 
@@ -94,11 +92,6 @@ export default function EditorToolsPage() {
             ) : (
               <SessionLog sessions={sessions} onDelete={handleDelete} onAdd={handleAdd} />
             )}
-          </div>
-        )}
-        {tab === "timecode" && (
-          <div className="h-full overflow-y-auto custom-scrollbar px-6 py-6">
-            <TimecodeCalc />
           </div>
         )}
         {tab === "delivery" && (

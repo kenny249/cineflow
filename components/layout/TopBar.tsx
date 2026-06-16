@@ -286,15 +286,15 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/settings" className="cursor-pointer gap-2">
+              <Link href="/settings?section=profile" className="cursor-pointer gap-2">
                 <User className="h-3.5 w-3.5" />
                 Profile
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/settings" className="cursor-pointer gap-2">
+              <Link href="/settings?section=billing" className="cursor-pointer gap-2">
                 <Settings className="h-3.5 w-3.5" />
-                Settings
+                Billing & Plan
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />

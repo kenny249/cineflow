@@ -244,7 +244,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
         </Suspense>
         <DemoBanner />
         {announcements.map((a) => (
-          <AnnouncementBanner key={a.id} message={a.message} type={a.type} />
+          <AnnouncementBanner key={a.id} id={a.id} message={a.message} type={a.type} />
         ))}
         {/* pb-20 on mobile for bottom nav clearance (nav is ~68px + safe area) */}
         <main className="flex-1 overflow-hidden pb-20 md:pb-0">
