@@ -165,7 +165,7 @@ export async function deleteProjectNote(id: string) {
 export async function getShotLists(projectId: string) {
   const { data, error } = await db()
     .from('shot_lists')
-    .select(`*, shot_list_items (*)`)
+    .select(`*, items:shot_list_items (*)`)
     .eq('project_id', projectId)
     .order('created_at', { ascending: false });
 
@@ -179,15 +179,12 @@ export async function getShotLists(projectId: string) {
 export async function getShotList(id: string) {
   const { data, error } = await db()
     .from('shot_lists')
-    .select(`
-      *,
-      shot_list_items (*)
-    `)
+    .select(`*, items:shot_list_items (*)`)
     .eq('id', id)
     .single();
 
   if (error) throw error;
-  return data as ShotList & { shot_list_items: ShotListItem[] };
+  return data as ShotList;
 }
 
 export async function createShotList(shotList: Omit<ShotList, 'id' | 'created_at' | 'updated_at'>) {
