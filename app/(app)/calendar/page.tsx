@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2, Video, RefreshCw, Copy, ExternalLink } from "lucide-react";
-import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getProjects, expandRecurringEvents } from "@/lib/supabase/queries";
+import { ChevronLeft, ChevronRight, Calendar as CalIcon, MapPin, Plus, List, Grid3x3, Pencil, Check, X, Clock, Trash2, Video, RefreshCw, Copy, ExternalLink, Palette } from "lucide-react";
+import { getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, getProjects, expandRecurringEvents, getProfile, updateProfile } from "@/lib/supabase/queries";
 import { createClient } from "@/lib/supabase/client";
 import type { TeamMember } from "@/components/calendar/EventFormModal";
 import { Button } from "@/components/ui/button";
@@ -16,23 +16,29 @@ import type { CalendarEvent, CalendarEventType, Project } from "@/types";
 import { EventFormModal } from "@/components/calendar/EventFormModal";
 import type { EventFormValues } from "@/components/calendar/EventFormModal";
 
-const EVENT_COLORS: Record<string, string> = {
-  shoot: "bg-[#d4a853] text-black",
-  meeting: "bg-blue-500/80 text-white",
-  deadline: "bg-red-500/80 text-white",
-  milestone: "bg-purple-500/80 text-white",
-  delivery: "bg-emerald-500/80 text-white",
-  other: "bg-muted text-muted-foreground",
+const DEFAULT_EVENT_HEX: Record<string, string> = {
+  shoot: "#d4a853",
+  meeting: "#3b82f6",
+  deadline: "#ef4444",
+  milestone: "#a855f7",
+  delivery: "#10b981",
+  other: "#6b7280",
+};
+const DEFAULT_TEXT_COLOR: Record<string, string> = {
+  shoot: "#000000",
+  meeting: "#ffffff",
+  deadline: "#ffffff",
+  milestone: "#ffffff",
+  delivery: "#ffffff",
+  other: "#ffffff",
 };
 
-const EVENT_DOT: Record<string, string> = {
-  shoot: "bg-[#d4a853]",
-  meeting: "bg-blue-400",
-  deadline: "bg-red-400",
-  milestone: "bg-purple-400",
-  delivery: "bg-emerald-400",
-  other: "bg-muted-foreground",
-};
+function hexLuminance(hex: string) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
 
 const EVENT_TYPES = [
   { value: "shoot", label: "Shoot" },
@@ -90,6 +96,24 @@ export default function CalendarPage() {
   const [timeHour, setTimeHour] = useState("12");
   const [timeMinute, setTimeMinute] = useState("00");
   const [timeAmPm, setTimeAmPm] = useState<"AM" | "PM">("PM");
+
+  const [customColors, setCustomColors] = useState<Record<string, string>>({});
+  const [colorsOpen, setColorsOpen] = useState(false);
+  const [colorDraft, setColorDraft] = useState<Record<string, string>>({});
+  const [savingColors, setSavingColors] = useState(false);
+  const colorsRef = useRef<HTMLDivElement>(null);
+
+  const getEventStyle = (type: string): React.CSSProperties => {
+    const hex = customColors[type] ?? DEFAULT_EVENT_HEX[type] ?? DEFAULT_EVENT_HEX.other;
+    const textColor = customColors[type]
+      ? (hexLuminance(hex) > 0.5 ? "#000000" : "#ffffff")
+      : (DEFAULT_TEXT_COLOR[type] ?? "#ffffff");
+    return { backgroundColor: hex, color: textColor };
+  };
+
+  const getDotStyle = (type: string): React.CSSProperties => ({
+    backgroundColor: customColors[type] ?? DEFAULT_EVENT_HEX[type] ?? DEFAULT_EVENT_HEX.other,
+  });
 
   const [syncOpen, setSyncOpen] = useState(false);
   const [syncUrl, setSyncUrl] = useState<string | null>(null);
@@ -214,14 +238,27 @@ export default function CalendarPage() {
   }, [syncOpen]);
 
   useEffect(() => {
+    if (!colorsOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (colorsRef.current && !colorsRef.current.contains(e.target as Node)) setColorsOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [colorsOpen]);
+
+  useEffect(() => {
     async function load() {
       try {
         const supabase = createClient();
-        const [evts, projs, membersRes] = await Promise.all([
+        const [evts, projs, membersRes, prof] = await Promise.all([
           getCalendarEvents(),
           getProjects(),
           supabase.from("team_members").select("user_id, profiles(first_name, last_name)").eq("status", "active"),
+          getProfile(),
         ]);
+        if (prof?.calendar_colors && typeof prof.calendar_colors === "object") {
+          setCustomColors(prof.calendar_colors as Record<string, string>);
+        }
         setProjects(projs || []);
         setTeamMembers(
           (membersRes.data ?? []).map((m: any) => ({
@@ -463,6 +500,70 @@ export default function CalendarPage() {
             </AnimatePresence>
           </div>
 
+          <div className="relative" ref={colorsRef}>
+            <button
+              onClick={() => { setColorDraft({ ...customColors }); setColorsOpen((v) => !v); }}
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-medium text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground transition-all"
+              title="Customize event colors"
+            >
+              <Palette className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Colors</span>
+            </button>
+
+            <AnimatePresence>
+              {colorsOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-10 z-50 w-64 rounded-xl border border-border bg-card shadow-xl p-4 space-y-3"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Event Colors</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Customize colors per event type.</p>
+                  </div>
+                  <div className="space-y-2">
+                    {EVENT_TYPES.map((t) => (
+                      <div key={t.value} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorDraft[t.value] ?? DEFAULT_EVENT_HEX[t.value] }} />
+                          <span className="text-xs text-foreground">{t.label}</span>
+                        </div>
+                        <input
+                          type="color"
+                          value={colorDraft[t.value] ?? DEFAULT_EVENT_HEX[t.value]}
+                          onChange={(e) => setColorDraft((prev) => ({ ...prev, [t.value]: e.target.value }))}
+                          className="h-7 w-10 cursor-pointer rounded border border-border bg-transparent p-0.5"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 border-t border-border pt-3">
+                    <button
+                      onClick={() => { setColorDraft({ ...DEFAULT_EVENT_HEX }); }}
+                      className="flex-1 rounded-lg border border-border py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >Reset</button>
+                    <button
+                      disabled={savingColors}
+                      onClick={async () => {
+                        setSavingColors(true);
+                        try {
+                          await updateProfile({ calendar_colors: colorDraft });
+                          setCustomColors(colorDraft);
+                          setColorsOpen(false);
+                          toast.success("Colors saved");
+                        } catch { toast.error("Failed to save colors"); }
+                        finally { setSavingColors(false); }
+                      }}
+                      className="flex-1 rounded-lg bg-[#d4a853] py-1.5 text-xs font-semibold text-black hover:bg-[#c49743] transition-colors disabled:opacity-60"
+                    >{savingColors ? "Saving…" : "Save"}</button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => { setCreateDefaultDate(undefined); setCreateOpen(true); }}>
             <Plus className="h-3.5 w-3.5" />
             New Event
@@ -474,7 +575,7 @@ export default function CalendarPage() {
       <div className="flex items-center gap-3 overflow-x-auto no-scrollbar border-b border-border/50 px-4 py-2.5 sm:px-6">
         {EVENT_TYPES.map((t) => (
           <span key={t.value} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className={`h-2 w-2 rounded-full ${EVENT_DOT[t.value]}`} />
+            <span className="h-2 w-2 rounded-full" style={getDotStyle(t.value)} />
             {t.label}
           </span>
         ))}
@@ -535,7 +636,8 @@ export default function CalendarPage() {
                             {dayEvents.slice(0, 3).map((ev) => (
                               <div
                                 key={ev.id}
-                                className={`truncate rounded px-1 py-0.5 text-[10px] font-medium leading-none ${EVENT_COLORS[ev.type] || EVENT_COLORS.other}`}
+                                className="truncate rounded px-1 py-0.5 text-[10px] font-medium leading-none"
+                                style={getEventStyle(ev.type)}
                               >
                                 {ev.title}
                               </div>
@@ -572,7 +674,8 @@ export default function CalendarPage() {
                       <button
                         onClick={(e) => { e.stopPropagation(); setTypePickerId(typePickerId === event.id ? null : event.id); }}
                         title="Change type"
-                        className={`h-2.5 w-2.5 rounded-full ${EVENT_DOT[event.type] || EVENT_DOT.other} hover:ring-2 hover:ring-offset-1 hover:ring-offset-background hover:ring-current transition-all`}
+                        className="h-2.5 w-2.5 rounded-full hover:ring-2 hover:ring-offset-1 hover:ring-offset-background hover:ring-current transition-all"
+                        style={getDotStyle(event.type)}
                       />
                       {typePickerId === event.id && (
                         <div className="absolute left-0 top-5 z-50 rounded-lg border border-border bg-popover shadow-lg py-1 w-28" onClick={(e) => e.stopPropagation()}>
@@ -582,7 +685,7 @@ export default function CalendarPage() {
                               onClick={() => commitType(event.id, t.value as CalendarEventType)}
                               className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${event.type === t.value ? "text-foreground font-medium" : "text-muted-foreground"}`}
                             >
-                              <span className={`h-2 w-2 rounded-full ${EVENT_DOT[t.value]}`} />
+                              <span className="h-2 w-2 rounded-full" style={getDotStyle(t.value)} />
                               {t.label}
                             </button>
                           ))}
@@ -614,7 +717,7 @@ export default function CalendarPage() {
                           {event.description && <p className="mt-0.5 text-sm text-muted-foreground">{event.description}</p>}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${EVENT_COLORS[event.type]}`}>
+                          <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold" style={getEventStyle(event.type)}>
                             {event.type}
                           </span>
                           <button
@@ -689,11 +792,10 @@ export default function CalendarPage() {
                             <button
                               key={t.value}
                               onClick={() => setCardEdit({ ...cardEdit, type: t.value as CalendarEventType })}
-                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all ${
-                                cardEdit.type === t.value ? EVENT_COLORS[t.value] : "bg-accent text-muted-foreground hover:text-foreground"
-                              }`}
+                              className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold transition-all ${cardEdit.type !== t.value ? "bg-accent text-muted-foreground hover:text-foreground" : ""}`}
+                              style={cardEdit.type === t.value ? getEventStyle(t.value) : undefined}
                             >
-                              <span className={`h-1.5 w-1.5 rounded-full ${EVENT_DOT[t.value]}`} />
+                              <span className="h-1.5 w-1.5 rounded-full" style={getDotStyle(t.value)} />
                               {t.label}
                             </button>
                           ))}
@@ -750,7 +852,8 @@ export default function CalendarPage() {
                             <button
                               onClick={() => setTypePickerId(typePickerId === ev.id ? null : ev.id)}
                               title="Change type"
-                              className={`h-2.5 w-2.5 rounded-full ${EVENT_DOT[ev.type]} ring-offset-background transition-all hover:ring-2 hover:ring-current hover:ring-offset-1`}
+                              className="h-2.5 w-2.5 rounded-full ring-offset-background transition-all hover:ring-2 hover:ring-current hover:ring-offset-1"
+                              style={getDotStyle(ev.type)}
                             />
                             {typePickerId === ev.id && (
                               <div className="absolute left-0 top-5 z-50 w-28 rounded-lg border border-border bg-popover py-1 shadow-lg">
@@ -760,7 +863,7 @@ export default function CalendarPage() {
                                     onClick={() => commitType(ev.id, t.value as CalendarEventType)}
                                     className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent transition-colors ${ev.type === t.value ? "font-semibold text-foreground" : "text-muted-foreground"}`}
                                   >
-                                    <span className={`h-2 w-2 rounded-full ${EVENT_DOT[t.value]}`} />{t.label}
+                                    <span className="h-2 w-2 rounded-full" style={getDotStyle(t.value)} />{t.label}
                                   </button>
                                 ))}
                               </div>
@@ -953,7 +1056,7 @@ export default function CalendarPage() {
                         key={ev.id}
                         className="flex items-start gap-3 rounded-xl border border-border bg-card/50 p-3"
                       >
-                        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${EVENT_DOT[ev.type] || EVENT_DOT.other}`} />
+                        <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={getDotStyle(ev.type)} />
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-foreground text-sm">{ev.title}</p>
                           {ev.description && (

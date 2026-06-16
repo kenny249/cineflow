@@ -65,6 +65,8 @@ export interface Profile {
   trial_reminders_sent?: string[] | null;
   current_period_end?: string | null;
   seat_count?: number | null;
+  quote_templates?: Array<{ id: string; label: string; items: Array<{ service: string; category: string; people: number; days: number; rate: number; rateType: string }> }>;
+  calendar_colors?: Record<string, string>;
   created_at: string;
   updated_at?: string;
 }
@@ -125,6 +127,8 @@ export interface Project {
   cover_position?: string;
   custom_type?: string;
   client_logo_url?: string;
+  storyboard_pdf_url?: string;
+  storyboard_pdf_name?: string;
   created_by?: string;
   owner_id?: string;
   tags?: string[];
@@ -511,6 +515,9 @@ export interface Invoice {
   show_signature_lines?: boolean;
   show_rights_notice?: boolean;
   rights_notice_text?: string;
+  pdf_url?: string;
+  is_external?: boolean;
+  source?: "built" | "uploaded";
   created_by?: string;
   created_at: string;
   updated_at: string;
@@ -923,7 +930,7 @@ export interface CalcLineItem {
   people: number;
   days: number;
   rate: number;
-  rateType: "day" | "unit" | "flat";
+  rateType: "day" | "hour" | "unit" | "flat";
   isFlat?: boolean; // deprecated — kept for backward compat with saved estimates
 }
 
@@ -943,7 +950,7 @@ export interface QuoteEstimate {
 
 // ─── Project Equipment ────────────────────────────────────────────────────────
 
-export type EquipmentCategory = "camera" | "audio" | "lighting" | "support" | "other";
+export type EquipmentCategory = "camera" | "audio" | "lighting" | "support" | "other" | "grip" | "electric" | "wardrobe" | "hair_makeup" | "vehicles" | "catering";
 
 export interface EquipmentLens {
   id: string;

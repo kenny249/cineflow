@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Plus, Trash2, ChevronDown, Save, FolderOpen, X,
-  Calculator, Pencil, Info, Sparkles, Loader2, Users,
+  Calculator, Pencil, Info, Sparkles, Loader2, Users, BookTemplate, Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { CalcLineItem, CalcCategory, RateCardItem, QuoteEstimate, Project, Profile, Quote, CrewProfile } from "@/types";
 import {
   getRateCardItems, getQuoteEstimates, saveQuoteEstimate,
-  updateQuoteEstimate, deleteQuoteEstimate, getProjects, getProfile, getQuotes,
+  updateQuoteEstimate, deleteQuoteEstimate, getProjects, getProfile, updateProfile, getQuotes,
   getMyCrewProfiles,
 } from "@/lib/supabase/queries";
 import QuoteFormModal, { type QuoteFormState, type LineItemForm } from "@/components/quotes/QuoteFormModal";
@@ -82,6 +82,38 @@ const PROJECT_TEMPLATES: { label: string; items: Partial<CalcLineItem>[] }[] = [
       { service: "Full Highlight Edit", category: "post-production", people: 1, days: 2, rate: 800, rateType: "day" as const },
     ],
   },
+  {
+    label: "Music Video",
+    items: [
+      { service: "Director", category: "pre-production", people: 1, days: 2, rate: 1800, rateType: "day" as const },
+      { service: "DP", category: "production", people: 1, days: 2, rate: 1000, rateType: "day" as const },
+      { service: "Gaffer", category: "production", people: 1, days: 2, rate: 550, rateType: "day" as const },
+      { service: "Art Director / Stylist", category: "pre-production", people: 1, days: 2, rate: 700, rateType: "day" as const },
+      { service: "Wardrobe Stylist", category: "production", people: 1, days: 2, rate: 500, rateType: "day" as const },
+      { service: "Hair & Makeup", category: "production", people: 1, days: 2, rate: 450, rateType: "day" as const },
+      { service: "Production Assistant", category: "production", people: 2, days: 2, rate: 300, rateType: "day" as const },
+      { service: "Camera Package", category: "equipment", people: 1, days: 2, rate: 700, rateType: "day" as const },
+      { service: "Lighting Package", category: "equipment", people: 1, days: 2, rate: 400, rateType: "day" as const },
+      { service: "Edit, Color & VFX", category: "post-production", people: 1, days: 5, rate: 900, rateType: "day" as const },
+    ],
+  },
+  {
+    label: "TV Spot",
+    items: [
+      { service: "Director", category: "pre-production", people: 1, days: 3, rate: 2500, rateType: "day" as const },
+      { service: "DP", category: "production", people: 1, days: 2, rate: 1200, rateType: "day" as const },
+      { service: "Gaffer + Best Boy", category: "production", people: 2, days: 2, rate: 600, rateType: "day" as const },
+      { service: "Key Grip", category: "production", people: 1, days: 2, rate: 550, rateType: "day" as const },
+      { service: "Production Coordinator", category: "pre-production", people: 1, days: 5, rate: 500, rateType: "day" as const },
+      { service: "Art Department", category: "pre-production", people: 2, days: 3, rate: 650, rateType: "day" as const },
+      { service: "Wardrobe Stylist", category: "production", people: 1, days: 2, rate: 600, rateType: "day" as const },
+      { service: "Camera & Lens Package", category: "equipment", people: 1, days: 2, rate: 900, rateType: "day" as const },
+      { service: "Lighting & Grip Package", category: "equipment", people: 1, days: 2, rate: 600, rateType: "day" as const },
+      { service: "Edit & VFX / Motion", category: "post-production", people: 1, days: 5, rate: 1000, rateType: "day" as const },
+      { service: "Color Grade", category: "post-production", people: 1, days: 2, rate: 900, rateType: "day" as const },
+      { service: "Sound Design & Mix", category: "post-production", people: 1, days: 1, rate: 700, rateType: "day" as const },
+    ],
+  },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -107,6 +139,7 @@ function lineTotal(item: CalcLineItem): number {
   const rt = item.rateType ?? (item.isFlat ? "flat" : "day");
   if (rt === "flat") return item.rate;
   if (rt === "unit") return item.days * item.rate;
+  // "hour" and "day" both use people × qty × rate
   return item.people * item.days * item.rate;
 }
 
@@ -306,6 +339,12 @@ export function QuoteCalculator() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
 
+  // ── Custom templates state ─────────────────────────────────────────────────
+  const [customTemplates, setCustomTemplates] = useState<Profile["quote_templates"]>([]);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
   // ── UI state ───────────────────────────────────────────────────────────────
   const [showRateCard, setShowRateCard] = useState(false);
   const [showLoadMenu, setShowLoadMenu] = useState(false);
@@ -337,6 +376,7 @@ export function QuoteCalculator() {
       setProfile(prof);
       setQuotes(q);
       setCrewProfiles(crew);
+      if (prof?.quote_templates) setCustomTemplates(prof.quote_templates);
     }).catch(() => {});
   }, []);
 
@@ -460,6 +500,43 @@ export function QuoteCalculator() {
     }
   }
 
+  // ── Custom template save/delete ────────────────────────────────────────────
+  async function handleSaveTemplate() {
+    const name = templateName.trim();
+    if (!name) return;
+    setSavingTemplate(true);
+    try {
+      const newTemplate = {
+        id: Math.random().toString(36).slice(2),
+        label: name,
+        items: lineItems.filter((li) => li.service.trim()).map((li) => ({
+          service: li.service, category: li.category, people: li.people,
+          days: li.days, rate: li.rate, rateType: li.rateType,
+        })),
+      };
+      const updated = [...(customTemplates ?? []), newTemplate];
+      await updateProfile({ quote_templates: updated } as any);
+      setCustomTemplates(updated);
+      setTemplateName("");
+      setShowSaveTemplate(false);
+      toast.success("Template saved");
+    } catch {
+      toast.error("Failed to save template");
+    }
+    setSavingTemplate(false);
+  }
+
+  async function handleDeleteTemplate(id: string) {
+    try {
+      const updated = (customTemplates ?? []).filter((t) => t.id !== id);
+      await updateProfile({ quote_templates: updated } as any);
+      setCustomTemplates(updated);
+      toast.success("Template deleted");
+    } catch {
+      toast.error("Failed to delete template");
+    }
+  }
+
   // ── AI Scope Writer ────────────────────────────────────────────────────────
   async function handleGenerateScope() {
     if (!scopeBrief.trim()) return;
@@ -503,7 +580,7 @@ export function QuoteCalculator() {
         id: Math.random().toString(36).slice(2),
         description: li.service,
         quantity: li.rateType === "flat" ? "1" : li.rateType === "unit" ? String(li.days) : String(li.people * li.days),
-        rate: String(Math.round(li.rate * scale)),
+        rate: String(Math.round((li.rateType === "hour" ? li.rate * li.days * li.people : li.rate) * scale)),
       }));
 
     return {
@@ -625,7 +702,7 @@ export function QuoteCalculator() {
             </div>
 
             {/* Project type templates */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+            <div className="flex flex-wrap items-center gap-2 pb-0.5">
               <span className="text-[10px] text-muted-foreground/40 font-medium shrink-0">Templates:</span>
               <button
                 onClick={() => setLineItems([newLine()])}
@@ -642,13 +719,57 @@ export function QuoteCalculator() {
                   {tmpl.label}
                 </button>
               ))}
+              {(customTemplates ?? []).map((tmpl) => (
+                <div key={tmpl.id} className="group relative flex items-center">
+                  <button
+                    onClick={() => setLineItems(tmpl.items.map((item) => newLine(item as Partial<import("@/types").CalcLineItem>)))}
+                    className="shrink-0 rounded-full border border-[#d4a853]/30 bg-[#d4a853]/5 px-3 py-1 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-all pr-6"
+                  >
+                    {tmpl.label}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteTemplate(tmpl.id)}
+                    className="absolute right-1.5 opacity-0 group-hover:opacity-100 text-[#d4a853]/50 hover:text-red-400 transition-all"
+                    title="Delete template"
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </div>
+              ))}
+              {/* Save current as template */}
+              {showSaveTemplate ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSaveTemplate(); if (e.key === "Escape") setShowSaveTemplate(false); }}
+                    placeholder="Template name…"
+                    className="rounded-full border border-[#d4a853]/40 bg-background px-3 py-1 text-[11px] text-foreground placeholder:text-muted-foreground/40 focus:outline-none w-36"
+                  />
+                  <button onClick={handleSaveTemplate} disabled={savingTemplate || !templateName.trim()} className="flex items-center gap-1 text-[11px] text-[#d4a853] hover:text-[#c49843] disabled:opacity-40 transition-colors font-semibold">
+                    <Check className="h-3 w-3" /> Save
+                  </button>
+                  <button onClick={() => setShowSaveTemplate(false)} className="text-muted-foreground/40 hover:text-muted-foreground transition-colors">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setTemplateName(estimateTitle !== "Untitled Estimate" ? estimateTitle : ""); setShowSaveTemplate(true); }}
+                  className="shrink-0 flex items-center gap-1 rounded-full border border-dashed border-border px-3 py-1 text-[11px] font-medium text-muted-foreground/50 hover:border-[#d4a853]/40 hover:text-[#d4a853] transition-all"
+                  title="Save current line items as a reusable template"
+                >
+                  <BookTemplate className="h-3 w-3" /> Save as Template
+                </button>
+              )}
             </div>
 
             {/* Line items table */}
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               {/* Column headers */}
               <div className="grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 border-b border-border bg-muted/20">
-                {["Service", "People", "Days / Qty", "Rate", "Total", ""].map((h) => (
+                {["Service", "People", "Days / Hrs", "Rate", "Total", ""].map((h) => (
                   <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 text-center first:text-left last:text-right">
                     {h}
                   </span>
@@ -661,7 +782,7 @@ export function QuoteCalculator() {
                   const cfg = CALC_CATEGORY_CONFIG[item.category];
                   const rt = item.rateType ?? (item.isFlat ? "flat" : "day");
                   const total = lineTotal(item);
-                  const RATE_CYCLE: Record<"day" | "unit" | "flat", "day" | "unit" | "flat"> = { day: "unit", unit: "flat", flat: "day" };
+                  const RATE_CYCLE: Record<"day" | "hour" | "unit" | "flat", "day" | "hour" | "unit" | "flat"> = { day: "hour", hour: "unit", unit: "flat", flat: "day" };
                   return (
                     <div key={item.id} className="grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 items-center group hover:bg-muted/10 transition-colors">
                       {/* Service name + category dot + rate type badge */}
@@ -680,11 +801,12 @@ export function QuoteCalculator() {
                           className={cn(
                             "shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border transition-all hover:opacity-80",
                             rt === "day"  && "border-amber-500/25 bg-amber-500/8 text-amber-400/70",
+                            rt === "hour" && "border-orange-500/25 bg-orange-500/8 text-orange-400/70",
                             rt === "unit" && "border-cyan-500/25 bg-cyan-500/8 text-cyan-400/70",
                             rt === "flat" && "border-zinc-500/25 bg-zinc-500/8 text-zinc-400/70",
                           )}
                         >
-                          {rt === "day" ? "Day" : rt === "unit" ? "Unit" : "Flat"}
+                          {rt === "day" ? "Day" : rt === "hour" ? "Hour" : rt === "unit" ? "Unit" : "Flat"}
                         </button>
                         <input
                           value={item.service}
@@ -693,8 +815,8 @@ export function QuoteCalculator() {
                           className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
                         />
                       </div>
-                      {/* People — only for day rate */}
-                      {rt === "day" ? (
+                      {/* People — only for day/hour rate */}
+                      {rt === "day" || rt === "hour" ? (
                         <input
                           type="text"
                           inputMode="numeric"
@@ -720,7 +842,7 @@ export function QuoteCalculator() {
                             const v = e.target.value.replace(/\D/g, "");
                             updateItem(item.id, "days", v === "" ? 0 : Number(v));
                           }}
-                          placeholder={rt === "unit" ? "qty" : ""}
+                          placeholder={rt === "unit" ? "qty" : rt === "hour" ? "hrs" : ""}
                           className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors placeholder:text-muted-foreground/30"
                         />
                       )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useId } from "react";
-import { Plus, Camera, Mic, Lightbulb, Wrench, Package, Trash2, Edit3, ChevronDown, ChevronUp, X, Tag } from "lucide-react";
+import { Plus, Camera, Mic, Lightbulb, Wrench, Package, Trash2, Edit3, ChevronDown, ChevronUp, X, Shirt, Scissors, Car, UtensilsCrossed, Zap } from "lucide-react";
 import { getProjectEquipment, createProjectEquipment, updateProjectEquipment, deleteProjectEquipment } from "@/lib/supabase/queries";
 import type { ProjectEquipment, EquipmentCategory, EquipmentLens } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -101,12 +101,62 @@ type CatConfig = {
   roles?: string[];
 };
 
+const GRIP_ITEMS = [
+  "C-Stand (Matthews)", "C-Stand (Turtle Base)", "Sandbag (25lb)", "Sandbag (50lb)",
+  "Baby Pin", "Cardellini Clamp", "Gobo Head", "Gobo Arm", "Knuckle Clamp",
+  "Apple Box (Full)", "Apple Box (Half)", "Apple Box (Quarter)",
+  "Dolly Track", "Slider", "Jib / Crane Arm", "Sticks (Tripod)", "Hi-Hat",
+  "Car Mount", "Camera Car", "Jimmy Jib", "Custom…",
+];
+
+const ELECTRIC_ITEMS = [
+  "1K HMI", "2.5K HMI", "4K HMI", "18K HMI",
+  "Diffusion Frame (4x4)", "Diffusion Frame (6x6)", "Diffusion Frame (8x8)",
+  "Black Wrap", "Duvetyne / Blackout", "CTB / CTO Gel Pack",
+  "Distro Box (12-way)", "Stinger 50ft", "Stinger 100ft",
+  "Generator (5500w)", "Generator (10K)", "Bead Board 4x4",
+  "China Ball", "Kino Flo (2-Bank)", "Kino Flo (4-Bank)", "Custom…",
+];
+
+const WARDROBE_ITEMS = [
+  "Wardrobe Rack", "Garment Bags", "Steamer", "Iron & Board",
+  "Lint Rollers", "Safety Pins Kit", "Sewing Kit", "Hem Tape",
+  "Wardrobe Box", "Shoe Care Kit", "Custom…",
+];
+
+const HAIR_MAKEUP_ITEMS = [
+  "Makeup Kit (Full)", "Airbrush Kit", "Beauty Ring / Ring Light",
+  "Director's Chair (Makeup)", "Makeup Table", "Hair Dryer",
+  "Curling Iron Set", "Flat Iron", "Hair Extension Kit",
+  "Concealer Kit", "Foundation Range", "Prosthetic Kit", "Custom…",
+];
+
+const VEHICLE_ITEMS = [
+  "Cargo Van", "Sprinter Van", "Production Truck",
+  "Grip Truck (3-Ton)", "Grip Truck (5-Ton)", "Cube Truck",
+  "Camera Car / Low Rider", "Drone Pelican Case", "Fuel Station",
+  "Walkie-Talkie (10-pack)", "Golf Cart", "Custom…",
+];
+
+const CATERING_ITEMS = [
+  "Craft Services Table", "Coffee Station", "Cooler (Large)",
+  "Breakfast (per person)", "Lunch (per person)", "Dinner (per person)",
+  "Snack Packs", "Water Cases", "Energy Drinks Case",
+  "Dietary (Vegan/GF) Tray", "Hot Plates & Serving Trays", "Custom…",
+];
+
 const CATEGORIES: Record<EquipmentCategory, CatConfig> = {
-  camera:   { label: "Cameras",       icon: Camera,    color: "text-blue-400",   items: CAMERA_BODIES,  roles: CAMERA_ROLES },
-  audio:    { label: "Audio",         icon: Mic,       color: "text-green-400",  items: AUDIO_ITEMS },
-  lighting: { label: "Lighting",      icon: Lightbulb, color: "text-yellow-400", items: LIGHTING_ITEMS },
-  support:  { label: "Support & Grip",icon: Wrench,    color: "text-orange-400", items: SUPPORT_ITEMS },
-  other:    { label: "Other",         icon: Package,   color: "text-purple-400", items: ["Custom…"] },
+  camera:     { label: "Cameras",        icon: Camera,          color: "text-blue-400",    items: CAMERA_BODIES,   roles: CAMERA_ROLES },
+  audio:      { label: "Audio",          icon: Mic,             color: "text-green-400",   items: AUDIO_ITEMS },
+  lighting:   { label: "Lighting",       icon: Lightbulb,       color: "text-yellow-400",  items: LIGHTING_ITEMS },
+  support:    { label: "Support & Grip", icon: Wrench,          color: "text-orange-400",  items: SUPPORT_ITEMS },
+  grip:       { label: "Grip",           icon: Wrench,          color: "text-amber-500",   items: GRIP_ITEMS },
+  electric:   { label: "Electric",       icon: Zap,             color: "text-yellow-300",  items: ELECTRIC_ITEMS },
+  wardrobe:   { label: "Wardrobe",       icon: Shirt,           color: "text-pink-400",    items: WARDROBE_ITEMS },
+  hair_makeup:{ label: "Hair & Makeup",  icon: Scissors,        color: "text-rose-400",    items: HAIR_MAKEUP_ITEMS },
+  vehicles:   { label: "Vehicles",       icon: Car,             color: "text-sky-400",     items: VEHICLE_ITEMS },
+  catering:   { label: "Catering",       icon: UtensilsCrossed, color: "text-lime-400",    items: CATERING_ITEMS },
+  other:      { label: "Other",          icon: Package,         color: "text-purple-400",  items: ["Custom…"] },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -611,6 +661,10 @@ export function EquipmentTab({ projectId, canEdit, initialItems }: EquipmentTabP
   }
 
   const totalItems = items.length;
+  // Show a category if it has items OR if it's one of the core categories
+  const CORE_CATS: EquipmentCategory[] = ["camera", "audio", "lighting", "support"];
+  const allCats = (Object.keys(CATEGORIES) as EquipmentCategory[]);
+  const visibleCats = allCats.filter((cat) => CORE_CATS.includes(cat) || byCategory(cat).length > 0);
 
   return (
     <>
@@ -619,7 +673,7 @@ export function EquipmentTab({ projectId, canEdit, initialItems }: EquipmentTabP
         <div>
           <h3 className="font-display text-sm font-semibold text-foreground">Equipment</h3>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {totalItems === 0 ? "Camera package, audio, lighting, and support gear for this production." : `${totalItems} item${totalItems !== 1 ? "s" : ""} across ${new Set(items.map((i) => i.category)).size} categories`}
+            {totalItems === 0 ? "Camera package, audio, lighting, grip, electric, and production departments." : `${totalItems} item${totalItems !== 1 ? "s" : ""} across ${new Set(items.map((i) => i.category)).size} departments`}
           </p>
         </div>
         {canEdit && (
@@ -631,9 +685,9 @@ export function EquipmentTab({ projectId, canEdit, initialItems }: EquipmentTabP
         )}
       </div>
 
-      {/* Sections */}
+      {/* Sections — show core + any that have items */}
       <div className="space-y-3">
-        {(["camera", "audio", "lighting", "support", "other"] as EquipmentCategory[]).map((cat) => (
+        {visibleCats.map((cat) => (
           <EquipmentSection
             key={cat}
             category={cat}
@@ -645,6 +699,28 @@ export function EquipmentTab({ projectId, canEdit, initialItems }: EquipmentTabP
           />
         ))}
       </div>
+
+      {/* Add department button for non-core empty departments */}
+      {canEdit && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(Object.keys(CATEGORIES) as EquipmentCategory[])
+            .filter((cat) => !CORE_CATS.includes(cat) && cat !== "other" && byCategory(cat).length === 0)
+            .map((cat) => {
+              const cfg = CATEGORIES[cat];
+              const Icon = cfg.icon;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => openAdd(cat)}
+                  className={`flex items-center gap-1.5 rounded-full border border-border bg-muted/20 px-3 py-1.5 text-xs text-muted-foreground hover:border-[#d4a853]/40 hover:text-[#d4a853] transition-all ${cfg.color}`}
+                >
+                  <Icon className="h-3 w-3" />
+                  + {cfg.label}
+                </button>
+              );
+            })}
+        </div>
+      )}
 
       {/* Empty overall state */}
       {totalItems === 0 && canEdit && (

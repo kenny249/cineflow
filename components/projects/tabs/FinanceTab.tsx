@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { Plus, Trash2, DollarSign, TrendingUp, TrendingDown, Minus, Edit3, Check, X, Receipt, AlertCircle, Clock, CheckCircle2, FileText, Send, ChevronDown, ChevronUp, ShoppingCart, Download } from "lucide-react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import { Plus, Trash2, DollarSign, Edit3, Check, X, Receipt, AlertCircle, Clock, CheckCircle2, FileText, Send, ChevronDown, ChevronUp, ShoppingCart, Download, Upload, ExternalLink, Paperclip } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { getBudgetLines, createBudgetLine, updateBudgetLine, deleteBudgetLine, getInvoicesByProject, createInvoice, updateInvoice, deleteInvoice, ensureProjectOwner } from "@/lib/supabase/queries";
 import type { BudgetLine, Invoice, InvoiceStatus } from "@/types";
 import { toast } from "sonner";
@@ -122,6 +123,10 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
   const [savingInv, setSavingInv] = useState(false);
   const [deletingInvId, setDeletingInvId] = useState<string | null>(null);
 
+  // PDF upload state
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
     // Pre-seed project membership so budget_lines RLS allows this user
     ensureProjectOwner(projectId).catch(() => {});
@@ -201,6 +206,40 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
     if (status === "paid") { updates.amount_paid = inv.amount; updates.paid_date = new Date().toISOString().split("T")[0]; }
     try { const updated = await updateInvoice(inv.id, updates); setInvoices((p) => p.map((i) => i.id === inv.id ? updated : i)); toast.success(`Marked as ${status}`); }
     catch { toast.error("Failed to update"); }
+  }
+
+  // ── PDF upload handler ────────────────────────────────────────────────────
+  async function handlePdfUpload(file: File) {
+    if (!file || file.type !== "application/pdf") { toast.error("Please select a PDF file"); return; }
+    setUploadingPdf(true);
+    try {
+      const supabase = createClient();
+      const ext = "pdf";
+      const path = `${projectId}/contracts/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file, { upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
+      // Create a placeholder invoice record for the uploaded doc
+      const num = `DOC-${String(invoices.length + 1).padStart(3, "0")}`;
+      const created = await createInvoice({
+        project_id: projectId,
+        invoice_number: num,
+        description: file.name.replace(/\.pdf$/i, ""),
+        amount: 0,
+        amount_paid: 0,
+        status: "draft" as const,
+        pdf_url: publicUrl,
+        is_external: true,
+        source: "uploaded",
+      } as Parameters<typeof createInvoice>[0]);
+      setInvoices((p) => [created, ...p]);
+      toast.success("Document uploaded");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Upload failed");
+    } finally {
+      setUploadingPdf(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = "";
+    }
   }
 
   const fi = (k: keyof InvForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setInvForm((p) => ({ ...p, [k]: e.target.value }));
@@ -345,16 +384,22 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
           <div className="flex shrink-0 items-center justify-between border-b border-border px-4 sm:px-5 py-2.5">
             <p className="text-xs text-muted-foreground">{invoices.length} invoice{invoices.length !== 1 ? "s" : ""} · {fmt(totalInvoiced)} invoiced · {fmt(totalCollected)} collected</p>
             <div className="flex items-center gap-2">
+              {/* Hidden PDF input */}
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePdfUpload(f); }}
+              />
               <button
-                onClick={() => printTable({
-                  title: "Invoices",
-                  headers: ["#", "Client", "Description", "Amount", "Paid", "Status", "Due Date"],
-                  rows: invoices.map((inv) => [inv.invoice_number, inv.client_name ?? "", inv.description ?? "", fmt(inv.amount), fmt(inv.amount_paid), inv.status.toUpperCase(), inv.due_date ?? ""])
-                })}
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-                title="Print / Export as PDF"
+                onClick={() => pdfInputRef.current?.click()}
+                disabled={uploadingPdf}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                title="Upload signed contract or external invoice PDF"
               >
-                <Download className="h-3.5 w-3.5" />PDF
+                {uploadingPdf ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted/30 border-t-muted-foreground" /> : <Paperclip className="h-3.5 w-3.5" />}
+                Upload PDF
               </button>
               <button onClick={() => { setInvForm({ ...EMPTY_INV, invoice_number: nextInvNumber() }); setEditingInvId(null); setShowInvForm(true); }} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors">
                 <Plus className="h-3.5 w-3.5" />New Invoice
@@ -568,6 +613,11 @@ function ProjectInvoiceRow({ inv, onEdit, onDelete, onQuickStatus, deletingId }:
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs font-semibold text-muted-foreground">{inv.invoice_number}</span>
             <StatusBadge status={inv.status} />
+            {inv.is_external && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-sky-400">
+                <Paperclip className="h-2 w-2" />UPLOADED
+              </span>
+            )}
           </div>
           <p className="mt-0.5 truncate text-sm font-medium text-foreground">{inv.client_name || inv.description || "—"}</p>
         </div>
@@ -581,10 +631,15 @@ function ProjectInvoiceRow({ inv, onEdit, onDelete, onQuickStatus, deletingId }:
         <div className="border-t border-border bg-muted/5 px-4 py-3 space-y-2">
           {inv.notes && <p className="text-xs text-muted-foreground/60 italic">{inv.notes}</p>}
           <div className="flex flex-wrap items-center gap-2">
+            {inv.pdf_url && (
+              <a href={inv.pdf_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 rounded-lg bg-sky-500/10 border border-sky-500/20 px-2 py-1 text-[10px] font-semibold text-sky-400 hover:bg-sky-500/20">
+                <ExternalLink className="h-3 w-3" />View PDF
+              </a>
+            )}
             {inv.status !== "paid" && <button onClick={() => onQuickStatus(inv, "paid")} className="flex items-center gap-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 text-[10px] font-semibold text-emerald-400 hover:bg-emerald-500/20"><CheckCircle2 className="h-3 w-3" />Mark Paid</button>}
-            {inv.status === "draft" && <button onClick={() => onQuickStatus(inv, "sent")} className="flex items-center gap-1 rounded-lg bg-blue-500/10 border border-blue-500/20 px-2 py-1 text-[10px] font-semibold text-blue-400 hover:bg-blue-500/20"><Send className="h-3 w-3" />Mark Sent</button>}
+            {inv.status === "draft" && !inv.is_external && <button onClick={() => onQuickStatus(inv, "sent")} className="flex items-center gap-1 rounded-lg bg-blue-500/10 border border-blue-500/20 px-2 py-1 text-[10px] font-semibold text-blue-400 hover:bg-blue-500/20"><Send className="h-3 w-3" />Mark Sent</button>}
             <div className="ml-auto flex gap-1">
-              <button onClick={() => onEdit(inv)} className="rounded p-1.5 text-muted-foreground hover:text-foreground"><Edit3 className="h-3.5 w-3.5" /></button>
+              {!inv.is_external && <button onClick={() => onEdit(inv)} className="rounded p-1.5 text-muted-foreground hover:text-foreground"><Edit3 className="h-3.5 w-3.5" /></button>}
               <button onClick={() => onDelete(inv.id)} disabled={deletingId === inv.id} className="rounded p-1.5 text-muted-foreground hover:text-red-400">
                 {deletingId === inv.id ? <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted/30 border-t-muted-foreground" /> : <Trash2 className="h-3.5 w-3.5" />}
               </button>

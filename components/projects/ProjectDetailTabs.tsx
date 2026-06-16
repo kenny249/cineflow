@@ -17,7 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp, Plus, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp, Plus, RotateCcw, Paperclip } from "lucide-react";
 import { CallSheetGenerator } from "@/components/call-sheet/CallSheetGenerator";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
@@ -102,10 +102,17 @@ const PROD_PHASES = [
     label: "Pre-Production",
     weight: 20,
     items: [
-      { id: "script_ready", label: "Script finalized" },
-      { id: "locations_locked", label: "Locations locked" },
-      { id: "crew_confirmed", label: "Crew confirmed" },
-      { id: "shot_list_built", label: "Shot list created" },
+      { id: "script_ready",       label: "Script finalized" },
+      { id: "storyboard_done",    label: "Storyboard approved" },
+      { id: "locations_locked",   label: "Locations locked" },
+      { id: "permits_secured",    label: "Permits & insurance secured" },
+      { id: "crew_confirmed",     label: "Crew confirmed" },
+      { id: "talent_confirmed",   label: "Talent / cast confirmed" },
+      { id: "shot_list_built",    label: "Shot list created" },
+      { id: "gear_reserved",      label: "Gear reserved" },
+      { id: "call_sheet_sent",    label: "Call sheet sent" },
+      { id: "contract_signed",    label: "Contract signed" },
+      { id: "deposit_received",   label: "Deposit received" },
     ],
   },
   {
@@ -119,8 +126,11 @@ const PROD_PHASES = [
     label: "Post-Production",
     weight: 25,
     items: [
-      { id: "editing_complete", label: "Editing complete" },
-      { id: "color_sound", label: "Color & sound done" },
+      { id: "footage_ingested",   label: "Footage ingested & backed up" },
+      { id: "rough_cut",          label: "Rough cut delivered" },
+      { id: "editing_complete",   label: "Editing complete" },
+      { id: "color_sound",        label: "Color & sound done" },
+      { id: "music_licensed",     label: "Music licensed / cleared" },
       { id: "revisions_approved", label: "Client revisions approved" },
     ],
   },
@@ -129,8 +139,11 @@ const PROD_PHASES = [
     label: "Delivery",
     weight: 15,
     items: [
-      { id: "final_export", label: "Final export ready" },
-      { id: "delivered_to_client", label: "Delivered to client" },
+      { id: "final_export",           label: "Final export ready" },
+      { id: "files_uploaded",         label: "Files uploaded to client" },
+      { id: "delivered_to_client",    label: "Delivered to client" },
+      { id: "final_invoice_sent",     label: "Final invoice sent" },
+      { id: "payment_received",       label: "Payment received" },
     ],
   },
 ];
@@ -710,6 +723,11 @@ export default function ProjectDetailTabs({
 
   // ── Storyboard image upload ──
   const [uploadingFrameId, setUploadingFrameId] = useState<string | null>(null);
+  // ── Storyboard PDF upload ──
+  const [storyboardPdfUrl, setStoryboardPdfUrl] = useState(project.storyboard_pdf_url ?? null);
+  const [storyboardPdfName, setStoryboardPdfName] = useState(project.storyboard_pdf_name ?? null);
+  const [uploadingStoryboardPdf, setUploadingStoryboardPdf] = useState(false);
+  const storyboardPdfInputRef = useRef<HTMLInputElement | null>(null);
 
   // ── Storyboard edit / delete ──
   const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null);
@@ -1049,6 +1067,29 @@ export default function ProjectDetailTabs({
       toast.success("Image applied locally.");
     } finally {
       setUploadingFrameId(null);
+    }
+  };
+
+  // ── Storyboard PDF upload ──
+  const handleStoryboardPdfUpload = async (file: File) => {
+    if (file.type !== "application/pdf") { toast.error("Please upload a PDF file."); return; }
+    setUploadingStoryboardPdf(true);
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const path = `${project.id}/storyboard/storyboard-${Date.now()}.pdf`;
+      const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file, { upsert: true, contentType: "application/pdf" });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
+      await updateProject(project.id, { storyboard_pdf_url: publicUrl, storyboard_pdf_name: file.name });
+      setStoryboardPdfUrl(publicUrl);
+      setStoryboardPdfName(file.name);
+      toast.success("Storyboard PDF uploaded");
+    } catch {
+      toast.error("Failed to upload storyboard PDF");
+    } finally {
+      setUploadingStoryboardPdf(false);
+      if (storyboardPdfInputRef.current) storyboardPdfInputRef.current.value = "";
     }
   };
 
@@ -2521,15 +2562,47 @@ export default function ProjectDetailTabs({
             <TabsContent value="storyboard" className="m-0 p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="font-display text-sm font-semibold text-foreground">Storyboard</h3>
-                <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowFrameDialog(true)}>
-                  + Add Frame
-                </Button>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={storyboardPdfInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleStoryboardPdfUpload(f); }}
+                  />
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => storyboardPdfInputRef.current?.click()} disabled={uploadingStoryboardPdf}>
+                    {uploadingStoryboardPdf ? "Uploading…" : <><Paperclip className="h-3 w-3" /> Upload PDF</>}
+                  </Button>
+                  <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowFrameDialog(true)}>
+                    + Add Frame
+                  </Button>
+                </div>
               </div>
+
+              {storyboardPdfUrl && (
+                <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+                  <FileText className="h-4 w-4 shrink-0 text-[#d4a853]" />
+                  <span className="flex-1 truncate text-sm text-foreground">{storyboardPdfName ?? "Storyboard PDF"}</span>
+                  <a href={storyboardPdfUrl} target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
+                      <ExternalLink className="h-3 w-3" /> View
+                    </Button>
+                  </a>
+                  <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-destructive hover:text-destructive" onClick={async () => {
+                    await updateProject(project.id, { storyboard_pdf_url: undefined, storyboard_pdf_name: undefined });
+                    setStoryboardPdfUrl(null);
+                    setStoryboardPdfName(null);
+                    toast.success("Storyboard PDF removed");
+                  }}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
 
               {storyboardFrames.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16">
                   <p className="font-display font-semibold">No storyboard frames yet</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Build your scene ideas with visual beats and production notes.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Add frames below or upload your full storyboard PDF above.</p>
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
