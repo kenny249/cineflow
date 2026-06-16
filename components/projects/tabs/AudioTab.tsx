@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic2, Upload, FileAudio, Loader2, ChevronDown, ChevronUp, Trash2, AlertCircle, Clock, FileText } from "lucide-react";
+import { Mic2, Upload, FileAudio, Loader2, ChevronDown, ChevronUp, Trash2, AlertCircle, Clock, FileText, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
@@ -19,6 +19,8 @@ const ACCEPTED_EXT = [".mp3", ".mp4", ".m4a", ".wav", ".ogg", ".flac", ".aac", "
 
 type UploadState =
   | { phase: "idle" }
+  | { phase: "needs_compression"; file: File }
+  | { phase: "compressing"; file: File; progress: number; label: string }
   | { phase: "uploading"; file: File; progress: number; label: string }
   | { phase: "error"; message: string };
 
@@ -57,17 +59,7 @@ export function AudioTab({ projectId }: Props) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const transcribeAndSave = useCallback(async (file: File) => {
-    const ext = "." + file.name.split(".").pop()?.toLowerCase();
-    if (!ACCEPTED_EXT.includes(ext)) {
-      setUpload({ phase: "error", message: "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC." });
-      return;
-    }
-    if (file.size > 25 * 1024 * 1024) {
-      const mb = (file.size / (1024 * 1024)).toFixed(1);
-      setUpload({ phase: "error", message: `File is ${mb} MB — Whisper's maximum is 25 MB. Try compressing or trimming the audio.` });
-      return;
-    }
+  const doUploadAndTranscribe = useCallback(async (file: File) => {
 
     setUpload({ phase: "uploading", file, progress: 0, label: "Preparing…" });
 
@@ -143,6 +135,33 @@ export function AudioTab({ projectId }: Props) {
     }
   }, [projectId]);
 
+  const compressAndTranscribe = useCallback(async (file: File) => {
+    setUpload({ phase: "compressing", file, progress: 0, label: "Loading compressor…" });
+    try {
+      const { compressAudioForWhisper } = await import("@/lib/ffmpeg-compress");
+      setUpload({ phase: "compressing", file, progress: 0, label: "Compressing audio…" });
+      const compressed = await compressAudioForWhisper(file, (pct) => {
+        setUpload((s) => s.phase === "compressing" ? { ...s, progress: pct } : s);
+      });
+      await doUploadAndTranscribe(compressed);
+    } catch (e: any) {
+      setUpload({ phase: "error", message: e.message ?? "Compression failed." });
+    }
+  }, [doUploadAndTranscribe]);
+
+  const transcribeAndSave = useCallback(async (file: File) => {
+    const ext = "." + file.name.split(".").pop()?.toLowerCase();
+    if (!ACCEPTED_EXT.includes(ext)) {
+      setUpload({ phase: "error", message: "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC." });
+      return;
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setUpload({ phase: "needs_compression", file });
+      return;
+    }
+    await doUploadAndTranscribe(file);
+  }, [doUploadAndTranscribe]);
+
   async function handleDelete(id: string) {
     setDeleting(id);
     try {
@@ -179,7 +198,53 @@ export function AudioTab({ projectId }: Props) {
   return (
     <div className="space-y-6">
       {/* Upload zone */}
-      {upload.phase === "idle" || upload.phase === "error" ? (
+      {upload.phase === "needs_compression" ? (
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-8 py-8 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10">
+            <Zap className="h-5 w-5 text-amber-400" />
+          </div>
+          <p className="text-sm font-semibold text-foreground">File too large for direct upload</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {upload.file.name} · {formatBytes(upload.file.size)} — Whisper's limit is 25 MB
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground/70">
+            Estimated compressed size: ~{Math.ceil(upload.file.size / (1024 * 1024) * 0.08)} MB
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <button
+              onClick={() => compressAndTranscribe(upload.file)}
+              className="flex items-center gap-2 rounded-lg bg-[#d4a853] px-4 py-2 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+            >
+              <Zap className="h-3.5 w-3.5" /> Compress &amp; Transcribe
+            </button>
+            <button
+              onClick={() => setUpload({ phase: "idle" })}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : upload.phase === "compressing" || upload.phase === "uploading" ? (
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-white/[0.02] px-8 py-10 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10">
+            <Loader2 className="h-5 w-5 animate-spin text-[#d4a853]" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">{upload.label}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{upload.file.name} · {formatBytes(upload.file.size)}</p>
+            {upload.phase === "compressing" && (
+              <p className="mt-0.5 text-[10px] text-muted-foreground/50">Running FFmpeg in your browser</p>
+            )}
+          </div>
+          <div className="w-full max-w-xs">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+              <div className="h-full rounded-full bg-[#d4a853] transition-all duration-500" style={{ width: `${upload.progress}%` }} />
+            </div>
+            <p className="mt-1 text-right text-[10px] text-muted-foreground">{Math.round(upload.progress)}%</p>
+          </div>
+        </div>
+      ) : (
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -201,23 +266,6 @@ export function AudioTab({ projectId }: Props) {
               <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {upload.message}
             </div>
           )}
-        </div>
-      ) : (
-        /* Upload in progress */
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-white/[0.02] px-8 py-10 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10">
-            <Loader2 className="h-5 w-5 animate-spin text-[#d4a853]" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">{upload.label}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{upload.file.name} · {formatBytes(upload.file.size)}</p>
-          </div>
-          <div className="w-full max-w-xs">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-              <div className="h-full rounded-full bg-[#d4a853] transition-all duration-500" style={{ width: `${upload.progress}%` }} />
-            </div>
-            <p className="mt-1 text-right text-[10px] text-muted-foreground">{Math.round(upload.progress)}%</p>
-          </div>
         </div>
       )}
 

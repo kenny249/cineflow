@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload, FileAudio, Copy, Download, CheckCheck, X, Loader2, AlertCircle,
-  FolderOpen, ChevronDown, ChevronUp, Pencil, Archive, Sparkles, Library,
+  FolderOpen, ChevronDown, ChevronUp, Pencil, Archive, Sparkles, Library, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,8 @@ type DoneState = { filename: string; fileSize: number; text: string; duration: n
 
 type State =
   | { phase: "idle" }
+  | { phase: "needs_compression"; file: File }
+  | { phase: "compressing"; file: File; progress: number; label: string }
   | { phase: "uploading"; file: File; progress: number; label: string }
   | { phase: "done"; file: File; text: string; duration: number | null }
   | { phase: "error"; message: string };
@@ -74,16 +76,7 @@ export function AudioTranscriber() {
     }
   }, [showProjectPicker, projects.length]);
 
-  function validateFile(file: File): string | null {
-    if (file.size > MAX_BYTES) return `File is ${formatBytes(file.size)} — Whisper's maximum is ${MAX_MB} MB. Try compressing or trimming the audio.`;
-    const ext = "." + file.name.split(".").pop()?.toLowerCase();
-    if (!ACCEPTED_EXT.includes(ext)) return "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC.";
-    return null;
-  }
-
-  const transcribe = useCallback(async (file: File) => {
-    const err = validateFile(file);
-    if (err) { setState({ phase: "error", message: err }); return; }
+  const uploadAndTranscribe = useCallback(async (file: File) => {
     setSavedToProject(null);
     setState({ phase: "uploading", file, progress: 0, label: "Preparing upload…" });
     try {
@@ -143,6 +136,33 @@ export function AudioTranscriber() {
       setState({ phase: "error", message: e.message ?? "Something went wrong. Try again." });
     }
   }, []);
+
+  const compressAndTranscribe = useCallback(async (file: File) => {
+    setState({ phase: "compressing", file, progress: 0, label: "Loading compressor…" });
+    try {
+      const { compressAudioForWhisper } = await import("@/lib/ffmpeg-compress");
+      setState({ phase: "compressing", file, progress: 0, label: "Compressing audio…" });
+      const compressed = await compressAudioForWhisper(file, (pct) => {
+        setState((s) => s.phase === "compressing" ? { ...s, progress: pct } : s);
+      });
+      await uploadAndTranscribe(compressed);
+    } catch (e: any) {
+      setState({ phase: "error", message: e.message ?? "Compression failed. Try a smaller file." });
+    }
+  }, [uploadAndTranscribe]);
+
+  const transcribe = useCallback(async (file: File) => {
+    const ext = "." + file.name.split(".").pop()?.toLowerCase();
+    if (!ACCEPTED_EXT.includes(ext)) {
+      setState({ phase: "error", message: "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC." });
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setState({ phase: "needs_compression", file });
+      return;
+    }
+    await uploadAndTranscribe(file);
+  }, [uploadAndTranscribe]);
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -250,6 +270,66 @@ export function AudioTranscriber() {
         filename: t.filename, fileSize: 0, text: t.transcript, duration: t.duration_secs ?? null,
       }));
     } catch {}
+  }
+
+  // ── NEEDS COMPRESSION ────────────────────────────────────────────────────
+  if (state.phase === "needs_compression") {
+    const fileMB = (state.file.size / (1024 * 1024)).toFixed(1);
+    return (
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] px-8 py-14 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10">
+            <FileAudio className="h-6 w-6 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">{state.file.name}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{fileMB} MB — over Whisper&apos;s 25 MB limit</p>
+          </div>
+          <div className="w-full space-y-2.5">
+            <button
+              onClick={() => compressAndTranscribe(state.file)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#d4a853] px-5 py-3 text-sm font-semibold text-black hover:bg-[#d4a853]/90 transition-colors"
+            >
+              <Zap className="h-4 w-4" />
+              Compress &amp; Transcribe
+            </button>
+            <p className="text-[10px] text-muted-foreground/60">
+              Shrinks to ~{Math.ceil(state.file.size / (1024 * 1024) * 0.15)} MB · mono 64 kbps · runs in your browser
+            </p>
+          </div>
+          <button
+            onClick={() => { setState({ phase: "idle" }); fileInputRef.current?.click(); }}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Choose a different file
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── COMPRESSING ───────────────────────────────────────────────────────────
+  if (state.phase === "compressing") {
+    return (
+      <div className="flex h-full flex-col items-center justify-center p-8">
+        <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-2xl border border-border bg-white/[0.02] px-8 py-14 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10">
+            <Loader2 className="h-6 w-6 animate-spin text-[#d4a853]" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">{state.label}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{state.file.name}</p>
+          </div>
+          <div className="w-full">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+              <div className="h-full rounded-full bg-[#d4a853] transition-all duration-300" style={{ width: `${state.progress}%` }} />
+            </div>
+            <p className="mt-1.5 text-right text-[10px] text-muted-foreground">{state.progress}%</p>
+          </div>
+          <p className="text-[11px] text-muted-foreground/60">Running FFmpeg in your browser · no file leaves your device</p>
+        </div>
+      </div>
+    );
   }
 
   // ── IDLE / ERROR ─────────────────────────────────────────────────────────
