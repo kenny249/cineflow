@@ -2,21 +2,24 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LayoutGrid, Plus, Clock, Loader2, ExternalLink } from "lucide-react";
+import { LayoutGrid, Plus, Clock, Loader2, ExternalLink, FolderOpen, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { getAllBoards } from "@/lib/boards";
 import type { Board } from "@/lib/boards";
+import { getProjects } from "@/lib/supabase/queries";
+import type { Project } from "@/types";
 import { formatRelative } from "@/lib/utils";
 import { TemplatePicker } from "@/components/boards/TemplatePicker";
 
 export default function BoardsPage() {
   const [boards, setBoards] = useState<Board[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
 
   useEffect(() => {
-    getAllBoards()
-      .then(setBoards)
+    Promise.all([getAllBoards(), getProjects()])
+      .then(([b, p]) => { setBoards(b); setProjects(p); })
       .catch(() => toast.error("Failed to load boards"))
       .finally(() => setLoading(false));
   }, []);
@@ -24,6 +27,20 @@ export default function BoardsPage() {
   function handleCreated(board: Board) {
     setBoards((prev) => [board, ...prev]);
     setShowPicker(false);
+  }
+
+  const projectMap = new Map(projects.map((p) => [p.id, p]));
+
+  // Split boards into project-linked vs standalone
+  const projectBoards = boards.filter((b) => b.project_id);
+  const standaloneBoards = boards.filter((b) => !b.project_id);
+
+  // Group project boards by project_id
+  const boardsByProject = new Map<string, Board[]>();
+  for (const b of projectBoards) {
+    const pid = b.project_id!;
+    if (!boardsByProject.has(pid)) boardsByProject.set(pid, []);
+    boardsByProject.get(pid)!.push(b);
   }
 
   return (
@@ -63,28 +80,54 @@ export default function BoardsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {boards.map((board) => (
-            <Link
-              key={board.id}
-              href={`/boards/${board.id}`}
-              className="group rounded-2xl border border-border bg-card p-4 hover:border-[#d4a853]/40 hover:bg-card/80 transition-all"
-            >
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-background group-hover:border-[#d4a853]/30 transition-colors">
-                <LayoutGrid className="h-4.5 w-4.5 text-muted-foreground/60 group-hover:text-[#d4a853]/70 transition-colors" />
+        <div className="space-y-8">
+
+          {/* ── Project Boards ── */}
+          {boardsByProject.size > 0 && (
+            <section>
+              <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">Project Boards</h2>
+              <div className="space-y-4">
+                {Array.from(boardsByProject.entries()).map(([projectId, pBoards]) => {
+                  const project = projectMap.get(projectId);
+                  return (
+                    <div key={projectId}>
+                      {/* Project header row */}
+                      <div className="mb-2 flex items-center gap-2">
+                        <FolderOpen className="h-3.5 w-3.5 text-[#d4a853]/70 shrink-0" />
+                        <span className="text-xs font-semibold text-foreground">{project?.title ?? "Unknown Project"}</span>
+                        <Link
+                          href={`/projects/${projectId}?tab=board`}
+                          className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-[#d4a853] transition-colors"
+                        >
+                          Go to project <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {pBoards.map((board) => (
+                          <BoardCard key={board.id} board={board} projectTitle={project?.title} projectId={projectId} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <p className="font-medium text-sm text-foreground line-clamp-1 mb-1">{board.title}</p>
-              <div className="flex items-center gap-1 text-[11px] text-muted-foreground/50">
-                <Clock className="h-3 w-3" />
-                {formatRelative(board.updated_at)}
+            </section>
+          )}
+
+          {/* ── Standalone Boards ── */}
+          {standaloneBoards.length > 0 && (
+            <section>
+              <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+                {boardsByProject.size > 0 ? "Standalone Boards" : "All Boards"}
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {standaloneBoards.map((board) => (
+                  <BoardCard key={board.id} board={board} />
+                ))}
               </div>
-              {board.share_token && (
-                <div className="mt-2 flex items-center gap-1 text-[10px] text-emerald-400/70">
-                  <ExternalLink className="h-3 w-3" /> Shared publicly
-                </div>
-              )}
-            </Link>
-          ))}
+            </section>
+          )}
+
         </div>
       )}
 
@@ -92,8 +135,60 @@ export default function BoardsPage() {
         <TemplatePicker
           onClose={() => setShowPicker(false)}
           onCreated={handleCreated}
+          projects={projects}
         />
       )}
+    </div>
+  );
+}
+
+function BoardCard({ board, projectTitle, projectId }: { board: Board; projectTitle?: string; projectId?: string }) {
+  return (
+    <div className="group relative rounded-2xl border border-border bg-card transition-all hover:border-[#d4a853]/40 hover:shadow-md hover:shadow-black/20">
+      <Link href={`/boards/${board.id}`} className="block p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background group-hover:border-[#d4a853]/30 transition-colors">
+            <LayoutGrid className="h-4 w-4 text-muted-foreground/60 group-hover:text-[#d4a853]/70 transition-colors" />
+          </div>
+          {board.share_token && (
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-400">
+              SHARED
+            </span>
+          )}
+        </div>
+
+        <p className="font-semibold text-sm text-foreground line-clamp-1 mb-1">{board.title}</p>
+
+        {projectTitle && (
+          <p className="mb-1.5 flex items-center gap-1 text-[10px] text-[#d4a853]/70">
+            <FolderOpen className="h-3 w-3 shrink-0" />
+            <span className="truncate">{projectTitle}</span>
+          </p>
+        )}
+
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground/50">
+          <Clock className="h-3 w-3" />
+          {formatRelative(board.updated_at)}
+        </div>
+      </Link>
+
+      {/* Quick actions footer */}
+      <div className="flex items-center gap-1 border-t border-border/60 px-3 py-2">
+        <Link
+          href={`/boards/${board.id}`}
+          className="flex flex-1 items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors"
+        >
+          <ExternalLink className="h-3 w-3" /> Open full board
+        </Link>
+        {projectId && (
+          <Link
+            href={`/projects/${projectId}?tab=board`}
+            className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-[#d4a853] transition-colors"
+          >
+            <ArrowRight className="h-3 w-3" /> In project
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

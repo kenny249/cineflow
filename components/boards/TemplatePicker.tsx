@@ -1,42 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { X, Loader2, LayoutGrid, Sparkles, MapPin } from "lucide-react";
+import { X, Loader2, LayoutGrid, Sparkles, MapPin, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import { BOARD_TEMPLATES, createBoardFromTemplate } from "@/lib/boards";
 import type { Board } from "@/lib/boards";
+import type { Project } from "@/types";
 
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
-  blank:           <LayoutGrid className="h-5 w-5" />,
-  preproduction:   <LayoutGrid className="h-5 w-5" />,
-  script_breakdown:<Sparkles   className="h-5 w-5" />,
-  location_scout:  <MapPin     className="h-5 w-5" />,
+  blank:            <LayoutGrid className="h-5 w-5" />,
+  preproduction:    <LayoutGrid className="h-5 w-5" />,
+  script_breakdown: <Sparkles   className="h-5 w-5" />,
+  location_scout:   <MapPin     className="h-5 w-5" />,
 };
 
 const TEMPLATE_COLOR: Record<string, string> = {
-  blank:           "text-muted-foreground/60",
-  preproduction:   "text-blue-400",
-  script_breakdown:"text-[#d4a853]",
-  location_scout:  "text-emerald-400",
+  blank:            "text-muted-foreground/60",
+  preproduction:    "text-blue-400",
+  script_breakdown: "text-[#d4a853]",
+  location_scout:   "text-emerald-400",
 };
 
 interface TemplatePickerProps {
   onClose: () => void;
   onCreated: (board: Board) => void;
+  /** Pass when creating from inside a project — locks the board to that project */
   projectId?: string;
+  /** Pass from the global /boards page to let users optionally pick a project */
+  projects?: Project[];
   defaultTitle?: string;
 }
 
-export function TemplatePicker({ onClose, onCreated, projectId, defaultTitle = "New Board" }: TemplatePickerProps) {
+export function TemplatePicker({ onClose, onCreated, projectId, projects, defaultTitle = "New Board" }: TemplatePickerProps) {
   const [title, setTitle] = useState(defaultTitle);
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projectId ?? "");
   const [creating, setCreating] = useState(false);
+
+  const resolvedProjectId = projectId ?? (selectedProjectId || undefined);
 
   async function handleCreate() {
     if (!selected) return;
     setCreating(true);
     try {
-      const board = await createBoardFromTemplate(title || defaultTitle, selected, projectId);
+      const board = await createBoardFromTemplate(title.trim() || defaultTitle, selected, resolvedProjectId);
       onCreated(board);
       toast.success("Board created");
     } catch {
@@ -60,14 +67,41 @@ export function TemplatePicker({ onClose, onCreated, projectId, defaultTitle = "
           </button>
         </div>
 
-        {/* Title input */}
-        <div className="px-5 pt-4">
+        {/* Title + optional project picker */}
+        <div className="px-5 pt-4 space-y-2">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Board title…"
             className="w-full rounded-xl border border-border bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-[#d4a853]/40"
           />
+
+          {/* Project link — only shown from global /boards page (projects prop present, no locked projectId) */}
+          {!projectId && projects && projects.length > 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-background/40 px-3 py-2">
+              <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground/50" />
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="flex-1 bg-transparent text-sm text-foreground outline-none"
+              >
+                <option value="">No project (standalone)</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Show locked project context */}
+          {projectId && projects && (
+            <div className="flex items-center gap-2 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/5 px-3 py-2">
+              <FolderOpen className="h-4 w-4 shrink-0 text-[#d4a853]/70" />
+              <span className="text-xs text-[#d4a853]/80">
+                Linked to: <span className="font-semibold">{projects.find((p) => p.id === projectId)?.title ?? "this project"}</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Templates */}
