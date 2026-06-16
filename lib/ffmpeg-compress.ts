@@ -47,12 +47,13 @@ export async function compressAudioForWhisper(
 
     await ffmpeg.writeFile(inputName, await fetchFile(file));
 
-    // mono, 16 kHz, 64 kbps — matches Whisper's native rate, dramatically smaller
+    // mono, 16 kHz, 32 kbps — well above speech intelligibility floor for Whisper;
+    // guarantees ≥2× reduction even on already-compressed 64 kbps source files
     await ffmpeg.exec([
       "-i", inputName,
       "-ac", "1",
       "-ar", "16000",
-      "-b:a", "64k",
+      "-b:a", "32k",
       "-f", "mp3",
       outputName,
     ]);
@@ -62,6 +63,13 @@ export async function compressAudioForWhisper(
 
     await ffmpeg.deleteFile(inputName).catch(() => {});
     await ffmpeg.deleteFile(outputName).catch(() => {});
+
+    if (data.byteLength >= 24 * 1024 * 1024) {
+      throw new Error(
+        `Compressed file is still ${(data.byteLength / (1024 * 1024)).toFixed(1)} MB — ` +
+        `this recording may be too long to transcribe. Try trimming it to under 30 minutes.`
+      );
+    }
 
     return new File(
       [data],

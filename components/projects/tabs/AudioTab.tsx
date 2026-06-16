@@ -208,7 +208,7 @@ export function AudioTab({ projectId }: Props) {
             {upload.file.name} · {formatBytes(upload.file.size)} — Whisper's limit is 25 MB
           </p>
           <p className="mt-1 text-xs text-muted-foreground/70">
-            Estimated compressed size: ~{Math.ceil(upload.file.size / (1024 * 1024) * 0.08)} MB
+            Estimated compressed size: ~{Math.ceil(upload.file.size / (1024 * 1024) * 0.5)} MB or less
           </p>
           <div className="mt-4 flex items-center justify-center gap-3">
             <button

@@ -294,7 +294,7 @@ export function AudioTranscriber() {
               Compress &amp; Transcribe
             </button>
             <p className="text-[10px] text-muted-foreground/60">
-              Shrinks to ~{Math.ceil(state.file.size / (1024 * 1024) * 0.15)} MB · mono 64 kbps · runs in your browser
+              Shrinks to ~{Math.ceil(state.file.size / (1024 * 1024) * 0.5)} MB or less · mono 32 kbps · runs in your browser
             </p>
           </div>
           <button
