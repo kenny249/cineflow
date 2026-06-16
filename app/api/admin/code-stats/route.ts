@@ -109,30 +109,26 @@ export async function GET() {
   const appPages = countFiles(path.join(root, "app"), "page.tsx") +
                    countFiles(path.join(root, "app"), "page.ts");
 
-  // Git commit count
-  let commitCount = 0;
-  try {
-    const { execSync } = await import("child_process");
-    const output = execSync("git rev-list --count HEAD", { cwd: root, timeout: 3000 }).toString().trim();
-    commitCount = parseInt(output) || 0;
-  } catch { commitCount = 0; }
-
   // Estimated hours: AI-assisted development runs ~300 effective lines/hour
-  // (much faster than traditional ~40/hr; reflects Claude Code workflow)
   const estimatedHours = Math.round(totalEffectiveLines / 300);
 
-  // First git commit date (more accurate than migration file date)
+  // Git data — only available in local dev, not on Vercel (no .git directory at runtime)
+  let commitCount = 0;
   let projectAgeDays = 0;
   let projectStartDate = "";
-  try {
-    const { execSync } = await import("child_process");
-    const firstCommit = execSync("git log --reverse --format=%ci HEAD | head -1", { cwd: root, timeout: 3000 }).toString().trim();
-    if (firstCommit) {
-      const start = new Date(firstCommit);
-      projectAgeDays = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
-      projectStartDate = start.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-    }
-  } catch { /* git not available on Vercel runtime */ }
+  if (!process.env.VERCEL) {
+    try {
+      const { execSync } = await import("child_process");
+      const output = execSync("git rev-list --count HEAD", { cwd: root, timeout: 3000 }).toString().trim();
+      commitCount = parseInt(output) || 0;
+      const firstCommit = execSync("git log --reverse --format=%ci HEAD | head -1", { cwd: root, timeout: 3000 }).toString().trim();
+      if (firstCommit) {
+        const start = new Date(firstCommit);
+        projectAgeDays = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
+        projectStartDate = start.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      }
+    } catch { /* git not available */ }
+  }
 
   return NextResponse.json({
     totalFiles,

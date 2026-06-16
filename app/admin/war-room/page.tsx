@@ -29,18 +29,22 @@ async function fetchWarRoomData() {
     { data: recentInvoices },
   ] = await Promise.all([
     admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-    admin.from("profiles").select("id, first_name, last_name, plan, plan_status, trial_ends_at, created_at"),
+    admin.from("profiles").select("id, first_name, last_name, plan, plan_status, trial_ends_at, created_at, is_test"),
     admin.from("projects").select("created_by, created_at").gte("created_at", thirtyDaysAgo),
     admin.from("invoices").select("created_by, status, created_at").gte("created_at", thirtyDaysAgo).in("status", ["sent", "paid"]),
   ]);
 
-  const realUsers = (authUsers ?? []).filter((u) => !u.email?.endsWith("@demo.usecineflow.com"));
+  const testUserIds = new Set((profiles ?? []).filter((p) => p.is_test).map((p) => p.id));
+  const realUsers = (authUsers ?? []).filter(
+    (u) => !u.email?.endsWith("@demo.usecineflow.com") && !testUserIds.has(u.id)
+  );
 
   const todayStr = today.toISOString();
   const signupsToday = realUsers.filter((u) => u.created_at >= todayStr).length;
 
   const weekStart = new Date(now);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const dayOfWeek = weekStart.getDay(); // 0 = Sun
+  weekStart.setDate(weekStart.getDate() - ((dayOfWeek + 6) % 7)); // Mon-based week
   weekStart.setHours(0, 0, 0, 0);
   const signupsThisWeek = realUsers.filter((u) => u.created_at >= weekStart.toISOString()).length;
 
@@ -116,12 +120,19 @@ async function fetchWarRoomData() {
       }
 
       const thirtyDaysAgoTs = Math.floor(now / 1000) - 30 * 24 * 60 * 60;
-      const recentCanceled = await stripe.subscriptions.list({
-        status: "canceled",
-        limit: 100,
-        expand: ["data.latest_invoice"],
-      });
-      canceledLast30 = recentCanceled.data.filter((s) => {
+      const canceledSubs: Stripe.Subscription[] = [];
+      let cancelCursor: string | undefined;
+      do {
+        const page = await stripe.subscriptions.list({
+          status: "canceled",
+          limit: 100,
+          starting_after: cancelCursor,
+          expand: ["data.latest_invoice"],
+        });
+        canceledSubs.push(...page.data);
+        cancelCursor = page.has_more ? page.data[page.data.length - 1].id : undefined;
+      } while (cancelCursor);
+      canceledLast30 = canceledSubs.filter((s) => {
         if (!s.canceled_at || s.canceled_at < thirtyDaysAgoTs) return false;
         const inv = s.latest_invoice as Stripe.Invoice | null;
         return inv?.amount_paid != null && inv.amount_paid >= 100;

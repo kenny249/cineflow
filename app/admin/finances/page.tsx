@@ -73,9 +73,8 @@ async function fetchFinancials() {
     return invoice?.amount_paid != null && invoice.amount_paid >= 100;
   });
 
-  // Churn: canceled verified-paid / (active verified-paid + canceled verified-paid)
-  const churnBase = paidSubs.length + canceledSubs.length;
-  const churnRate = churnBase > 0 ? (canceledSubs.length / churnBase) * 100 : 0;
+  // Churn: monthly logo churn = canceled last 30d / active verified-paid
+  const churnRate = paidSubs.length > 0 ? (canceledSubs.length / paidSubs.length) * 100 : 0;
 
   // Skipped subs: active but $0 / unverified (gifted, test, coupon-to-zero)
   const skippedCount = activeSubs.length - paidSubs.length;

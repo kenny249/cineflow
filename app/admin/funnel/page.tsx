@@ -27,20 +27,26 @@ async function fetchFunnelData() {
     { data: profiles },
   ] = await Promise.all([
     admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-    admin.from("profiles").select("id, plan, plan_status, trial_ends_at, created_at"),
+    admin.from("profiles").select("id, plan, plan_status, trial_ends_at, created_at, is_test"),
   ]);
 
-  const realUsers = (authUsers ?? []).filter((u) => !u.email?.endsWith("@demo.usecineflow.com"));
+  const testUserIds = new Set((profiles ?? []).filter((p) => p.is_test).map((p) => p.id));
+  const realUsers = (authUsers ?? []).filter(
+    (u) => !u.email?.endsWith("@demo.usecineflow.com") && !testUserIds.has(u.id)
+  );
+  const realUserIds = new Set(realUsers.map((u) => u.id));
+  const realProfiles = (profiles ?? []).filter((p) => realUserIds.has(p.id));
   const nowIso = new Date(now).toISOString();
 
   const totalSignups = realUsers.length;
-  const trialsActive = (profiles ?? []).filter(
+  const startedTrial = realProfiles.filter((p) => p.trial_ends_at != null).length;
+  const trialsActive = realProfiles.filter(
     (p) => p.plan_status === "trialing" && p.trial_ends_at && p.trial_ends_at > nowIso
   ).length;
-  const trialsExpired = (profiles ?? []).filter(
+  const trialsExpired = realProfiles.filter(
     (p) => p.plan_status === "trialing" && (!p.trial_ends_at || p.trial_ends_at <= nowIso)
   ).length;
-  const paidCount = (profiles ?? []).filter(
+  const paidCount = realProfiles.filter(
     (p) => p.plan_status === "active" || p.plan_status === "founding" || p.plan === "lifetime"
   ).length;
   const conversionRate = totalSignups > 0 ? ((paidCount / totalSignups) * 100).toFixed(1) : "0.0";
@@ -52,7 +58,7 @@ async function fetchFunnelData() {
     return d.toISOString().slice(0, 7);
   });
 
-  const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]));
+  const profileMap = Object.fromEntries(realProfiles.map((p) => [p.id, p]));
   const cohorts = months6.map((month) => {
     const cohortUsers = realUsers.filter((u) => u.created_at.slice(0, 7) === month);
     const converted = cohortUsers.filter((u) => {
@@ -86,7 +92,7 @@ async function fetchFunnelData() {
       const thirtyDaysAgo = Math.floor(now / 1000) - 30 * 24 * 60 * 60;
 
       let cursor: string | undefined;
-      const canceled: Stripe.Subscription[] = [];
+      const allCanceled: Stripe.Subscription[] = [];
       do {
         const page = await stripe.subscriptions.list({
           status: "canceled",
@@ -94,11 +100,10 @@ async function fetchFunnelData() {
           starting_after: cursor,
           expand: ["data.items.data.price", "data.latest_invoice", "data.customer"],
         });
-        canceled.push(...page.data.filter((s) => s.canceled_at != null && s.canceled_at >= ninetyDaysAgo));
-        cursor = page.has_more && page.data[page.data.length - 1].canceled_at! >= ninetyDaysAgo
-          ? page.data[page.data.length - 1].id
-          : undefined;
+        allCanceled.push(...page.data);
+        cursor = page.has_more ? page.data[page.data.length - 1].id : undefined;
       } while (cursor);
+      const canceled = allCanceled.filter((s) => s.canceled_at != null && s.canceled_at >= ninetyDaysAgo);
 
       for (const sub of canceled) {
         const invoice = sub.latest_invoice as Stripe.Invoice | null;
@@ -145,10 +150,10 @@ async function fetchFunnelData() {
     mrrLostLast90,
     hasStripe: !!process.env.STRIPE_SECRET_KEY,
     funnelSteps: [
-      { label: "Total signups",    value: totalSignups, pct: "100%" },
-      { label: "Started trial",    value: totalSignups, pct: "100%" },
-      { label: "Active trial",     value: trialsActive, pct: totalSignups > 0 ? `${((trialsActive / totalSignups) * 100).toFixed(0)}%` : "—" },
-      { label: "Converted to paid",value: paidCount,    pct: totalSignups > 0 ? `${((paidCount / totalSignups) * 100).toFixed(0)}%` : "—" },
+      { label: "Total signups",    value: totalSignups,  pct: "100%" },
+      { label: "Started trial",    value: startedTrial,  pct: totalSignups > 0 ? `${((startedTrial / totalSignups) * 100).toFixed(0)}%` : "—" },
+      { label: "Active trial",     value: trialsActive,  pct: totalSignups > 0 ? `${((trialsActive / totalSignups) * 100).toFixed(0)}%` : "—" },
+      { label: "Converted to paid",value: paidCount,     pct: totalSignups > 0 ? `${((paidCount / totalSignups) * 100).toFixed(0)}%` : "—" },
     ],
   };
 }

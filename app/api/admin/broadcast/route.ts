@@ -52,7 +52,7 @@ async function getRecipients(segment: BroadcastSegment): Promise<{ email: string
   const admin = getAdmin();
   const now = new Date().toISOString();
 
-  let profileQuery = admin.from("profiles").select("id, first_name, last_name, plan, plan_status, trial_ends_at");
+  let profileQuery = admin.from("profiles").select("id, first_name, last_name, plan, plan_status, trial_ends_at, is_test");
 
   if (segment === "trialing") {
     profileQuery = profileQuery.eq("plan_status", "trialing").gt("trial_ends_at", now) as typeof profileQuery;
@@ -68,11 +68,22 @@ async function getRecipients(segment: BroadcastSegment): Promise<{ email: string
   if (!profiles?.length) return [];
 
   const ids = profiles.map((p) => p.id);
-  const { data: { users: authUsers } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const testIds = new Set(profiles.filter((p: any) => p.is_test).map((p) => p.id));
+
+  // Paginate through all auth users (Supabase cap is 1000/page)
+  const allAuthUsers: { id: string; email?: string }[] = [];
+  let page = 1;
+  while (true) {
+    const { data } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    const batch = data?.users ?? [];
+    allAuthUsers.push(...batch);
+    if (batch.length < 1000) break;
+    page++;
+  }
 
   const emailMap = Object.fromEntries(
-    (authUsers ?? [])
-      .filter((u) => !u.email?.endsWith("@demo.usecineflow.com"))
+    allAuthUsers
+      .filter((u) => !u.email?.endsWith("@demo.usecineflow.com") && !testIds.has(u.id))
       .map((u) => [u.id, u.email])
   );
 

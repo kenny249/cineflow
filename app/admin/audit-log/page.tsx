@@ -10,18 +10,26 @@ function getAdmin() {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  update_user:    "Updated user",
-  delete_user:    "Deleted user",
-  email_user:     "Emailed user",
-  impersonate_user: "Logged in as user",
-  add_note:       "Added note",
-  delete_note:    "Deleted note",
+  update_user:          "Updated user",
+  delete_user:          "Deleted user",
+  email_user:           "Emailed user",
+  impersonate_user:     "Logged in as user",
+  add_note:             "Added note",
+  delete_note:          "Deleted note",
+  broadcast_email:      "Sent broadcast",
+  create_invite:        "Created invite link",
+  delete_invite:        "Deleted invite link",
+  toggle_feature_flag:  "Toggled feature flag",
+  extend_trial:         "Extended trial",
+  ban_user:             "Banned user",
 };
 
 function actionColor(action: string): string {
-  if (action === "delete_user") return "text-red-400";
+  if (action === "delete_user" || action === "ban_user") return "text-red-400";
   if (action === "impersonate_user") return "text-amber-400";
-  if (action === "email_user") return "text-blue-400";
+  if (action === "email_user" || action === "broadcast_email") return "text-blue-400";
+  if (action === "toggle_feature_flag") return "text-purple-400";
+  if (action === "extend_trial") return "text-emerald-400";
   return "text-zinc-300";
 }
 
@@ -33,7 +41,7 @@ export default async function AuditLogPage() {
     .from("admin_audit_log")
     .select("id, actor_id, action, target_id, target_type, metadata, created_at")
     .order("created_at", { ascending: false })
-    .limit(200);
+    .limit(500);
 
   // Fetch actor names
   const actorIds = [...new Set((logs ?? []).map((l) => l.actor_id))];
@@ -62,7 +70,7 @@ export default async function AuditLogPage() {
     <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-white">Audit Log</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">All admin actions — last 200 entries</p>
+        <p className="text-sm text-zinc-500 mt-0.5">All admin actions — last 500 entries</p>
       </div>
 
       <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">

@@ -24,7 +24,7 @@ export default async function AnalyticsPage() {
     { data: utmProfiles },
   ] = await Promise.all([
     supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-    supabase.from("profiles").select("id, plan, plan_status, trial_ends_at, created_at"),
+    supabase.from("profiles").select("id, plan, plan_status, trial_ends_at, created_at, is_test"),
     supabase.from("projects").select("created_by, created_at"),
     supabase.from("invoices").select("created_by, status, amount, created_at"),
     supabase.from("contracts").select("created_by, status, created_at"),
@@ -32,8 +32,12 @@ export default async function AnalyticsPage() {
     supabase.from("profiles").select("utm_source, utm_medium, utm_campaign").not("utm_source", "is", null),
   ]);
 
-  const realUsers = (authUsers ?? []).filter((u) => !u.email?.endsWith("@demo.usecineflow.com"));
+  const testUserIds = new Set((profiles ?? []).filter((p) => p.is_test).map((p) => p.id));
+  const realUsers = (authUsers ?? []).filter(
+    (u) => !u.email?.endsWith("@demo.usecineflow.com") && !testUserIds.has(u.id)
+  );
   const demoUsers = (authUsers ?? []).filter((u) => u.email?.endsWith("@demo.usecineflow.com"));
+  const realUserIds = new Set(realUsers.map((u) => u.id));
 
   // Signups per day — last 30 days
   const now = Date.now();
@@ -57,19 +61,19 @@ export default async function AnalyticsPage() {
   const active7 = realUsers.filter((u) => u.last_sign_in_at && u.last_sign_in_at > cutoff7).length;
   const active30 = realUsers.filter((u) => u.last_sign_in_at && u.last_sign_in_at > cutoff30).length;
 
-  // Plan breakdown
+  // Plan breakdown — real users only
   const planCounts: Record<string, number> = {};
-  for (const p of profiles ?? []) {
+  for (const p of (profiles ?? []).filter((p) => realUserIds.has(p.id))) {
     const plan = p.plan ?? "unknown";
     planCounts[plan] = (planCounts[plan] ?? 0) + 1;
   }
   const planChart = Object.entries(planCounts).map(([plan, count]) => ({ plan, count }));
 
-  // Feature usage — unique users who have used each feature
-  const usedProjects = new Set((projects ?? []).map((p) => p.created_by)).size;
-  const usedInvoices = new Set((invoices ?? []).map((i) => i.created_by)).size;
-  const usedContracts = new Set((contracts ?? []).map((c) => c.created_by)).size;
-  const usedForms = new Set((forms ?? []).map((f) => f.created_by)).size;
+  // Feature usage — real users only
+  const usedProjects = new Set((projects ?? []).filter((p) => realUserIds.has(p.created_by)).map((p) => p.created_by)).size;
+  const usedInvoices = new Set((invoices ?? []).filter((i) => realUserIds.has(i.created_by)).map((i) => i.created_by)).size;
+  const usedContracts = new Set((contracts ?? []).filter((c) => realUserIds.has(c.created_by)).map((c) => c.created_by)).size;
+  const usedForms = new Set((forms ?? []).filter((f) => realUserIds.has(f.created_by)).map((f) => f.created_by)).size;
 
   const featureUsage = [
     { feature: "Projects", users: usedProjects },
@@ -82,12 +86,13 @@ export default async function AnalyticsPage() {
     .filter((i) => i.status === "paid")
     .reduce((sum, i) => sum + (i.amount ?? 0), 0);
 
-  // Trial health
+  // Trial health — real users only
+  const realProfiles = (profiles ?? []).filter((p) => realUserIds.has(p.id));
   const now7days = new Date(now + 7 * 86400000).toISOString();
-  const trialsActive   = (profiles ?? []).filter((p) => p.plan_status === "trialing" && p.trial_ends_at && new Date(p.trial_ends_at) > new Date()).length;
-  const trialsExpiring = (profiles ?? []).filter((p) => p.plan_status === "trialing" && p.trial_ends_at && new Date(p.trial_ends_at) > new Date() && p.trial_ends_at < now7days).length;
-  const trialsExpired  = (profiles ?? []).filter((p) => p.plan_status === "trialing" && (!p.trial_ends_at || new Date(p.trial_ends_at) <= new Date())).length;
-  const paidUsers      = (profiles ?? []).filter((p) => p.plan_status === "active" || p.plan === "lifetime" || p.plan_status === "founding").length;
+  const trialsActive   = realProfiles.filter((p) => p.plan_status === "trialing" && p.trial_ends_at && new Date(p.trial_ends_at) > new Date()).length;
+  const trialsExpiring = realProfiles.filter((p) => p.plan_status === "trialing" && p.trial_ends_at && new Date(p.trial_ends_at) > new Date() && p.trial_ends_at < now7days).length;
+  const trialsExpired  = realProfiles.filter((p) => p.plan_status === "trialing" && (!p.trial_ends_at || new Date(p.trial_ends_at) <= new Date())).length;
+  const paidUsers      = realProfiles.filter((p) => p.plan_status === "active" || p.plan === "lifetime" || p.plan_status === "founding").length;
 
   // Trial → paid conversion rate
   const totalTrialers = paidUsers + trialsActive + trialsExpired;
@@ -125,7 +130,7 @@ export default async function AnalyticsPage() {
     { label: "Trials active", value: trialsActive },
     { label: "Trials expiring (7 days)", value: trialsExpiring },
     { label: "Trials expired (no conversion)", value: trialsExpired },
-    { label: "Demo sessions today", value: demoUsers.filter((u) => u.created_at > new Date(now - 86400000).toISOString()).length },
+    { label: "Demo sessions today", value: demoUsers.filter((u) => u.created_at > new Date(new Date(now).setHours(0, 0, 0, 0)).toISOString()).length },
     { label: "Total projects", value: (projects ?? []).length },
     { label: "Total invoices sent", value: (invoices ?? []).filter((i) => i.status !== "draft").length },
     { label: "Invoice value paid", value: `$${totalInvoiceValue.toLocaleString()}` },

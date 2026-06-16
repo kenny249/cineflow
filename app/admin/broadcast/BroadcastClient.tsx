@@ -18,6 +18,7 @@ const SEGMENTS: Segment[] = [
   { value: "solo",         label: "Solo plan",        description: "Solo subscribers" },
   { value: "studio",       label: "Studio plan",      description: "Studio subscribers" },
   { value: "agency",       label: "Agency plan",      description: "Agency subscribers" },
+  { value: "enterprise",   label: "Enterprise",       description: "Enterprise subscribers" },
   { value: "lifetime",     label: "Lifetime",         description: "Lifetime access holders" },
 ];
 
@@ -150,7 +151,7 @@ export function BroadcastClient() {
           {/* Segment selector */}
           <div>
             <label className="mb-1.5 block text-xs font-medium text-zinc-400">Recipient segment</label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {SEGMENTS.map((s) => (
                 <button
                   key={s.value}
