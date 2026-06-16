@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { requireActivePlan } from "@/lib/billing-server";
 import { isRateLimited } from "@/lib/rate-limit";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 const BUCKET = "audio-transcriptions";
