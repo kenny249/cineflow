@@ -63,6 +63,11 @@ export function AudioTab({ projectId }: Props) {
       setUpload({ phase: "error", message: "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC." });
       return;
     }
+    if (file.size > 25 * 1024 * 1024) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      setUpload({ phase: "error", message: `File is ${mb} MB — Whisper's maximum is 25 MB. Try compressing or trimming the audio.` });
+      return;
+    }
 
     setUpload({ phase: "uploading", file, progress: 0, label: "Preparing…" });
 
@@ -190,7 +195,7 @@ export function AudioTab({ projectId }: Props) {
             {dragging ? <Upload className="h-5 w-5 text-[#d4a853]" /> : <Mic2 className="h-5 w-5 text-muted-foreground" />}
           </div>
           <p className="text-sm font-semibold text-foreground">{dragging ? "Drop to transcribe" : "Upload audio to transcribe"}</p>
-          <p className="mt-1 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC · up to 500 MB</p>
+          <p className="mt-1 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC · up to 25 MB</p>
           {upload.phase === "error" && (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" /> {upload.message}

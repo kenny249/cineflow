@@ -14,7 +14,7 @@ import type { ProjectTranscriptWithProject } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 
 const ACCEPTED_EXT = [".mp3", ".mp4", ".m4a", ".wav", ".ogg", ".flac", ".aac", ".webm"];
-const MAX_MB = 500;
+const MAX_MB = 25; // OpenAI Whisper hard limit
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 const LS_KEY = "cineflow_transcriber_state";
 
@@ -75,7 +75,7 @@ export function AudioTranscriber() {
   }, [showProjectPicker, projects.length]);
 
   function validateFile(file: File): string | null {
-    if (file.size > MAX_BYTES) return `File is ${formatBytes(file.size)} — max is ${MAX_MB} MB.`;
+    if (file.size > MAX_BYTES) return `File is ${formatBytes(file.size)} — Whisper's maximum is ${MAX_MB} MB. Try compressing or trimming the audio.`;
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
     if (!ACCEPTED_EXT.includes(ext)) return "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC.";
     return null;
