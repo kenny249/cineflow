@@ -6,7 +6,7 @@ import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
   CalendarDays, X, Pencil, Check, AlertCircle, Trash2, Settings2, Link2,
   FolderOpen, Download, DollarSign, CheckCheck, RotateCcw, ExternalLink, StickyNote,
-  MapPin, MessageSquare, FileText, Loader2,
+  MapPin, MessageSquare, FileText, Loader2, GripVertical,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -21,6 +21,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -109,6 +117,14 @@ function DeliverableRow({
   onRevisionChange: (id: string, status: RetainerRevisionStatus, notes: string, count: number) => void;
   onNotesChange: (id: string, notes: string) => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const dragStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(item.title);
   const [showRevision, setShowRevision] = useState(false);
@@ -146,13 +162,28 @@ function DeliverableRow({
   const hasShootNotes = (item.notes ?? "").trim().length > 0;
 
   return (
-    <div className={cn(
-      "group rounded-lg border transition-all duration-150",
-      item.status === "delivered"
-        ? "bg-emerald-500/[0.04] border-emerald-500/10"
-        : "hover:bg-muted/30 border-transparent"
-    )}>
-      <div className="flex items-center gap-3 px-3 py-2.5">
+    <div
+      ref={setNodeRef}
+      style={dragStyle}
+      className={cn(
+        "group rounded-lg border transition-all duration-150",
+        item.status === "delivered"
+          ? "bg-emerald-500/[0.04] border-emerald-500/10"
+          : "hover:bg-muted/30 border-transparent",
+        isDragging && "shadow-lg shadow-black/30"
+      )}
+    >
+      <div className="flex items-center gap-2 px-2 py-2.5">
+        {/* Drag handle */}
+        <button
+          {...attributes}
+          {...listeners}
+          className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/20 hover:text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-all touch-none"
+          tabIndex={-1}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+
         {/* Status toggle */}
         <button
           onClick={() => onStatusChange(item.id, STATUS_CYCLE[item.status as RetainerDeliverableStatus] ?? "planned")}
@@ -352,9 +383,8 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [deliverables, setDeliverables] = useState<RetainerDeliverable[]>([]);
   const [loading, setLoading] = useState(true);
   const [startingMonth, setStartingMonth] = useState(false);
-  const [quickAddTitle, setQuickAddTitle] = useState("");
-  const [quickAddType, setQuickAddType] = useState("other");
-  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [addingToType, setAddingToType] = useState<string | null>(null);
+  const [addingTitle, setAddingTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editingRate, setEditingRate] = useState(false);
@@ -379,6 +409,10 @@ export default function RetainerDetailPage({ id }: { id: string }) {
   const [briefParsing, setBriefParsing] = useState(false);
   const [briefPreview, setBriefPreview] = useState<BriefVideo[] | null>(null);
   const briefInputRef = useRef<HTMLInputElement>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor, {
+    activationConstraint: { distance: 4 },
+  }));
 
   const activeMonth = months.find(m => m.id === activeMonthId) ?? null;
 
@@ -815,21 +849,55 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     setMonths(prev => prev.map(m => m.id === activeMonth.id ? { ...m, paid: newPaid } : m));
   }
 
-  async function handleQuickAdd() {
-    if (!quickAddTitle.trim() || !activeMonthId) return;
+  async function handleAddToSection(type: string) {
+    if (!addingTitle.trim() || !activeMonthId) return;
     try {
       const d = await createRetainerDeliverable({
         month_id: activeMonthId,
-        title: quickAddTitle.trim(),
-        type: quickAddType,
-        sort_order: deliverables.length,
+        title: addingTitle.trim(),
+        type,
+        sort_order: deliverables.filter(x => x.type === type).length,
       });
       setDeliverables(prev => [...prev, d]);
-      setQuickAddTitle("");
-      toast.success("Added");
-    } catch (e: any) {
-      toast.error(e.message ?? "Failed to add");
+      setAddingTitle("");
+      setAddingToType(null);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to add");
     }
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const activeItem = deliverables.find(d => d.id === active.id);
+    const overItem = deliverables.find(d => d.id === over.id);
+    if (!activeItem || !overItem || activeItem.type !== overItem.type) return;
+
+    const groupItems = deliverables
+      .filter(d => d.type === activeItem.type)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const oldIndex = groupItems.findIndex(d => d.id === active.id);
+    const newIndex = groupItems.findIndex(d => d.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(groupItems, oldIndex, newIndex);
+
+    setDeliverables(prev => {
+      const next = [...prev];
+      reordered.forEach((item, i) => {
+        const idx = next.findIndex(d => d.id === item.id);
+        if (idx !== -1) next[idx] = { ...next[idx], sort_order: i };
+      });
+      return next;
+    });
+
+    reordered.forEach((item, i) => {
+      if (item.sort_order !== i) {
+        updateRetainerDeliverable(item.id, { sort_order: i }).catch(() => {});
+      }
+    });
   }
 
   // ── Grouped deliverables ─────────────────────────────────────────────────
@@ -1344,75 +1412,83 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                     <p className="text-muted-foreground text-sm">No deliverables yet</p>
                   </div>
                 ) : (
-                  <div className="space-y-5">
-                    {grouped.map(g => (
-                      <div key={g.type}>
-                        {/* Group header */}
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-medium text-foreground">{g.label}</span>
-                            <span className="text-[10px] text-muted-foreground/50">
-                              {g.shot + g.done}/{g.target}
-                              {g.done > 0 && <span className="text-emerald-400/70 ml-1">· {g.done} delivered</span>}
-                            </span>
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <div className="space-y-5">
+                      {grouped.map(g => (
+                        <div key={g.type}>
+                          {/* Group header */}
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-foreground">{g.label}</span>
+                              <span className="text-[10px] text-muted-foreground/50">
+                                {g.shot + g.done}/{g.target}
+                                {g.done > 0 && <span className="text-emerald-400/70 ml-1">· {g.done} delivered</span>}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                        {/* Items */}
-                        <div className="space-y-0.5">
-                          {g.items.map(item => (
-                            <DeliverableRow
-                              key={item.id}
-                              item={item}
-                              revisionsIncluded={retainer.template.find(t => t.type === g.type)?.revisions_included}
-                              onStatusChange={handleStatusChange}
-                              onDelete={handleDeleteDeliverable}
-                              onTitleChange={handleTitleChange}
-                              onRevisionChange={handleRevisionChange}
-                              onNotesChange={handleNotesChange}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
 
-                {/* Quick add */}
-                {showQuickAdd ? (
-                  <div className="flex gap-2 items-center rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/[0.03] px-3 py-2">
-                    <input
-                      autoFocus
-                      value={quickAddTitle}
-                      onChange={e => setQuickAddTitle(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") handleQuickAdd(); if (e.key === "Escape") { setShowQuickAdd(false); setQuickAddTitle(""); } }}
-                      placeholder="Quick add deliverable…"
-                      className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
-                    />
-                    <select
-                      value={quickAddType}
-                      onChange={e => setQuickAddType(e.target.value)}
-                      className="bg-transparent text-xs text-muted-foreground/60 outline-none cursor-pointer"
-                    >
-                      {(retainer?.template ?? []).map(t => (
-                        <option key={t.type} value={t.type}>{t.label}</option>
+                          {/* Items */}
+                          <SortableContext
+                            items={g.items.sort((a, b) => a.sort_order - b.sort_order).map(i => i.id)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            <div className="space-y-0.5">
+                              {g.items.sort((a, b) => a.sort_order - b.sort_order).map(item => (
+                                <DeliverableRow
+                                  key={item.id}
+                                  item={item}
+                                  revisionsIncluded={retainer.template.find(t => t.type === g.type)?.revisions_included}
+                                  onStatusChange={handleStatusChange}
+                                  onDelete={handleDeleteDeliverable}
+                                  onTitleChange={handleTitleChange}
+                                  onRevisionChange={handleRevisionChange}
+                                  onNotesChange={handleNotesChange}
+                                />
+                              ))}
+                            </div>
+                          </SortableContext>
+
+                          {/* Per-section add */}
+                          {addingToType === g.type ? (
+                            <div className="flex items-center gap-2 mt-1 px-2 py-1.5 rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/[0.03]">
+                              <input
+                                autoFocus
+                                value={addingTitle}
+                                onChange={e => setAddingTitle(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") handleAddToSection(g.type);
+                                  if (e.key === "Escape") { setAddingToType(null); setAddingTitle(""); }
+                                }}
+                                placeholder={`Add ${g.label.toLowerCase()}…`}
+                                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 outline-none"
+                              />
+                              <button
+                                onClick={() => handleAddToSection(g.type)}
+                                disabled={!addingTitle.trim()}
+                                className="text-[#d4a853] disabled:text-muted-foreground/30 transition-colors"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => { setAddingToType(null); setAddingTitle(""); }}
+                                className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setAddingToType(g.type); setAddingTitle(""); }}
+                              className="mt-1 flex items-center gap-1 px-2 text-[11px] text-muted-foreground/30 hover:text-[#d4a853]/60 transition-colors"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Add
+                            </button>
+                          )}
+                        </div>
                       ))}
-                      <option value="other">Other</option>
-                    </select>
-                    <button onClick={handleQuickAdd} disabled={!quickAddTitle.trim()} className="text-[#d4a853] disabled:text-muted-foreground/30 transition-colors">
-                      <Check className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => { setShowQuickAdd(false); setQuickAddTitle(""); }} className="text-muted-foreground/50 hover:text-muted-foreground transition-colors">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setShowQuickAdd(true)}
-                    className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-[#d4a853]/70 transition-colors"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Quick add
-                  </button>
+                    </div>
+                  </DndContext>
                 )}
               </div>
             </div>
