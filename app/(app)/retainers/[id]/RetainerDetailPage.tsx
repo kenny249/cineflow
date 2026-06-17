@@ -1122,7 +1122,7 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                     <button
                       onClick={() => briefInputRef.current?.click()}
                       disabled={briefParsing}
-                      className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground/60 hover:border-blue-500/30 hover:text-blue-400 transition-all disabled:opacity-50 shrink-0"
+                      className="flex items-center gap-1.5 rounded-lg bg-[#d4a853]/10 border border-[#d4a853]/30 px-2.5 py-1.5 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/20 hover:border-[#d4a853]/50 transition-all disabled:opacity-50 shrink-0"
                     >
                       {briefParsing ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
                       {briefParsing ? "Parsing…" : "Import Brief"}
