@@ -1641,7 +1641,7 @@ export async function bulkCreateRetainerDeliverables(rows: {
   return (data ?? []) as RetainerDeliverable[];
 }
 
-export async function updateRetainerDeliverable(id: string, updates: { status?: string; title?: string; notes?: string; revision_notes?: string; revision_count?: number; revision_status?: string }): Promise<void> {
+export async function updateRetainerDeliverable(id: string, updates: { status?: string; title?: string; notes?: string; revision_notes?: string; revision_count?: number; revision_status?: string; brief_metadata?: Record<string, unknown> }): Promise<void> {
   const { error } = await db()
     .from('retainer_deliverables')
     .update(updates)

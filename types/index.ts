@@ -822,6 +822,7 @@ export interface RetainerDeliverable {
   revision_notes?: string;
   revision_count: number;
   revision_status: RetainerRevisionStatus;
+  brief_metadata?: Record<string, unknown>;
   created_at: string;
 }
 

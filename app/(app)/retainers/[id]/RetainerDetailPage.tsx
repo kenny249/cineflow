@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Plus, Camera, CheckCircle2, Circle, Repeat2,
   CalendarDays, X, Pencil, Check, AlertCircle, Trash2, Settings2, Link2,
   FolderOpen, Download, DollarSign, CheckCheck, RotateCcw, ExternalLink, StickyNote,
-  MapPin, MessageSquare,
+  MapPin, MessageSquare, FileText, Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -21,6 +21,17 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface BriefVideo {
+  title: string;
+  description?: string;
+  key_message?: string;
+  call_to_action?: string;
+  duration?: string;
+  notes?: string;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -102,12 +113,14 @@ function DeliverableRow({
   const [title, setTitle] = useState(item.title);
   const [showRevision, setShowRevision] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [showBrief, setShowBrief] = useState(false);
   const [revNotes, setRevNotes] = useState(item.revision_notes ?? "");
   const [shootNotes, setShootNotes] = useState(item.notes ?? "");
   const cfg = STATUS_CONFIG[item.status as RetainerDeliverableStatus] ?? STATUS_CONFIG.planned;
   const revCfg = REVISION_CONFIG[(item.revision_status ?? "none") as RetainerRevisionStatus];
   const revStatus = (item.revision_status ?? "none") as RetainerRevisionStatus;
   const isProductionDay = item.type === "production_day";
+  const brief = item.brief_metadata as BriefVideo | undefined;
 
   function handleTitleBlur() {
     setEditing(false);
@@ -165,6 +178,15 @@ function DeliverableRow({
         )}
 
         {/* Indicators */}
+        {brief && !showBrief && (
+          <button
+            onClick={() => { setShowBrief(true); setShowNotes(false); setShowRevision(false); }}
+            className="text-[10px] font-medium text-blue-400/60 hover:text-blue-400 shrink-0 transition-colors"
+            title="View brief"
+          >
+            Brief
+          </button>
+        )}
         {hasShootNotes && !showNotes && (
           <span className="text-[10px] text-[#d4a853]/50 shrink-0" title="Has shoot notes">●</span>
         )}
@@ -183,8 +205,17 @@ function DeliverableRow({
         {/* Actions */}
         {!editing && (
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            {brief && (
+              <button
+                onClick={() => { setShowBrief(v => !v); setShowNotes(false); setShowRevision(false); }}
+                className={cn("p-1 rounded transition-colors", showBrief ? "text-blue-400 bg-blue-400/10" : "text-muted-foreground/50 hover:text-blue-400 hover:bg-blue-400/10")}
+                title="Brief details"
+              >
+                <FileText className="h-3 w-3" />
+              </button>
+            )}
             <button
-              onClick={() => { setShowNotes(v => !v); setShowRevision(false); }}
+              onClick={() => { setShowNotes(v => !v); setShowRevision(false); setShowBrief(false); }}
               className={cn("p-1 rounded transition-colors", showNotes ? "text-[#d4a853] bg-[#d4a853]/10" : "text-muted-foreground/50 hover:text-[#d4a853]/70 hover:bg-[#d4a853]/10")}
               title="Shoot / script notes"
             >
@@ -192,7 +223,7 @@ function DeliverableRow({
             </button>
             {!isProductionDay && (
               <button
-                onClick={() => { setShowRevision(v => !v); setShowNotes(false); }}
+                onClick={() => { setShowRevision(v => !v); setShowNotes(false); setShowBrief(false); }}
                 className={cn("p-1 rounded transition-colors", showRevision ? "text-amber-400 bg-amber-400/10" : "text-muted-foreground/50 hover:text-amber-400 hover:bg-amber-400/10")}
                 title="Revision"
               >
@@ -222,6 +253,39 @@ function DeliverableRow({
             placeholder="Script, shot description, talking points, references…"
             className="w-full resize-none rounded bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 outline-none border border-border focus:border-[#d4a853]/40"
           />
+        </div>
+      )}
+
+      {/* Brief panel */}
+      {showBrief && brief && (
+        <div className="mx-3 mb-2.5 rounded-lg border border-blue-500/20 bg-blue-500/[0.03] p-3 space-y-2.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-400/50">Brief</span>
+          {brief.description && (
+            <p className="text-xs text-foreground/70 leading-relaxed">{brief.description}</p>
+          )}
+          {brief.key_message && (
+            <div>
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40">Key Message</span>
+              <p className="text-xs text-foreground/70 mt-0.5 leading-relaxed">{brief.key_message}</p>
+            </div>
+          )}
+          {brief.call_to_action && (
+            <div>
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40">Call to Action</span>
+              <p className="text-xs text-foreground/70 mt-0.5">{brief.call_to_action}</p>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            {brief.duration && (
+              <span className="text-[10px] text-muted-foreground/50">Duration: <span className="text-foreground/60">{brief.duration}</span></span>
+            )}
+          </div>
+          {brief.notes && (
+            <div>
+              <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/40">Notes</span>
+              <p className="text-xs text-muted-foreground/60 mt-0.5 leading-relaxed">{brief.notes}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -311,6 +375,10 @@ export default function RetainerDetailPage({ id }: { id: string }) {
 
   const [shootDays, setShootDays] = useState<ShootDay[]>([]);
   const [schedulingDayId, setSchedulingDayId] = useState<string | null>(null);
+
+  const [briefParsing, setBriefParsing] = useState(false);
+  const [briefPreview, setBriefPreview] = useState<BriefVideo[] | null>(null);
+  const briefInputRef = useRef<HTMLInputElement>(null);
 
   const activeMonth = months.find(m => m.id === activeMonthId) ?? null;
 
@@ -678,6 +746,61 @@ export default function RetainerDetailPage({ id }: { id: string }) {
     setDeliverables(prev => prev.map(d => d.id === delivId ? { ...d, notes } : d));
   }
 
+  // ── Brief import ─────────────────────────────────────────────────────────
+
+  async function handleBriefImport(file: File) {
+    setBriefParsing(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      const pdfBase64 = btoa(binary);
+
+      const res = await fetch("/api/retainers/parse-brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pdfBase64 }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to parse brief");
+      setBriefPreview(data.videos as BriefVideo[]);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to parse brief");
+    } finally {
+      setBriefParsing(false);
+    }
+  }
+
+  async function handleApplyBrief(videos: BriefVideo[]) {
+    const videoDeliverables = deliverables
+      .filter(d => d.type !== "production_day")
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const toUpdate = videos.slice(0, videoDeliverables.length).map((v, i) => ({
+      id: videoDeliverables[i].id,
+      title: v.title,
+      brief_metadata: v as unknown as Record<string, unknown>,
+    }));
+
+    try {
+      await Promise.all(toUpdate.map(u => updateRetainerDeliverable(u.id, {
+        title: u.title,
+        brief_metadata: u.brief_metadata,
+      })));
+      setDeliverables(prev => prev.map(d => {
+        const upd = toUpdate.find(u => u.id === d.id);
+        if (!upd) return d;
+        return { ...d, title: upd.title, brief_metadata: upd.brief_metadata };
+      }));
+      setBriefPreview(null);
+      toast.success(`Applied ${toUpdate.length} video${toUpdate.length !== 1 ? "s" : ""} from brief`);
+    } catch {
+      toast.error("Failed to apply brief");
+    }
+  }
+
   async function handleDeliveryUrlSave() {
     if (!activeMonth) return;
     const url = deliveryUrlInput.trim() || undefined;
@@ -996,6 +1119,21 @@ export default function RetainerDetailPage({ id }: { id: string }) {
                 <div className="flex flex-col gap-3">
                   <div className="flex items-start justify-between gap-3">
                     <h2 className="text-lg font-semibold text-foreground">{formatMonthYear(activeMonth.month_year)}</h2>
+                    <button
+                      onClick={() => briefInputRef.current?.click()}
+                      disabled={briefParsing}
+                      className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] text-muted-foreground/60 hover:border-blue-500/30 hover:text-blue-400 transition-all disabled:opacity-50 shrink-0"
+                    >
+                      {briefParsing ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+                      {briefParsing ? "Parsing…" : "Import Brief"}
+                    </button>
+                    <input
+                      ref={briefInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleBriefImport(f); e.target.value = ""; }}
+                    />
                   </div>
 
                   {/* Status segmented control */}
@@ -1279,6 +1417,60 @@ export default function RetainerDetailPage({ id }: { id: string }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Brief confirm modal ── */}
+      {briefPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Brief Imported</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {briefPreview.length} video{briefPreview.length !== 1 ? "s" : ""} found — review before applying
+                </p>
+              </div>
+              <button onClick={() => setBriefPreview(null)} className="text-muted-foreground/50 hover:text-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-4 space-y-2 flex-1">
+              {briefPreview.map((v, i) => (
+                <div key={i} className="rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-sm font-semibold text-foreground">{v.title}</p>
+                  {v.description && (
+                    <p className="text-xs text-muted-foreground/60 mt-1 leading-relaxed">{v.description}</p>
+                  )}
+                  {v.key_message && (
+                    <p className="text-[11px] text-[#d4a853]/70 mt-1.5">Goal: {v.key_message}</p>
+                  )}
+                  {v.duration && (
+                    <p className="text-[10px] text-muted-foreground/40 mt-1">Duration: {v.duration}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-4 border-t border-border shrink-0">
+              <p className="text-xs text-muted-foreground/40">Titles applied to deliverables in order</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setBriefPreview(null)}
+                  className="rounded-xl border border-border px-4 py-2 text-xs text-muted-foreground hover:bg-accent transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleApplyBrief(briefPreview)}
+                  className="rounded-xl bg-[#d4a853] px-4 py-2 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
+                >
+                  Apply to Deliverables
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
