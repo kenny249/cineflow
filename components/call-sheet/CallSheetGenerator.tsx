@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { getCrewContacts, getProjectLocations, getShotLists, getProfile } from "@/lib/supabase/queries";
+import { getCrewContacts, getProjectLocations, getShotLists, getProfile, updateCrewContact } from "@/lib/supabase/queries";
 import type { Project, CrewContact, ProjectLocation, ShotListItem } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -246,6 +246,75 @@ function RosTimeInput({ value, onChange, use24h }: { value: string; onChange: (v
 }
 
 const DEPT_ORDER = ["Production", "Direction", "Camera", "Lighting", "Grip", "Sound", "Art", "Wardrobe", "Hair & Makeup", "Talent", "Other"];
+
+function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime }: {
+  m: CrewWithCall; idx: number; crew: CrewWithCall[];
+  onCrewChange: (c: CrewWithCall[]) => void; defaultCallTime: string;
+}) {
+  const [editingName, setEditingName] = useState(false);
+  const [nameVal, setNameVal] = useState(m.name);
+  const [phoneVal, setPhoneVal] = useState(m.phone ?? "");
+
+  async function saveName() {
+    const trimmed = nameVal.trim();
+    setEditingName(false);
+    if (!trimmed || trimmed === m.name) { setNameVal(m.name); return; }
+    try {
+      await updateCrewContact(m.id, { name: trimmed });
+      const u = [...crew]; u[idx] = { ...u[idx], name: trimmed }; onCrewChange(u);
+    } catch { setNameVal(m.name); toast.error("Failed to update name"); }
+  }
+
+  async function savePhone() {
+    const trimmed = phoneVal.trim();
+    if (trimmed === (m.phone ?? "")) return;
+    try {
+      await updateCrewContact(m.id, { phone: trimmed });
+      const u = [...crew]; u[idx] = { ...u[idx], phone: trimmed }; onCrewChange(u);
+      toast.success("Phone updated");
+    } catch { setPhoneVal(m.phone ?? ""); toast.error("Failed to update phone"); }
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">
+        {nameVal.charAt(0).toUpperCase() || "?"}
+      </div>
+      <div className="min-w-0 flex-1">
+        {editingName ? (
+          <input
+            autoFocus
+            value={nameVal}
+            onChange={(e) => setNameVal(e.target.value)}
+            onBlur={saveName}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { setNameVal(m.name); setEditingName(false); } }}
+            className="w-full rounded border border-[#d4a853]/50 bg-background px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+          />
+        ) : (
+          <button onClick={() => { setNameVal(m.name); setEditingName(true); }} className="group flex items-center gap-1 text-left">
+            <span className="text-xs font-medium text-foreground leading-none">{nameVal}</span>
+            <Edit3 className="h-2.5 w-2.5 shrink-0 text-muted-foreground/0 group-hover:text-muted-foreground/40 transition-colors" />
+          </button>
+        )}
+        <p className="text-[10px] text-muted-foreground mt-0.5">{m.role}</p>
+        <input
+          value={phoneVal}
+          onChange={(e) => setPhoneVal(e.target.value)}
+          onBlur={savePhone}
+          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          placeholder="Add phone"
+          className="mt-0.5 w-full bg-transparent text-[10px] text-muted-foreground placeholder:text-muted-foreground/25 focus:outline-none focus:text-foreground transition-colors"
+        />
+      </div>
+      <div className="shrink-0">
+        <TimeInput
+          value={m.callTime || defaultCallTime}
+          onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }}
+        />
+      </div>
+    </div>
+  );
+}
 
 function groupByDept(crew: CrewWithCall[]) {
   const map = new Map<string, CrewWithCall[]>();
@@ -812,17 +881,7 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
           <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Crew Call Times</p>
           <div className="space-y-1.5">
             {crew.map((m, idx) => (
-              <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">{m.name.charAt(0).toUpperCase()}</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-foreground">{m.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{m.role}</p>
-                </div>
-                <div className="shrink-0">
-                  <TimeInput value={m.callTime || formData.callTime}
-                    onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }} />
-                </div>
-              </div>
+              <CrewEditorRow key={m.id} m={m} idx={idx} crew={crew} onCrewChange={onCrewChange} defaultCallTime={formData.callTime} />
             ))}
           </div>
         </div>
@@ -1097,19 +1156,7 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
           <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Crew Call Times</p>
           <div className="space-y-1.5">
             {crew.map((m, idx) => (
-              <div key={m.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10 text-[10px] font-bold text-[#d4a853]">{m.name.charAt(0).toUpperCase()}</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-foreground">{m.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{m.role}</p>
-                </div>
-                <div className="shrink-0">
-                  <TimeInput
-                    value={m.callTime || defaultCallTime}
-                    onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }}
-                  />
-                </div>
-              </div>
+              <CrewEditorRow key={m.id} m={m} idx={idx} crew={crew} onCrewChange={onCrewChange} defaultCallTime={defaultCallTime} />
             ))}
           </div>
         </div>
