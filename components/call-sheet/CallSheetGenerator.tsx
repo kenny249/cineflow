@@ -279,19 +279,19 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
               <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Show Start</p>
               <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.showTime)}</p>
             </div>}
-            <div style={{ textAlign: "center" }}>
+            {formData.wrapTime && <div style={{ textAlign: "center" }}>
               <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Wrap</p>
               <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.wrapTime)}</p>
-            </div>
+            </div>}
           </>) : (<>
             {(formData.shootDay || formData.scriptRevision) && <div>
               {formData.shootDay && <p style={{ fontSize: 11, fontWeight: 700, color: "#fff", margin: 0 }}>{formData.shootDay}</p>}
               {formData.scriptRevision && <p style={{ fontSize: 9, color: "#9ca3af", margin: "2px 0 0" }}>{formData.scriptRevision}</p>}
             </div>}
-            <div style={{ textAlign: "center" }}>
+            {formData.wrapTime && <div style={{ textAlign: "center" }}>
               <p style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#9ca3af", margin: "0 0 2px" }}>Wrap</p>
               <p style={{ fontSize: 14, fontWeight: 800, fontFamily: "monospace", margin: 0 }}>{to12h(formData.wrapTime)}</p>
-            </div>
+            </div>}
           </>)}
         </div>
       </div>
@@ -658,8 +658,17 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
               <CinematicDateInput value={formData.shootDate} onChange={(v) => set("shootDate", v)} /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Crew Call</label>
               <TimeInput value={formData.callTime} onChange={(v) => set("callTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
-            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
-              <TimeInput value={formData.wrapTime} onChange={(v) => set("wrapTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Wrap</label>
+                {formData.wrapTime && (
+                  <button onClick={() => set("wrapTime", "")} className="text-muted-foreground/30 hover:text-red-400 transition-colors" title="Remove Wrap">
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              <TimeInput value={formData.wrapTime} onChange={(v) => set("wrapTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+            </div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Weather</label>
               <input value={formData.weather} onChange={(e) => set("weather", e.target.value)} placeholder="e.g. 72°F Sunny" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
             {sheet.format === "scripted" && <>
@@ -860,16 +869,22 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
               <CinematicDateInput value={formData.shootDate} onChange={(v) => set("shootDate", v)} /></div>
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">General Crew Call</label>
               <TimeInput value={formData.callTime} onChange={(v) => set("callTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
-            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Doors Open</label>
-              <TimeInput value={formData.doorsTime} onChange={(v) => set("doorsTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
-            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Sound Check</label>
-              <TimeInput value={formData.soundCheckTime} onChange={(v) => set("soundCheckTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
-            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Load-In</label>
-              <TimeInput value={formData.loadInTime} onChange={(v) => set("loadInTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
-            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Show Start</label>
-              <TimeInput value={formData.showTime} onChange={(v) => set("showTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
-            <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Wrap</label>
-              <TimeInput value={formData.wrapTime} onChange={(v) => set("wrapTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
+            {(["doorsTime","soundCheckTime","loadInTime","showTime","wrapTime"] as const).map((field) => {
+              const labels: Record<string, string> = { doorsTime: "Doors Open", soundCheckTime: "Sound Check", loadInTime: "Load-In", showTime: "Show Start", wrapTime: "Wrap" };
+              return (
+                <div key={field}>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider">{labels[field]}</label>
+                    {formData[field] && (
+                      <button onClick={() => set(field, "")} className="text-muted-foreground/30 hover:text-red-400 transition-colors" title={`Remove ${labels[field]}`}>
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                  <TimeInput value={formData[field]} onChange={(v) => set(field, v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+                </div>
+              );
+            })}
             <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Weather</label>
               <input value={formData.weather} onChange={(e) => set("weather", e.target.value)} placeholder="e.g. 72°F Sunny" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
           </div>
