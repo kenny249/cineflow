@@ -40,10 +40,17 @@ export interface CSKeyMoment {
   description: string;
   type: "pre" | "during" | "post" | "logistics";
 }
+export interface CSRunOfShowItem {
+  setTime: string;
+  artist: string;
+  duration: string;
+  stage: string;
+  notes: string;
+}
 
 export type CSSheet =
   | { format: "scripted" | "interview"; schedule: CSScheduleItem[]; warning: string | null }
-  | { format: "live_event"; coverage: CSCoverageAssignment[]; staticCameras: CSStaticCamera[]; keyMoments: CSKeyMoment[]; warning: string | null };
+  | { format: "live_event"; coverage: CSCoverageAssignment[]; staticCameras: CSStaticCamera[]; keyMoments: CSKeyMoment[]; runOfShow?: CSRunOfShowItem[]; warning: string | null };
 
 export interface CSFormData {
   format?: string;
@@ -246,6 +253,17 @@ const s = StyleSheet.create({
   momDot: { width: 6, height: 6, borderRadius: 3, marginTop: 1.5, flexShrink: 0 },
   momLabel: { fontSize: 9, fontFamily: "Helvetica-Bold", flex: 1, lineHeight: 1.4 },
   momDesc: { fontSize: 8, color: "#374151", width: "56%", lineHeight: 1.5 },
+
+  // Run of Show
+  rosTable: { marginBottom: 14 },
+  rosHeadRow: { flexDirection: "row", backgroundColor: BLACK, paddingHorizontal: 8, paddingVertical: 5 },
+  rosHeadCell: { fontSize: 7, fontFamily: "Helvetica-Bold", color: WHITE, textTransform: "uppercase", letterSpacing: 1.2 },
+  rosRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 5 },
+  rosTime: { fontSize: 9, fontFamily: "Helvetica-Bold", width: 68, color: BLACK },
+  rosArtist: { fontSize: 9, fontFamily: "Helvetica-Bold", flex: 1 },
+  rosDuration: { fontSize: 8, color: GRAY, width: 55 },
+  rosStage: { fontSize: 8, color: GRAY, width: 60 },
+  rosNotes: { fontSize: 7, color: LGRAY, width: 80 },
 
   // Director note
   noteBox: { borderWidth: 1, borderColor: BORDER, borderLeftWidth: 3, borderLeftColor: BLACK, borderRadius: 3, padding: 8, marginBottom: 12 },
@@ -456,6 +474,31 @@ export function CallSheetPDFDocument({
                     <Text style={[s.crewTableRole, { flex: 1 }]}>{m.role}</Text>
                     <Text style={[s.crewTablePhone, { width: "25%" }]}>{m.phone || "—"}</Text>
                     <Text style={[s.crewTableCall, { width: 52 }]}>{to12h(m.callTime || formData.callTime)}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Run of Show */}
+          {(sheet.runOfShow ?? []).length > 0 && (
+            <View style={s.rosTable} wrap={false}>
+              <SectionHeader>Run of Show</SectionHeader>
+              <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
+                <View style={s.rosHeadRow}>
+                  <Text style={[s.rosHeadCell, { width: 68 }]}>Time</Text>
+                  <Text style={[s.rosHeadCell, { flex: 1 }]}>Artist / Act</Text>
+                  <Text style={[s.rosHeadCell, { width: 55 }]}>Duration</Text>
+                  <Text style={[s.rosHeadCell, { width: 60 }]}>Stage</Text>
+                  <Text style={[s.rosHeadCell, { width: 80 }]}>Notes</Text>
+                </View>
+                {(sheet.runOfShow ?? []).map((item, i) => (
+                  <View key={i} style={[s.rosRow, { backgroundColor: i % 2 === 0 ? WHITE : FAINT }]} wrap={false}>
+                    <Text style={s.rosTime}>{to12h(item.setTime)}</Text>
+                    <Text style={s.rosArtist}>{item.artist}</Text>
+                    <Text style={s.rosDuration}>{item.duration || "—"}</Text>
+                    <Text style={s.rosStage}>{item.stage || "—"}</Text>
+                    <Text style={s.rosNotes}>{item.notes || ""}</Text>
                   </View>
                 ))}
               </View>
