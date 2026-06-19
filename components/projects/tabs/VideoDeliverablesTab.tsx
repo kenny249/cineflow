@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ExternalLink, CheckCircle2, Circle, Link2, X, Film, Youtube, Globe, Mic, Image, ChevronDown, Copy, Check, Eye } from "lucide-react";
+import { Plus, Trash2, ExternalLink, CheckCircle2, Circle, Link2, X, Film, Youtube, Globe, Mic, Image, ChevronDown, Copy, Check, Eye, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { getVideoDeliverables, createVideoDeliverable, updateVideoDeliverable, deleteVideoDeliverable, getOrCreateClientPortal, getClientPortal } from "@/lib/supabase/queries";
 import type { VideoDeliverable, VideoDeliverableType, ClientPortal } from "@/types";
@@ -102,6 +102,24 @@ export function VideoDeliverablesTab({ projectId, clientName }: Props) {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function handleShareLink() {
+    if (!portal) return;
+    const url = `${window.location.origin}/client/${portal.token}`;
+    const shareData = { title: `${clientName} — Client Portal`, url };
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+      }
+    }
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setCopied(true);
+    toast.success("Portal link copied");
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (!form.title.trim() || !form.url.trim()) {
@@ -191,6 +209,14 @@ export function VideoDeliverablesTab({ projectId, clientName }: Props) {
                     <Eye className="h-3 w-3" />
                     Preview
                   </a>
+                  <button
+                    type="button"
+                    onClick={handleShareLink}
+                    className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/30 px-2.5 py-1.5 text-[11px] font-medium text-[#d4a853] hover:bg-[#d4a853]/10 transition-colors"
+                  >
+                    <Share2 className="h-3 w-3" />
+                    Share
+                  </button>
                   <button
                     type="button"
                     onClick={handleCopyLink}
