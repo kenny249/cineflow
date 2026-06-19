@@ -43,6 +43,7 @@ export interface CSKeyMoment {
 }
 export interface CSRunOfShowItem {
   setTime: string;
+  endTime?: string;
   artist: string;
   duration: string;
   stage: string;
@@ -260,9 +261,8 @@ const s = StyleSheet.create({
   rosHeadRow: { flexDirection: "row", backgroundColor: BLACK, paddingHorizontal: 8, paddingVertical: 5 },
   rosHeadCell: { fontSize: 7, fontFamily: "Helvetica-Bold", color: WHITE, textTransform: "uppercase", letterSpacing: 1.2 },
   rosRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: FBORDER, paddingHorizontal: 8, paddingVertical: 5 },
-  rosTime: { fontSize: 9, fontFamily: "Helvetica-Bold", width: 68, color: BLACK },
+  rosTime: { fontSize: 9, fontFamily: "Helvetica-Bold", width: 120, color: BLACK },
   rosArtist: { fontSize: 9, fontFamily: "Helvetica-Bold", flex: 1 },
-  rosDuration: { fontSize: 8, color: GRAY, width: 55 },
   rosStage: { fontSize: 8, color: GRAY, width: 60 },
   rosNotes: { fontSize: 7, color: LGRAY, width: 80 },
 
@@ -487,17 +487,17 @@ export function CallSheetPDFDocument({
               <SectionHeader>Run of Show</SectionHeader>
               <View style={{ borderWidth: 1, borderColor: BORDER, borderRadius: 3, overflow: "hidden" }}>
                 <View style={s.rosHeadRow}>
-                  <Text style={[s.rosHeadCell, { width: 68 }]}>Time</Text>
+                  <Text style={[s.rosHeadCell, { width: 120 }]}>Time</Text>
                   <Text style={[s.rosHeadCell, { flex: 1 }]}>Artist / Act</Text>
-                  <Text style={[s.rosHeadCell, { width: 55 }]}>Duration</Text>
                   <Text style={[s.rosHeadCell, { width: 60 }]}>Stage</Text>
                   <Text style={[s.rosHeadCell, { width: 80 }]}>Notes</Text>
                 </View>
                 {(sheet.runOfShow ?? []).map((item, i) => (
                   <View key={i} style={[s.rosRow, { backgroundColor: i % 2 === 0 ? WHITE : FAINT }]} wrap={false}>
-                    <Text style={s.rosTime}>{to12h(item.setTime)}</Text>
+                    <Text style={s.rosTime}>
+                      {to12h(item.setTime)}{item.endTime ? ` – ${to12h(item.endTime)}` : ""}
+                    </Text>
                     <Text style={s.rosArtist}>{item.artist}</Text>
-                    <Text style={s.rosDuration}>{item.duration || "—"}</Text>
                     <Text style={s.rosStage}>{item.stage || "—"}</Text>
                     <Text style={s.rosNotes}>{item.notes || ""}</Text>
                   </View>
