@@ -44,8 +44,16 @@ interface KeyMoment {
   type: "pre" | "during" | "post" | "logistics";
 }
 
+interface RunOfShowItem {
+  setTime: string;
+  artist: string;
+  duration: string;
+  stage: string;
+  notes: string;
+}
+
 interface ScriptedSheet   { format: "scripted";   schedule: ScheduleItem[];     warning: string | null }
-interface LiveEventSheet  { format: "live_event"; coverage: CoverageAssignment[]; staticCameras: StaticCamera[]; keyMoments: KeyMoment[]; warning: string | null }
+interface LiveEventSheet  { format: "live_event"; coverage: CoverageAssignment[]; staticCameras: StaticCamera[]; keyMoments: KeyMoment[]; runOfShow: RunOfShowItem[]; warning: string | null }
 interface InterviewSheet  { format: "interview";  schedule: ScheduleItem[];     warning: string | null }
 
 type GeneratedSheet = ScriptedSheet | LiveEventSheet | InterviewSheet;
@@ -512,6 +520,35 @@ function LiveEventPrintSheet({ project, profile, formData, crew, locations, shee
         </div>
       )}
 
+      {/* Run of Show */}
+      {(sheet.runOfShow ?? []).length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <SectionHeader>Run of Show</SectionHeader>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, border: "1px solid #e5e7eb", borderRadius: 4, overflow: "hidden" }}>
+            <thead>
+              <tr style={{ background: "#111", color: "#fff" }}>
+                <th style={{ padding: "5px 10px", textAlign: "left", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", whiteSpace: "nowrap", width: 70 }}>Time</th>
+                <th style={{ padding: "5px 10px", textAlign: "left", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Artist / Act</th>
+                <th style={{ padding: "5px 10px", textAlign: "left", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", width: 60 }}>Duration</th>
+                <th style={{ padding: "5px 10px", textAlign: "left", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em", width: 90 }}>Stage</th>
+                <th style={{ padding: "5px 10px", textAlign: "left", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(sheet.runOfShow ?? []).map((item, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #f3f4f6", background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                  <td style={{ padding: "5px 10px", fontFamily: "monospace", fontWeight: 900, whiteSpace: "nowrap", color: "#111" }}>{to12h(item.setTime)}</td>
+                  <td style={{ padding: "5px 10px", fontWeight: 700 }}>{item.artist}</td>
+                  <td style={{ padding: "5px 10px", color: "#6b7280" }}>{item.duration || "—"}</td>
+                  <td style={{ padding: "5px 10px", color: "#6b7280" }}>{item.stage || "—"}</td>
+                  <td style={{ padding: "5px 10px", color: "#9ca3af", fontSize: 9 }}>{item.notes || ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Coverage assignments — call time also shown in each card header */}
       {sheet.coverage.length > 0 && (
         <div style={{ marginBottom: 14 }}>
@@ -895,6 +932,72 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
           <div><label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Dress Code / Credentials</label>
             <input value={formData.dresscode} onChange={(e) => set("dresscode", e.target.value)} placeholder="e.g. All black, media credentials required" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
         </div>
+      </div>
+
+      {/* Run of Show */}
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Run of Show</p>
+          <button
+            onClick={() => onChange({ ...sheet, runOfShow: [...(sheet.runOfShow ?? []), { setTime: "", artist: "", duration: "", stage: "", notes: "" }] })}
+            className="flex items-center gap-1 text-[11px] text-[#d4a853]/70 hover:text-[#d4a853] transition-colors"
+          >
+            <span className="text-base leading-none">+</span> Add Act
+          </button>
+        </div>
+        {(sheet.runOfShow ?? []).length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-5 text-center">
+            <p className="text-xs text-muted-foreground/40">No acts yet — click "+ Add Act" to build your lineup</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+            {(sheet.runOfShow ?? []).map((item, i) => (
+              <div key={i} className="grid grid-cols-[80px_1fr_80px_100px] gap-2 items-center px-3 py-2">
+                <TimeInput
+                  value={item.setTime}
+                  onChange={(v) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], setTime: v }; onChange({ ...sheet, runOfShow: u }); }}
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                />
+                <input
+                  value={item.artist}
+                  onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], artist: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                  placeholder="Artist / Act name"
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                />
+                <input
+                  value={item.duration}
+                  onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], duration: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                  placeholder="45 min"
+                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                />
+                <div className="flex items-center gap-1">
+                  <input
+                    value={item.stage}
+                    onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], stage: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                    placeholder="Stage"
+                    className="flex-1 min-w-0 rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                  />
+                  <button
+                    onClick={() => { const u = [...sheet.runOfShow]; u.splice(i, 1); onChange({ ...sheet, runOfShow: u }); }}
+                    className="shrink-0 text-muted-foreground/30 hover:text-red-400 transition-colors p-1"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {/* Notes row — shown as a second line per act */}
+          </div>
+        )}
+        {/* Column labels */}
+        {(sheet.runOfShow ?? []).length > 0 && (
+          <div className="grid grid-cols-[80px_1fr_80px_100px] gap-2 px-3 mt-1">
+            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Time</p>
+            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Artist / Act</p>
+            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Duration</p>
+            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Stage</p>
+          </div>
+        )}
       </div>
 
       {/* Venue */}
