@@ -247,9 +247,10 @@ function RosTimeInput({ value, onChange, use24h }: { value: string; onChange: (v
 
 const DEPT_ORDER = ["Production", "Direction", "Camera", "Lighting", "Grip", "Sound", "Art", "Wardrobe", "Hair & Makeup", "Talent", "Other"];
 
-function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime }: {
+function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime, onNameChange }: {
   m: CrewWithCall; idx: number; crew: CrewWithCall[];
   onCrewChange: (c: CrewWithCall[]) => void; defaultCallTime: string;
+  onNameChange?: (oldName: string, newName: string) => void;
 }) {
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(m.name);
@@ -261,7 +262,9 @@ function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime }: {
     if (!trimmed || trimmed === m.name) { setNameVal(m.name); return; }
     try {
       await updateCrewContact(m.id, { name: trimmed });
+      const oldName = m.name;
       const u = [...crew]; u[idx] = { ...u[idx], name: trimmed }; onCrewChange(u);
+      onNameChange?.(oldName, trimmed);
     } catch { setNameVal(m.name); toast.error("Failed to update name"); }
   }
 
@@ -1156,7 +1159,15 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
           <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Crew Call Times</p>
           <div className="space-y-1.5">
             {crew.map((m, idx) => (
-              <CrewEditorRow key={m.id} m={m} idx={idx} crew={crew} onCrewChange={onCrewChange} defaultCallTime={defaultCallTime} />
+              <CrewEditorRow
+                key={m.id} m={m} idx={idx} crew={crew} onCrewChange={onCrewChange} defaultCallTime={defaultCallTime}
+                onNameChange={(oldName, newName) => {
+                  const updatedCoverage = sheet.coverage.map((c) =>
+                    c.person.toLowerCase() === oldName.toLowerCase() ? { ...c, person: newName } : c
+                  );
+                  onChange({ ...sheet, coverage: updatedCoverage });
+                }}
+              />
             ))}
           </div>
         </div>
