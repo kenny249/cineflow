@@ -31,6 +31,7 @@ interface CoverageAssignment {
   role: string;
   equipment: string;
   responsibilities: string[];
+  callTime?: string;
 }
 
 interface StaticCamera {
@@ -247,10 +248,11 @@ function RosTimeInput({ value, onChange, use24h }: { value: string; onChange: (v
 
 const DEPT_ORDER = ["Production", "Direction", "Camera", "Lighting", "Grip", "Sound", "Art", "Wardrobe", "Hair & Makeup", "Talent", "Other"];
 
-function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime, onNameChange }: {
+function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime, onNameChange, onCallTimeChange }: {
   m: CrewWithCall; idx: number; crew: CrewWithCall[];
   onCrewChange: (c: CrewWithCall[]) => void; defaultCallTime: string;
   onNameChange?: (oldName: string, newName: string) => void;
+  onCallTimeChange?: (personName: string, callTime: string) => void;
 }) {
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(m.name);
@@ -312,7 +314,10 @@ function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime, onNameChan
       <div className="shrink-0">
         <TimeInput
           value={m.callTime || defaultCallTime}
-          onChange={(v) => { const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u); }}
+          onChange={(v) => {
+            const u = [...crew]; u[idx] = { ...u[idx], callTime: v }; onCrewChange(u);
+            onCallTimeChange?.(m.name, v);
+          }}
         />
       </div>
     </div>
@@ -683,7 +688,7 @@ function LiveEventPrintSheet({ project, profile, formData, crew, locations, shee
           <div style={{ display: "grid", gridTemplateColumns: sheet.coverage.length === 1 ? "1fr" : "repeat(2, 1fr)", gap: 8 }}>
             {sheet.coverage.map((c, i) => {
               const member = crew.find((m) => m.name.toLowerCase() === c.person.toLowerCase());
-              const callTime = to12h(member?.callTime || formData.callTime);
+              const callTime = to12h(c.callTime || member?.callTime || formData.callTime);
               return (
                 <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 4, overflow: "hidden" }}>
                   <div style={{ background: "#111", color: "#fff", padding: "7px 10px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -1164,6 +1169,12 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                 onNameChange={(oldName, newName) => {
                   const updatedCoverage = sheet.coverage.map((c) =>
                     c.person.toLowerCase() === oldName.toLowerCase() ? { ...c, person: newName } : c
+                  );
+                  onChange({ ...sheet, coverage: updatedCoverage });
+                }}
+                onCallTimeChange={(personName, callTime) => {
+                  const updatedCoverage = sheet.coverage.map((c) =>
+                    c.person.toLowerCase() === personName.toLowerCase() ? { ...c, callTime } : c
                   );
                   onChange({ ...sheet, coverage: updatedCoverage });
                 }}

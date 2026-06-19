@@ -30,6 +30,7 @@ export interface CSCoverageAssignment {
   role: string;
   equipment: string;
   responsibilities: string[];
+  callTime?: string;
 }
 export interface CSStaticCamera {
   name: string;
@@ -513,7 +514,7 @@ export function CallSheetPDFDocument({
                 {(sheet.coverage ?? []).map((c, i) => {
                   const person = c.person ?? "";
                   const member = crew.find((m) => (m.name ?? "").toLowerCase() === person.toLowerCase());
-                  const callTime = to12h(member?.callTime || formData.callTime);
+                  const callTime = to12h(c.callTime || member?.callTime || formData.callTime);
                   return (
                     <View key={i} style={s.covCard} wrap={false}>
                       <View style={[s.covHeader, { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }]}>
