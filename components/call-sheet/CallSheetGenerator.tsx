@@ -201,7 +201,7 @@ const DEPT_ORDER = ["Production", "Direction", "Camera", "Lighting", "Grip", "So
 function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime, onNameChange, onCallTimeChange }: {
   m: CrewWithCall; idx: number; crew: CrewWithCall[];
   onCrewChange: (c: CrewWithCall[]) => void; defaultCallTime: string;
-  onNameChange?: (oldName: string, newName: string) => void;
+  onNameChange?: (oldName: string, newName: string, role: string) => void;
   onCallTimeChange?: (personName: string, callTime: string) => void;
 }) {
   const [editingName, setEditingName] = useState(false);
@@ -216,7 +216,7 @@ function CrewEditorRow({ m, idx, crew, onCrewChange, defaultCallTime, onNameChan
       await updateCrewContact(m.id, { name: trimmed });
       const oldName = m.name;
       const u = [...crew]; u[idx] = { ...u[idx], name: trimmed }; onCrewChange(u);
-      onNameChange?.(oldName, trimmed);
+      onNameChange?.(oldName, trimmed, m.role ?? "");
     } catch { setNameVal(m.name); toast.error("Failed to update name"); }
   }
 
@@ -1100,10 +1100,12 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
             {crew.map((m, idx) => (
               <CrewEditorRow
                 key={m.id} m={m} idx={idx} crew={crew} onCrewChange={onCrewChange} defaultCallTime={defaultCallTime}
-                onNameChange={(oldName, newName) => {
-                  const updatedCoverage = sheet.coverage.map((c) =>
-                    c.person.toLowerCase() === oldName.toLowerCase() ? { ...c, person: newName } : c
-                  );
+                onNameChange={(oldName, newName, role) => {
+                  const updatedCoverage = sheet.coverage.map((c) => {
+                    const nameMatch = c.person.toLowerCase() === oldName.toLowerCase();
+                    const roleMatch = !nameMatch && role && c.role.toLowerCase() === role.toLowerCase();
+                    return (nameMatch || roleMatch) ? { ...c, person: newName } : c;
+                  });
                   onChange({ ...sheet, coverage: updatedCoverage });
                 }}
                 onCallTimeChange={(personName, callTime) => {
