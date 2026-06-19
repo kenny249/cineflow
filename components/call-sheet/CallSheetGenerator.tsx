@@ -190,6 +190,61 @@ function to12h(t: string): string {
   return `${h12}:${String(m).padStart(2, "0")} ${period}`;
 }
 
+function parseRosTime(input: string): string | null {
+  const s = input.trim().toLowerCase();
+  if (!s) return null;
+  let h = NaN, m = 0, isPM: boolean | null = null;
+  if (s.endsWith("am") || (s.endsWith("a") && /\d/.test(s.slice(-2, -1)))) {
+    isPM = false;
+    const rest = s.replace(/a(m)?$/, "").trim();
+    const [hStr, mStr] = rest.split(":");
+    h = parseInt(hStr); m = parseInt(mStr || "0") || 0;
+  } else if (s.endsWith("pm") || (s.endsWith("p") && /\d/.test(s.slice(-2, -1)))) {
+    isPM = true;
+    const rest = s.replace(/p(m)?$/, "").trim();
+    const [hStr, mStr] = rest.split(":");
+    h = parseInt(hStr); m = parseInt(mStr || "0") || 0;
+  } else if (s.includes(":")) {
+    const [hStr, mStr] = s.split(":");
+    h = parseInt(hStr); m = parseInt(mStr || "0") || 0;
+  } else if (/^\d{3,4}$/.test(s)) {
+    h = parseInt(s.slice(0, -2)); m = parseInt(s.slice(-2));
+  } else if (/^\d{1,2}$/.test(s)) {
+    h = parseInt(s); m = 0;
+  }
+  if (isNaN(h) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  if (isPM === true && h < 12) h += 12;
+  if (isPM === false && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function formatRosTime(hhmm: string, use24h: boolean): string {
+  if (!hhmm || !hhmm.includes(":")) return hhmm;
+  const [hStr, mStr] = hhmm.split(":");
+  const h = parseInt(hStr), m = parseInt(mStr);
+  if (isNaN(h) || isNaN(m)) return hhmm;
+  if (use24h) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  const period = h >= 12 ? "PM" : "AM";
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function RosTimeInput({ value, onChange, use24h }: { value: string; onChange: (v: string) => void; use24h: boolean }) {
+  const [text, setText] = useState("");
+  const [focused, setFocused] = useState(false);
+  const display = value ? formatRosTime(value, use24h) : "";
+  return (
+    <input
+      type="text"
+      value={focused ? text : display}
+      placeholder={use24h ? "22:00" : "10:00 PM"}
+      onFocus={() => { setText(display); setFocused(true); }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={() => { setFocused(false); const p = parseRosTime(text); onChange(p ?? text); }}
+      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+    />
+  );
+}
+
 const DEPT_ORDER = ["Production", "Direction", "Camera", "Lighting", "Grip", "Sound", "Art", "Wardrobe", "Hair & Makeup", "Talent", "Other"];
 
 function groupByDept(crew: CrewWithCall[]) {
@@ -849,6 +904,12 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
   const [momDraft, setMomDraft] = useState<KeyMoment | null>(null);
   const [camDraft, setCamDraft] = useState<StaticCamera | null>(null);
   const [refining, setRefining] = useState<Record<number, "tighten" | "expand" | null>>({});
+  const [use24h, setUse24h] = useState(() => {
+    try { return localStorage.getItem("ros_time_format") === "24"; } catch { return false; }
+  });
+  function toggleTimeFormat() {
+    setUse24h(p => { const n = !p; try { localStorage.setItem("ros_time_format", n ? "24" : "12"); } catch {} return n; });
+  }
 
   async function handleRefine(idx: number, mode: "tighten" | "expand", projectTitle?: string) {
     const c = sheet.coverage[idx];
@@ -938,65 +999,72 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
       <div>
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Run of Show</p>
-          <button
-            onClick={() => onChange({ ...sheet, runOfShow: [...(sheet.runOfShow ?? []), { setTime: "", artist: "", duration: "", stage: "", notes: "" }] })}
-            className="flex items-center gap-1 text-[11px] text-[#d4a853]/70 hover:text-[#d4a853] transition-colors"
-          >
-            <span className="text-base leading-none">+</span> Add Act
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTimeFormat}
+              className="flex items-center rounded-md border border-border bg-card px-2 py-0.5 text-[10px] font-mono font-bold transition-colors hover:border-[#d4a853]/30"
+            >
+              <span className={!use24h ? "text-[#d4a853]" : "text-muted-foreground/30"}>12H</span>
+              <span className="mx-1 text-muted-foreground/20">/</span>
+              <span className={use24h ? "text-[#d4a853]" : "text-muted-foreground/30"}>24H</span>
+            </button>
+            <button
+              onClick={() => onChange({ ...sheet, runOfShow: [...(sheet.runOfShow ?? []), { setTime: "", artist: "", duration: "", stage: "", notes: "" }] })}
+              className="flex items-center gap-1 text-[11px] text-[#d4a853]/70 hover:text-[#d4a853] transition-colors"
+            >
+              <span className="text-base leading-none">+</span> Add Act
+            </button>
+          </div>
         </div>
         {(sheet.runOfShow ?? []).length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-5 text-center">
             <p className="text-xs text-muted-foreground/40">No acts yet — click "+ Add Act" to build your lineup</p>
           </div>
         ) : (
-          <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
-            {(sheet.runOfShow ?? []).map((item, i) => (
-              <div key={i} className="grid grid-cols-[80px_1fr_80px_100px] gap-2 items-center px-3 py-2">
-                <TimeInput
-                  value={item.setTime}
-                  onChange={(v) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], setTime: v }; onChange({ ...sheet, runOfShow: u }); }}
-                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
-                />
-                <input
-                  value={item.artist}
-                  onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], artist: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
-                  placeholder="Artist / Act name"
-                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
-                />
-                <input
-                  value={item.duration}
-                  onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], duration: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
-                  placeholder="45 min"
-                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
-                />
-                <div className="flex items-center gap-1">
+          <>
+            <div className="grid grid-cols-[100px_1fr_80px_90px_28px] gap-2 px-3 mb-1">
+              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Time</p>
+              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Artist / Act</p>
+              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Duration</p>
+              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Stage</p>
+              <span />
+            </div>
+            <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+              {(sheet.runOfShow ?? []).map((item, i) => (
+                <div key={i} className="grid grid-cols-[100px_1fr_80px_90px_28px] gap-2 items-center px-3 py-2">
+                  <RosTimeInput
+                    value={item.setTime}
+                    use24h={use24h}
+                    onChange={(v) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], setTime: v }; onChange({ ...sheet, runOfShow: u }); }}
+                  />
+                  <input
+                    value={item.artist}
+                    onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], artist: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                    placeholder="Artist / Act name"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                  />
+                  <input
+                    value={item.duration}
+                    onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], duration: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                    placeholder="45 min"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                  />
                   <input
                     value={item.stage}
                     onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], stage: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
                     placeholder="Stage"
-                    className="flex-1 min-w-0 rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
                   />
                   <button
                     onClick={() => { const u = [...sheet.runOfShow]; u.splice(i, 1); onChange({ ...sheet, runOfShow: u }); }}
-                    className="shrink-0 text-muted-foreground/30 hover:text-red-400 transition-colors p-1"
+                    className="text-muted-foreground/30 hover:text-red-400 transition-colors p-1"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
-              </div>
-            ))}
-            {/* Notes row — shown as a second line per act */}
-          </div>
-        )}
-        {/* Column labels */}
-        {(sheet.runOfShow ?? []).length > 0 && (
-          <div className="grid grid-cols-[80px_1fr_80px_100px] gap-2 px-3 mt-1">
-            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Time</p>
-            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Artist / Act</p>
-            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Duration</p>
-            <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Stage</p>
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
