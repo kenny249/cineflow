@@ -661,11 +661,9 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Wrap</label>
-                {formData.wrapTime && (
-                  <button onClick={() => set("wrapTime", "")} className="text-muted-foreground/30 hover:text-red-400 transition-colors" title="Remove Wrap">
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
+                <button onClick={() => set("wrapTime", "")} className="text-muted-foreground/30 hover:text-red-400 transition-colors" title="Remove Wrap">
+                  <X className="h-3 w-3" />
+                </button>
               </div>
               <TimeInput value={formData.wrapTime} onChange={(v) => set("wrapTime", v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
             </div>
@@ -875,11 +873,9 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                 <div key={field}>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[10px] text-muted-foreground uppercase tracking-wider">{labels[field]}</label>
-                    {formData[field] && (
-                      <button onClick={() => set(field, "")} className="text-muted-foreground/30 hover:text-red-400 transition-colors" title={`Remove ${labels[field]}`}>
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
+                    <button onClick={() => set(field, "")} className="text-muted-foreground/30 hover:text-red-400 transition-colors" title={`Remove ${labels[field]}`}>
+                      <X className="h-3 w-3" />
+                    </button>
                   </div>
                   <TimeInput value={formData[field]} onChange={(v) => set(field, v)} className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
                 </div>
