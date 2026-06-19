@@ -854,8 +854,11 @@ export default function ProjectDetailTabs({
   // ── Shot list sub-mode (shots / storyboard) ──
   const [shotListSubMode, setShotListSubMode] = useState<"shots" | "storyboard">("shots");
   const [showShootDays, setShowShootDays] = useState(false);
-  const [callSheetOpen, setCallSheetOpen] = useState(false);
-  const [callSheetInitialId, setCallSheetInitialId] = useState<string | undefined>(undefined);
+  const initialSheetParam = searchParams.get("sheet");
+  const [callSheetOpen, setCallSheetOpen] = useState(!!initialSheetParam);
+  const [callSheetInitialId, setCallSheetInitialId] = useState<string | undefined>(
+    initialSheetParam && initialSheetParam !== "new" ? initialSheetParam : undefined
+  );
 
   // ── Inline video player state ──
   const [activeRevisionId, setActiveRevisionId] = useState<string | null>(null);
@@ -1495,7 +1498,7 @@ export default function ProjectDetailTabs({
               variant="outline"
               size="sm"
               className="h-7 gap-1.5 text-xs border-[#d4a853]/30 text-[#d4a853] hover:bg-[#d4a853]/10"
-              onClick={() => setCallSheetOpen(true)}
+              onClick={() => { setCallSheetOpen(true); router.replace(`?tab=${activeTab}&sheet=new`, { scroll: false }); }}
             >
               <FileText className="h-3 w-3" />
               <span className="hidden sm:inline">Call Sheet</span>
@@ -1565,7 +1568,12 @@ export default function ProjectDetailTabs({
           </div>
 
           {callSheetOpen && (
-            <CallSheetGenerator project={{ ...project, client_logo_url: displayClientLogoUrl || project.client_logo_url }} onClose={() => { setCallSheetOpen(false); setCallSheetInitialId(undefined); }} initialSheetId={callSheetInitialId} />
+            <CallSheetGenerator
+              project={{ ...project, client_logo_url: displayClientLogoUrl || project.client_logo_url }}
+              initialSheetId={callSheetInitialId}
+              onSheetIdChange={(id) => router.replace(`?tab=${activeTab}&sheet=${id}`, { scroll: false })}
+              onClose={() => { setCallSheetOpen(false); setCallSheetInitialId(undefined); router.replace(`?tab=${activeTab}`, { scroll: false }); }}
+            />
           )}
         </div>
 
@@ -2733,7 +2741,7 @@ export default function ProjectDetailTabs({
 
             {/* ── Production Docs ── */}
             <TabsContent value="docs" className="m-0">
-              <ProductionDocsTab projectId={project.id} canEdit={canEdit} onOpenCallSheet={(id) => { setCallSheetInitialId(id); setCallSheetOpen(true); }} />
+              <ProductionDocsTab projectId={project.id} canEdit={canEdit} onOpenCallSheet={(id) => { setCallSheetInitialId(id); setCallSheetOpen(true); router.replace(`?tab=${activeTab}&sheet=${id}`, { scroll: false }); }} />
             </TabsContent>
 
             {/* ── Crew + Locations ── */}

@@ -1292,7 +1292,7 @@ function StepDot({ n, current, total }: { n: number; current: number; total: num
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function CallSheetGenerator({ project, onClose, initialSheetId }: { project: Project; onClose: () => void; initialSheetId?: string }) {
+export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetIdChange }: { project: Project; onClose: () => void; initialSheetId?: string; onSheetIdChange?: (id: string) => void }) {
   const [step, setStep] = useState<0 | 1 | 2 | 3 | 4 | 5>(initialSheetId ? 1 : 1);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -1383,6 +1383,11 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
     setSavedAt(new Date(saved.updated_at));
     setStep(5);
   }
+
+  // Notify parent when a sheet ID is first known (so URL can be updated)
+  useEffect(() => {
+    if (savedSheetId) onSheetIdChange?.(savedSheetId);
+  }, [savedSheetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save while editing step 5
   useEffect(() => {
