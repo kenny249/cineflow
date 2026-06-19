@@ -513,7 +513,8 @@ export function CallSheetPDFDocument({
               <View style={s.covGrid}>
                 {(sheet.coverage ?? []).map((c, i) => {
                   const person = c.person ?? "";
-                  const member = crew.find((m) => (m.name ?? "").toLowerCase() === person.toLowerCase());
+                  const member = crew.find((m) => (m.name ?? "").toLowerCase() === person.toLowerCase())
+                    ?? crew.find((m) => (m.role ?? "").toLowerCase() === (c.role ?? "").toLowerCase());
                   const callTime = to12h(c.callTime || member?.callTime || formData.callTime);
                   return (
                     <View key={i} style={s.covCard} wrap={false}>

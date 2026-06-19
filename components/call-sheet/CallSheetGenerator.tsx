@@ -637,7 +637,8 @@ function LiveEventPrintSheet({ project, profile, formData, crew, locations, shee
           <SectionHeader>Coverage Assignments</SectionHeader>
           <div style={{ display: "grid", gridTemplateColumns: sheet.coverage.length === 1 ? "1fr" : "repeat(2, 1fr)", gap: 8 }}>
             {sheet.coverage.map((c, i) => {
-              const member = crew.find((m) => m.name.toLowerCase() === c.person.toLowerCase());
+              const member = crew.find((m) => m.name.toLowerCase() === c.person.toLowerCase())
+                ?? crew.find((m) => m.role.toLowerCase() === c.role.toLowerCase());
               const callTime = to12h(c.callTime || member?.callTime || formData.callTime);
               return (
                 <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 4, overflow: "hidden" }}>
@@ -1106,9 +1107,12 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                   onChange({ ...sheet, coverage: updatedCoverage });
                 }}
                 onCallTimeChange={(personName, callTime) => {
-                  const updatedCoverage = sheet.coverage.map((c) =>
-                    c.person.toLowerCase() === personName.toLowerCase() ? { ...c, callTime } : c
-                  );
+                  const crewMember = crew.find(m => m.name.toLowerCase() === personName.toLowerCase());
+                  const updatedCoverage = sheet.coverage.map((c) => {
+                    const nameMatch = c.person.toLowerCase() === personName.toLowerCase();
+                    const roleMatch = crewMember?.role && c.role.toLowerCase() === crewMember.role.toLowerCase();
+                    return (nameMatch || roleMatch) ? { ...c, callTime } : c;
+                  });
                   onChange({ ...sheet, coverage: updatedCoverage });
                 }}
               />
@@ -1430,6 +1434,13 @@ export function CallSheetGenerator({ project, onClose, initialSheetId }: { proje
       });
       if (!res.ok) throw new Error("Generation failed");
       const data = await res.json();
+      if (data.format === "live_event" && Array.isArray(data.coverage) && crew.length > 0) {
+        data.coverage = data.coverage.map((c: CoverageAssignment) => {
+          const match = crew.find(m => m.name.toLowerCase() === c.person.toLowerCase())
+            ?? crew.find(m => m.role.toLowerCase() === c.role.toLowerCase());
+          return { ...c, callTime: match?.callTime || formData.callTime };
+        });
+      }
       setSheet(data);
       setStep(5);
       // Save immediately on first generate
