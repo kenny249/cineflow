@@ -1536,22 +1536,6 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
       const blob = await res.blob();
       const filename = `call-sheet-${project.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`;
 
-      // Web Share API (iOS 15+ / Android Chrome 89+): native share sheet lets users
-      // save to Files app on iOS or trigger a download on Android
-      const file = new File([blob], filename, { type: "application/pdf" });
-      if (typeof navigator.share === "function" && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ files: [file], title: filename });
-          toast.success("PDF shared — tap 'Save to Files' to keep it on your device");
-          return;
-        } catch (shareErr: any) {
-          // User cancelled share — not an error
-          if (shareErr?.name === "AbortError") return;
-          // Share failed (shouldn't happen), fall through to download
-        }
-      }
-
-      // Desktop / older iOS fallback: anchor download
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
