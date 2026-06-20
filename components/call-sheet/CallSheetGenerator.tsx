@@ -959,6 +959,7 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
   const [momDraft, setMomDraft] = useState<KeyMoment | null>(null);
   const [camDraft, setCamDraft] = useState<StaticCamera | null>(null);
   const [refining, setRefining] = useState<Record<number, "tighten" | "expand" | null>>({});
+  const [respIds, setRespIds] = useState<string[]>([]);
   const respSensors = useSensors(useSensor(PointerSensor));
 
   async function handleRefine(idx: number, mode: "tighten" | "expand", projectTitle?: string) {
@@ -1190,7 +1191,7 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                   >
                     {refining[i] === "expand" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Maximize2 className="h-3.5 w-3.5" />}
                   </button>
-                  <button onClick={() => { setEditCovIdx(i); setCovDraft({ ...c, responsibilities: [...c.responsibilities] }); }}
+                  <button onClick={() => { setEditCovIdx(i); setCovDraft({ ...c, responsibilities: [...c.responsibilities] }); setRespIds(c.responsibilities.map((_, j) => `rid-${Date.now()}-${j}`)); }}
                     className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
@@ -1210,28 +1211,33 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                     onDragEnd={(event: DragEndEvent) => {
                       const { active, over } = event;
                       if (over && active.id !== over.id) {
-                        const oldIdx = covDraft.responsibilities.findIndex((_, k) => `r-${k}` === active.id);
-                        const newIdx = covDraft.responsibilities.findIndex((_, k) => `r-${k}` === over.id);
-                        setCovDraft({ ...covDraft, responsibilities: arrayMove(covDraft.responsibilities, oldIdx, newIdx) });
+                        const oldIdx = respIds.indexOf(active.id as string);
+                        const newIdx = respIds.indexOf(over.id as string);
+                        if (oldIdx !== -1 && newIdx !== -1) {
+                          setRespIds(arrayMove(respIds, oldIdx, newIdx));
+                          setCovDraft({ ...covDraft, responsibilities: arrayMove(covDraft.responsibilities, oldIdx, newIdx) });
+                        }
                       }
                     }}
                   >
-                    <SortableContext
-                      items={covDraft.responsibilities.map((_, k) => `r-${k}`)}
-                      strategy={verticalListSortingStrategy}
-                    >
+                    <SortableContext items={respIds} strategy={verticalListSortingStrategy}>
                       <div className="space-y-1">
                         {covDraft.responsibilities.map((r, j) => (
                           <SortableResponsibility
-                            key={`r-${j}`}
-                            id={`r-${j}`}
+                            key={respIds[j] ?? j}
+                            id={respIds[j] ?? `r-${j}`}
                             value={r}
                             onChange={(v) => { const rs = [...covDraft.responsibilities]; rs[j] = v; setCovDraft({ ...covDraft, responsibilities: rs }); }}
-                            onRemove={() => { const rs = covDraft.responsibilities.filter((_, k) => k !== j); setCovDraft({ ...covDraft, responsibilities: rs }); }}
+                            onRemove={() => {
+                              setRespIds(respIds.filter((_, k) => k !== j));
+                              setCovDraft({ ...covDraft, responsibilities: covDraft.responsibilities.filter((_, k) => k !== j) });
+                            }}
                           />
                         ))}
-                        <button onClick={() => setCovDraft({ ...covDraft, responsibilities: [...covDraft.responsibilities, ""] })}
-                          className="text-xs text-[#d4a853] hover:underline pl-5">+ Add responsibility</button>
+                        <button onClick={() => {
+                          setRespIds([...respIds, `rid-${Date.now()}`]);
+                          setCovDraft({ ...covDraft, responsibilities: [...covDraft.responsibilities, ""] });
+                        }} className="text-xs text-[#d4a853] hover:underline pl-5">+ Add responsibility</button>
                       </div>
                     </SortableContext>
                   </DndContext>
