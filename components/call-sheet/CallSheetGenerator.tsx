@@ -5,12 +5,15 @@ import { createPortal } from "react-dom";
 import {
   X, ChevronRight, ChevronLeft, Loader2, Printer, Download, Share2,
   MapPin, Users, Clock, Calendar, AlertTriangle, FileText, Check,
-  Edit3, Film, Radio, Mic2, CheckCircle2, Minimize2, Maximize2,
+  Edit3, Film, Radio, Mic2, CheckCircle2, Minimize2, Maximize2, GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { getCrewContacts, getProjectLocations, getShotLists, getProfile, updateCrewContact } from "@/lib/supabase/queries";
 import type { Project, CrewContact, ProjectLocation, ShotListItem } from "@/types";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -906,6 +909,40 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
   );
 }
 
+// ─── Sortable responsibility row ─────────────────────────────────────────────
+
+function SortableResponsibility({ id, value, onChange, onRemove }: {
+  id: string; value: string;
+  onChange: (v: string) => void;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className="flex gap-2 items-center"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground transition-colors touch-none"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="flex-1 rounded-lg border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+      />
+      <button type="button" onClick={onRemove} className="shrink-0 text-muted-foreground hover:text-red-400 transition-colors">
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
 // ─── Inline editor for live event ────────────────────────────────────────────
 
 function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime, formData, onFormDataChange, locations, onLocationsChange, projectTitle }: {
@@ -922,6 +959,7 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
   const [momDraft, setMomDraft] = useState<KeyMoment | null>(null);
   const [camDraft, setCamDraft] = useState<StaticCamera | null>(null);
   const [refining, setRefining] = useState<Record<number, "tighten" | "expand" | null>>({});
+  const respSensors = useSensors(useSensor(PointerSensor));
 
   async function handleRefine(idx: number, mode: "tighten" | "expand", projectTitle?: string) {
     const c = sheet.coverage[idx];
@@ -1166,18 +1204,37 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                         placeholder={f} className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50 col-span-1" />
                     ))}
                   </div>
-                  <div className="space-y-1">
-                    {covDraft.responsibilities.map((r, j) => (
-                      <div key={j} className="flex gap-2">
-                        <input value={r} onChange={(e) => { const rs = [...covDraft.responsibilities]; rs[j] = e.target.value; setCovDraft({ ...covDraft, responsibilities: rs }); }}
-                          className="flex-1 rounded-lg border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
-                        <button onClick={() => { const rs = covDraft.responsibilities.filter((_, k) => k !== j); setCovDraft({ ...covDraft, responsibilities: rs }); }}
-                          className="text-muted-foreground hover:text-red-400 transition-colors"><X className="h-3 w-3" /></button>
+                  <DndContext
+                    sensors={respSensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event: DragEndEvent) => {
+                      const { active, over } = event;
+                      if (over && active.id !== over.id) {
+                        const oldIdx = covDraft.responsibilities.findIndex((_, k) => `r-${k}` === active.id);
+                        const newIdx = covDraft.responsibilities.findIndex((_, k) => `r-${k}` === over.id);
+                        setCovDraft({ ...covDraft, responsibilities: arrayMove(covDraft.responsibilities, oldIdx, newIdx) });
+                      }
+                    }}
+                  >
+                    <SortableContext
+                      items={covDraft.responsibilities.map((_, k) => `r-${k}`)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-1">
+                        {covDraft.responsibilities.map((r, j) => (
+                          <SortableResponsibility
+                            key={`r-${j}`}
+                            id={`r-${j}`}
+                            value={r}
+                            onChange={(v) => { const rs = [...covDraft.responsibilities]; rs[j] = v; setCovDraft({ ...covDraft, responsibilities: rs }); }}
+                            onRemove={() => { const rs = covDraft.responsibilities.filter((_, k) => k !== j); setCovDraft({ ...covDraft, responsibilities: rs }); }}
+                          />
+                        ))}
+                        <button onClick={() => setCovDraft({ ...covDraft, responsibilities: [...covDraft.responsibilities, ""] })}
+                          className="text-xs text-[#d4a853] hover:underline pl-5">+ Add responsibility</button>
                       </div>
-                    ))}
-                    <button onClick={() => setCovDraft({ ...covDraft, responsibilities: [...covDraft.responsibilities, ""] })}
-                      className="text-xs text-[#d4a853] hover:underline">+ Add responsibility</button>
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => { setEditCovIdx(null); setCovDraft(null); }} className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent">Cancel</button>
                     <button onClick={saveCoverage} className="rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black">Save</button>
