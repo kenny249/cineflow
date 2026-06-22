@@ -120,6 +120,57 @@ Rules:
 - Only include people and cameras actually listed in the crew/shot list above`;
 }
 
+function interviewPrompt(project: any, shotItems: any[], crew: any[], locations: any[], formData: any): string {
+  const subjects = formData.interviewSubjects || "TBD";
+  const locationNames = (locations ?? []).map((l: any) => l.name).join(", ");
+  const totalBroll = shotItems?.length ?? 0;
+  return `You are a professional documentary/interview production coordinator. Generate a realistic interview day schedule.
+
+PROJECT: ${project.title}
+FORMAT: Interview / Documentary
+CLIENT: ${project.client_name || "TBD"}
+SHOOT DATE: ${formData.shootDate || "TBD"}
+CALL TIME: ${to12h(formData.callTime)}
+WRAP TIME: ${to12h(formData.wrapTime)}
+
+INTERVIEW SUBJECT(S): ${subjects}
+
+LOCATIONS:
+${(locations ?? []).map((l: any, i: number) => `${i + 1}. ${l.name}${l.address ? ` — ${l.address}` : ""}`).join("\n") || "No locations specified"}
+
+CREW (${crew?.length ?? 0}):
+${(crew ?? []).map((c: any) => `- ${c.role}: ${c.name} (call: ${to12h(c.callTime || formData.callTime)})`).join("\n") || "No crew listed"}
+
+B-ROLL / ADDITIONAL SHOTS (${totalBroll}):
+${totalBroll > 0
+  ? (shotItems ?? []).slice(0, 20).map((s: any) => `- ${s.description}${s.notes ? ` (${s.notes})` : ""}`).join("\n")
+  : "No specific shots listed — generate a standard interview day"}
+
+RULES:
+- Start with crew call and equipment load-in / basecamp setup
+- Allow 60-90 min for interview lighting, camera setup, and sound check before subject arrives
+- Include a 15-min block for subject arrival, welcome, and mic placement
+- Interview sessions run 30-60 min each — if multiple subjects allow 15 min changeover
+- If b-roll shots are listed, add dedicated b-roll blocks (usually before or after interviews)
+- Add a 30-min lunch break if the day is 6+ hours
+- End with pack-down / wrap before wrap time
+- Use 12-hour time format (9:00 AM, 1:30 PM) — NOT 24h format
+- If too many subjects or shots for the window, note it in "warning"
+
+Return ONLY valid JSON:
+{
+  "format": "interview",
+  "schedule": [
+    { "time": "8:00 AM", "label": "Crew Call / Equipment Load-In", "location": "${locationNames || "Location"}", "type": "logistics" },
+    { "time": "8:30 AM", "label": "Interview Lighting & Camera Setup", "location": "${locationNames || "Location"}", "type": "setup" },
+    { "time": "10:00 AM", "label": "Interview: ${subjects || "Subject"}", "location": "${locationNames || "Location"}", "type": "shoot" }
+  ],
+  "warning": null
+}
+
+Valid types: "logistics" | "setup" | "shoot" | "break" | "move" | "wrap"`;
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -135,6 +186,8 @@ export async function POST(req: NextRequest) {
 
   const prompt = format === "live_event"
     ? liveEventPrompt(project, shotItems, crew, locations, formData)
+    : format === "interview"
+    ? interviewPrompt(project, shotItems, crew, locations, formData)
     : scriptedPrompt(project, shotItems, crew, locations, formData);
 
   try {

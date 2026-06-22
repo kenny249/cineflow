@@ -753,6 +753,10 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
 }) {
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [draft, setDraft] = useState<ScheduleItem | null>(null);
+  const [schedIds, setSchedIds] = useState<string[]>(() =>
+    sheet.schedule.map((_, i) => `sid-${Date.now()}-${i}`)
+  );
+  const schedSensors = useSensors(useSensor(PointerSensor));
 
   function startEdit(i: number) { setEditIdx(i); setDraft({ ...sheet.schedule[i] }); }
   function cancelEdit() { setEditIdx(null); setDraft(null); }
@@ -764,8 +768,19 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
     setEditIdx(null); setDraft(null);
   }
   function deleteRow(i: number) {
-    const updated = sheet.schedule.filter((_, idx) => idx !== i);
-    onChange({ ...sheet, schedule: updated });
+    setSchedIds((ids) => ids.filter((_, k) => k !== i));
+    onChange({ ...sheet, schedule: sheet.schedule.filter((_, idx) => idx !== i) });
+    if (editIdx === i) { setEditIdx(null); setDraft(null); }
+  }
+  function addRow() {
+    const newId = `sid-${Date.now()}`;
+    const lastItem = sheet.schedule[sheet.schedule.length - 1];
+    const newItem: ScheduleItem = { time: lastItem?.time ?? formData.callTime, label: "New block", location: null, type: "shoot" };
+    const newSchedule = [...sheet.schedule, newItem];
+    setSchedIds((ids) => [...ids, newId]);
+    onChange({ ...sheet, schedule: newSchedule });
+    setEditIdx(newSchedule.length - 1);
+    setDraft({ ...newItem });
   }
 
   const set = (k: keyof FormData, v: any) => onFormDataChange({ ...formData, [k]: v });
@@ -849,61 +864,46 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
         </div>
       )}
 
-      {/* Schedule rows */}
       <div>
-      <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Schedule</p>
-      <div className="space-y-1">
-      {sheet.schedule.map((item, i) => (
-        <div key={i}>
-          {editIdx === i && draft ? (
-            <div className="rounded-xl border border-[#d4a853]/40 bg-[#d4a853]/5 p-3 space-y-2">
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Time</label>
-                  <TimeInput value={draft.time} onChange={(v) => setDraft({ ...draft, time: v })}
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm font-mono [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Type</label>
-                  <select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value as any })}
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50">
-                    {(["logistics","setup","shoot","break","move","wrap"] as ScheduleItem["type"][]).map((t) => (
-                      <option key={t} value={t}>{TYPE_LABEL[t]}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Location</label>
-                  <input value={draft.location ?? ""} onChange={(e) => setDraft({ ...draft, location: e.target.value || null })}
-                    placeholder="Location or blank"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Description</label>
-                <input value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-                  className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
-              </div>
-              <div className="flex justify-end gap-2">
-                <button onClick={cancelEdit} className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent transition-colors">Cancel</button>
-                <button onClick={saveEdit} className="rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black hover:bg-[#d4a853]/90 transition-colors">Save</button>
-              </div>
-            </div>
-          ) : (
-            <div className="group flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-muted/20 transition-colors">
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: ROW_DOT[item.type] ?? "#9ca3af", display: "inline-block", flexShrink: 0 }} />
-              <span className="w-16 shrink-0 font-mono text-xs font-bold text-foreground">{to12h(item.time)}</span>
-              <span className="min-w-0 flex-1 text-xs text-foreground">{item.label}</span>
-              {item.location && <span className="text-[10px] text-muted-foreground shrink-0">{item.location}</span>}
-              <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => startEdit(i)} className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"><Edit3 className="h-3 w-3" /></button>
-                <button onClick={() => deleteRow(i)} className="rounded p-1 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"><X className="h-3 w-3" /></button>
-              </div>
-            </div>
-          )}
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Schedule</p>
+          <button onClick={addRow} className="flex items-center gap-1 text-[11px] text-[#d4a853]/70 hover:text-[#d4a853] transition-colors">
+            <span className="text-base leading-none">+</span> Add Row
+          </button>
         </div>
-      ))}
-      </div>
+        <DndContext sensors={schedSensors} collisionDetection={closestCenter}
+          onDragEnd={(event: DragEndEvent) => {
+            const { active, over } = event;
+            if (over && active.id !== over.id) {
+              const oldIdx = schedIds.indexOf(active.id as string);
+              const newIdx = schedIds.indexOf(over.id as string);
+              if (oldIdx !== -1 && newIdx !== -1) {
+                setSchedIds(arrayMove(schedIds, oldIdx, newIdx));
+                onChange({ ...sheet, schedule: arrayMove(sheet.schedule, oldIdx, newIdx) });
+                if (editIdx !== null) { setEditIdx(null); setDraft(null); }
+              }
+            }
+          }}
+        >
+          <SortableContext items={schedIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-1">
+              {sheet.schedule.map((item, i) => (
+                <SortableScheduleRow
+                  key={schedIds[i] ?? i}
+                  id={schedIds[i] ?? `s-${i}`}
+                  item={item}
+                  isEditing={editIdx === i}
+                  draft={editIdx === i ? draft : null}
+                  onEdit={() => startEdit(i)}
+                  onDelete={() => deleteRow(i)}
+                  onDraftChange={setDraft}
+                  onSave={saveEdit}
+                  onCancel={cancelEdit}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       </div>
     </div>
   );
@@ -939,6 +939,70 @@ function SortableResponsibility({ id, value, onChange, onRemove }: {
       <button type="button" onClick={onRemove} className="shrink-0 text-muted-foreground hover:text-red-400 transition-colors">
         <X className="h-3 w-3" />
       </button>
+    </div>
+  );
+}
+
+// ─── Sortable schedule row (Scripted / Interview) ────────────────────────────
+
+function SortableScheduleRow({
+  id, item, isEditing, draft, onEdit, onDelete, onDraftChange, onSave, onCancel,
+}: {
+  id: string; item: ScheduleItem; isEditing: boolean; draft: ScheduleItem | null;
+  onEdit: () => void; onDelete: () => void;
+  onDraftChange: (d: ScheduleItem) => void; onSave: () => void; onCancel: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}>
+      {isEditing && draft ? (
+        <div className="rounded-xl border border-[#d4a853]/40 bg-[#d4a853]/5 p-3 space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Time</label>
+              <TimeInput value={draft.time} onChange={(v) => onDraftChange({ ...draft, time: v })} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Type</label>
+              <select value={draft.type} onChange={(e) => onDraftChange({ ...draft, type: e.target.value as ScheduleItem["type"] })}
+                className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50">
+                {(["logistics","setup","shoot","break","move","wrap"] as ScheduleItem["type"][]).map((t) => (
+                  <option key={t} value={t}>{TYPE_LABEL[t]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Location</label>
+              <input value={draft.location ?? ""} onChange={(e) => onDraftChange({ ...draft, location: e.target.value || null })}
+                placeholder="Location or blank"
+                className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Description</label>
+            <input value={draft.label} onChange={(e) => onDraftChange({ ...draft, label: e.target.value })}
+              className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={onCancel} className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-accent transition-colors">Cancel</button>
+            <button onClick={onSave} className="rounded-lg bg-[#d4a853] px-3 py-1 text-xs font-bold text-black hover:bg-[#d4a853]/90 transition-colors">Save</button>
+          </div>
+        </div>
+      ) : (
+        <div className="group flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted/20 transition-colors">
+          <button type="button" {...attributes} {...listeners} className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-muted-foreground transition-colors touch-none">
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: ROW_DOT[item.type] ?? "#9ca3af", display: "inline-block", flexShrink: 0 }} />
+          <span className="w-16 shrink-0 font-mono text-xs font-bold text-foreground">{to12h(item.time)}</span>
+          <span className="min-w-0 flex-1 text-xs text-foreground">{item.label}</span>
+          {item.location && <span className="text-[10px] text-muted-foreground shrink-0">{item.location}</span>}
+          <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={onEdit} className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"><Edit3 className="h-3 w-3" /></button>
+            <button onClick={onDelete} className="rounded p-1 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"><X className="h-3 w-3" /></button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1004,6 +1068,19 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
     onChange({ ...sheet, keyMoments: updated });
     setEditMomIdx(null); setMomDraft(null);
   }
+  function addCoverage() {
+    const newEntry: CoverageAssignment = { person: "New Person", role: "Role", equipment: "", responsibilities: ["Add responsibility here"], callTime: formData.callTime };
+    const newCoverage = [...sheet.coverage, newEntry];
+    onChange({ ...sheet, coverage: newCoverage });
+    const newIdx = newCoverage.length - 1;
+    setEditCovIdx(newIdx);
+    setCovDraft({ ...newEntry, responsibilities: [...newEntry.responsibilities] });
+    setRespIds(newEntry.responsibilities.map((_, j) => `rid-${Date.now()}-${j}`));
+  }
+  function deleteCoverage(i: number) {
+    if (editCovIdx === i) { setEditCovIdx(null); setCovDraft(null); }
+    onChange({ ...sheet, coverage: sheet.coverage.filter((_, k) => k !== i) });
+  }
 
   return (
     <div className="space-y-6">
@@ -1063,16 +1140,17 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-[1fr_1fr_1fr_90px_28px] gap-2 px-3 mb-1">
+            <div className="grid grid-cols-[1fr_1fr_1fr_80px_1fr_28px] gap-2 px-3 mb-1">
               <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Start</p>
               <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">End</p>
               <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Artist / Act</p>
               <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Stage</p>
+              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Notes</p>
               <span />
             </div>
             <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
               {(sheet.runOfShow ?? []).map((item, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_1fr_90px_28px] gap-2 items-center px-3 py-2">
+                <div key={i} className="grid grid-cols-[1fr_1fr_1fr_80px_1fr_28px] gap-2 items-center px-3 py-2">
                   <TimeInput
                     minuteStep={15}
                     value={item.setTime}
@@ -1093,6 +1171,12 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                     value={item.stage}
                     onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], stage: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
                     placeholder="Stage"
+                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                  />
+                  <input
+                    value={item.notes ?? ""}
+                    onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], notes: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                    placeholder="Notes"
                     className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
                   />
                   <button
@@ -1164,7 +1248,12 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
 
       {/* Coverage */}
       <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Coverage Assignments</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Coverage Assignments</p>
+          <button onClick={addCoverage} className="flex items-center gap-1 text-[11px] text-[#d4a853]/70 hover:text-[#d4a853] transition-colors">
+            <span className="text-base leading-none">+</span> Add Coverage
+          </button>
+        </div>
         <div className="space-y-2">
           {sheet.coverage.map((c, i) => (
             <div key={i} className="rounded-xl border border-border bg-card overflow-hidden">
@@ -1194,6 +1283,10 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                   <button onClick={() => { setEditCovIdx(i); setCovDraft({ ...c, responsibilities: [...c.responsibilities] }); setRespIds(c.responsibilities.map((_, j) => `rid-${Date.now()}-${j}`)); }}
                     className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
                     <Edit3 className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => deleteCoverage(i)}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-colors">
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
@@ -1261,9 +1354,24 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
       </div>
 
       {/* Static cameras */}
-      {sheet.staticCameras.length > 0 && (
-        <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Static / Mounted Cameras</p>
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Static / Mounted Cameras</p>
+          <button onClick={() => {
+            const newCam: StaticCamera = { name: "New Camera", role: "Position and purpose" };
+            const newCams = [...sheet.staticCameras, newCam];
+            onChange({ ...sheet, staticCameras: newCams });
+            setEditCamIdx(newCams.length - 1);
+            setCamDraft({ ...newCam });
+          }} className="flex items-center gap-1 text-[11px] text-[#d4a853]/70 hover:text-[#d4a853] transition-colors">
+            <span className="text-base leading-none">+</span> Add Camera
+          </button>
+        </div>
+        {sheet.staticCameras.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-4 text-center">
+            <p className="text-xs text-muted-foreground/40">No static cameras — click "+ Add Camera" to add one</p>
+          </div>
+        ) : (
           <div className="space-y-1.5">
             {sheet.staticCameras.map((cam, i) => (
               <div key={i}>
@@ -1284,22 +1392,43 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                       <p className="text-xs font-semibold text-foreground">{cam.name}</p>
                       <p className="text-xs text-muted-foreground">{cam.role}</p>
                     </div>
-                    <button onClick={() => { setEditCamIdx(i); setCamDraft({ ...cam }); }}
-                      className="shrink-0 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-accent transition-all">
-                      <Edit3 className="h-3 w-3" />
-                    </button>
+                    <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                      <button onClick={() => { setEditCamIdx(i); setCamDraft({ ...cam }); }}
+                        className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                        <Edit3 className="h-3 w-3" />
+                      </button>
+                      <button onClick={() => onChange({ ...sheet, staticCameras: sheet.staticCameras.filter((_, k) => k !== i) })}
+                        className="rounded p-1 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Key moments */}
-      {sheet.keyMoments.length > 0 && (
-        <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Key Moments</p>
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Key Moments</p>
+          <button onClick={() => {
+            const newMom: KeyMoment = { label: "New Moment", description: "Who covers it and how", type: "during" };
+            const newMoments = [...sheet.keyMoments, newMom];
+            onChange({ ...sheet, keyMoments: newMoments });
+            setEditMomIdx(newMoments.length - 1);
+            setMomDraft({ ...newMom });
+          }} className="flex items-center gap-1 text-[11px] text-[#d4a853]/70 hover:text-[#d4a853] transition-colors">
+            <span className="text-base leading-none">+</span> Add Moment
+          </button>
+        </div>
+        {sheet.keyMoments.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-4 text-center">
+            <p className="text-xs text-muted-foreground/40">No key moments — click "+ Add Moment" to add one</p>
+          </div>
+        ) : (
           <div className="space-y-1">
             {sheet.keyMoments.map((m, i) => (
               <div key={i}>
@@ -1308,7 +1437,7 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                     <div className="grid grid-cols-2 gap-2">
                       <input value={momDraft.label} onChange={(e) => setMomDraft({ ...momDraft, label: e.target.value })} placeholder="Label"
                         className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" />
-                      <select value={momDraft.type} onChange={(e) => setMomDraft({ ...momDraft, type: e.target.value as any })}
+                      <select value={momDraft.type} onChange={(e) => setMomDraft({ ...momDraft, type: e.target.value as KeyMoment["type"] })}
                         className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50">
                         {(["pre","during","post","logistics"] as KeyMoment["type"][]).map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
@@ -1327,17 +1456,23 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
                       <p className="text-xs font-semibold text-foreground">{m.label}</p>
                       <p className="text-xs text-muted-foreground">{m.description}</p>
                     </div>
-                    <button onClick={() => { setEditMomIdx(i); setMomDraft({ ...m }); }}
-                      className="shrink-0 rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-accent transition-all">
-                      <Edit3 className="h-3 w-3" />
-                    </button>
+                    <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+                      <button onClick={() => { setEditMomIdx(i); setMomDraft({ ...m }); }}
+                        className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                        <Edit3 className="h-3 w-3" />
+                      </button>
+                      <button onClick={() => onChange({ ...sheet, keyMoments: sheet.keyMoments.filter((_, k) => k !== i) })}
+                        className="rounded p-1 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
