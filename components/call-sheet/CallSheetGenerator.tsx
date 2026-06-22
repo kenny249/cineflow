@@ -756,7 +756,7 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
   const [schedIds, setSchedIds] = useState<string[]>(() =>
     sheet.schedule.map((_, i) => `sid-${Date.now()}-${i}`)
   );
-  const schedSensors = useSensors(useSensor(PointerSensor));
+  const schedSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   function startEdit(i: number) { setEditIdx(i); setDraft({ ...sheet.schedule[i] }); }
   function cancelEdit() { setEditIdx(null); setDraft(null); }
@@ -827,6 +827,18 @@ function ScriptedEditor({ sheet, onChange, formData, onFormDataChange, locations
               <input value={formData.walkieChannels} onChange={(e) => set("walkieChannels", e.target.value)} placeholder="e.g. CH1: Production" className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50" /></div>
           </div>
         </div>
+      </div>
+
+      {/* Director's Note */}
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Director's Note</p>
+        <textarea
+          rows={3}
+          placeholder="Optional message to the crew — printed on the call sheet."
+          value={formData.directorNote}
+          onChange={(e) => set("directorNote", e.target.value)}
+          className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+        />
       </div>
 
       {/* Venue */}
@@ -1024,7 +1036,7 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
   const [camDraft, setCamDraft] = useState<StaticCamera | null>(null);
   const [refining, setRefining] = useState<Record<number, "tighten" | "expand" | null>>({});
   const [respIds, setRespIds] = useState<string[]>([]);
-  const respSensors = useSensors(useSensor(PointerSensor));
+  const respSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   async function handleRefine(idx: number, mode: "tighten" | "expand", projectTitle?: string) {
     const c = sheet.coverage[idx];
@@ -1123,6 +1135,18 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
         </div>
       </div>
 
+      {/* Director's Note */}
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Director's Note</p>
+        <textarea
+          rows={3}
+          placeholder="Optional message to the crew — printed on the call sheet."
+          value={formData.directorNote}
+          onChange={(e) => set("directorNote", e.target.value)}
+          className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+        />
+      </div>
+
       {/* Run of Show */}
       <div>
         <div className="mb-2 flex items-center justify-between">
@@ -1139,56 +1163,58 @@ function LiveEventEditor({ sheet, onChange, crew, onCrewChange, defaultCallTime,
             <p className="text-xs text-muted-foreground/40">No acts yet — click "+ Add Act" to build your lineup</p>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-[1fr_1fr_1fr_80px_1fr_28px] gap-2 px-3 mb-1">
-              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Start</p>
-              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">End</p>
-              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Artist / Act</p>
-              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Stage</p>
-              <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Notes</p>
-              <span />
+          <div className="overflow-x-auto">
+            <div className="min-w-[520px]">
+              <div className="grid grid-cols-[1fr_1fr_1fr_80px_1fr_28px] gap-2 px-3 mb-1">
+                <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Start</p>
+                <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">End</p>
+                <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Artist / Act</p>
+                <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Stage</p>
+                <p className="text-[9px] text-muted-foreground/40 uppercase tracking-wider">Notes</p>
+                <span />
+              </div>
+              <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+                {(sheet.runOfShow ?? []).map((item, i) => (
+                  <div key={i} className="grid grid-cols-[1fr_1fr_1fr_80px_1fr_28px] gap-2 items-center px-3 py-2">
+                    <TimeInput
+                      minuteStep={15}
+                      value={item.setTime}
+                      onChange={(v) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], setTime: v }; onChange({ ...sheet, runOfShow: u }); }}
+                    />
+                    <TimeInput
+                      minuteStep={15}
+                      value={item.endTime ?? ""}
+                      onChange={(v) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], endTime: v }; onChange({ ...sheet, runOfShow: u }); }}
+                    />
+                    <input
+                      value={item.artist}
+                      onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], artist: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                      placeholder="Artist / Act name"
+                      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                    />
+                    <input
+                      value={item.stage}
+                      onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], stage: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                      placeholder="Stage"
+                      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                    />
+                    <input
+                      value={item.notes ?? ""}
+                      onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], notes: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
+                      placeholder="Notes"
+                      className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+                    />
+                    <button
+                      onClick={() => { const u = [...sheet.runOfShow]; u.splice(i, 1); onChange({ ...sheet, runOfShow: u }); }}
+                      className="text-muted-foreground/30 hover:text-red-400 transition-colors p-1"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
-              {(sheet.runOfShow ?? []).map((item, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_1fr_80px_1fr_28px] gap-2 items-center px-3 py-2">
-                  <TimeInput
-                    minuteStep={15}
-                    value={item.setTime}
-                    onChange={(v) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], setTime: v }; onChange({ ...sheet, runOfShow: u }); }}
-                  />
-                  <TimeInput
-                    minuteStep={15}
-                    value={item.endTime ?? ""}
-                    onChange={(v) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], endTime: v }; onChange({ ...sheet, runOfShow: u }); }}
-                  />
-                  <input
-                    value={item.artist}
-                    onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], artist: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
-                    placeholder="Artist / Act name"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
-                  />
-                  <input
-                    value={item.stage}
-                    onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], stage: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
-                    placeholder="Stage"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
-                  />
-                  <input
-                    value={item.notes ?? ""}
-                    onChange={(e) => { const u = [...sheet.runOfShow]; u[i] = { ...u[i], notes: e.target.value }; onChange({ ...sheet, runOfShow: u }); }}
-                    placeholder="Notes"
-                    className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
-                  />
-                  <button
-                    onClick={() => { const u = [...sheet.runOfShow]; u.splice(i, 1); onChange({ ...sheet, runOfShow: u }); }}
-                    className="text-muted-foreground/30 hover:text-red-400 transition-colors p-1"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </>
+          </div>
         )}
       </div>
 
