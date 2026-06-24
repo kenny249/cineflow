@@ -294,40 +294,6 @@ function PersonalityPanel({ value, onChange, c }: { value: Personality; onChange
   );
 }
 
-// ── Arc waveform (curved bars below orb during speaking/listening) ─────────────
-
-const ArcWaveform = memo(function ArcWaveform({ active, color, audioHeights }: { active: boolean; color: string; audioHeights?: number[] }) {
-  const bars = 11;
-  const arcR = 88;
-  const arcStart = -150; // degrees
-  const arcEnd   = -30;
-  const angleStep = (arcEnd - arcStart) / (bars - 1);
-
-  return (
-    <svg className="absolute pointer-events-none" style={{ width: arcR * 2 + 40, height: arcR + 30, left: -(arcR + 20), top: "50%" }} viewBox={`0 0 ${arcR * 2 + 40} ${arcR + 30}`}>
-      {Array.from({ length: bars }).map((_, i) => {
-        const angle = arcStart + i * angleStep;
-        const rad = (angle * Math.PI) / 180;
-        const cx = arcR + 20 + Math.cos(rad) * arcR;
-        const cy = arcR + Math.sin(rad) * arcR;
-        const rawH = audioHeights ? audioHeights[i % audioHeights.length] : 6;
-        const h = active ? Math.max(3, rawH * 0.9) : 3;
-        const nx = Math.cos(rad);
-        const ny = Math.sin(rad);
-        return (
-          <motion.line key={i}
-            x1={cx - nx * (h / 2)} y1={cy - ny * (h / 2)}
-            x2={cx + nx * (h / 2)} y2={cy + ny * (h / 2)}
-            stroke={color} strokeWidth={2} strokeLinecap="round"
-            style={{ filter: active ? `drop-shadow(0 0 3px ${color})` : "none" }}
-            animate={active && !audioHeights ? { strokeWidth: [1.5, 3, 1.5] } : {}}
-            transition={{ duration: 1.2 + i * 0.1, repeat: Infinity, delay: i * 0.08 }}
-          />
-        );
-      })}
-    </svg>
-  );
-});
 
 // ── Data Mode ──────────────────────────────────────────────────────────────────
 
@@ -583,6 +549,8 @@ export default function JarvisPage() {
   const sendCommandRef        = useRef<(cmd: string) => void>(() => {});
   const lastSpeechEndRef      = useRef(0); // timestamp when Jarvis last stopped speaking (echo guard)
   const speechStartRef        = useRef(0); // timestamp when Jarvis started speaking (barge-in guard)
+  const personalityRef        = useRef<Personality>({ humor: 50, energy: 50, formality: 50 });
+  const messagesRef           = useRef<ChatMessage[]>([]);
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -806,8 +774,9 @@ export default function JarvisPage() {
     setMessages(prev => [...prev, { role: "user", text: command, ts: new Date() }]);
 
     try {
-      // Pass conversation history so Jarvis has full session memory
-      const history = messages.slice(-20).map(m => ({
+      // Use refs so we always get the current values — sendCommand is a stable callback
+      // and would otherwise capture stale personality/messages from mount time
+      const history = messagesRef.current.slice(-10).map(m => ({
         role: m.role === "jarvis" ? "assistant" : "user",
         content: m.text,
       }));
@@ -815,7 +784,7 @@ export default function JarvisPage() {
       const res = await fetch("/api/admin/jarvis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, history, personality }),
+        body: JSON.stringify({ command, history, personality: personalityRef.current }),
       });
 
       const latencyMs = Date.now() - t0;
@@ -872,6 +841,8 @@ export default function JarvisPage() {
   }, [startRecognition, playStreamingAudio]);
 
   useEffect(() => { sendCommandRef.current = sendCommand; }, [sendCommand]);
+  useEffect(() => { personalityRef.current = personality; }, [personality]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   // ── Session toggle ─────────────────────────────────────────────────────────
   const toggleSession = useCallback(() => {
@@ -994,7 +965,7 @@ export default function JarvisPage() {
             </button>
             <AnimatePresence>
               {showPersonality && (
-                <PersonalityPanel value={personality} onChange={setPersonality} c={c} />
+                <PersonalityPanel value={personality} onChange={setPersonality} c="#d4a853" />
               )}
             </AnimatePresence>
           </div>
@@ -1140,9 +1111,7 @@ export default function JarvisPage() {
                 </div>
 
                 <div className="mt-8 flex flex-col items-center gap-2.5">
-                  {/* Arc waveform — curves below the orb */}
-                  <div className="relative h-12 w-full flex items-center justify-center">
-                    <ArcWaveform active={state === "listening" || state === "speaking"} color={c} audioHeights={state === "speaking" ? barHeights : undefined} />
+                  <div className="flex items-center justify-center">
                     <WaveformBars active={state === "listening" || state === "speaking"} color={c} audioHeights={state === "speaking" ? barHeights : undefined} />
                   </div>
 
