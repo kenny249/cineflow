@@ -191,7 +191,7 @@ function OrbitingNodes({ stats, c, sessionActive }: { stats: LiveStats | null; c
               x2={r + 50 + b.x} y2={r + 50 + b.y}
               stroke={`${c}18`} strokeWidth={0.75} strokeDasharray="4 6"
               initial={{ opacity: 0 }}
-              animate={{ opacity: sessionActive ? [0.2, 0.5, 0.2] : 0, strokeDashoffset: [0, -40] }}
+              animate={{ opacity: [0.15, 0.45, 0.15], strokeDashoffset: [0, -40] }}
               transition={{ opacity: { duration: 3 + i * 0.7, repeat: Infinity }, strokeDashoffset: { duration: 4, repeat: Infinity, ease: "linear" } }}
             />
           ))
@@ -202,7 +202,7 @@ function OrbitingNodes({ stats, c, sessionActive }: { stats: LiveStats | null; c
             x1={r + 50} y1={r + 50}
             x2={r + 50 + Math.cos(pos.rad) * 152} y2={r + 50 + Math.sin(pos.rad) * 152}
             stroke={`${nodes[i].color}25`} strokeWidth={0.5} strokeDasharray="3 8"
-            animate={{ opacity: sessionActive ? [0.15, 0.4, 0.15] : 0, strokeDashoffset: [0, -22] }}
+            animate={{ opacity: [0.1, 0.35, 0.1], strokeDashoffset: [0, -22] }}
             transition={{ opacity: { duration: 2.5 + i * 0.5, repeat: Infinity, delay: i * 0.3 }, strokeDashoffset: { duration: 3, repeat: Infinity, ease: "linear" } }}
           />
         ))}
@@ -213,7 +213,7 @@ function OrbitingNodes({ stats, c, sessionActive }: { stats: LiveStats | null; c
         const { x, y } = positions[idx];
         return (
           <motion.div key={label} className="absolute pointer-events-none" style={{ left: "50%", top: "50%" }}
-            initial={{ opacity: 0 }} animate={{ opacity: sessionActive ? 1 : 0.3 }} transition={{ duration: 0.8, delay: idx * 0.15 }}>
+            initial={{ opacity: 0 }} animate={{ opacity: sessionActive ? 1 : 0.65 }} transition={{ duration: 0.8, delay: idx * 0.15 }}>
             <div className="absolute" style={{ transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))` }}>
               <motion.div className="rounded px-2 py-1 text-center" style={{ border: `1px solid ${color}35`, background: "rgba(0,0,0,0.9)", minWidth: 48 }}
                 animate={{ boxShadow: [`0 0 0px ${color}00`, `0 0 10px ${color}35`, `0 0 0px ${color}00`] }}
@@ -631,6 +631,7 @@ export default function JarvisPage() {
   const [pastSessions, setPastSessions] = useState<PastSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<"" | "saved" | "error">("");
 
   const containerRef          = useRef<HTMLDivElement>(null);
   const conversationActiveRef = useRef(false);
@@ -971,7 +972,9 @@ export default function JarvisPage() {
             commandCount: msgs.filter(m => m.role === "user").length,
             durationMs,
           }),
-        }).catch(() => {});
+        })
+          .then(r => { setSaveFeedback(r.ok ? "saved" : "error"); setTimeout(() => setSaveFeedback(""), 3000); })
+          .catch(() => { setSaveFeedback("error"); setTimeout(() => setSaveFeedback(""), 3000); });
       }
       conversationActiveRef.current = false;
       processingRef.current = false;
@@ -981,6 +984,7 @@ export default function JarvisPage() {
       setSessionElapsed(0);
       setCommandCount(0);
       setLatencies([]);
+      setMessages([]);
       if (recognitionRef.current) { try { recognitionRef.current.abort(); } catch {} recognitionRef.current = null; }
       stopAudio();
       setState("idle");
@@ -991,6 +995,7 @@ export default function JarvisPage() {
       sessionStartRef.current = Date.now();
       setCommandCount(0);
       setLatencies([]);
+      setMessages([]);
       startRecognition();
     }
   }, [startRecognition, stopAudio]);
@@ -1100,8 +1105,8 @@ export default function JarvisPage() {
             </AnimatePresence>
           </div>
 
-          <button onClick={() => setIsCompact(v => !v)} title={isCompact ? "Expand" : "Compact mode"}
-            className="p-1.5 rounded border border-white/[0.06] text-zinc-700 hover:text-zinc-400 hover:border-white/[0.12] transition-colors">
+          <button onClick={() => setIsCompact(v => !v)} title={isCompact ? "Show command log" : "Hide command log"}
+            className={`p-1.5 rounded border transition-colors ${isCompact ? "border-white/[0.12] text-zinc-400" : "border-white/[0.06] text-zinc-700 hover:text-zinc-400 hover:border-white/[0.12]"}`}>
             <Minus className="h-3 w-3" />
           </button>
 
@@ -1109,6 +1114,16 @@ export default function JarvisPage() {
             className="p-1.5 rounded border border-white/[0.06] text-zinc-700 hover:text-zinc-400 hover:border-white/[0.12] transition-colors">
             {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
           </button>
+
+          <AnimatePresence>
+            {saveFeedback && (
+              <motion.div key={saveFeedback} initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="text-[7px] tracking-widest font-mono px-2 py-1 rounded"
+                style={{ color: saveFeedback === "saved" ? "#10b981" : "#ef4444", border: `1px solid ${saveFeedback === "saved" ? "#10b98130" : "#ef444430"}`, background: saveFeedback === "saved" ? "#10b98108" : "#ef444408" }}>
+                {saveFeedback === "saved" ? "SESSION SAVED" : "SAVE FAILED"}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="flex items-center gap-2">
             <motion.div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 6px ${c}` }} animate={{ opacity: state === "idle" ? [0.3, 1, 0.3] : 1, scale: state === "listening" ? [1, 1.4, 1] : 1 }} transition={{ duration: 1.5, repeat: Infinity }} />
@@ -1131,7 +1146,7 @@ export default function JarvisPage() {
             <motion.div key="voice" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
               {/* Left metrics — HUD panel */}
-              <div className={`w-56 shrink-0 flex flex-col p-4 gap-1.5 overflow-hidden transition-all duration-300 ${isCompact ? "hidden" : ""}`} style={{ borderRight: `1px solid ${sessionActive ? c + "20" : "rgba(255,255,255,0.05)"}` }}>
+              <div className="w-56 shrink-0 flex flex-col p-4 gap-1.5 overflow-hidden" style={{ borderRight: `1px solid ${sessionActive ? c + "20" : "rgba(255,255,255,0.05)"}` }}>
                 {/* Panel scan line */}
                 <motion.div className="pointer-events-none absolute left-0 w-56 h-px z-10" style={{ background: `linear-gradient(90deg, transparent, ${c}30, transparent)` }} animate={{ top: ["8%", "92%"] }} transition={{ duration: 6, repeat: Infinity, ease: "linear", repeatType: "reverse" }} />
 
@@ -1230,18 +1245,19 @@ export default function JarvisPage() {
                   {/* Orbiting data nodes */}
                   <OrbitingNodes stats={stats} c={c} sessionActive={sessionActive} />
 
-                  {/* Glowing border ring */}
+                  {/* Glowing border ring — always breathes */}
                   <motion.div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}60` }}
-                    animate={{ width: sessionActive ? 152 : 132, height: sessionActive ? 152 : 132, boxShadow: [`0 0 8px ${c}18`, `0 0 28px ${c}45`, `0 0 8px ${c}18`] }}
-                    transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, boxShadow: { duration: 2.2, repeat: Infinity } }} />
+                    animate={{ width: sessionActive ? 152 : 132, height: sessionActive ? 152 : 132, boxShadow: sessionActive ? [`0 0 12px ${c}30`, `0 0 40px ${c}60`, `0 0 12px ${c}30`] : [`0 0 6px ${c}12`, `0 0 20px ${c}30`, `0 0 6px ${c}12`] }}
+                    transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, boxShadow: { duration: sessionActive ? 1.8 : 3.5, repeat: Infinity } }} />
 
-                  {/* Core sphere */}
+                  {/* Core sphere — breathes in idle too */}
                   <motion.div className="relative z-10 rounded-full flex items-center justify-center overflow-hidden"
-                    animate={{ width: sessionActive ? 130 : 112, height: sessionActive ? 130 : 112 }} transition={{ duration: 0.4 }}
+                    animate={{ width: sessionActive ? 130 : 112, height: sessionActive ? 130 : 112, scale: state === "idle" ? [1, 1.03, 1] : 1 }}
+                    transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, scale: { duration: 4, repeat: Infinity, ease: "easeInOut" } }}
                     style={{ background: `radial-gradient(circle at 36% 28%, ${c}50 0%, ${c}16 48%, transparent 75%)`, boxShadow: `inset 0 0 36px ${c}14, 0 0 50px ${c}28, 0 0 100px ${c}10` }}>
                     <motion.div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent, ${c}30, transparent)`, opacity: 0.35 }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
                     <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 22px ${c}, 0 0 50px ${c}90` }}
-                      animate={{ width: state === "speaking" ? 28 : state === "listening" ? 18 : sessionActive ? 12 : 8, height: state === "speaking" ? 28 : state === "listening" ? 18 : sessionActive ? 12 : 8, opacity: state === "idle" && !sessionActive ? 0.35 : 1 }} transition={{ duration: 0.2 }} />
+                      animate={{ width: state === "speaking" ? 28 : state === "listening" ? 18 : sessionActive ? 12 : 8, height: state === "speaking" ? 28 : state === "listening" ? 18 : sessionActive ? 12 : 8, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
                   </motion.div>
                 </div>
 
