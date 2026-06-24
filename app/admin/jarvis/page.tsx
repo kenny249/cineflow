@@ -1679,18 +1679,6 @@ export default function JarvisPage() {
         </motion.button>
 
         {sessionActive && (
-          <motion.button initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} onClick={toggleMute}
-            className="flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[9px] font-bold tracking-widest border transition-colors"
-            style={muted
-              ? { color: "#ef4444", borderColor: "#ef444430", background: "#ef444408" }
-              : { color: "#52525b", borderColor: "rgba(255,255,255,0.06)", background: "transparent" }}
-            title={muted ? "Unmute mic" : "Mute mic"}>
-            {muted ? <MicOff className="h-2.5 w-2.5" /> : <Mic className="h-2.5 w-2.5" />}
-            {muted ? "UNMUTE" : "MUTE"}
-          </motion.button>
-        )}
-
-        {sessionActive && (
           <motion.button initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} onClick={toggleSession}
             className="flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[9px] font-bold tracking-widest text-zinc-700 border border-white/[0.06] hover:border-white/[0.12] hover:text-zinc-400 transition-colors">
             <Square className="h-2.5 w-2.5" />
