@@ -341,6 +341,50 @@ async function executeSaveMemory(args: { key: string; value: string }, adminId: 
   return { saved: true, key: args.key };
 }
 
+async function executeAddUserNote(args: { user_query: string; note: string }, callerId: string) {
+  const admin = getAdmin();
+  const q = args.user_query.toLowerCase();
+  const { data: { users } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  let userId: string | null = null;
+  let email: string | undefined;
+
+  const matchByEmail = users.find((u: any) => u.email?.toLowerCase().includes(q));
+  if (matchByEmail) {
+    userId = matchByEmail.id;
+    email = matchByEmail.email;
+  } else {
+    const { data: profiles } = await admin.from("profiles").select("id, first_name, last_name").ilike("first_name", `%${args.user_query}%`);
+    if (!profiles?.length) return { error: `No user found matching "${args.user_query}"` };
+    userId = profiles[0].id;
+  }
+
+  const { error } = await admin.from("admin_notes").insert({ user_id: userId, author_id: callerId, body: args.note.trim() });
+  if (error) return { error: error.message };
+  return { saved: true, userId, email, note: args.note };
+}
+
+async function executeGetUserNotes(args: { user_query: string }) {
+  const admin = getAdmin();
+  const q = args.user_query.toLowerCase();
+  const { data: { users } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  let userId: string | null = null;
+  let email: string | undefined;
+
+  const matchByEmail = users.find((u: any) => u.email?.toLowerCase().includes(q));
+  if (matchByEmail) {
+    userId = matchByEmail.id;
+    email = matchByEmail.email;
+  } else {
+    const { data: profiles } = await admin.from("profiles").select("id, first_name, last_name").ilike("first_name", `%${args.user_query}%`);
+    if (!profiles?.length) return { error: `No user found matching "${args.user_query}"` };
+    userId = profiles[0].id;
+  }
+
+  const { data: notes, error } = await admin.from("admin_notes").select("id, body, created_at").eq("user_id", userId).order("created_at", { ascending: false });
+  if (error) return { error: error.message };
+  return { userId, email, count: notes?.length ?? 0, notes: notes ?? [] };
+}
+
 async function executeGetRecentSignups(args?: { days?: number }) {
   const admin = getAdmin();
   const days = args?.days ?? 7;
@@ -514,6 +558,29 @@ const TOOLS: Anthropic.Tool[] = [
       properties: { days: { type: "number", description: "How many days back to look (default 7)" } },
     },
   },
+  {
+    name: "add_user_note",
+    description: "Attach a note to a specific user's profile. Use when Kenny wants to remember something about a specific user — context, follow-up needed, a conversation they had, etc.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        user_query: { type: "string", description: "Email address or name of the user to attach the note to" },
+        note: { type: "string", description: "The note content to save about this user" },
+      },
+      required: ["user_query", "note"],
+    },
+  },
+  {
+    name: "get_user_notes",
+    description: "Get all admin notes attached to a specific user's profile.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        user_query: { type: "string", description: "Email address or name of the user to get notes for" },
+      },
+      required: ["user_query"],
+    },
+  },
 ];
 
 // ── Markdown stripper (prevents ElevenLabs reading "asterisk asterisk") ────────
@@ -625,11 +692,11 @@ export async function POST(req: NextRequest) {
   const energy    = Math.max(0, Math.min(100, personality?.energy    ?? 50));
   const formality = Math.max(0, Math.min(100, personality?.formality ?? 50));
 
-  const personalityBlock = `
-PERSONALITY — ${firstName} set these dials, respect them exactly:
-- Humor ${humor}/100: ${humor >= 75 ? "Be genuinely witty. Land sharp, clever observations. Smart humor, not silly." : humor >= 40 ? "Light wit is fine. Mostly direct." : "Zero humor. Dead serious only."}
-- Energy ${energy}/100: ${energy >= 75 ? "Fired up and urgent. Short punchy sentences. Every word hits." : energy >= 40 ? "Confident and steady." : "Calm and measured. Deliberate pacing."}
-- Formality ${formality}/100: ${formality >= 75 ? "Professional and polished. Precise language." : formality >= 40 ? "Conversational but sharp." : "Super casual. Like talking to a friend. Contractions, relaxed."}`;
+  const personalityBlock = `PERSONALITY OVERRIDE — ${firstName} controls these dials. They MUST change your tone on EVERY SINGLE RESPONSE. Non-negotiable.
+Humor (${humor}/100): ${humor >= 80 ? "YOU MUST be genuinely funny. Weave in sharp, witty lines naturally. Make Kenny actually laugh. Not forced — smart comedy." : humor >= 60 ? "Include at least one witty observation per response. Keep it sharp." : humor >= 35 ? "Light quip only if it fits perfectly. Otherwise skip it." : "ZERO humor. Pure business. Do not attempt jokes."}
+Energy (${energy}/100): ${energy >= 80 ? "FIRED UP. Short punchy sentences. Urgency in every word. Sound like you actually care deeply." : energy >= 60 ? "High energy, crisp and action-oriented. Move fast." : energy >= 35 ? "Steady and confident. Not flat." : "Calm and deliberate. Measured pace."}
+Formality (${formality}/100): ${formality >= 80 ? "Professional and precise. No slang. Polished language throughout." : formality >= 60 ? "Crisp but human. Mostly clean, occasional contraction." : formality >= 35 ? "Conversational. Natural contractions. Speak like a smart colleague." : "SUPER casual. Like texting a close friend. Relaxed, loose, zero corporate."}
+These are NOT suggestions. Actively adjust your voice on every reply to match these exact levels.`;
 
   const memoryBlock = memories?.length
     ? `\n\nJARVIS LONG-TERM MEMORY — facts saved across sessions:\n${memories.map((m: any) => `- ${m.key}: ${m.value}`).join("\n")}\nUse save_memory to add new facts worth keeping.`
@@ -646,6 +713,8 @@ CHARACTER: Confident, precise, razor-sharp. Like J.A.R.V.I.S. from Iron Man — 
 FORMAT: Plain spoken English ONLY. No markdown, asterisks, bullets, headers, or backticks. Write as if speaking aloud.
 CRITICAL: Always respond. Never say "I don't know" — use a tool, give your best analysis, or explain what's missing.
 MEMORY: You have full conversation history. Reference it naturally — remember names, prior context, decisions.
+PROACTIVE MEMORY: Silently call save_memory (no announcement, no "I'll remember that") whenever ${firstName} mentions: a person's name with context, a business decision, a goal or deadline, key facts about a specific user. Save it, then just continue the conversation normally.
+USER NOTES: Use add_user_note when ${firstName} says anything notable about a specific user — a conversation they had, a follow-up needed, user context worth tracking. Use get_user_notes to pull up what's known about a user before discussing them.
 ${personalityBlock}
 
 RESPONSE LENGTH:
@@ -780,9 +849,11 @@ read_file — read any file from the codebase by path
 list_directory — list files in any directory
 search_codebase — grep across the entire codebase for any function, string, or pattern
 create_github_issue — create issues to track bugs or features
-save_memory — save facts to long-term memory across sessions
+save_memory — save facts to long-term memory across sessions (use proactively, silently)
 get_at_risk_users — users whose trial expires soon
 get_recent_signups — recent signups with plan info
+add_user_note — attach a note to a specific user's profile
+get_user_notes — retrieve all notes on a specific user
 
 CODE ACCESS STRATEGY: For any code question, use search_codebase first (fastest — returns matching lines with file paths), then read_file for full context. list_directory to explore unknown areas. You can chain: search → read → respond in one turn.
 
@@ -860,6 +931,8 @@ Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", da
             case "get_at_risk_users":   result = await executeGetAtRiskUsers(toolUse.input as any); break;
             case "get_recent_signups":  result = await executeGetRecentSignups(toolUse.input as any); break;
             case "save_memory":         result = await executeSaveMemory(toolUse.input as any, adminId); break;
+            case "add_user_note":       result = await executeAddUserNote(toolUse.input as any, adminId); break;
+            case "get_user_notes":      result = await executeGetUserNotes(toolUse.input as any); break;
             default:                    result = { error: `Unknown tool: ${toolUse.name}` };
           }
         } catch (toolErr: any) {
