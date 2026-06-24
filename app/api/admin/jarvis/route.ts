@@ -684,26 +684,33 @@ Repo: ${GITHUB_REPO}${dataBlock}${memoryBlock}`;
   };
 
   try {
-    const messages: Anthropic.MessageParam[] = [
+    const currentMessages: Anthropic.MessageParam[] = [
       ...historyMessages,
       { role: "user", content: command },
     ];
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1500,
-      temperature: 0.7,
-      system: systemPrompt,
-      tools: TOOLS,
-      messages,
-    });
-
     let text = "";
     let toolsUsed = "";
 
-    if (response.stop_reason === "tool_use") {
+    // Loop up to 3 rounds — handles chained tool calls (e.g. search_codebase → read_file → respond)
+    for (let round = 0; round < 3; round++) {
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        temperature: 0.7,
+        system: systemPrompt,
+        tools: TOOLS,
+        messages: currentMessages,
+      });
+
+      const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === "text");
+      if (textBlock?.text) text = textBlock.text;
+
+      if (response.stop_reason !== "tool_use") break;
+
       const toolUseBlocks = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-      toolsUsed = toolUseBlocks.map(t => t.name).join(",");
+      if (toolsUsed) toolsUsed += ",";
+      toolsUsed += toolUseBlocks.map(t => t.name).join(",");
 
       const toolResults = await Promise.all(toolUseBlocks.map(async (toolUse) => {
         let result: unknown;
@@ -735,22 +742,10 @@ Repo: ${GITHUB_REPO}${dataBlock}${memoryBlock}`;
         return { type: "tool_result" as const, tool_use_id: toolUse.id, content: JSON.stringify(result) };
       }));
 
-      const followUp = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1500,
-        temperature: 0.7,
-        system: systemPrompt,
-        tools: TOOLS,
-        messages: [
-          ...messages,
-          { role: "assistant", content: response.content },
-          { role: "user", content: toolResults },
-        ],
-      });
-
-      text = followUp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
-    } else {
-      text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
+      currentMessages.push(
+        { role: "assistant", content: response.content },
+        { role: "user", content: toolResults },
+      );
     }
 
     if (!text) text = "I processed your request but didn't generate a response. Please try again.";

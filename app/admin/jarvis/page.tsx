@@ -582,6 +582,7 @@ export default function JarvisPage() {
   const transcriptEndRef      = useRef<HTMLDivElement>(null);
   const sendCommandRef        = useRef<(cmd: string) => void>(() => {});
   const lastSpeechEndRef      = useRef(0); // timestamp when Jarvis last stopped speaking (echo guard)
+  const speechStartRef        = useRef(0); // timestamp when Jarvis started speaking (barge-in guard)
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -679,6 +680,7 @@ export default function JarvisPage() {
       const audio = new Audio(url);
       audioRef.current = audio;
       speakingRef.current = true;
+      speechStartRef.current = Date.now();
       startAnalyser(audio);
       audio.onended = () => { speakingRef.current = false; lastSpeechEndRef.current = Date.now(); stopAnalyser(); URL.revokeObjectURL(url); audioRef.current = null; onEnd(); };
       audio.play().catch(onEnd);
@@ -691,6 +693,7 @@ export default function JarvisPage() {
     const audio = new Audio(url);
     audioRef.current = audio;
     speakingRef.current = true;
+    speechStartRef.current = Date.now();
 
     const cleanup = () => { speakingRef.current = false; lastSpeechEndRef.current = Date.now(); stopAnalyser(); URL.revokeObjectURL(url); audioRef.current = null; mediaSourceRef.current = null; onEnd(); };
     audio.onended = cleanup;
@@ -743,11 +746,16 @@ export default function JarvisPage() {
       const result = e.results[e.resultIndex];
       if (!result?.isFinal) return;
       const text: string = result[0].transcript.trim();
-      if (!text || text.length < 5) return;
-      if (Date.now() - lastSpeechEndRef.current < 1200) return; // echo guard: ignore mic input for 1.2s after Jarvis stops speaking
+      const wordCount = text.split(/\s+/).filter(Boolean).length;
+      // Require at least 2 words — single words are almost always TTS echo artifacts
+      if (!text || wordCount < 2) return;
+      // Post-speech echo guard: ignore mic for 1.2s after Jarvis finishes speaking
+      if (Date.now() - lastSpeechEndRef.current < 1200) return;
 
       if (speakingRef.current) {
-        // Barge-in: user spoke while Jarvis was talking — stop audio and process new command
+        // Barge-in guard: require 4+ words AND 1.5s of playback to prevent TTS leakage
+        // ("accidentally", "Google" = single words that slip through AEC)
+        if (wordCount < 4 || Date.now() - speechStartRef.current < 1500) return;
         stopAudio();
         setTimeout(() => {
           if (conversationActiveRef.current) {
