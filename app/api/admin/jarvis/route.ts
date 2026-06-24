@@ -731,7 +731,7 @@ These are NOT suggestions. Actively adjust your voice on every reply to match th
     : "\n\nNo long-term memories saved yet. Use save_memory when Kenny mentions something worth keeping across sessions.";
 
   const dataBlock = liveData
-    ? `\n\nLIVE DATA — use directly, no tool call needed:\n- Users: ${liveData.total} | Today: ${liveData.signupsToday} | Week: ${liveData.signupsWeek} | Active/7d: ${liveData.activeLastWeek}\n- Paid: ${liveData.paid} | Trialing: ${liveData.trialing} | Expired: ${liveData.expired}\n- MRR: $${liveData.mrr} | ARR: $${liveData.arr} | Plans: ${JSON.stringify(liveData.breakdown)}`
+    ? `\n\nLIVE DATA — use directly, no tool call needed:\n- Users: ${liveData.total} | Today: ${liveData.signupsToday} | Week: ${liveData.signupsWeek} | Active/7d: ${liveData.activeLastWeek}\n- Paid: ${liveData.paid} | Trialing: ${liveData.trialing} | Expired: ${liveData.expired}\n- MRR: $${liveData.mrr} | ARR: $${liveData.arr} | Plans: ${JSON.stringify(liveData.breakdown)}\n- BILLING NOTE: "Paid" includes lifetime plan holders ($299 one-time). Lifetime plans generate $0 MRR by design — they are NOT subscriptions. If MRR=$0 while paid>0, those users are on lifetime plans, which is expected and intentional. Stripe checkout IS fully wired and working for both subscriptions and lifetime purchases. Do NOT say Stripe needs to be built or that users cannot convert — they already can.`
     : "";
 
   const systemPrompt = `You are Jarvis — the AI command intelligence for Cineflow, a film production SaaS.
