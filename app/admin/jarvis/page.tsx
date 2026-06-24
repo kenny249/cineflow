@@ -1004,7 +1004,16 @@ export default function JarvisPage() {
             durationMs,
           }),
         })
-          .then(r => { setSaveFeedback(r.ok ? "saved" : "error"); setTimeout(() => setSaveFeedback(""), 3000); })
+          .then(r => {
+            setSaveFeedback(r.ok ? "saved" : "error");
+            setTimeout(() => setSaveFeedback(""), 3000);
+            if (r.ok) {
+              fetch("/api/admin/jarvis/sessions")
+                .then(res => res.json())
+                .then(data => setPastSessions(data.sessions ?? []))
+                .catch(() => {});
+            }
+          })
           .catch(() => { setSaveFeedback("error"); setTimeout(() => setSaveFeedback(""), 3000); });
       }
       if (finalTimerRef.current) { clearTimeout(finalTimerRef.current); finalTimerRef.current = null; }
