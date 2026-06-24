@@ -177,15 +177,81 @@ function TickRing({ radius, count, c }: { radius: number; count: number; c: stri
   );
 }
 
+const TELEMETRY_LINES = [
+  "CF.NEURAL.CORE → NOMINAL",
+  "MEM.HEAP: 0x7F2A4B08",
+  "API.ANTHROPIC: 200 OK",
+  "DB.SUPABASE: CONN.ACK",
+  "TLS.CERT: VALID · 365d",
+  "CRON.JOBS: 4 ACTIVE",
+  "CACHE.HIT: 94.2%",
+  "WEBHOOK.STRIPE: LISTEN",
+  "VERCEL.EDGE: 3 REGIONS",
+  "AUTH.JWT: VALID · HS256",
+  "RATE.LIMIT: 0/100 REQ",
+  "ENTROPY.POOL: 4096b",
+  "QUEUE.DEPTH: 0 MSG",
+  "SYS.LOAD: 0.12 0.09",
+  "BUILD: PROD · NEXT.JS 15",
+  "SSL.HANDSHAKE: DONE",
+  "CF-J4RV1S: ◈ ONLINE",
+];
+
+function SystemTicker({ c }: { c: string }) {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setIdx(i => (i + 1) % TELEMETRY_LINES.length), 1600);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="overflow-hidden space-y-0.5">
+      {[0, 1, 2, 3].map(off => (
+        <p key={`${idx}-${off}`} className="text-[5px] font-mono truncate"
+          style={{ color: off === 0 ? `${c}55` : `rgba(255,255,255,${Math.max(0.03, 0.09 - off * 0.025)})` }}>
+          {TELEMETRY_LINES[(idx + off) % TELEMETRY_LINES.length]}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+const FREQ_COUNT = 26;
+
+function FrequencyBars({ c, active }: { c: string; active: boolean }) {
+  const [hs, setHs] = useState(() => Array.from({ length: FREQ_COUNT }, (_, i) => 4 + Math.abs(Math.sin(i * 0.7)) * 14));
+  useEffect(() => {
+    const id = setInterval(() => {
+      setHs(prev => prev.map(h => Math.max(2, Math.min(38, h + (Math.random() - 0.5) * (active ? 11 : 2.5)))));
+    }, active ? 65 : 500);
+    return () => clearInterval(id);
+  }, [active]);
+  return (
+    <div className="flex items-end gap-px" style={{ height: 42, opacity: active ? 0.75 : 0.2, transition: "opacity 0.6s" }}>
+      {hs.map((h, i) => (
+        <div key={i} style={{
+          width: 3, height: h,
+          background: `linear-gradient(to top, ${c}, ${c}55)`,
+          borderRadius: "1px 1px 0 0",
+          transition: "height 65ms ease-out",
+        }} />
+      ))}
+    </div>
+  );
+}
+
 function OrbitingNodes({ stats, c, sessionActive }: { stats: LiveStats | null; c: string; sessionActive: boolean }) {
   // Diamond layout: equal spacing, max ±159px from center so nodes stay inside orb container
   const nodes = [
-    { label: "USERS",  val: stats?.totalUsers,    angle: 45,  color: "#e2e8f0", prefix: "" },
-    { label: "MRR",    val: stats?.mrr,            angle: 135, color: "#d4a853", prefix: "$" },
-    { label: "PAID",   val: stats?.paid,           angle: 225, color: "#10b981", prefix: "" },
-    { label: "ACTIVE", val: stats?.activeLastWeek, angle: 315, color: "#3b82f6", prefix: "" },
+    { label: "USERS",   val: stats?.totalUsers,    angle: 45,  color: "#e2e8f0", prefix: "" },
+    { label: "ARR",     val: stats?.arr,            angle: 90,  color: "#f59e0b", prefix: "$" },
+    { label: "MRR",     val: stats?.mrr,            angle: 135, color: "#d4a853", prefix: "$" },
+    { label: "ACTIVE",  val: stats?.activeLastWeek, angle: 180, color: "#3b82f6", prefix: "" },
+    { label: "PAID",    val: stats?.paid,           angle: 225, color: "#10b981", prefix: "" },
+    { label: "TRIAL",   val: stats?.trialing,       angle: 270, color: "#8b5cf6", prefix: "" },
+    { label: "SIGNUPS", val: stats?.signupsWeek,    angle: 315, color: "#06b6d4", prefix: "" },
+    { label: "EXPIRED", val: stats?.expired,        angle: 0,   color: "#ef4444", prefix: "" },
   ];
-  const r = 225;
+  const r = 240;
 
   // Pre-compute positions
   const positions = nodes.map(({ angle }) => {
@@ -1261,6 +1327,13 @@ export default function JarvisPage() {
                       <span className="text-[5px] font-mono px-1 rounded" style={{ color: on ? color : "#3f3f46", border: `1px solid ${on ? color + "30" : "transparent"}` }}>{on ? node : "OFF"}</span>
                     </div>
                   ))}
+                  <div className="mt-3 pt-2 border-t border-white/[0.03]">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[5px] tracking-[0.5em] text-zinc-800">SYS TELEMETRY</p>
+                      <motion.span className="text-[5px] font-mono" style={{ color: `${c}35` }} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.9, repeat: Infinity }}>▶ LIVE</motion.span>
+                    </div>
+                    <SystemTicker c={c} />
+                  </div>
                 </div>
               </div>
 
@@ -1269,6 +1342,35 @@ export default function JarvisPage() {
                 <div className="absolute inset-0 pointer-events-none">
                   <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gradient-to-b from-transparent via-white/[0.02] to-transparent" />
                   <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-transparent via-white/[0.02] to-transparent" />
+                  {/* Center-area corner HUDs */}
+                  <div className="absolute top-3 left-3" style={{ borderLeft: `1px solid ${c}18`, borderTop: `1px solid ${c}18`, paddingLeft: 7, paddingTop: 5, width: 145 }}>
+                    <p className="text-[5px] tracking-[0.5em] mb-1" style={{ color: `${c}35`, fontFamily: "monospace" }}>SYS.CORE</p>
+                    <p className="text-[7px] font-mono mb-0.5" style={{ color: `${c}65` }}>J4RV1S-ALPHA</p>
+                    <p className="text-[5px] font-mono" style={{ color: "rgba(255,255,255,0.15)" }}>claude-sonnet-4-6</p>
+                    <p className="text-[5px] font-mono" style={{ color: "rgba(255,255,255,0.08)" }}>VERCEL · NEXT.JS 15</p>
+                  </div>
+                  <div className="absolute top-3 right-3 flex flex-col items-end" style={{ borderRight: `1px solid ${c}18`, borderTop: `1px solid ${c}18`, paddingRight: 7, paddingTop: 5, width: 145 }}>
+                    <p className="text-[5px] tracking-[0.5em] mb-1" style={{ color: `${c}35`, fontFamily: "monospace" }}>NETWORK</p>
+                    <p className="text-[6px] font-mono" style={{ color: "#10b981" }}>◈ SUPABASE.DB</p>
+                    <p className="text-[6px] font-mono" style={{ color: "#8b5cf6" }}>◈ ANTHROPIC.AI</p>
+                    <p className="text-[6px] font-mono" style={{ color: elevenlabsOk ? "#3b82f6" : "#52525b" }}>{elevenlabsOk ? "◈" : "○"} ELEVENLABS.TTS</p>
+                  </div>
+                  <div className="absolute bottom-14 left-3" style={{ borderLeft: `1px solid ${c}18`, borderBottom: `1px solid ${c}18`, paddingLeft: 7, paddingBottom: 5, width: 145 }}>
+                    <p className="text-[5px] tracking-[0.5em] mb-1" style={{ color: `${c}35`, fontFamily: "monospace" }}>SESSION</p>
+                    <p className="text-[8px] font-bold font-mono" style={{ color: c }}>{sessionActive ? fmtDuration(sessionElapsed) : "--:--:--"}</p>
+                    <p className="text-[5px] font-mono" style={{ color: "rgba(255,255,255,0.15)" }}>CMD #{String(commandCount).padStart(3,"0")} · {state.toUpperCase()}</p>
+                  </div>
+                  <div className="absolute bottom-14 right-3 flex flex-col items-end" style={{ borderRight: `1px solid ${c}18`, borderBottom: `1px solid ${c}18`, paddingRight: 7, paddingBottom: 5, width: 145 }}>
+                    <p className="text-[5px] tracking-[0.5em] mb-1" style={{ color: `${c}35`, fontFamily: "monospace" }}>PERFORMANCE</p>
+                    <p className="text-[8px] font-bold font-mono" style={{ color: "#10b981" }}>{avgLatency !== null ? `${avgLatency}s` : "---"}</p>
+                    <p className="text-[5px] font-mono" style={{ color: "rgba(255,255,255,0.15)" }}>AVG LATENCY · LIVE</p>
+                  </div>
+                </div>
+
+                {/* Signal spectrum above orb */}
+                <div className="mb-2 flex flex-col items-center gap-1.5 pointer-events-none">
+                  <p className="text-[5px] tracking-[0.6em]" style={{ color: `${c}25` }}>SIG · SPECTRUM</p>
+                  <FrequencyBars c={c} active={sessionActive} />
                 </div>
 
                 <div className="relative flex items-center justify-center">
@@ -1291,10 +1393,14 @@ export default function JarvisPage() {
                   {/* Listening / speaking ripples */}
                   <AnimatePresence>
                     {state === "listening" && [0, 0.8, 1.6].map((delay, i) => (
-                      <motion.div key={`l${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}45` }} initial={{ width: 150, height: 150, opacity: 1 }} animate={{ width: 460, height: 460, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 2.6, delay, repeat: Infinity, ease: "easeOut" }} />
+                      <motion.div key={`l${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}45` }}
+                        animate={{ width: [150, 460], height: [150, 460], opacity: [0, 0.72, 0] }}
+                        transition={{ duration: 2.6, delay, repeat: Infinity, ease: "easeOut", times: [0, 0.08, 1] }} />
                     ))}
                     {state === "speaking" && [0, 0.5, 1.0].map((delay, i) => (
-                      <motion.div key={`s${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}38` }} initial={{ width: 165, height: 165, opacity: 0.9 }} animate={{ width: 430, height: 430, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 1.7, delay, repeat: Infinity, ease: "easeOut" }} />
+                      <motion.div key={`s${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}38` }}
+                        animate={{ width: [165, 430], height: [165, 430], opacity: [0, 0.82, 0] }}
+                        transition={{ duration: 1.7, delay, repeat: Infinity, ease: "easeOut", times: [0, 0.08, 1] }} />
                     ))}
                     {state === "processing" && (
                       <>
@@ -1304,6 +1410,19 @@ export default function JarvisPage() {
                     )}
                   </AnimatePresence>
 
+                  {/* Large slow outer rings */}
+                  <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 540, height: 540, border: `1px solid ${c}05` }} animate={{ rotate: 360 }} transition={{ duration: 80, repeat: Infinity, ease: "linear" }} />
+                  <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 500, height: 500, border: `0.5px dashed ${c}06` }} animate={{ rotate: -360 }} transition={{ duration: 55, repeat: Infinity, ease: "linear" }} />
+                  {/* Degree markers */}
+                  {[0, 90, 180, 270].map(angle => {
+                    const rad = (angle - 90) * Math.PI / 180;
+                    const dist = 274;
+                    return (
+                      <div key={angle} className="absolute pointer-events-none" style={{ left: "50%", top: "50%", transform: `translate(calc(-50% + ${Math.cos(rad) * dist}px), calc(-50% + ${Math.sin(rad) * dist}px))` }}>
+                        <p className="text-[5px] font-mono text-center" style={{ color: `${c}20` }}>{["000°","090°","180°","270°"][angle/90]}</p>
+                      </div>
+                    );
+                  })}
                   {/* Rotating arcs */}
                   <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 270, height: 270, border: `1px dashed ${c}20` }} animate={{ rotate: [0, 360] }} transition={{ duration: 25, repeat: Infinity, ease: "linear" }} />
                   <motion.div className="absolute rounded-full border pointer-events-none" style={{ width: 218, height: 218, borderColor: `${c}30`, borderTopColor: "transparent", borderLeftColor: "transparent" }} animate={{ rotate: [360, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "linear" }} />
