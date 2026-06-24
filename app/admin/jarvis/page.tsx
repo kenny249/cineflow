@@ -283,23 +283,26 @@ function DataModeView({
       {/* Top metric tiles */}
       <div className="grid grid-cols-5 gap-2 shrink-0">
         {topTiles.map(({ label, value, color, prefix, suffix }, idx) => (
-          <motion.div
-            key={label}
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: idx * 0.06 }}
-            className="relative rounded-xl overflow-hidden"
-            style={{ background: `linear-gradient(135deg, ${color}08 0%, ${color}03 100%)`, border: `1px solid ${color}28` }}
-          >
-            <div className="absolute inset-0 rounded-xl" style={{ background: `radial-gradient(ellipse at 50% 0%, ${color}14 0%, transparent 65%)` }} />
+          <motion.div key={label} initial={{ opacity: 0, y: -14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: idx * 0.07 }}
+            className="relative overflow-hidden"
+            style={{ background: `linear-gradient(135deg, ${color}0a 0%, ${color}03 100%)`, border: `1px solid ${color}30` }}>
+            {/* Chamfer top-right */}
+            <div className="absolute top-0 right-0 w-4 h-4 pointer-events-none" style={{ background: `linear-gradient(225deg, ${color}35 50%, transparent 50%)` }} />
+            {/* Scan shimmer */}
+            <motion.div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, ${color}08, transparent)` }}
+              animate={{ x: ["-100%", "200%"] }} transition={{ duration: 2.8, repeat: Infinity, delay: idx * 0.35, ease: "linear" }} />
+            <div className="absolute inset-0" style={{ background: `radial-gradient(ellipse at 50% 0%, ${color}16 0%, transparent 70%)` }} />
             <div className="relative p-4">
-              <p className="text-[5px] tracking-[0.55em] mb-3" style={{ color: `${color}70` }}>{label}</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[5px] tracking-[0.55em]" style={{ color: `${color}65` }}>{label}</p>
+                <motion.div className="h-1 w-1 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 4px ${color}` }} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2 + idx * 0.2, repeat: Infinity }} />
+              </div>
               <p className="text-3xl font-black font-mono tabular-nums leading-none" style={{ color, textShadow: `0 0 20px ${color}80, 0 0 40px ${color}40` }}>
                 {stats ? <CountUp to={value} prefix={prefix} suffix={suffix} /> : "···"}
               </p>
             </div>
-            <motion.div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }}
-              animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 2.5 + idx * 0.3, repeat: Infinity }} />
+            <motion.div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, transparent, ${color}cc, transparent)` }}
+              animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2.5 + idx * 0.3, repeat: Infinity }} />
           </motion.div>
         ))}
       </div>
@@ -308,24 +311,29 @@ function DataModeView({
       <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
 
         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.2 }}
-          className="rounded-xl p-5 flex flex-col overflow-hidden"
-          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.005) 100%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          className="relative p-5 flex flex-col overflow-hidden"
+          style={{ background: "linear-gradient(145deg, rgba(255,255,255,0.025) 0%, rgba(0,0,0,0.3) 100%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="absolute top-0 right-0 w-6 h-6 pointer-events-none" style={{ background: "linear-gradient(225deg, rgba(255,255,255,0.08) 50%, transparent 50%)" }} />
+          <motion.div className="absolute left-0 right-0 h-px pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)" }} animate={{ top: ["0%", "100%"] }} transition={{ duration: 5, repeat: Infinity, ease: "linear" }} />
           <div className="flex items-center justify-between mb-5">
-            <p className="text-[6px] tracking-[0.6em] text-zinc-600">PLAN DISTRIBUTION</p>
-            <div className="flex items-center gap-1.5">
+            <p className="text-[6px] tracking-[0.6em] text-zinc-500">PLAN DISTRIBUTION</p>
+            <div className="flex items-center gap-2">
               <motion.div className="h-1 w-1 rounded-full bg-emerald-500" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 2.1, repeat: Infinity }} />
-              <p className="text-[6px] font-mono text-zinc-700">{total} TOTAL</p>
+              <p className="text-[6px] font-mono text-zinc-600">{total} REGISTERED</p>
             </div>
           </div>
-          <div className="flex-1 flex flex-col justify-around gap-4">
+          <div className="flex-1 flex flex-col justify-around gap-3">
             {PLAN_META.map(({ key, label, color }, i) => {
               const count = stats?.breakdown?.[key] ?? 0;
               const pct   = total > 0 ? (count / total) * 100 : 0;
               return (
                 <div key={key}>
-                  <div className="flex justify-between items-baseline mb-2">
-                    <span className="text-[8px] tracking-widest font-medium" style={{ color: `${color}90` }}>{label}</span>
-                    <motion.span className="text-xl font-black font-mono" style={{ color, textShadow: `0 0 12px ${color}` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 + i * 0.1 }}>
+                  <div className="flex justify-between items-baseline mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-3 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+                      <span className="text-[7px] tracking-widest font-medium" style={{ color: `${color}85` }}>{label}</span>
+                    </div>
+                    <motion.span className="text-xl font-black font-mono" style={{ color, textShadow: `0 0 14px ${color}` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 + i * 0.1 }}>
                       {stats ? <CountUp to={count} /> : "·"}
                     </motion.span>
                   </div>
@@ -337,18 +345,23 @@ function DataModeView({
         </motion.div>
 
         <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.25 }}
-          className="rounded-xl p-5 flex flex-col overflow-hidden"
-          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.005) 100%)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          className="relative p-5 flex flex-col overflow-hidden"
+          style={{ background: "linear-gradient(145deg, rgba(255,255,255,0.025) 0%, rgba(0,0,0,0.3) 100%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="absolute top-0 right-0 w-6 h-6 pointer-events-none" style={{ background: "linear-gradient(225deg, rgba(255,255,255,0.08) 50%, transparent 50%)" }} />
+          <motion.div className="absolute left-0 right-0 h-px pointer-events-none" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)" }} animate={{ top: ["100%", "0%"] }} transition={{ duration: 7, repeat: Infinity, ease: "linear" }} />
           <div className="flex items-center justify-between mb-5">
-            <p className="text-[6px] tracking-[0.6em] text-zinc-600">USER FUNNEL</p>
-            <span className="text-[6px] font-mono text-zinc-700 tracking-wider">LIVE DATA</span>
+            <p className="text-[6px] tracking-[0.6em] text-zinc-500">USER FUNNEL</p>
+            <motion.span className="text-[6px] font-mono text-zinc-600 tracking-wider" animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 2.5, repeat: Infinity }}>● LIVE DATA</motion.span>
           </div>
-          <div className="flex-1 flex flex-col justify-around gap-4">
+          <div className="flex-1 flex flex-col justify-around gap-3">
             {funnel.map(({ label, value, pct, color }, i) => (
               <div key={label}>
-                <div className="flex justify-between items-baseline mb-2">
-                  <span className="text-[8px] tracking-widest font-medium" style={{ color: `${color}90` }}>{label}</span>
-                  <motion.span className="text-xl font-black font-mono" style={{ color, textShadow: `0 0 12px ${color}` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 + i * 0.1 }}>
+                <div className="flex justify-between items-baseline mb-1.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1 h-3 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+                    <span className="text-[7px] tracking-widest font-medium" style={{ color: `${color}85` }}>{label}</span>
+                  </div>
+                  <motion.span className="text-xl font-black font-mono" style={{ color, textShadow: `0 0 14px ${color}` }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 + i * 0.1 }}>
                     {stats ? <CountUp to={value} /> : "·"}
                   </motion.span>
                 </div>
@@ -363,20 +376,23 @@ function DataModeView({
       <div className="grid grid-cols-2 gap-3 shrink-0" style={{ height: 148 }}>
 
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.35 }}
-          className="rounded-xl p-4 flex flex-col overflow-hidden"
-          style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.005) 100%)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <p className="text-[6px] tracking-[0.6em] text-zinc-600 mb-3">SYSTEM STATUS</p>
-          <div className="flex-1 flex flex-col justify-around">
+          className="relative p-4 flex flex-col overflow-hidden"
+          style={{ background: "linear-gradient(145deg, rgba(255,255,255,0.025) 0%, rgba(0,0,0,0.3) 100%)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="absolute top-0 right-0 w-5 h-5 pointer-events-none" style={{ background: "linear-gradient(225deg, rgba(255,255,255,0.1) 50%, transparent 50%)" }} />
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[6px] tracking-[0.6em] text-zinc-500">SYSTEM STATUS</p>
+            <p className="text-[5px] font-mono text-zinc-700">{new Date().toLocaleTimeString("en-US", { hour12: false })}</p>
+          </div>
+          <div className="flex-1 flex flex-col justify-around gap-2">
             {[
               { label: "SUPABASE",   node: "US-EAST-1",  on: true,         dur: 2.3, color: "#10b981" },
-              { label: "ANTHROPIC",  node: "API",         on: true,         dur: 3.1, color: "#8b5cf6" },
+              { label: "ANTHROPIC",  node: "SONNET 4.6",  on: true,         dur: 3.1, color: "#8b5cf6" },
               { label: "ELEVENLABS", node: "TTS STREAM",  on: elevenlabsOk, dur: 2.7, color: "#3b82f6" },
             ].map(({ label, node, on, dur, color }) => (
-              <div key={label} className="flex items-center gap-2">
+              <div key={label} className="flex items-center gap-2 px-2 py-1.5" style={{ border: `1px solid ${on ? color + "18" : "rgba(255,255,255,0.04)"}`, background: on ? `${color}05` : "transparent" }}>
                 <motion.div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: on ? color : "#27272a", boxShadow: on ? `0 0 6px ${color}` : "none" }} animate={on ? { opacity: [0.4, 1, 0.4] } : {}} transition={{ duration: dur, repeat: Infinity }} />
-                <span className="text-[8px] tracking-widest text-zinc-600 w-24">{label}</span>
-                <div className="flex-1 border-b border-dashed" style={{ borderColor: on ? `${color}18` : "rgba(255,255,255,0.04)" }} />
-                <span className="text-[7px] font-mono" style={{ color: on ? color : "#3f3f46" }}>{on ? node : "OFFLINE"}</span>
+                <span className="text-[7px] tracking-widest text-zinc-500 flex-1">{label}</span>
+                <span className="text-[6px] font-mono" style={{ color: on ? color : "#3f3f46" }}>{on ? node : "OFFLINE"}</span>
               </div>
             ))}
           </div>
@@ -388,7 +404,7 @@ function DataModeView({
                 ...(avgLatency !== null ? [{ label: "AVG LAT", val: `${avgLatency}s`, color: "#10b981" }] : []),
               ].map(({ label, val, color }) => (
                 <div key={label}>
-                  <p className="text-[5px] tracking-widest text-zinc-800">{label}</p>
+                  <p className="text-[5px] tracking-widest text-zinc-700">{label}</p>
                   <p className="text-[11px] font-mono font-bold" style={{ color }}>{val}</p>
                 </div>
               ))}
@@ -853,9 +869,16 @@ export default function JarvisPage() {
           {viewMode === "voice" ? (
             <motion.div key="voice" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
-              {/* Left metrics */}
-              <div className="w-56 shrink-0 flex flex-col p-4 gap-2" style={{ borderRight: `1px solid ${sessionActive ? c + "18" : "rgba(255,255,255,0.05)"}` }}>
-                <p className="text-[6px] tracking-[0.6em] text-zinc-700 mb-1">LIVE METRICS</p>
+              {/* Left metrics — HUD panel */}
+              <div className="w-56 shrink-0 flex flex-col p-4 gap-1.5 overflow-hidden" style={{ borderRight: `1px solid ${sessionActive ? c + "20" : "rgba(255,255,255,0.05)"}` }}>
+                {/* Panel scan line */}
+                <motion.div className="pointer-events-none absolute left-0 w-56 h-px z-10" style={{ background: `linear-gradient(90deg, transparent, ${c}30, transparent)` }} animate={{ top: ["8%", "92%"] }} transition={{ duration: 6, repeat: Infinity, ease: "linear", repeatType: "reverse" }} />
+
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[6px] tracking-[0.6em] text-zinc-700">LIVE METRICS</p>
+                  <motion.div className="text-[5px] font-mono tracking-wider" style={{ color: `${c}50` }} animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.8, repeat: Infinity }}>◈ LIVE</motion.div>
+                </div>
+
                 {[
                   { label: "TOTAL USERS",   val: stats?.totalUsers ?? null,     n: stats?.totalUsers ?? 0,     color: "#e2e8f0", prefix: "" },
                   { label: "MRR",           val: stats?.mrr ?? null,            n: stats?.mrr ?? 0,            color: "#d4a853", prefix: "$" },
@@ -864,25 +887,33 @@ export default function JarvisPage() {
                   { label: "CONVERSION",    val: convRate,                      n: convRate ?? 0,              color: "#d4a853", prefix: "", suffix: "%" },
                   { label: "SIGNUPS TODAY", val: stats?.signupsToday ?? null,   n: stats?.signupsToday ?? 0,   color: "#3b82f6", prefix: "" },
                   { label: "ACTIVE / 7D",   val: stats?.activeLastWeek ?? null, n: stats?.activeLastWeek ?? 0, color: "#10b981", prefix: "" },
-                ].map(({ label, val, n, color, prefix, suffix }) => (
-                  <div key={label} className="rounded-lg px-3 py-2" style={{ border: `1px solid ${color}18`, background: `linear-gradient(135deg, ${color}06 0%, transparent 100%)` }}>
-                    <p className="text-[6px] tracking-[0.4em] mb-0.5" style={{ color: `${color}60` }}>{label}</p>
-                    <p className="text-lg font-bold font-mono leading-none tabular-nums" style={{ color, textShadow: `0 0 12px ${color}60` }}>
-                      {val !== null ? <CountUp to={n} prefix={prefix} suffix={suffix ?? ""} /> : "···"}
-                    </p>
+                ].map(({ label, val, n, color, prefix, suffix }, idx) => (
+                  <div key={label} className="relative px-3 py-1.5 overflow-hidden" style={{ border: `1px solid ${color}20`, background: `linear-gradient(135deg, ${color}08 0%, transparent 100%)` }}>
+                    {/* Chamfer corner */}
+                    <div className="absolute top-0 right-0 w-2.5 h-2.5 pointer-events-none" style={{ background: `linear-gradient(225deg, ${color}25 50%, transparent 50%)` }} />
+                    <p className="text-[5px] tracking-[0.45em] mb-0.5" style={{ color: `${color}55` }}>{label}</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <p className="text-base font-black font-mono leading-none tabular-nums" style={{ color, textShadow: `0 0 14px ${color}70` }}>
+                        {val !== null ? <CountUp to={n} prefix={prefix} suffix={suffix ?? ""} /> : "···"}
+                      </p>
+                      {/* Mini bar */}
+                      <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, ${color}40, transparent)` }} />
+                    </div>
+                    {idx % 3 === 0 && <motion.div className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(90deg, transparent, ${color}06, transparent)` }} animate={{ x: ["-100%", "200%"] }} transition={{ duration: 2.5, repeat: Infinity, delay: idx * 0.4, ease: "linear" }} />}
                   </div>
                 ))}
-                <div className="mt-auto pt-3 border-t border-white/[0.04] space-y-2">
-                  <p className="text-[6px] tracking-[0.5em] text-zinc-800 mb-1">CONNECTIONS</p>
+
+                <div className="mt-auto pt-2 border-t border-white/[0.04] space-y-1.5">
+                  <p className="text-[5px] tracking-[0.5em] text-zinc-800 mb-1">NETWORK NODES</p>
                   {[
-                    { label: "SUPABASE",   on: true,         dur: 2.3, color: "#10b981" },
-                    { label: "ANTHROPIC",  on: true,         dur: 3.1, color: "#8b5cf6" },
-                    { label: "ELEVENLABS", on: elevenlabsOk, dur: 2.7, color: "#3b82f6" },
-                  ].map(({ label, on, dur, color }) => (
-                    <div key={label} className="flex items-center gap-1.5">
-                      <motion.div className="h-1 w-1 rounded-full" style={{ backgroundColor: on ? color : "#27272a", boxShadow: on ? `0 0 4px ${color}` : "none" }} animate={on ? { opacity: [0.5, 1, 0.5] } : {}} transition={{ duration: dur, repeat: Infinity }} />
-                      <span className="text-[6px] tracking-widest text-zinc-700">{label}</span>
-                      <span className="ml-auto text-[6px] tracking-wider" style={{ color: on ? color : "#3f3f46" }}>{on ? "●" : "○"}</span>
+                    { label: "SUPABASE",   on: true,         dur: 2.3, color: "#10b981", node: "DB" },
+                    { label: "ANTHROPIC",  on: true,         dur: 3.1, color: "#8b5cf6", node: "AI" },
+                    { label: "ELEVENLABS", on: elevenlabsOk, dur: 2.7, color: "#3b82f6", node: "TTS" },
+                  ].map(({ label, on, dur, color, node }) => (
+                    <div key={label} className="flex items-center gap-1.5 px-1">
+                      <motion.div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: on ? color : "#27272a", boxShadow: on ? `0 0 5px ${color}` : "none" }} animate={on ? { opacity: [0.4, 1, 0.4] } : {}} transition={{ duration: dur, repeat: Infinity }} />
+                      <span className="text-[6px] tracking-widest text-zinc-700 flex-1">{label}</span>
+                      <span className="text-[5px] font-mono px-1 rounded" style={{ color: on ? color : "#3f3f46", border: `1px solid ${on ? color + "30" : "transparent"}` }}>{on ? node : "OFF"}</span>
                     </div>
                   ))}
                 </div>
@@ -896,36 +927,60 @@ export default function JarvisPage() {
                 </div>
 
                 <div className="relative flex items-center justify-center">
-                  <motion.div className="absolute rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c}08 0%, transparent 70%)` }}
-                    animate={{ width: state === "listening" ? 520 : state === "speaking" ? 500 : 430, height: state === "listening" ? 520 : state === "speaking" ? 500 : 430 }} transition={{ duration: 0.6 }} />
+                  {/* Ambient glow */}
+                  <motion.div className="absolute rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c}0a 0%, transparent 68%)` }}
+                    animate={{ width: state === "listening" ? 560 : state === "speaking" ? 530 : 460, height: state === "listening" ? 560 : state === "speaking" ? 530 : 460 }} transition={{ duration: 0.7 }} />
 
+                  {/* Radar sweep — rotates behind everything */}
+                  <RadarSweep c={c} active={sessionActive} r={220} />
+
+                  {/* Outer tick ring */}
+                  <TickRing radius={195} count={64} c={c} />
+
+                  {/* Outer static ring */}
+                  <div className="absolute rounded-full pointer-events-none" style={{ width: 390, height: 390, border: `1px solid ${c}10` }} />
+
+                  {/* Second tick ring */}
+                  <TickRing radius={155} count={32} c={c} />
+
+                  {/* Listening / speaking ripples */}
                   <AnimatePresence>
-                    {state === "listening" && [0, 0.7, 1.4].map((delay, i) => (
-                      <motion.div key={`l${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}40` }} initial={{ width: 150, height: 150, opacity: 1 }} animate={{ width: 440, height: 440, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 2.4, delay, repeat: Infinity, ease: "easeOut" }} />
+                    {state === "listening" && [0, 0.8, 1.6].map((delay, i) => (
+                      <motion.div key={`l${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}45` }} initial={{ width: 150, height: 150, opacity: 1 }} animate={{ width: 460, height: 460, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 2.6, delay, repeat: Infinity, ease: "easeOut" }} />
                     ))}
-                    {state === "speaking" && [0, 0.55, 1.1].map((delay, i) => (
-                      <motion.div key={`s${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}35` }} initial={{ width: 165, height: 165, opacity: 0.8 }} animate={{ width: 410, height: 410, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 1.6, delay, repeat: Infinity, ease: "easeOut" }} />
+                    {state === "speaking" && [0, 0.5, 1.0].map((delay, i) => (
+                      <motion.div key={`s${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}38` }} initial={{ width: 165, height: 165, opacity: 0.9 }} animate={{ width: 430, height: 430, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 1.7, delay, repeat: Infinity, ease: "easeOut" }} />
                     ))}
                     {state === "processing" && (
-                      <motion.div key="proc" className="absolute rounded-full border-2 pointer-events-none" style={{ width: 215, height: 215, borderColor: `${c}45`, borderTopColor: "transparent", borderRightColor: "transparent" }} animate={{ rotate: 360 }} transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }} />
+                      <>
+                        <motion.div key="proc1" className="absolute rounded-full border-2 pointer-events-none" style={{ width: 230, height: 230, borderColor: `${c}50`, borderTopColor: "transparent", borderRightColor: "transparent" }} animate={{ rotate: 360 }} transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }} />
+                        <motion.div key="proc2" className="absolute rounded-full border pointer-events-none" style={{ width: 260, height: 260, borderColor: `${c}20`, borderBottomColor: "transparent", borderLeftColor: "transparent" }} animate={{ rotate: -360 }} transition={{ duration: 3.8, repeat: Infinity, ease: "linear" }} />
+                      </>
                     )}
                   </AnimatePresence>
 
-                  <div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}08`, width: 290, height: 290 }} />
-                  <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 245, height: 245, border: `1px dashed ${c}18` }} animate={{ rotate: [0, 360] }} transition={{ duration: 22, repeat: Infinity, ease: "linear" }} />
-                  <motion.div className="absolute rounded-full border pointer-events-none" style={{ width: 198, height: 198, borderColor: `${c}28`, borderTopColor: "transparent", borderLeftColor: "transparent" }} animate={{ rotate: [360, 0] }} transition={{ duration: 9, repeat: Infinity, ease: "linear" }} />
-                  <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 164, height: 164, border: `1px dashed ${c}12` }} animate={{ rotate: [0, -360] }} transition={{ duration: 16, repeat: Infinity, ease: "linear" }} />
+                  {/* Rotating arcs */}
+                  <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 270, height: 270, border: `1px dashed ${c}20` }} animate={{ rotate: [0, 360] }} transition={{ duration: 25, repeat: Infinity, ease: "linear" }} />
+                  <motion.div className="absolute rounded-full border pointer-events-none" style={{ width: 218, height: 218, borderColor: `${c}30`, borderTopColor: "transparent", borderLeftColor: "transparent" }} animate={{ rotate: [360, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "linear" }} />
+                  <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 182, height: 182, border: `1px dashed ${c}14` }} animate={{ rotate: [0, -360] }} transition={{ duration: 14, repeat: Infinity, ease: "linear" }} />
+                  {/* Fast inner arc */}
+                  <motion.div className="absolute rounded-full border pointer-events-none" style={{ width: 168, height: 168, borderColor: `${c}22`, borderRightColor: "transparent", borderBottomColor: "transparent" }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
 
-                  <motion.div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}55` }}
-                    animate={{ width: sessionActive ? 152 : 132, height: sessionActive ? 152 : 132, boxShadow: [`0 0 10px ${c}20`, `0 0 32px ${c}40`, `0 0 10px ${c}20`] }}
+                  {/* Orbiting data nodes */}
+                  <OrbitingNodes stats={stats} c={c} sessionActive={sessionActive} />
+
+                  {/* Glowing border ring */}
+                  <motion.div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}60` }}
+                    animate={{ width: sessionActive ? 152 : 132, height: sessionActive ? 152 : 132, boxShadow: [`0 0 8px ${c}18`, `0 0 28px ${c}45`, `0 0 8px ${c}18`] }}
                     transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, boxShadow: { duration: 2.2, repeat: Infinity } }} />
 
+                  {/* Core sphere */}
                   <motion.div className="relative z-10 rounded-full flex items-center justify-center overflow-hidden"
                     animate={{ width: sessionActive ? 130 : 112, height: sessionActive ? 130 : 112 }} transition={{ duration: 0.4 }}
-                    style={{ background: `radial-gradient(circle at 36% 30%, ${c}40 0%, ${c}12 50%, transparent 78%)`, boxShadow: `inset 0 0 30px ${c}12, 0 0 40px ${c}22, 0 0 80px ${c}10` }}>
-                    <motion.div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent, ${c}25, transparent)`, opacity: 0.3 }} animate={{ rotate: [0, 360] }} transition={{ duration: 4.5, repeat: Infinity, ease: "linear" }} />
-                    <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 20px ${c}, 0 0 40px ${c}80` }}
-                      animate={{ width: state === "speaking" ? 26 : state === "listening" ? 16 : sessionActive ? 11 : 8, height: state === "speaking" ? 26 : state === "listening" ? 16 : sessionActive ? 11 : 8, opacity: state === "idle" && !sessionActive ? 0.35 : 1 }} transition={{ duration: 0.25 }} />
+                    style={{ background: `radial-gradient(circle at 36% 28%, ${c}50 0%, ${c}16 48%, transparent 75%)`, boxShadow: `inset 0 0 36px ${c}14, 0 0 50px ${c}28, 0 0 100px ${c}10` }}>
+                    <motion.div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent, ${c}30, transparent)`, opacity: 0.35 }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
+                    <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 22px ${c}, 0 0 50px ${c}90` }}
+                      animate={{ width: state === "speaking" ? 28 : state === "listening" ? 18 : sessionActive ? 12 : 8, height: state === "speaking" ? 28 : state === "listening" ? 18 : sessionActive ? 12 : 8, opacity: state === "idle" && !sessionActive ? 0.35 : 1 }} transition={{ duration: 0.2 }} />
                   </motion.div>
                 </div>
 
@@ -948,6 +1003,7 @@ export default function JarvisPage() {
                       </motion.p>
                     )}
                   </AnimatePresence>
+                  <HudReadout commandCount={commandCount} sessionElapsed={sessionElapsed} state={state} c={c} sessionActive={sessionActive} />
                 </div>
               </div>
 
