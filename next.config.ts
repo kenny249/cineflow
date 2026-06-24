@@ -33,7 +33,14 @@ const nextConfig: NextConfig = {
   },
 
   headers: () =>
-    Promise.resolve([{ source: "/(.*)", headers: securityHeaders }]),
+    Promise.resolve([
+      { source: "/(.*)", headers: securityHeaders },
+      // Jarvis page needs microphone access for Web Speech API
+      {
+        source: "/admin/jarvis",
+        headers: [{ key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" }],
+      },
+    ]),
 
   images: {
     remotePatterns: [

@@ -1,0 +1,350 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { Resend } from "resend";
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+function getAdmin() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
+
+async function requireAdmin() {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const admin = getAdmin();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("is_admin, first_name")
+    .eq("id", user.id)
+    .single();
+  return profile?.is_admin ? { ...user, first_name: profile.first_name } : null;
+}
+
+// ── Tool implementations ───────────────────────────────────────────────────────
+
+async function executeGetStats() {
+  const admin = getAdmin();
+  const now = Date.now();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const weekAgo = new Date(now - 7 * 86400000).toISOString();
+
+  const [{ data: { users: allUsers } }, { data: profiles }] = await Promise.all([
+    admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    admin.from("profiles").select("id, plan, plan_status, trial_ends_at, is_test"),
+  ]);
+
+  const testIds = new Set((profiles ?? []).filter((p: any) => p.is_test).map((p: any) => p.id));
+  const realUsers = (allUsers ?? []).filter(
+    (u: any) => !u.email?.endsWith("@demo.usecineflow.com") && !testIds.has(u.id)
+  );
+
+  const realIds = new Set(realUsers.map((u: any) => u.id));
+  const realProfiles = (profiles ?? []).filter((p: any) => realIds.has(p.id));
+
+  const paid = realProfiles.filter((p: any) =>
+    p.plan_status === "active" || p.plan_status === "founding" || p.plan === "lifetime"
+  ).length;
+  const trialing = realProfiles.filter((p: any) =>
+    p.plan_status === "trialing" && new Date(p.trial_ends_at) > new Date()
+  ).length;
+  const expired = realProfiles.filter((p: any) =>
+    p.plan_status === "trialing" && new Date(p.trial_ends_at) <= new Date()
+  ).length;
+
+  const planBreakdown: Record<string, number> = {};
+  for (const p of realProfiles) {
+    if (p.plan) planBreakdown[p.plan] = (planBreakdown[p.plan] || 0) + 1;
+  }
+
+  return {
+    total: realUsers.length,
+    signupsToday: realUsers.filter((u: any) => new Date(u.created_at) >= today).length,
+    signupsWeek: realUsers.filter((u: any) => u.created_at >= weekAgo).length,
+    activeLastWeek: realUsers.filter((u: any) => u.last_sign_in_at && u.last_sign_in_at >= weekAgo).length,
+    paid,
+    trialing,
+    expired,
+    planBreakdown,
+  };
+}
+
+async function executeGetRevenue() {
+  const admin = getAdmin();
+  const planMRR: Record<string, number> = { solo: 39, studio: 79, agency: 159, enterprise: 299 };
+
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("plan, plan_status, is_test")
+    .in("plan_status", ["active", "founding"])
+    .neq("is_test", true);
+
+  let mrr = 0;
+  const breakdown: Record<string, number> = {};
+  for (const p of profiles ?? []) {
+    if (p.plan === "lifetime") continue;
+    mrr += planMRR[p.plan] ?? 0;
+    breakdown[p.plan] = (breakdown[p.plan] || 0) + 1;
+  }
+
+  const { data: lifetimeProfiles } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("plan", "lifetime")
+    .neq("is_test", true);
+
+  return {
+    mrr,
+    arr: mrr * 12,
+    lifetimeDeals: lifetimeProfiles?.length ?? 0,
+    lifetimeRevenue: (lifetimeProfiles?.length ?? 0) * 299,
+    planBreakdown: breakdown,
+  };
+}
+
+async function executeGetFeedback() {
+  const admin = getAdmin();
+  const { data: feedback } = await admin
+    .from("feedback")
+    .select("content, type, created_at")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  return { items: feedback ?? [], count: feedback?.length ?? 0 };
+}
+
+async function executeGetFeatureFlags() {
+  const admin = getAdmin();
+  const { data: flags } = await admin
+    .from("feature_flags")
+    .select("id, key, description, enabled")
+    .order("key");
+  return { flags: flags ?? [] };
+}
+
+async function executeSendBroadcast(args: { segment: string; subject: string; message: string }) {
+  if (!process.env.RESEND_API_KEY) return { error: "Email not configured" };
+
+  const admin = getAdmin();
+  const now = new Date().toISOString();
+
+  let query = admin
+    .from("profiles")
+    .select("id, first_name, last_name, plan, plan_status, trial_ends_at, is_test")
+    .neq("is_test", true);
+
+  if (args.segment === "paid") {
+    query = query.or("plan_status.eq.active,plan_status.eq.founding,plan.eq.lifetime") as typeof query;
+  } else if (args.segment === "trialing") {
+    query = query.eq("plan_status", "trialing").gt("trial_ends_at", now) as typeof query;
+  } else if (args.segment === "trial_expired") {
+    query = query.eq("plan_status", "trialing").lte("trial_ends_at", now) as typeof query;
+  } else if (["solo", "studio", "agency", "enterprise", "lifetime"].includes(args.segment)) {
+    query = query.eq("plan", args.segment) as typeof query;
+  }
+
+  const { data: profiles } = await query;
+  if (!profiles?.length) return { error: "No recipients for this segment" };
+
+  const { data: { users: authUsers } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const emailMap = new Map((authUsers ?? []).map((u: any) => [u.id, u.email]));
+
+  const recipients = profiles
+    .map((p: any) => ({ email: emailMap.get(p.id), name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "there" }))
+    .filter((r: any) => r.email && !r.email.endsWith("@demo.usecineflow.com"));
+
+  if (!recipients.length) return { error: "No valid email recipients" };
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+
+  const batchSize = 50;
+  let sent = 0;
+  for (let i = 0; i < recipients.length; i += batchSize) {
+    const batch = recipients.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map((r: any) =>
+        resend.emails.send({
+          from: "Kenny at Cineflow <kenny@usecineflow.com>",
+          to: r.email,
+          subject: args.subject,
+          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px"><p>Hi ${r.name},</p><p>${args.message.replace(/\n/g, "<br/>")}</p><p style="margin-top:24px;color:#666;font-size:12px">— Kenny<br/>Cineflow</p></div>`,
+        })
+      )
+    );
+    sent += batch.length;
+  }
+
+  return { sent, total: recipients.length, segment: args.segment };
+}
+
+async function executeCreateAnnouncement(args: { message: string; type?: string }) {
+  const admin = getAdmin();
+  const { data, error } = await admin.from("announcements").insert({
+    message: args.message,
+    type: args.type ?? "info",
+    is_active: true,
+  }).select().single();
+  if (error) return { error: error.message };
+  return { created: true, id: data.id };
+}
+
+async function executeToggleFeatureFlag(args: { key: string; enabled: boolean }) {
+  const admin = getAdmin();
+  const { error } = await admin
+    .from("feature_flags")
+    .update({ enabled: args.enabled, updated_at: new Date().toISOString() })
+    .eq("key", args.key);
+  if (error) return { error: error.message };
+  return { toggled: true, key: args.key, enabled: args.enabled };
+}
+
+// ── Tools definition ───────────────────────────────────────────────────────────
+
+const TOOLS: Anthropic.Tool[] = [
+  {
+    name: "get_stats",
+    description: "Get live user statistics: total users, signups today/week, active users, paid vs trial vs expired counts, plan breakdown.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "get_revenue",
+    description: "Get revenue data: MRR, ARR, plan breakdown, lifetime deal count.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "get_feedback",
+    description: "Get the latest 5 user feedback submissions.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "get_feature_flags",
+    description: "List all feature flags and their current enabled/disabled state.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "send_broadcast",
+    description: "Send an email broadcast to a segment of users.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        segment: {
+          type: "string",
+          enum: ["all", "paid", "trialing", "trial_expired", "solo", "studio", "agency", "enterprise", "lifetime"],
+          description: "Which users to target",
+        },
+        subject: { type: "string", description: "Email subject line" },
+        message: { type: "string", description: "Email body text" },
+      },
+      required: ["segment", "subject", "message"],
+    },
+  },
+  {
+    name: "create_announcement",
+    description: "Create an in-app announcement banner visible to users.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        message: { type: "string" },
+        type: { type: "string", enum: ["info", "warning", "success", "error"] },
+      },
+      required: ["message"],
+    },
+  },
+  {
+    name: "toggle_feature_flag",
+    description: "Enable or disable a feature flag by its key name.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        key: { type: "string", description: "The feature flag key" },
+        enabled: { type: "boolean" },
+      },
+      required: ["key", "enabled"],
+    },
+  },
+];
+
+// ── Main route ─────────────────────────────────────────────────────────────────
+
+export async function POST(req: NextRequest) {
+  const caller = await requireAdmin();
+  if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { command } = await req.json();
+  if (!command?.trim()) return NextResponse.json({ error: "command required" }, { status: 400 });
+
+  const firstName = (caller as any).first_name || "Kenny";
+
+  const systemPrompt = `You are Jarvis — the AI command intelligence built into Cineflow, a film production SaaS platform.
+You are speaking directly to ${firstName}, the founder and sole admin. You run in the admin control center.
+
+Your character: Confident, precise, cinematic. Like J.A.R.V.I.S. from Iron Man — highly capable, slightly dry wit, never robotic.
+Address ${firstName} by name occasionally.
+Keep responses concise — you are speaking out loud, 1-3 sentences unless reporting detailed data.
+When reporting numbers, be specific and decisive. When taking actions, confirm what you did.
+If asked to send a broadcast, confirm the action before executing if details are missing.
+Current time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
+
+Cineflow pricing for context: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.`;
+
+  const messages: Anthropic.MessageParam[] = [{ role: "user", content: command }];
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 1024,
+    system: systemPrompt,
+    tools: TOOLS,
+    messages,
+  });
+
+  let text = "";
+
+  if (response.stop_reason === "tool_use") {
+    const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")!;
+    let toolResult: unknown;
+
+    switch (toolUse.name) {
+      case "get_stats":           toolResult = await executeGetStats(); break;
+      case "get_revenue":         toolResult = await executeGetRevenue(); break;
+      case "get_feedback":        toolResult = await executeGetFeedback(); break;
+      case "get_feature_flags":   toolResult = await executeGetFeatureFlags(); break;
+      case "send_broadcast":      toolResult = await executeSendBroadcast(toolUse.input as any); break;
+      case "create_announcement": toolResult = await executeCreateAnnouncement(toolUse.input as any); break;
+      case "toggle_feature_flag": toolResult = await executeToggleFeatureFlag(toolUse.input as any); break;
+      default:                    toolResult = { error: "Unknown tool" };
+    }
+
+    const followUp = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 512,
+      system: systemPrompt,
+      tools: TOOLS,
+      messages: [
+        ...messages,
+        { role: "assistant", content: response.content },
+        {
+          role: "user",
+          content: [{ type: "tool_result", tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }],
+        },
+      ],
+    });
+
+    text = followUp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
+  } else {
+    text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
+  }
+
+  return NextResponse.json({ text });
+}
