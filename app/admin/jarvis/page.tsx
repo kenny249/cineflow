@@ -3,16 +3,24 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Mic, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh } from "lucide-react";
+import { ArrowLeft, Mic, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh, Clock, Minus } from "lucide-react";
 
 type JarvisState = "idle" | "listening" | "processing" | "speaking";
-type ViewMode    = "voice" | "data";
+type ViewMode    = "voice" | "data" | "history";
 
 interface ChatMessage {
   role: "user" | "jarvis";
   text: string;
   ts: Date;
   latencyMs?: number;
+}
+
+interface PastSession {
+  id: string;
+  command_count: number;
+  duration_ms: number | null;
+  created_at: string;
+  messages: Array<{ role: "user" | "jarvis"; text: string; ts: string }>;
 }
 
 interface LiveStats {
@@ -69,39 +77,43 @@ function TypewriterText({ text, speed = 14 }: { text: string; speed?: number }) 
 // ── Waveform bars ──────────────────────────────────────────────────────────────
 
 const BAR_PATTERNS = [
-  [4, 14, 6, 22, 8, 18, 5],
-  [8, 3, 20, 10, 26, 4, 12],
-  [14, 22, 5, 18, 8, 24, 10],
-  [10, 18, 24, 5, 14, 8, 20],
-  [6, 12, 4, 20, 16, 9, 22],
-  [12, 6, 18, 9, 4, 20, 10],
-  [5, 20, 10, 3, 22, 12, 6],
+  [6,  22, 10, 40, 14, 30,  8, 44, 12, 26,  7],
+  [12,  8, 36, 16, 48,  9, 28, 14, 42, 10, 20],
+  [20, 38,  9, 30, 12, 44, 16, 36,  8, 24, 14],
+  [16, 28, 42,  8, 24, 14, 38, 10, 32, 18, 44],
+  [ 9, 18,  7, 34, 24, 14, 40, 22,  8, 36, 12],
+  [18, 10, 30, 14,  6, 36, 16, 48, 12, 26, 42],
+  [ 8, 32, 16,  5, 38, 20, 10, 44, 18, 28,  9],
+  [24, 14, 46, 10, 28,  6, 40, 18, 34, 12, 22],
+  [10, 26,  8, 42, 18, 36, 12, 30,  6, 20, 38],
+  [14, 40, 20,  8, 44, 24, 10, 32, 46, 16,  6],
+  [28,  8, 34, 12, 20, 46, 14, 38,  8, 30, 18],
 ];
-const BAR_DELAYS = [0, 0.1, 0.05, 0.15, 0.08, 0.2, 0.03];
+const BAR_DELAYS = [0, 0.09, 0.05, 0.14, 0.07, 0.18, 0.03, 0.12, 0.01, 0.16, 0.08];
 
 const WaveformBars = memo(function WaveformBars({
   active, color, audioHeights,
 }: { active: boolean; color: string; audioHeights?: number[] }) {
   if (active && audioHeights) {
     return (
-      <div className="flex items-center justify-center gap-[3px]" style={{ height: 32 }}>
+      <div className="flex items-center justify-center gap-[3px]" style={{ height: 52 }}>
         {audioHeights.map((h, i) => (
-          <div key={i} className="rounded-full" style={{ backgroundColor: color, width: 3, height: h, boxShadow: `0 0 8px ${color}, 0 0 16px ${color}60`, transition: "height 0.04s linear" }} />
+          <div key={i} className="rounded-full" style={{ backgroundColor: color, width: 3, height: h, boxShadow: `0 0 10px ${color}, 0 0 22px ${color}70, 0 0 40px ${color}30`, transition: "height 0.04s linear" }} />
         ))}
       </div>
     );
   }
   return (
-    <div className="flex items-center justify-center gap-[3px]" style={{ height: 32 }}>
+    <div className="flex items-center justify-center gap-[3px]" style={{ height: 52 }}>
       {BAR_PATTERNS.map((kf, i) => (
         <motion.div
           key={i}
           className="rounded-full"
-          style={{ backgroundColor: color, width: 3, boxShadow: active ? `0 0 6px ${color}` : "none" }}
+          style={{ backgroundColor: color, width: 3, boxShadow: active ? `0 0 10px ${color}, 0 0 22px ${color}60` : "none" }}
           animate={active ? { height: kf.map(v => `${v}px`) } : { height: "3px" }}
           transition={
             active
-              ? { duration: 1.6, repeat: Infinity, delay: BAR_DELAYS[i], ease: "easeInOut" }
+              ? { duration: 1.8, repeat: Infinity, delay: BAR_DELAYS[i], ease: "easeInOut" }
               : { duration: 0.3 }
           }
         />
@@ -153,13 +165,14 @@ function TickRing({ radius, count, c }: { radius: number; count: number; c: stri
 }
 
 function OrbitingNodes({ stats, c, sessionActive }: { stats: LiveStats | null; c: string; sessionActive: boolean }) {
+  // Diamond layout: equal spacing, max ±159px from center so nodes stay inside orb container
   const nodes = [
-    { label: "USERS",  val: stats?.totalUsers,    angle: 20,  color: "#e2e8f0", prefix: "" },
-    { label: "MRR",    val: stats?.mrr,            angle: 110, color: "#d4a853", prefix: "$" },
-    { label: "PAID",   val: stats?.paid,           angle: 200, color: "#10b981", prefix: "" },
-    { label: "ACTIVE", val: stats?.activeLastWeek, angle: 300, color: "#3b82f6", prefix: "" },
+    { label: "USERS",  val: stats?.totalUsers,    angle: 45,  color: "#e2e8f0", prefix: "" },
+    { label: "MRR",    val: stats?.mrr,            angle: 135, color: "#d4a853", prefix: "$" },
+    { label: "PAID",   val: stats?.paid,           angle: 225, color: "#10b981", prefix: "" },
+    { label: "ACTIVE", val: stats?.activeLastWeek, angle: 315, color: "#3b82f6", prefix: "" },
   ];
-  const r = 235; // increased from 200 to clear tick rings
+  const r = 225;
 
   // Pre-compute positions
   const positions = nodes.map(({ angle }) => {
@@ -294,6 +307,89 @@ function PersonalityPanel({ value, onChange, c }: { value: Personality; onChange
   );
 }
 
+
+// ── History Mode ───────────────────────────────────────────────────────────────
+
+function HistoryModeView({ sessions, loading }: { sessions: PastSession[]; loading: boolean }) {
+  const [selected, setSelected] = useState<PastSession | null>(null);
+
+  return (
+    <div className="flex h-full w-full">
+      {/* Session list */}
+      <div className="w-72 shrink-0 flex flex-col p-4" style={{ borderRight: "1px solid rgba(255,255,255,0.05)" }}>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[6px] tracking-[0.6em] text-zinc-600">SESSION LOG</p>
+          <p className="text-[6px] font-mono text-zinc-700">{sessions.length} SESSIONS</p>
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {loading && <p className="text-[8px] font-mono text-zinc-700 py-4 text-center">Loading…</p>}
+          {!loading && sessions.length === 0 && (
+            <div className="py-8 text-center">
+              <p className="text-[8px] font-mono text-zinc-700">No past sessions yet.</p>
+              <p className="text-[7px] text-zinc-800 mt-1">Sessions are saved when you end a session.</p>
+            </div>
+          )}
+          {sessions.map(session => {
+            const date = new Date(session.created_at);
+            const preview = session.messages.find(m => m.role === "user")?.text ?? "";
+            const isSel = selected?.id === session.id;
+            return (
+              <button key={session.id} onClick={() => setSelected(session)}
+                className="w-full text-left rounded p-2.5 transition-all"
+                style={{ background: isSel ? "#d4a85310" : "rgba(255,255,255,0.02)", border: `1px solid ${isSel ? "#d4a85330" : "rgba(255,255,255,0.05)"}` }}>
+                <div className="flex items-center justify-between mb-0.5">
+                  <p className="text-[7px] font-mono" style={{ color: isSel ? "#d4a853" : "#71717a" }}>
+                    {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                  </p>
+                  <span className="text-[6px] font-mono text-zinc-700">{session.command_count} cmds</span>
+                </div>
+                {session.duration_ms != null && (
+                  <p className="text-[6px] font-mono text-zinc-800">{fmtDuration(session.duration_ms)}</p>
+                )}
+                {preview && <p className="text-[7px] text-zinc-700 truncate mt-0.5">{preview.slice(0, 55)}</p>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Transcript */}
+      <div className="flex-1 flex flex-col p-4 min-w-0">
+        {!selected ? (
+          <div className="flex h-full items-center justify-center">
+            <p className="text-[9px] font-mono text-zinc-800">← Select a session to read transcript</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-baseline justify-between mb-4 pb-3 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <p className="text-[6px] tracking-[0.5em] text-zinc-600">TRANSCRIPT</p>
+              <p className="text-[7px] font-mono text-zinc-600">
+                {new Date(selected.created_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                {selected.duration_ms != null ? ` · ${fmtDuration(selected.duration_ms)}` : ""}
+                {` · ${selected.command_count} commands`}
+              </p>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden select-text cursor-text">
+              {selected.messages.map((msg, i) => (
+                <div key={i}>
+                  <p className="text-[6px] tracking-widest mb-1" style={{ color: msg.role === "user" ? "#3b82f650" : "#d4a85350" }}>
+                    {msg.role === "user" ? "KENNY" : "JARVIS"}
+                  </p>
+                  <div className="rounded-lg p-2.5 text-[11px] leading-relaxed"
+                    style={msg.role === "jarvis"
+                      ? { backgroundColor: "#d4a85306", border: "1px solid #d4a85318", color: "#d4d4d8" }
+                      : { backgroundColor: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.05)", color: "#71717a" }}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Data Mode ──────────────────────────────────────────────────────────────────
 
@@ -528,10 +624,13 @@ export default function JarvisPage() {
   const [latencies, setLatencies]       = useState<number[]>([]);
   const [elevenlabsOk, setElevenlabsOk] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [barHeights, setBarHeights]     = useState<number[]>([4, 14, 6, 22, 8, 18, 5]);
+  const [barHeights, setBarHeights]     = useState<number[]>([6, 22, 10, 40, 14, 30, 8, 44, 12, 26, 7]);
   const [personality, setPersonality]   = useState<Personality>({ humor: 50, energy: 50, formality: 50 });
   const [showPersonality, setShowPersonality] = useState(false);
   const [activeTools, setActiveTools]   = useState<string[]>([]);
+  const [pastSessions, setPastSessions] = useState<PastSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
 
   const containerRef          = useRef<HTMLDivElement>(null);
   const conversationActiveRef = useRef(false);
@@ -591,7 +690,7 @@ export default function JarvisPage() {
   const stopAnalyser = useCallback(() => {
     if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); animFrameRef.current = null; }
     analyserRef.current = null;
-    setBarHeights([4, 14, 6, 22, 8, 18, 5]);
+    setBarHeights([6, 22, 10, 40, 14, 30, 8, 44, 12, 26, 7]);
   }, []);
 
   const startAnalyser = useCallback((audioEl: HTMLAudioElement) => {
@@ -602,8 +701,8 @@ export default function JarvisPage() {
       const ctx = audioCtxRef.current;
       if (ctx.state === "suspended") ctx.resume();
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.75;
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.72;
       const source = ctx.createMediaElementSource(audioEl);
       source.connect(analyser);
       analyser.connect(ctx.destination);
@@ -612,9 +711,9 @@ export default function JarvisPage() {
       const data = new Uint8Array(analyser.frequencyBinCount);
       const tick = () => {
         analyser.getByteFrequencyData(data);
-        const heights = Array.from({ length: 7 }, (_, i) => {
-          const bin = Math.floor((i / 7) * data.length);
-          return Math.max(3, Math.min(30, (data[bin] / 255) * 30));
+        const heights = Array.from({ length: 11 }, (_, i) => {
+          const bin = Math.floor((i / 11) * data.length);
+          return Math.max(3, Math.min(52, (data[bin] / 255) * 52));
         });
         setBarHeights(heights);
         animFrameRef.current = requestAnimationFrame(tick);
@@ -693,7 +792,9 @@ export default function JarvisPage() {
         if (ms.readyState === "open") sb.appendBuffer(value);
       }
     } catch {
+      // Stream error — ensure cleanup fires so state resets and recognition restarts
       streamReaderRef.current = null;
+      if (speakingRef.current) cleanup();
     }
   }, [startAnalyser, stopAnalyser]);
 
@@ -717,26 +818,25 @@ export default function JarvisPage() {
       const wordCount = text.split(/\s+/).filter(Boolean).length;
       // Require at least 2 words — single words are almost always TTS echo artifacts
       if (!text || wordCount < 2) return;
-      // Post-speech echo guard: ignore mic for 1.2s after Jarvis finishes speaking
-      if (Date.now() - lastSpeechEndRef.current < 1200) return;
-
-      if (speakingRef.current) {
-        // Barge-in guard: require 4+ words AND 1.5s of playback to prevent TTS leakage
-        // ("accidentally", "Google" = single words that slip through AEC)
-        if (wordCount < 4 || Date.now() - speechStartRef.current < 1500) return;
-        stopAudio();
-        setTimeout(() => {
-          if (conversationActiveRef.current) {
-            processingRef.current = true;
-            setLastTranscript(text);
-            setCommandCount(c => c + 1);
-            sendCommandRef.current(text);
-          }
-        }, 250);
-        return;
-      }
-
+      // Post-speech echo guard: ignore mic for 2.5s after Jarvis finishes speaking
+      // (room echo of long TTS responses can linger 2-3 seconds)
+      if (Date.now() - lastSpeechEndRef.current < 2500) return;
+      // No voice barge-in during speaking — use the INTERRUPT button instead
+      if (speakingRef.current) return;
       if (processingRef.current) return;
+
+      // Semantic echo detection: discard if transcript matches the start of a recent Jarvis response.
+      // This catches the case where the mic picks up TTS audio even after the cooldown period.
+      const normalizedInput = text.toLowerCase().replace(/[.,!?'"]/g, "").trim();
+      const recentJarvis = messagesRef.current.filter(m => m.role === "jarvis").slice(-3);
+      const isEcho = recentJarvis.some(m => {
+        const jarvisStart = m.text.toLowerCase().replace(/[.,!?'"]/g, "").trim().slice(0, 50);
+        return jarvisStart.length > 15 && (
+          normalizedInput.startsWith(jarvisStart.slice(0, 30)) ||
+          jarvisStart.startsWith(normalizedInput.slice(0, 30))
+        );
+      });
+      if (isEcho) return;
 
       processingRef.current = true;
       setLastTranscript(text);
@@ -747,8 +847,9 @@ export default function JarvisPage() {
     rec.onerror = (e: any) => {
       if (e.error === "aborted") return;
       recognitionRef.current = null;
-      if (!processingRef.current && conversationActiveRef.current) {
-        setTimeout(() => { if (!processingRef.current && conversationActiveRef.current) startRecognition(); }, 400);
+      // Don't restart while Jarvis is speaking — playStreamingAudio's onEnd callback handles that
+      if (!speakingRef.current && !processingRef.current && conversationActiveRef.current) {
+        setTimeout(() => { if (!speakingRef.current && !processingRef.current && conversationActiveRef.current) startRecognition(); }, 400);
       } else if (!conversationActiveRef.current) {
         setState("idle");
       }
@@ -756,12 +857,14 @@ export default function JarvisPage() {
 
     rec.onend = () => {
       recognitionRef.current = null;
-      if (!processingRef.current && conversationActiveRef.current) {
-        setTimeout(() => { if (!processingRef.current && conversationActiveRef.current) startRecognition(); }, 200);
+      // Don't restart while Jarvis is speaking — visual state would flip to "listening" prematurely
+      if (!speakingRef.current && !processingRef.current && conversationActiveRef.current) {
+        setTimeout(() => { if (!speakingRef.current && !processingRef.current && conversationActiveRef.current) startRecognition(); }, 200);
       }
     };
 
-    setState("listening");
+    // Only update visual state if Jarvis isn't currently speaking
+    if (!speakingRef.current) setState("listening");
     try { rec.start(); }
     catch { recognitionRef.current = null; setTimeout(() => { if (!processingRef.current && conversationActiveRef.current) startRecognition(); }, 600); }
   }, [stopAudio]);
@@ -844,9 +947,32 @@ export default function JarvisPage() {
   useEffect(() => { personalityRef.current = personality; }, [personality]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
+  // Fetch past sessions whenever the LOG tab opens
+  useEffect(() => {
+    if (viewMode !== "history") return;
+    setSessionsLoading(true);
+    fetch("/api/admin/jarvis/sessions")
+      .then(r => r.json())
+      .then(data => { setPastSessions(data.sessions ?? []); setSessionsLoading(false); })
+      .catch(() => setSessionsLoading(false));
+  }, [viewMode]);
+
   // ── Session toggle ─────────────────────────────────────────────────────────
   const toggleSession = useCallback(() => {
     if (conversationActiveRef.current) {
+      const msgs = messagesRef.current;
+      if (msgs.length > 0) {
+        const durationMs = sessionStartRef.current ? Date.now() - sessionStartRef.current : null;
+        fetch("/api/admin/jarvis/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: msgs.map(m => ({ role: m.role, text: m.text, ts: m.ts.toISOString() })),
+            commandCount: msgs.filter(m => m.role === "user").length,
+            durationMs,
+          }),
+        }).catch(() => {});
+      }
       conversationActiveRef.current = false;
       processingRef.current = false;
       speakingRef.current = false;
@@ -946,11 +1072,15 @@ export default function JarvisPage() {
           )}
 
           <div className="flex items-center gap-0.5 rounded border border-white/[0.06] p-0.5">
-            {(["voice", "data"] as ViewMode[]).map(mode => (
-              <button key={mode} onClick={() => setViewMode(mode)}
-                className={`flex items-center gap-1 rounded px-2.5 py-1 text-[7px] tracking-widest font-medium transition-all ${viewMode === mode ? "bg-[#d4a853]/15 text-[#d4a853]" : "text-zinc-700 hover:text-zinc-500"}`}>
-                {mode === "voice" ? <Mic className="h-2 w-2" /> : <BarChart3 className="h-2 w-2" />}
-                {mode.toUpperCase()}
+            {([
+              { id: "voice" as ViewMode, Icon: Mic, label: "VOICE" },
+              { id: "data"  as ViewMode, Icon: BarChart3, label: "DATA" },
+              { id: "history" as ViewMode, Icon: Clock, label: "LOG" },
+            ]).map(({ id, Icon, label }) => (
+              <button key={id} onClick={() => setViewMode(id)}
+                className={`flex items-center gap-1 rounded px-2.5 py-1 text-[7px] tracking-widest font-medium transition-all ${viewMode === id ? "bg-[#d4a853]/15 text-[#d4a853]" : "text-zinc-700 hover:text-zinc-500"}`}>
+                <Icon className="h-2 w-2" />
+                {label}
               </button>
             ))}
           </div>
@@ -969,6 +1099,11 @@ export default function JarvisPage() {
               )}
             </AnimatePresence>
           </div>
+
+          <button onClick={() => setIsCompact(v => !v)} title={isCompact ? "Expand" : "Compact mode"}
+            className="p-1.5 rounded border border-white/[0.06] text-zinc-700 hover:text-zinc-400 hover:border-white/[0.12] transition-colors">
+            <Minus className="h-3 w-3" />
+          </button>
 
           <button onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
             className="p-1.5 rounded border border-white/[0.06] text-zinc-700 hover:text-zinc-400 hover:border-white/[0.12] transition-colors">
@@ -996,7 +1131,7 @@ export default function JarvisPage() {
             <motion.div key="voice" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
               {/* Left metrics — HUD panel */}
-              <div className="w-56 shrink-0 flex flex-col p-4 gap-1.5 overflow-hidden" style={{ borderRight: `1px solid ${sessionActive ? c + "20" : "rgba(255,255,255,0.05)"}` }}>
+              <div className={`w-56 shrink-0 flex flex-col p-4 gap-1.5 overflow-hidden transition-all duration-300 ${isCompact ? "hidden" : ""}`} style={{ borderRight: `1px solid ${sessionActive ? c + "20" : "rgba(255,255,255,0.05)"}` }}>
                 {/* Panel scan line */}
                 <motion.div className="pointer-events-none absolute left-0 w-56 h-px z-10" style={{ background: `linear-gradient(90deg, transparent, ${c}30, transparent)` }} animate={{ top: ["8%", "92%"] }} transition={{ duration: 6, repeat: Infinity, ease: "linear", repeatType: "reverse" }} />
 
@@ -1149,7 +1284,7 @@ export default function JarvisPage() {
               </div>
 
               {/* Right command log */}
-              <div className="w-72 shrink-0 flex flex-col p-4" style={{ borderLeft: `1px solid ${sessionActive ? c + "18" : "rgba(255,255,255,0.05)"}` }}>
+              <div className={`w-72 shrink-0 flex flex-col p-4 ${isCompact ? "hidden" : ""}`} style={{ borderLeft: `1px solid ${sessionActive ? c + "18" : "rgba(255,255,255,0.05)"}` }}>
                 <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/[0.04]">
                   <p className="text-[6px] tracking-[0.5em] text-zinc-700">COMMAND LOG</p>
                   {sessionActive && (
@@ -1167,7 +1302,7 @@ export default function JarvisPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden select-text">
                   {messages.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
                       <div className="h-10 w-10 rounded-full border border-[#d4a853]/10 flex items-center justify-center">
@@ -1203,9 +1338,13 @@ export default function JarvisPage() {
               </div>
             </motion.div>
 
-          ) : (
+          ) : viewMode === "data" ? (
             <motion.div key="data" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <DataModeView stats={stats} messages={messages} sessionActive={sessionActive} commandCount={commandCount} sessionElapsed={sessionElapsed} avgLatency={avgLatency} state={state} c={c} elevenlabsOk={elevenlabsOk} />
+            </motion.div>
+          ) : (
+            <motion.div key="history" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+              <HistoryModeView sessions={pastSessions} loading={sessionsLoading} />
             </motion.div>
           )}
         </AnimatePresence>
