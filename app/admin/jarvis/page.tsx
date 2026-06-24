@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Mic, Square, Activity } from "lucide-react";
+import { ArrowLeft, Mic, Square, Activity, BarChart3 } from "lucide-react";
 
 type JarvisState = "idle" | "listening" | "processing" | "speaking";
+type ViewMode    = "voice" | "data";
 
 interface ChatMessage {
   role: "user" | "jarvis";
@@ -17,9 +18,14 @@ interface ChatMessage {
 interface LiveStats {
   totalUsers: number;
   signupsToday: number;
+  signupsWeek: number;
   activeLastWeek: number;
   paid: number;
+  trialing: number;
+  expired: number;
   mrr: number;
+  arr: number;
+  breakdown: Record<string, number>;
 }
 
 // ── Waveform bars ──────────────────────────────────────────────────────────────
@@ -65,28 +71,254 @@ function fmtDuration(ms: number): string {
   return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// ── Data Mode View ─────────────────────────────────────────────────────────────
+
+const PLAN_META = [
+  { key: "lifetime",   label: "LIFETIME",   color: "#d4a853" },
+  { key: "enterprise", label: "ENTERPRISE", color: "#8b5cf6" },
+  { key: "agency",     label: "AGENCY",     color: "#3b82f6" },
+  { key: "studio",     label: "STUDIO",     color: "#10b981" },
+  { key: "solo",       label: "SOLO",       color: "#f59e0b" },
+];
+
+function DataModeView({
+  stats, messages, sessionActive, commandCount, sessionElapsed, avgLatency, state, c,
+}: {
+  stats: LiveStats | null;
+  messages: ChatMessage[];
+  sessionActive: boolean;
+  commandCount: number;
+  sessionElapsed: number;
+  avgLatency: number | null;
+  state: JarvisState;
+  c: string;
+}) {
+  const convRate = stats ? Math.round((stats.paid / Math.max(stats.totalUsers, 1)) * 100) : null;
+
+  const funnel = [
+    { label: "REGISTERED",  value: stats?.totalUsers ?? 0,     color: "#e2e8f0" },
+    { label: "ACTIVE / 7D", value: stats?.activeLastWeek ?? 0, color: "#10b981" },
+    { label: "PAID",        value: stats?.paid ?? 0,           color: "#d4a853" },
+    { label: "TRIALING",    value: stats?.trialing ?? 0,       color: "#8b5cf6" },
+    { label: "EXPIRED",     value: stats?.expired ?? 0,        color: "#ef4444" },
+  ];
+
+  const metricTiles = [
+    { label: "TOTAL USERS",  value: stats?.totalUsers?.toLocaleString() ?? "···",               sub: "registered",       gold: false },
+    { label: "TODAY",        value: stats?.signupsToday?.toString() ?? "·",                     sub: "new signups",      gold: false },
+    { label: "THIS WEEK",    value: stats?.signupsWeek?.toString() ?? "···",                    sub: "new signups",      gold: false },
+    { label: "ACTIVE / 7D", value: stats?.activeLastWeek?.toLocaleString() ?? "···",            sub: "unique logins",    gold: false },
+    { label: "MRR",         value: stats ? `$${stats.mrr.toLocaleString()}` : "···",            sub: "monthly recurring", gold: true },
+    { label: "ARR",         value: stats ? `$${stats.arr.toLocaleString()}` : "···",            sub: "annual run rate",   gold: true },
+    { label: "CONVERSION",  value: convRate !== null ? `${convRate}%` : "···",                  sub: `${stats?.paid ?? 0} paid accounts`, gold: true },
+  ];
+
+  return (
+    <div className="flex flex-col w-full h-full gap-3 p-4 overflow-hidden">
+
+      {/* Row 1: metric tiles */}
+      <div className="grid grid-cols-7 gap-2 shrink-0">
+        {metricTiles.map(({ label, value, sub, gold }, idx) => (
+          <motion.div
+            key={label}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: idx * 0.04 }}
+            className="group rounded-lg border border-white/[0.05] bg-white/[0.01] p-3 hover:border-white/[0.12] hover:bg-white/[0.025] transition-all cursor-default"
+          >
+            <p className="text-[5px] tracking-[0.5em] text-zinc-700 mb-1.5">{label}</p>
+            <p className={`text-xl font-bold font-mono tabular-nums leading-none ${gold ? "text-[#d4a853]" : "text-white"}`}>
+              {value}
+            </p>
+            <p className="text-[5px] text-zinc-800 mt-1.5 tracking-wider">{sub}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Row 2: charts */}
+      <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
+
+        {/* Plan distribution */}
+        <motion.div
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.35, delay: 0.15 }}
+          className="rounded-lg border border-white/[0.05] bg-white/[0.01] p-5 flex flex-col"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-[6px] tracking-[0.6em] text-zinc-700">PLAN DISTRIBUTION</p>
+            <p className="text-[6px] font-mono text-zinc-800">{stats?.totalUsers ?? 0} TOTAL</p>
+          </div>
+          <div className="flex-1 flex flex-col justify-around gap-3">
+            {PLAN_META.map(({ key, label, color }, i) => {
+              const count = stats?.breakdown?.[key] ?? 0;
+              const pct   = stats ? (count / Math.max(stats.totalUsers, 1)) * 100 : 0;
+              return (
+                <div key={key}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[8px] tracking-widest text-zinc-600 uppercase">{label}</span>
+                    <span className="text-[12px] font-mono font-bold" style={{ color }}>{count}</span>
+                  </div>
+                  <div className="h-[5px] rounded-full bg-white/[0.04] overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}70` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${count > 0 ? Math.max(pct, 5) : 0}%` }}
+                      transition={{ duration: 1.1, ease: "easeOut", delay: 0.2 + i * 0.08 }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+
+        {/* User funnel */}
+        <motion.div
+          initial={{ opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.35, delay: 0.2 }}
+          className="rounded-lg border border-white/[0.05] bg-white/[0.01] p-5 flex flex-col"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-[6px] tracking-[0.6em] text-zinc-700">USER FUNNEL</p>
+            <motion.div
+              className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
+          </div>
+          <div className="flex-1 flex flex-col justify-around gap-3">
+            {funnel.map(({ label, value, color }, i) => {
+              const pct = stats ? (value / Math.max(stats.totalUsers, 1)) * 100 : 0;
+              return (
+                <div key={label}>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[8px] tracking-widest text-zinc-600">{label}</span>
+                    <span className="text-[12px] font-mono font-bold" style={{ color }}>{value}</span>
+                  </div>
+                  <div className="h-[5px] rounded-full bg-white/[0.04] overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}70` }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${value > 0 ? Math.max(pct, 5) : 0}%` }}
+                      transition={{ duration: 1.2, ease: "easeOut", delay: 0.25 + i * 0.08 }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Row 3: system status + command log */}
+      <div className="grid grid-cols-2 gap-3 shrink-0" style={{ height: 150 }}>
+
+        {/* System status */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+          className="rounded-lg border border-white/[0.05] bg-white/[0.01] p-4 flex flex-col"
+        >
+          <p className="text-[6px] tracking-[0.6em] text-zinc-700 mb-3">SYSTEM STATUS</p>
+          <div className="flex-1 flex flex-col justify-around">
+            {[
+              { label: "SUPABASE",   node: "US-EAST-1",  on: true,    dur: 2.3 },
+              { label: "ANTHROPIC",  node: "API",         on: true,    dur: 3.1 },
+              { label: "ELEVENLABS", node: "TTS STREAM",  on: !!stats, dur: 2.7 },
+            ].map(({ label, node, on, dur }) => (
+              <div key={label} className="flex items-center gap-2">
+                <motion.div
+                  className={`h-1.5 w-1.5 rounded-full shrink-0 ${on ? "bg-emerald-500" : "bg-zinc-700"}`}
+                  animate={on ? { opacity: [0.4, 1, 0.4] } : {}}
+                  transition={{ duration: dur, repeat: Infinity }}
+                />
+                <span className="text-[8px] tracking-widest text-zinc-500 w-24">{label}</span>
+                <div className="flex-1 border-b border-dashed border-white/[0.04]" />
+                <span className="text-[7px] font-mono text-zinc-700">{on ? node : "OFFLINE"}</span>
+              </div>
+            ))}
+          </div>
+          {sessionActive && (
+            <div className="pt-2.5 mt-2.5 border-t border-white/[0.04] flex items-center gap-4">
+              {[
+                { label: "SESSION",   val: fmtDuration(sessionElapsed) },
+                { label: "CMDS",      val: String(commandCount) },
+                ...(avgLatency !== null ? [{ label: "AVG LAT", val: `${avgLatency}s` }] : []),
+              ].map(({ label, val }) => (
+                <div key={label}>
+                  <p className="text-[5px] tracking-widest text-zinc-800">{label}</p>
+                  <p className="text-[10px] font-mono font-bold text-zinc-500">{val}</p>
+                </div>
+              ))}
+              <div className="ml-auto">
+                <p className="text-[5px] tracking-widest text-zinc-800">STATE</p>
+                <p className="text-[10px] font-mono font-bold" style={{ color: c }}>{state.toUpperCase()}</p>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Command log */}
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.35 }}
+          className="rounded-lg border border-white/[0.05] bg-white/[0.01] p-4 flex flex-col"
+        >
+          <p className="text-[6px] tracking-[0.6em] text-zinc-700 mb-3">COMMAND LOG</p>
+          <div className="flex-1 overflow-y-auto space-y-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {messages.length === 0 ? (
+              <p className="text-[8px] text-zinc-800 font-mono">// awaiting commands</p>
+            ) : (
+              messages.slice(-8).map((msg, i) => (
+                <div key={i} className="flex items-start gap-1.5">
+                  <span
+                    className="text-[9px] font-mono shrink-0 mt-0.5"
+                    style={{ color: msg.role === "user" ? "#3b82f6" : "#d4a853" }}
+                  >
+                    {msg.role === "user" ? "›" : "‹"}
+                  </span>
+                  <p className={`text-[8px] font-mono leading-snug ${msg.role === "user" ? "text-zinc-600" : "text-zinc-400"}`}>
+                    {msg.text.slice(0, 100)}{msg.text.length > 100 ? "…" : ""}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </motion.div>
+
+      </div>
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function JarvisPage() {
-  const [state, setState] = useState<JarvisState>("idle");
+  const [state, setState]               = useState<JarvisState>("idle");
+  const [viewMode, setViewMode]         = useState<ViewMode>("voice");
   const [sessionActive, setSessionActive] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [stats, setStats] = useState<LiveStats | null>(null);
+  const [messages, setMessages]         = useState<ChatMessage[]>([]);
+  const [stats, setStats]               = useState<LiveStats | null>(null);
   const [lastTranscript, setLastTranscript] = useState("");
-  const [clock, setClock] = useState("");
+  const [clock, setClock]               = useState("");
   const [sessionElapsed, setSessionElapsed] = useState(0);
   const [commandCount, setCommandCount] = useState(0);
-  const [latencies, setLatencies] = useState<number[]>([]);
+  const [latencies, setLatencies]       = useState<number[]>([]);
 
   const conversationActiveRef = useRef(false);
-  const sessionStartRef = useRef<number | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const mediaSourceRef = useRef<MediaSource | null>(null);
-  const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
-  const transcriptEndRef = useRef<HTMLDivElement>(null);
-  // sendCommand stored in ref to break circular dep with startRecognition
-  const sendCommandRef = useRef<(cmd: string) => void>(() => {});
+  const sessionStartRef       = useRef<number | null>(null);
+  const recognitionRef        = useRef<any>(null);
+  const audioRef              = useRef<HTMLAudioElement | null>(null);
+  const mediaSourceRef        = useRef<MediaSource | null>(null);
+  const streamReaderRef       = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const transcriptEndRef      = useRef<HTMLDivElement>(null);
+  const sendCommandRef        = useRef<(cmd: string) => void>(() => {});
 
   // ── Stats load ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -120,7 +352,6 @@ export default function JarvisPage() {
       typeof MediaSource !== "undefined" && MediaSource.isTypeSupported("audio/mpeg");
 
     if (!useMediaSource) {
-      // Fallback: buffer then play (slower)
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
@@ -155,7 +386,6 @@ export default function JarvisPage() {
       return;
     }
 
-    // Start playback immediately — audio plays as chunks arrive
     audio.play().catch(() => {});
 
     const reader = response.body.getReader();
@@ -177,14 +407,12 @@ export default function JarvisPage() {
         if (ms.readyState === "open") sb.appendBuffer(value);
       }
     } catch {
-      // Stream cancelled by user interrupt — this is expected
       streamReaderRef.current = null;
     }
   }, []);
 
-  // ── Speech recognition (no circular dep — uses sendCommandRef) ───────────────
+  // ── Speech recognition ───────────────────────────────────────────────────────
   const startRecognition = useCallback(() => {
-    // Abort any lingering instance before creating a new one
     if (recognitionRef.current) {
       try { recognitionRef.current.abort(); } catch {}
       recognitionRef.current = null;
@@ -207,20 +435,17 @@ export default function JarvisPage() {
       gotResult = true;
       const text: string = e.results[0][0].transcript.trim();
       if (!text) {
-        // Empty capture — restart silently
         recognitionRef.current = null;
         if (conversationActiveRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 200);
         return;
       }
       setLastTranscript(text);
       setCommandCount(c => c + 1);
-      // Don't call rec.stop() here — let continuous:false stop it naturally.
-      // Calling stop() in onresult can race with onend and cause issues.
       sendCommandRef.current(text);
     };
 
     rec.onerror = (e: any) => {
-      if (e.error === "aborted") return; // we triggered this intentionally
+      if (e.error === "aborted") return;
       recognitionRef.current = null;
       if (conversationActiveRef.current) {
         setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 400);
@@ -231,8 +456,6 @@ export default function JarvisPage() {
 
     rec.onend = () => {
       recognitionRef.current = null;
-      // If we never got a result (silence timeout, browser glitch) and session
-      // is still active — restart automatically
       if (!gotResult && conversationActiveRef.current) {
         setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 200);
       }
@@ -250,7 +473,7 @@ export default function JarvisPage() {
     }
   }, []);
 
-  // ── Stop audio helper ────────────────────────────────────────────────────────
+  // ── Stop audio ───────────────────────────────────────────────────────────────
   const stopAudio = useCallback(() => {
     streamReaderRef.current?.cancel().catch(() => {});
     streamReaderRef.current = null;
@@ -282,7 +505,6 @@ export default function JarvisPage() {
       const contentType = res.headers.get("Content-Type") ?? "";
 
       if (contentType.includes("audio")) {
-        // Route returned audio stream + text in header — fastest path
         const rawHeader = res.headers.get("X-Jarvis-Text") ?? "";
         const text = rawHeader ? decodeURIComponent(rawHeader) : "";
 
@@ -294,14 +516,12 @@ export default function JarvisPage() {
 
         await playStreamingAudio(res, () => {
           if (conversationActiveRef.current) {
-            // Small delay — let the audio device release before grabbing the mic
             setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 350);
           } else {
             setState("idle");
           }
         });
       } else {
-        // Fallback JSON path (ElevenLabs not configured)
         const data = await res.json();
         const text: string = data.text ?? "";
         if (text) {
@@ -323,7 +543,6 @@ export default function JarvisPage() {
     }
   }, [startRecognition, playStreamingAudio]);
 
-  // Keep sendCommandRef current so startRecognition can call it without circular dep
   useEffect(() => { sendCommandRef.current = sendCommand; }, [sendCommand]);
 
   // ── Session toggle ───────────────────────────────────────────────────────────
@@ -349,7 +568,7 @@ export default function JarvisPage() {
     }
   }, [startRecognition, stopAudio]);
 
-  // ── Interrupt (skip current speech, restart listening) ───────────────────────
+  // ── Interrupt ────────────────────────────────────────────────────────────────
   const interrupt = useCallback(() => {
     recognitionRef.current?.stop();
     recognitionRef.current = null;
@@ -405,6 +624,7 @@ export default function JarvisPage() {
 
       {/* ── TOP BAR ────────────────────────────────────────────────────────── */}
       <div className="absolute top-0 left-0 right-0 z-30 flex items-center border-b border-white/[0.05] px-6 py-3">
+
         {/* Left */}
         <div className="flex items-center gap-4 w-56 shrink-0">
           <Link href="/admin" className="flex items-center gap-1.5 text-[9px] tracking-widest text-zinc-700 hover:text-zinc-400 transition-colors">
@@ -424,7 +644,29 @@ export default function JarvisPage() {
         </div>
 
         {/* Right */}
-        <div className="flex items-center gap-5 w-56 shrink-0 justify-end">
+        <div className="flex items-center gap-4 w-56 shrink-0 justify-end">
+
+          {/* View toggle */}
+          <div className="flex items-center gap-0.5 rounded border border-white/[0.06] p-0.5">
+            {(["voice", "data"] as ViewMode[]).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`flex items-center gap-1 rounded px-2.5 py-1 text-[7px] tracking-widest font-medium transition-all ${
+                  viewMode === mode
+                    ? "bg-[#d4a853]/15 text-[#d4a853]"
+                    : "text-zinc-700 hover:text-zinc-500"
+                }`}
+              >
+                {mode === "voice"
+                  ? <Mic className="h-2 w-2" />
+                  : <BarChart3 className="h-2 w-2" />}
+                {mode.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {/* State indicator */}
           <div className="flex items-center gap-2">
             <motion.div
               className="h-1.5 w-1.5 rounded-full"
@@ -442,6 +684,8 @@ export default function JarvisPage() {
               {state.toUpperCase()}
             </motion.span>
           </div>
+
+          {/* Clock */}
           <div className="text-right">
             <p className="text-sm font-mono font-bold text-white tabular-nums tracking-wider">{clock}</p>
             <p className="text-[6px] tracking-widest text-zinc-700">
@@ -453,284 +697,315 @@ export default function JarvisPage() {
 
       {/* ── MAIN ───────────────────────────────────────────────────────────── */}
       <div className="flex h-full w-full pt-[58px] pb-[62px]">
+        <AnimatePresence mode="wait">
+          {viewMode === "voice" ? (
 
-        {/* Left: metrics */}
-        <div className="w-56 shrink-0 border-r border-white/[0.05] flex flex-col p-4 gap-2">
-          <p className="text-[6px] tracking-[0.6em] text-zinc-700 mb-1">LIVE METRICS</p>
-
-          {[
-            { label: "TOTAL USERS",   value: stats ? stats.totalUsers.toLocaleString() : "···" },
-            { label: "MRR",           value: stats ? `$${stats.mrr.toLocaleString()}` : "···" },
-            { label: "ARR",           value: stats ? `$${(stats.mrr * 12).toLocaleString()}` : "···" },
-            { label: "PAID ACCOUNTS", value: stats ? stats.paid.toLocaleString() : "···" },
-            { label: "CONVERSION",    value: convRate !== null ? `${convRate}%` : "···" },
-            { label: "SIGNUPS TODAY", value: stats ? stats.signupsToday.toString() : "·" },
-            { label: "ACTIVE / 7D",   value: stats ? stats.activeLastWeek.toLocaleString() : "···" },
-          ].map(({ label, value }) => (
-            <div key={label} className="rounded border border-white/[0.04] bg-white/[0.01] px-3 py-2">
-              <p className="text-[6px] tracking-[0.4em] text-zinc-700 mb-0.5">{label}</p>
-              <p className="text-lg font-bold font-mono text-white leading-none tabular-nums">{value}</p>
-            </div>
-          ))}
-
-          {/* Connections */}
-          <div className="mt-auto pt-3 border-t border-white/[0.04] space-y-1.5">
-            <p className="text-[6px] tracking-[0.5em] text-zinc-800 mb-1">CONNECTIONS</p>
-            {[
-              { label: "SUPABASE",   on: true,    node: "US-EAST-1", dur: 2.3 },
-              { label: "ANTHROPIC",  on: true,    node: "API",       dur: 3.1 },
-              { label: "ELEVENLABS", on: !!stats, node: "TTS",       dur: 2.7 },
-            ].map(({ label, on, node, dur }) => (
-              <div key={label} className="flex items-center gap-1.5">
-                <motion.div
-                  className={`h-1 w-1 rounded-full ${on ? "bg-emerald-500" : "bg-zinc-800"}`}
-                  animate={on ? { opacity: [0.5, 1, 0.5] } : {}}
-                  transition={{ duration: dur, repeat: Infinity }}
-                />
-                <span className="text-[6px] tracking-widest text-zinc-700">{label}</span>
-                <span className="ml-auto text-[6px] tracking-wider text-zinc-800">{on ? node : "OFFLINE"}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Center: orb */}
-        <div className="relative flex-1 flex flex-col items-center justify-center">
-          {corners.map((cls, i) => (
-            <div key={i} className={`absolute ${cls} border-[#d4a853]/10 h-8 w-8`} />
-          ))}
-
-          {/* Crosshair */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gradient-to-b from-transparent via-[#d4a853]/04 to-transparent" />
-            <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-transparent via-[#d4a853]/04 to-transparent" />
-          </div>
-
-          {/* ORB */}
-          <div className="relative flex items-center justify-center">
-            {/* Ambient glow */}
+            // ── VOICE MODE ──────────────────────────────────────────────────
             <motion.div
-              className="absolute rounded-full pointer-events-none"
-              style={{ background: `radial-gradient(circle, ${c}06 0%, transparent 70%)` }}
-              animate={{
-                width:  state === "listening" ? 460 : state === "speaking" ? 440 : 400,
-                height: state === "listening" ? 460 : state === "speaking" ? 440 : 400,
-              }}
-              transition={{ duration: 0.7, ease: "easeInOut" }}
-            />
-
-            {/* Pulse rings */}
-            <AnimatePresence>
-              {state === "listening" && [0, 0.65, 1.3].map((delay, i) => (
-                <motion.div
-                  key={`l${i}`}
-                  className="absolute rounded-full border pointer-events-none"
-                  style={{ borderColor: `${c}35` }}
-                  initial={{ width: 145, height: 145, opacity: 0.9 }}
-                  animate={{ width: 400, height: 400, opacity: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 2.4, delay, repeat: Infinity, ease: "easeOut" }}
-                />
-              ))}
-              {state === "speaking" && [0, 0.5, 1.0].map((delay, i) => (
-                <motion.div
-                  key={`s${i}`}
-                  className="absolute rounded-full border pointer-events-none"
-                  style={{ borderColor: `${c}28` }}
-                  initial={{ width: 160, height: 160, opacity: 0.7 }}
-                  animate={{ width: 380, height: 380, opacity: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 2.0, delay, repeat: Infinity, ease: "easeOut" }}
-                />
-              ))}
-              {state === "processing" && (
-                <motion.div
-                  key="proc"
-                  className="absolute rounded-full border-2 pointer-events-none"
-                  style={{ width: 205, height: 205, borderColor: `${c}40`, borderTopColor: "transparent", borderRightColor: "transparent" }}
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 0.75, repeat: Infinity, ease: "linear" }}
-                />
-              )}
-            </AnimatePresence>
-
-            {/* Ring: outer static */}
-            <div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}06`, width: 272, height: 272 }} />
-
-            {/* Ring: slow clockwise dashed */}
-            <motion.div
-              className="absolute rounded-full pointer-events-none"
-              style={{ width: 226, height: 226, border: `1px dashed ${c}18` }}
-              animate={{ rotate: [0, 360] }}
-              transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-            />
-
-            {/* Ring: counter-clockwise solid */}
-            <motion.div
-              className="absolute rounded-full border pointer-events-none"
-              style={{ width: 180, height: 180, borderColor: `${c}22`, borderTopColor: "transparent", borderLeftColor: "transparent" }}
-              animate={{ rotate: [360, 0] }}
-              transition={{ duration: 11, repeat: Infinity, ease: "linear" }}
-            />
-
-            {/* Inner glow ring */}
-            <motion.div
-              className="absolute rounded-full border pointer-events-none"
-              style={{ borderColor: `${c}45` }}
-              animate={{
-                width:     sessionActive ? 148 : state === "idle" ? 130 : 146,
-                height:    sessionActive ? 148 : state === "idle" ? 130 : 146,
-                boxShadow: [`0 0 8px ${c}18`, `0 0 24px ${c}32`, `0 0 8px ${c}18`],
-              }}
-              transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, boxShadow: { duration: 2.5, repeat: Infinity } }}
-            />
-
-            {/* Core sphere */}
-            <motion.div
-              className="relative z-10 rounded-full flex items-center justify-center overflow-hidden"
-              animate={{
-                width:  sessionActive ? 126 : state === "idle" ? 110 : 124,
-                height: sessionActive ? 126 : state === "idle" ? 110 : 124,
-              }}
-              transition={{ duration: 0.4 }}
-              style={{
-                background:  `radial-gradient(circle at 38% 32%, ${c}35 0%, ${c}10 50%, transparent 78%)`,
-                boxShadow:   `inset 0 0 28px ${c}10, 0 0 35px ${c}18`,
-              }}
+              key="voice"
+              className="flex h-full w-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
             >
-              <motion.div
-                className="absolute inset-0 rounded-full"
-                style={{ background: `conic-gradient(from 0deg, transparent, ${c}20, transparent)`, opacity: 0.25 }}
-                animate={{ rotate: [0, 360] }}
-                transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
-              />
-              <motion.div
-                className="relative z-10 rounded-full"
-                style={{ backgroundColor: c, boxShadow: `0 0 16px ${c}` }}
-                animate={{
-                  width:   state === "speaking" ? 22 : state === "listening" ? 14 : sessionActive ? 10 : 8,
-                  height:  state === "speaking" ? 22 : state === "listening" ? 14 : sessionActive ? 10 : 8,
-                  opacity: state === "idle" && !sessionActive ? 0.4 : 1,
-                }}
-                transition={{ duration: 0.3 }}
-              />
-            </motion.div>
-          </div>
+              {/* Left: metrics */}
+              <div className="w-56 shrink-0 border-r border-white/[0.05] flex flex-col p-4 gap-2">
+                <p className="text-[6px] tracking-[0.6em] text-zinc-700 mb-1">LIVE METRICS</p>
 
-          {/* Waveform + state label */}
-          <div className="mt-10 flex flex-col items-center gap-3">
-            <WaveformBars active={state === "listening" || state === "speaking"} color={c} />
-
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={`${state}-${sessionActive}`}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
-                className="text-[9px] font-semibold tracking-[0.6em]"
-                style={{ color: c }}
-              >
-                {state === "idle" && !sessionActive && "STANDBY"}
-                {state === "idle" && sessionActive  && "READY · · ·"}
-                {state === "listening"               && "LISTENING · · ·"}
-                {state === "processing"              && "PROCESSING REQUEST"}
-                {state === "speaking"                && "JARVIS SPEAKING"}
-              </motion.p>
-            </AnimatePresence>
-
-            <AnimatePresence>
-              {lastTranscript && (state === "processing" || state === "speaking") && (
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 0.35 }}
-                  exit={{ opacity: 0 }}
-                  className="text-[9px] font-mono text-zinc-600 max-w-xs text-center"
-                >
-                  &ldquo;{lastTranscript}&rdquo;
-                </motion.p>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* Right: command log */}
-        <div className="w-72 shrink-0 border-l border-white/[0.05] flex flex-col p-4">
-          {/* Session header */}
-          <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/[0.04]">
-            <p className="text-[6px] tracking-[0.5em] text-zinc-700">COMMAND LOG</p>
-            {sessionActive && (
-              <div className="flex items-center gap-3">
                 {[
-                  { label: "SESSION", val: fmtDuration(sessionElapsed) },
-                  { label: "CMDS",    val: String(commandCount) },
-                  ...(avgLatency !== null ? [{ label: "AVG", val: `${avgLatency}s` }] : []),
-                ].map(({ label, val }) => (
-                  <div key={label} className="text-right">
-                    <p className="text-[9px] font-mono font-bold text-white tabular-nums">{val}</p>
-                    <p className="text-[6px] tracking-widest text-zinc-700">{label}</p>
+                  { label: "TOTAL USERS",   value: stats ? stats.totalUsers.toLocaleString() : "···" },
+                  { label: "MRR",           value: stats ? `$${stats.mrr.toLocaleString()}` : "···" },
+                  { label: "ARR",           value: stats ? `$${stats.arr.toLocaleString()}` : "···" },
+                  { label: "PAID ACCOUNTS", value: stats ? stats.paid.toLocaleString() : "···" },
+                  { label: "CONVERSION",    value: convRate !== null ? `${convRate}%` : "···" },
+                  { label: "SIGNUPS TODAY", value: stats ? stats.signupsToday.toString() : "·" },
+                  { label: "ACTIVE / 7D",   value: stats ? stats.activeLastWeek.toLocaleString() : "···" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded border border-white/[0.04] bg-white/[0.01] px-3 py-2">
+                    <p className="text-[6px] tracking-[0.4em] text-zinc-700 mb-0.5">{label}</p>
+                    <p className="text-lg font-bold font-mono text-white leading-none tabular-nums">{value}</p>
                   </div>
                 ))}
-              </div>
-            )}
-          </div>
 
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {messages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
-                <div className="h-10 w-10 rounded-full border border-[#d4a853]/10 flex items-center justify-center">
-                  <Activity className="h-4 w-4 text-[#d4a853]/15" />
-                </div>
-                <div>
-                  <p className="text-[7px] tracking-[0.5em] text-zinc-700 mb-4">START A SESSION TO BEGIN</p>
+                {/* Connections */}
+                <div className="mt-auto pt-3 border-t border-white/[0.04] space-y-1.5">
+                  <p className="text-[6px] tracking-[0.5em] text-zinc-800 mb-1">CONNECTIONS</p>
                   {[
-                    '"How many users do we have?"',
-                    '"What\'s our MRR right now?"',
-                    '"Read me the latest feedback"',
-                    '"Send a broadcast to all users"',
-                    '"List all feature flags"',
-                  ].map(ex => (
-                    <p key={ex} className="text-[8px] font-mono text-zinc-800 mb-1.5 text-left">{ex}</p>
+                    { label: "SUPABASE",   on: true,    node: "US-EAST-1", dur: 2.3 },
+                    { label: "ANTHROPIC",  on: true,    node: "API",       dur: 3.1 },
+                    { label: "ELEVENLABS", on: !!stats, node: "TTS",       dur: 2.7 },
+                  ].map(({ label, on, node, dur }) => (
+                    <div key={label} className="flex items-center gap-1.5">
+                      <motion.div
+                        className={`h-1 w-1 rounded-full ${on ? "bg-emerald-500" : "bg-zinc-800"}`}
+                        animate={on ? { opacity: [0.5, 1, 0.5] } : {}}
+                        transition={{ duration: dur, repeat: Infinity }}
+                      />
+                      <span className="text-[6px] tracking-widest text-zinc-700">{label}</span>
+                      <span className="ml-auto text-[6px] tracking-wider text-zinc-800">{on ? node : "OFFLINE"}</span>
+                    </div>
                   ))}
                 </div>
               </div>
-            ) : (
-              messages.map((msg, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, x: msg.role === "user" ? 8 : -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <p className={`text-[6px] tracking-widest ${msg.role === "user" ? "text-zinc-700" : "text-[#d4a853]/40"}`}>
-                      {msg.role === "user" ? "KENNY" : "JARVIS"}
-                      {" · "}
-                      {msg.ts.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
-                    </p>
-                    {msg.role === "jarvis" && msg.latencyMs && (
-                      <span className="text-[6px] font-mono text-zinc-800">
-                        {(msg.latencyMs / 1000).toFixed(1)}s
-                      </span>
+
+              {/* Center: orb */}
+              <div className="relative flex-1 flex flex-col items-center justify-center">
+                {corners.map((cls, i) => (
+                  <div key={i} className={`absolute ${cls} border-[#d4a853]/10 h-8 w-8`} />
+                ))}
+
+                {/* Crosshair */}
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gradient-to-b from-transparent via-[#d4a853]/04 to-transparent" />
+                  <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-transparent via-[#d4a853]/04 to-transparent" />
+                </div>
+
+                {/* ORB */}
+                <div className="relative flex items-center justify-center">
+                  <motion.div
+                    className="absolute rounded-full pointer-events-none"
+                    style={{ background: `radial-gradient(circle, ${c}06 0%, transparent 70%)` }}
+                    animate={{
+                      width:  state === "listening" ? 460 : state === "speaking" ? 440 : 400,
+                      height: state === "listening" ? 460 : state === "speaking" ? 440 : 400,
+                    }}
+                    transition={{ duration: 0.7, ease: "easeInOut" }}
+                  />
+
+                  <AnimatePresence>
+                    {state === "listening" && [0, 0.65, 1.3].map((delay, i) => (
+                      <motion.div
+                        key={`l${i}`}
+                        className="absolute rounded-full border pointer-events-none"
+                        style={{ borderColor: `${c}35` }}
+                        initial={{ width: 145, height: 145, opacity: 0.9 }}
+                        animate={{ width: 400, height: 400, opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 2.4, delay, repeat: Infinity, ease: "easeOut" }}
+                      />
+                    ))}
+                    {state === "speaking" && [0, 0.5, 1.0].map((delay, i) => (
+                      <motion.div
+                        key={`s${i}`}
+                        className="absolute rounded-full border pointer-events-none"
+                        style={{ borderColor: `${c}28` }}
+                        initial={{ width: 160, height: 160, opacity: 0.7 }}
+                        animate={{ width: 380, height: 380, opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 2.0, delay, repeat: Infinity, ease: "easeOut" }}
+                      />
+                    ))}
+                    {state === "processing" && (
+                      <motion.div
+                        key="proc"
+                        className="absolute rounded-full border-2 pointer-events-none"
+                        style={{ width: 205, height: 205, borderColor: `${c}40`, borderTopColor: "transparent", borderRightColor: "transparent" }}
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 0.75, repeat: Infinity, ease: "linear" }}
+                      />
                     )}
-                  </div>
-                  <div className={`rounded-lg p-2.5 text-[11px] leading-relaxed ${
-                    msg.role === "user"
-                      ? "bg-white/[0.025] border border-white/[0.05] text-zinc-400"
-                      : "bg-[#d4a853]/[0.04] border border-[#d4a853]/10 text-zinc-300"
-                  }`}>
-                    {msg.text}
-                  </div>
-                </motion.div>
-              ))
-            )}
-            <div ref={transcriptEndRef} />
-          </div>
-        </div>
+                  </AnimatePresence>
+
+                  <div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}06`, width: 272, height: 272 }} />
+
+                  <motion.div
+                    className="absolute rounded-full pointer-events-none"
+                    style={{ width: 226, height: 226, border: `1px dashed ${c}18` }}
+                    animate={{ rotate: [0, 360] }}
+                    transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
+                  />
+
+                  <motion.div
+                    className="absolute rounded-full border pointer-events-none"
+                    style={{ width: 180, height: 180, borderColor: `${c}22`, borderTopColor: "transparent", borderLeftColor: "transparent" }}
+                    animate={{ rotate: [360, 0] }}
+                    transition={{ duration: 11, repeat: Infinity, ease: "linear" }}
+                  />
+
+                  <motion.div
+                    className="absolute rounded-full border pointer-events-none"
+                    style={{ borderColor: `${c}45` }}
+                    animate={{
+                      width:     sessionActive ? 148 : state === "idle" ? 130 : 146,
+                      height:    sessionActive ? 148 : state === "idle" ? 130 : 146,
+                      boxShadow: [`0 0 8px ${c}18`, `0 0 24px ${c}32`, `0 0 8px ${c}18`],
+                    }}
+                    transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, boxShadow: { duration: 2.5, repeat: Infinity } }}
+                  />
+
+                  <motion.div
+                    className="relative z-10 rounded-full flex items-center justify-center overflow-hidden"
+                    animate={{
+                      width:  sessionActive ? 126 : state === "idle" ? 110 : 124,
+                      height: sessionActive ? 126 : state === "idle" ? 110 : 124,
+                    }}
+                    transition={{ duration: 0.4 }}
+                    style={{
+                      background:  `radial-gradient(circle at 38% 32%, ${c}35 0%, ${c}10 50%, transparent 78%)`,
+                      boxShadow:   `inset 0 0 28px ${c}10, 0 0 35px ${c}18`,
+                    }}
+                  >
+                    <motion.div
+                      className="absolute inset-0 rounded-full"
+                      style={{ background: `conic-gradient(from 0deg, transparent, ${c}20, transparent)`, opacity: 0.25 }}
+                      animate={{ rotate: [0, 360] }}
+                      transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+                    />
+                    <motion.div
+                      className="relative z-10 rounded-full"
+                      style={{ backgroundColor: c, boxShadow: `0 0 16px ${c}` }}
+                      animate={{
+                        width:   state === "speaking" ? 22 : state === "listening" ? 14 : sessionActive ? 10 : 8,
+                        height:  state === "speaking" ? 22 : state === "listening" ? 14 : sessionActive ? 10 : 8,
+                        opacity: state === "idle" && !sessionActive ? 0.4 : 1,
+                      }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </motion.div>
+                </div>
+
+                {/* Waveform + state label */}
+                <div className="mt-10 flex flex-col items-center gap-3">
+                  <WaveformBars active={state === "listening" || state === "speaking"} color={c} />
+
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={`${state}-${sessionActive}`}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-[9px] font-semibold tracking-[0.6em]"
+                      style={{ color: c }}
+                    >
+                      {state === "idle" && !sessionActive && "STANDBY"}
+                      {state === "idle" && sessionActive  && "READY · · ·"}
+                      {state === "listening"               && "LISTENING · · ·"}
+                      {state === "processing"              && "PROCESSING REQUEST"}
+                      {state === "speaking"                && "JARVIS SPEAKING"}
+                    </motion.p>
+                  </AnimatePresence>
+
+                  <AnimatePresence>
+                    {lastTranscript && (state === "processing" || state === "speaking") && (
+                      <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 0.35 }}
+                        exit={{ opacity: 0 }}
+                        className="text-[9px] font-mono text-zinc-600 max-w-xs text-center"
+                      >
+                        &ldquo;{lastTranscript}&rdquo;
+                      </motion.p>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Right: command log */}
+              <div className="w-72 shrink-0 border-l border-white/[0.05] flex flex-col p-4">
+                <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/[0.04]">
+                  <p className="text-[6px] tracking-[0.5em] text-zinc-700">COMMAND LOG</p>
+                  {sessionActive && (
+                    <div className="flex items-center gap-3">
+                      {[
+                        { label: "SESSION", val: fmtDuration(sessionElapsed) },
+                        { label: "CMDS",    val: String(commandCount) },
+                        ...(avgLatency !== null ? [{ label: "AVG", val: `${avgLatency}s` }] : []),
+                      ].map(({ label, val }) => (
+                        <div key={label} className="text-right">
+                          <p className="text-[9px] font-mono font-bold text-white tabular-nums">{val}</p>
+                          <p className="text-[6px] tracking-widest text-zinc-700">{label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {messages.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-5 text-center">
+                      <div className="h-10 w-10 rounded-full border border-[#d4a853]/10 flex items-center justify-center">
+                        <Activity className="h-4 w-4 text-[#d4a853]/15" />
+                      </div>
+                      <div>
+                        <p className="text-[7px] tracking-[0.5em] text-zinc-700 mb-4">START A SESSION TO BEGIN</p>
+                        {[
+                          '"How many users do we have?"',
+                          '"What\'s our MRR right now?"',
+                          '"Read me the latest feedback"',
+                          '"Send a broadcast to all users"',
+                          '"List all feature flags"',
+                        ].map(ex => (
+                          <p key={ex} className="text-[8px] font-mono text-zinc-800 mb-1.5 text-left">{ex}</p>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    messages.map((msg, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: msg.role === "user" ? 8 : -8 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.18 }}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <p className={`text-[6px] tracking-widest ${msg.role === "user" ? "text-zinc-700" : "text-[#d4a853]/40"}`}>
+                            {msg.role === "user" ? "KENNY" : "JARVIS"}
+                            {" · "}
+                            {msg.ts.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
+                          </p>
+                          {msg.role === "jarvis" && msg.latencyMs && (
+                            <span className="text-[6px] font-mono text-zinc-800">
+                              {(msg.latencyMs / 1000).toFixed(1)}s
+                            </span>
+                          )}
+                        </div>
+                        <div className={`rounded-lg p-2.5 text-[11px] leading-relaxed ${
+                          msg.role === "user"
+                            ? "bg-white/[0.025] border border-white/[0.05] text-zinc-400"
+                            : "bg-[#d4a853]/[0.04] border border-[#d4a853]/10 text-zinc-300"
+                        }`}>
+                          {msg.text}
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                  <div ref={transcriptEndRef} />
+                </div>
+              </div>
+            </motion.div>
+
+          ) : (
+
+            // ── DATA MODE ────────────────────────────────────────────────────
+            <motion.div
+              key="data"
+              className="flex h-full w-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <DataModeView
+                stats={stats}
+                messages={messages}
+                sessionActive={sessionActive}
+                commandCount={commandCount}
+                sessionElapsed={sessionElapsed}
+                avgLatency={avgLatency}
+                state={state}
+                c={c}
+              />
+            </motion.div>
+
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── BOTTOM BAR ─────────────────────────────────────────────────────── */}
       <div className="absolute bottom-0 left-0 right-0 z-30 flex items-center justify-center gap-3 border-t border-white/[0.05] px-6 py-3">
+
         {/* Session stats (left) */}
         {sessionActive && (
           <motion.div
@@ -739,8 +1014,8 @@ export default function JarvisPage() {
             className="absolute left-6 flex items-center gap-5"
           >
             {[
-              { label: "SESSION", val: fmtDuration(sessionElapsed) },
-              { label: "COMMANDS", val: String(commandCount) },
+              { label: "SESSION",     val: fmtDuration(sessionElapsed) },
+              { label: "COMMANDS",    val: String(commandCount) },
               ...(avgLatency !== null ? [{ label: "AVG LATENCY", val: `${avgLatency}s` }] : []),
             ].map(({ label, val }) => (
               <div key={label}>
@@ -757,7 +1032,7 @@ export default function JarvisPage() {
             state === "speaking"
               ? interrupt
               : sessionActive
-                ? (state === "idle" ? toggleSession : () => {}) // end session on idle click
+                ? (state === "idle" ? toggleSession : () => {})
                 : toggleSession
           }
           className="flex items-center gap-2.5 rounded-full px-8 py-2.5 text-[10px] font-bold tracking-[0.35em] transition-colors"
@@ -814,6 +1089,7 @@ export default function JarvisPage() {
             END SESSION
           </motion.button>
         )}
+
       </div>
     </div>
   );

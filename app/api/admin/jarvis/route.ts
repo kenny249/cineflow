@@ -430,6 +430,27 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
+// ── Markdown stripper (prevents ElevenLabs reading "asterisk asterisk") ────────
+
+function cleanForSpeech(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, "")           // fenced code blocks
+    .replace(/`([^`]+)`/g, "$1")              // inline code
+    .replace(/\*{3}(.+?)\*{3}/g, "$1")       // ***bold italic***
+    .replace(/\*{2}(.+?)\*{2}/g, "$1")       // **bold**
+    .replace(/\*(.+?)\*/g, "$1")             // *italic*
+    .replace(/^#{1,6}\s+/gm, "")             // # headings
+    .replace(/^[-_*]{3,}$/gm, "")            // --- horizontal rules
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [link](url) → text only
+    .replace(/^[-*+]\s+/gm, "")              // - bullet points
+    .replace(/^\d+\.\s+/gm, "")              // 1. numbered lists
+    .replace(/^>\s+/gm, "")                  // > blockquotes
+    .replace(/\n\n+/g, ". ")                 // paragraph breaks → pause
+    .replace(/\n/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 // ── ElevenLabs TTS ─────────────────────────────────────────────────────────────
 
 async function streamTTS(text: string): Promise<Response | null> {
@@ -498,6 +519,7 @@ Voice rules: 1-3 sentences unless reporting a list of data. Never say "I don't k
 CRITICAL: Always respond with something. If you can't complete a task, say exactly why in plain spoken language.
 If a tool is unavailable (e.g. GITHUB_TOKEN not set), tell ${firstName} clearly what env var is needed.
 Address ${firstName} by name occasionally.
+FORMAT: Plain spoken English ONLY. No markdown — no asterisks, no bold, no bullet dashes, no headers, no backticks. Write as if speaking aloud.
 Current time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
 Cineflow pricing: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.
 GitHub repo: ${GITHUB_REPO}${dataBlock}`;
@@ -570,10 +592,9 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
 
     if (!text) text = "I processed your request but didn't generate a response. Please try again.";
 
-    return speak(text);
+    return speak(cleanForSpeech(text));
 
   } catch (err: any) {
-    // Guaranteed fallback — Jarvis always speaks, even on hard errors
     const fallback = `I hit a technical error, ${firstName}. ${err?.message?.includes("API") ? "The AI service returned an error." : "Something went wrong on my end."} Please try again.`;
     return speak(fallback);
   }

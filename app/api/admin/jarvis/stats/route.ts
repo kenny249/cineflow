@@ -55,11 +55,21 @@ export async function GET() {
     .filter((p: any) => (p.plan_status === "active" || p.plan_status === "founding") && p.plan !== "lifetime")
     .reduce((sum: number, p: any) => sum + (planMRR[p.plan] ?? 0), 0);
 
+  const breakdown = realProfiles.reduce((acc: Record<string, number>, p: any) => {
+    if (p.plan) acc[p.plan] = (acc[p.plan] || 0) + 1;
+    return acc;
+  }, {});
+
   return NextResponse.json({
     totalUsers: realUsers.length,
     signupsToday: realUsers.filter((u: any) => new Date(u.created_at) >= today).length,
+    signupsWeek:  realUsers.filter((u: any) => u.created_at >= weekAgo).length,
     activeLastWeek: realUsers.filter((u: any) => u.last_sign_in_at && u.last_sign_in_at >= weekAgo).length,
     paid,
+    trialing: realProfiles.filter((p: any) => p.plan_status === "trialing" && new Date(p.trial_ends_at) > new Date()).length,
+    expired:  realProfiles.filter((p: any) => p.plan_status === "trialing" && new Date(p.trial_ends_at) <= new Date()).length,
     mrr,
+    arr: mrr * 12,
+    breakdown,
   });
 }
