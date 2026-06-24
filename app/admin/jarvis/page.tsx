@@ -215,30 +215,82 @@ function SystemTicker({ c }: { c: string }) {
   );
 }
 
-const FREQ_COUNT = 26;
+// ── Radial Audio Visualizer ───────────────────────────────────────────────────
+// Reads directly from AnalyserNode ref in its own RAF loop — zero React state
+// updates per frame, always reflects current mic state (flat when null/inactive).
 
-function FrequencyBars({ c, active, heights }: { c: string; active: boolean; heights?: number[] }) {
-  const [hs, setHs] = useState(() => Array.from({ length: FREQ_COUNT }, (_, i) => 4 + Math.abs(Math.sin(i * 0.7)) * 14));
+function RadialAudioVisualizer({
+  analyserRef, active, c, N = 64,
+}: {
+  analyserRef: React.MutableRefObject<AnalyserNode | null>;
+  active: boolean;
+  c: string;
+  N?: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const SIZE = 440;
+  const CX = SIZE / 2, CY = SIZE / 2;
+  const R_INNER = 104; // just outside orb glow ring
+  const MAX_H   = 52;  // max bar spike length
+
   useEffect(() => {
-    if (heights) return;
-    const id = setInterval(() => {
-      setHs(prev => prev.map(h => Math.max(2, Math.min(38, h + (Math.random() - 0.5) * (active ? 11 : 2.5)))));
-    }, active ? 65 : 500);
-    return () => clearInterval(id);
-  }, [active, heights]);
-  const display = heights ?? hs;
-  const hasSignal = heights ? heights.some(h => h > 6) : false;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!ctx || !canvas) return;
+    let rafId: number;
+    let dataArr: Uint8Array<ArrayBuffer> | null = null;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      const analyser = analyserRef.current;
+      const live = active && analyser !== null;
+
+      if (live && analyser) {
+        if (!dataArr || dataArr.length !== analyser.frequencyBinCount) {
+          dataArr = new Uint8Array(analyser.frequencyBinCount);
+        }
+        analyser.getByteFrequencyData(dataArr);
+      }
+
+      for (let i = 0; i < N; i++) {
+        const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+        let h: number;
+        if (live && dataArr) {
+          const bin = Math.floor((i / N) * dataArr.length);
+          h = Math.max(3, Math.min(MAX_H, (dataArr[bin] / 255) * MAX_H));
+        } else {
+          h = 3;
+        }
+        const x1 = CX + R_INNER * Math.cos(angle);
+        const y1 = CY + R_INNER * Math.sin(angle);
+        const x2 = CX + (R_INNER + h) * Math.cos(angle);
+        const y2 = CY + (R_INNER + h) * Math.sin(angle);
+
+        ctx.globalAlpha = live ? Math.min(0.9, 0.15 + (h / MAX_H) * 0.75) : 0.07;
+        ctx.strokeStyle = c;
+        ctx.lineWidth   = live ? 1.8 : 0.8;
+        ctx.lineCap     = "round";
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+
+      rafId = requestAnimationFrame(draw);
+    };
+
+    draw();
+    return () => cancelAnimationFrame(rafId);
+  }, [active, c, N, analyserRef]);
+
   return (
-    <div className="flex items-end gap-px" style={{ height: 42, opacity: heights ? (hasSignal ? 0.8 : 0.25) : active ? 0.75 : 0.2, transition: "opacity 0.4s" }}>
-      {display.map((h, i) => (
-        <div key={i} style={{
-          width: 3, height: Math.max(2, h),
-          background: `linear-gradient(to top, ${c}, ${c}55)`,
-          borderRadius: "1px 1px 0 0",
-          transition: heights ? "height 30ms linear" : "height 65ms ease-out",
-        }} />
-      ))}
-    </div>
+    <canvas
+      ref={canvasRef}
+      width={SIZE}
+      height={SIZE}
+      className="absolute pointer-events-none"
+      style={{ left: -SIZE / 2, top: -SIZE / 2 }}
+    />
   );
 }
 
@@ -740,7 +792,6 @@ export default function JarvisPage() {
   const [isCompact, setIsCompact] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<"" | "saved" | "error">("");
   const [muted, setMuted]               = useState(false);
-  const [micFreqData, setMicFreqData]   = useState<number[]>(() => Array(26).fill(4));
 
   const containerRef          = useRef<HTMLDivElement>(null);
   const conversationActiveRef = useRef(false);
@@ -757,7 +808,6 @@ export default function JarvisPage() {
   const micStreamRef          = useRef<MediaStream | null>(null);
   const micAudioCtxRef        = useRef<AudioContext | null>(null);
   const micAnalyserRef        = useRef<AnalyserNode | null>(null);
-  const micAnimFrameRef       = useRef<number | null>(null);
   const transcriptEndRef      = useRef<HTMLDivElement>(null);
   const sendCommandRef        = useRef<(cmd: string) => void>(() => {});
   const lastSpeechEndRef      = useRef(0);
@@ -809,41 +859,29 @@ export default function JarvisPage() {
     setBarHeights([6, 22, 10, 40, 14, 30, 8, 44, 12, 26, 7]);
   }, []);
 
+  // nulling micAnalyserRef is the signal RadialAudioVisualizer uses to go flat
   const stopMicAnalyser = useCallback(() => {
-    if (micAnimFrameRef.current) { cancelAnimationFrame(micAnimFrameRef.current); micAnimFrameRef.current = null; }
     micAnalyserRef.current = null;
     if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
-    setMicFreqData(Array(26).fill(4));
   }, []);
 
   const startMicAnalyser = useCallback(async () => {
-    if (micStreamRef.current) return; // already running
+    if (micStreamRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       micStreamRef.current = stream;
       if (!micAudioCtxRef.current || micAudioCtxRef.current.state === "closed") {
         micAudioCtxRef.current = new AudioContext();
       }
-      const ctx = micAudioCtxRef.current;
-      if (ctx.state === "suspended") await ctx.resume();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.8;
-      ctx.createMediaStreamSource(stream).connect(analyser); // don't connect to destination — no echo
-      micAnalyserRef.current = analyser;
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        if (!micAnalyserRef.current) return;
-        analyser.getByteFrequencyData(data);
-        setMicFreqData(Array.from({ length: 26 }, (_, i) => {
-          const bin = Math.floor((i / 26) * data.length);
-          return Math.max(2, Math.min(38, (data[bin] / 255) * 38));
-        }));
-        micAnimFrameRef.current = requestAnimationFrame(tick);
-      };
-      micAnimFrameRef.current = requestAnimationFrame(tick);
+      const actx = micAudioCtxRef.current;
+      if (actx.state === "suspended") await actx.resume();
+      const analyser = actx.createAnalyser();
+      analyser.fftSize = 256; // 128 bins → richer radial visualizer
+      analyser.smoothingTimeConstant = 0.75;
+      actx.createMediaStreamSource(stream).connect(analyser);
+      micAnalyserRef.current = analyser; // canvas reads this directly — no state update needed
     } catch {
-      // mic permission denied or unavailable — fall back to animated bars
+      // mic permission denied — radial bars stay flat
     }
   }, []);
 
@@ -1434,12 +1472,6 @@ export default function JarvisPage() {
                   </div>
                 </div>
 
-                {/* Signal spectrum above orb — driven by real mic FFT when session active */}
-                <div className="mb-2 flex flex-col items-center gap-1.5 pointer-events-none">
-                  <p className="text-[5px] tracking-[0.6em]" style={{ color: `${c}25` }}>MIC · INPUT</p>
-                  <FrequencyBars c={c} active={sessionActive} heights={sessionActive && !muted ? micFreqData : undefined} />
-                </div>
-
                 <div className="relative flex items-center justify-center">
                   {/* Ambient glow */}
                   <motion.div className="absolute rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c}0a 0%, transparent 68%)` }}
@@ -1496,6 +1528,9 @@ export default function JarvisPage() {
                   <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 182, height: 182, border: `1px dashed ${c}14` }} animate={{ rotate: [0, -360] }} transition={{ duration: 14, repeat: Infinity, ease: "linear" }} />
                   {/* Fast inner arc */}
                   <motion.div className="absolute rounded-full border pointer-events-none" style={{ width: 168, height: 168, borderColor: `${c}22`, borderRightColor: "transparent", borderBottomColor: "transparent" }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
+
+                  {/* Radial mic visualizer — 64 bars radiating from orb surface, driven by real FFT */}
+                  <RadialAudioVisualizer analyserRef={micAnalyserRef} active={sessionActive} c={c} />
 
                   {/* Orbiting data nodes */}
                   <OrbitingNodes stats={stats} c={c} sessionActive={sessionActive} />
