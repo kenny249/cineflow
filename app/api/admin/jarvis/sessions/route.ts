@@ -41,6 +41,24 @@ export async function GET() {
   return NextResponse.json({ sessions: data ?? [] });
 }
 
+export async function DELETE(req: NextRequest) {
+  const caller = await requireAdmin();
+  if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const id = req.nextUrl.searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const admin = getAdmin();
+  const { error } = await admin
+    .from("jarvis_sessions")
+    .delete()
+    .eq("id", id)
+    .eq("admin_id", caller.id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ deleted: true });
+}
+
 export async function POST(req: NextRequest) {
   const caller = await requireAdmin();
   if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 });

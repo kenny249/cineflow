@@ -341,6 +341,17 @@ async function executeSaveMemory(args: { key: string; value: string }, adminId: 
   return { saved: true, key: args.key };
 }
 
+async function executeDeleteMemory(args: { key: string }, adminId: string) {
+  const admin = getAdmin();
+  const { error } = await admin
+    .from("jarvis_memory")
+    .delete()
+    .eq("admin_id", adminId)
+    .eq("key", args.key);
+  if (error) return { error: error.message };
+  return { deleted: true, key: args.key };
+}
+
 async function executeAddUserNote(args: { user_query: string; note: string }, callerId: string) {
   const admin = getAdmin();
   const q = args.user_query.toLowerCase();
@@ -540,6 +551,17 @@ const TOOLS: Anthropic.Tool[] = [
         value: { type: "string", description: "The fact or context to remember" },
       },
       required: ["key", "value"],
+    },
+  },
+  {
+    name: "delete_memory",
+    description: "Permanently delete a fact from long-term memory. Use when Kenny says 'forget that', 'forget about X', 'remove that memory', or asks you to stop remembering something specific.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        key: { type: "string", description: "The exact memory key to delete. If unsure of the exact key, use save_memory to list what you know, then delete the right one." },
+      },
+      required: ["key"],
     },
   },
   {
@@ -850,6 +872,7 @@ list_directory — list files in any directory
 search_codebase — grep across the entire codebase for any function, string, or pattern
 create_github_issue — create issues to track bugs or features
 save_memory — save facts to long-term memory across sessions (use proactively, silently)
+delete_memory — permanently erase a memory key when Kenny says "forget that" or "forget about X"
 get_at_risk_users — users whose trial expires soon
 get_recent_signups — recent signups with plan info
 add_user_note — attach a note to a specific user's profile
@@ -931,6 +954,7 @@ Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", da
             case "get_at_risk_users":   result = await executeGetAtRiskUsers(toolUse.input as any); break;
             case "get_recent_signups":  result = await executeGetRecentSignups(toolUse.input as any); break;
             case "save_memory":         result = await executeSaveMemory(toolUse.input as any, adminId); break;
+            case "delete_memory":       result = await executeDeleteMemory(toolUse.input as any, adminId); break;
             case "add_user_note":       result = await executeAddUserNote(toolUse.input as any, adminId); break;
             case "get_user_notes":      result = await executeGetUserNotes(toolUse.input as any); break;
             default:                    result = { error: `Unknown tool: ${toolUse.name}` };

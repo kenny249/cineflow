@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Mic, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh, Clock, Minus } from "lucide-react";
+import { ArrowLeft, Mic, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh, Clock, Minus, Trash2 } from "lucide-react";
 
 type JarvisState = "idle" | "listening" | "processing" | "speaking";
 type ViewMode    = "voice" | "data" | "history";
@@ -323,8 +323,22 @@ function PersonalityPanel({ value, onChange, c }: { value: Personality; onChange
 
 // ── History Mode ───────────────────────────────────────────────────────────────
 
-function HistoryModeView({ sessions, loading }: { sessions: PastSession[]; loading: boolean }) {
+function HistoryModeView({ sessions, loading, onDelete }: { sessions: PastSession[]; loading: boolean; onDelete: (id: string) => void }) {
   const [selected, setSelected] = useState<PastSession | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setDeleting(id);
+    fetch(`/api/admin/jarvis/sessions?id=${id}`, { method: "DELETE" })
+      .then(r => {
+        if (r.ok) {
+          onDelete(id);
+          if (selected?.id === id) setSelected(null);
+        }
+      })
+      .finally(() => setDeleting(null));
+  };
 
   return (
     <div className="flex h-full w-full">
@@ -346,21 +360,32 @@ function HistoryModeView({ sessions, loading }: { sessions: PastSession[]; loadi
             const date = new Date(session.created_at);
             const preview = session.messages.find(m => m.role === "user")?.text ?? "";
             const isSel = selected?.id === session.id;
+            const isDeleting = deleting === session.id;
             return (
-              <button key={session.id} onClick={() => setSelected(session)}
-                className="w-full text-left rounded p-2.5 transition-all"
-                style={{ background: isSel ? "#d4a85310" : "rgba(255,255,255,0.02)", border: `1px solid ${isSel ? "#d4a85330" : "rgba(255,255,255,0.05)"}` }}>
-                <div className="flex items-center justify-between mb-0.5">
-                  <p className="text-[7px] font-mono" style={{ color: isSel ? "#d4a853" : "#71717a" }}>
-                    {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-                  </p>
-                  <span className="text-[6px] font-mono text-zinc-700">{session.command_count} cmds</span>
-                </div>
-                {session.duration_ms != null && (
-                  <p className="text-[6px] font-mono text-zinc-800">{fmtDuration(session.duration_ms)}</p>
-                )}
-                {preview && <p className="text-[7px] text-zinc-700 truncate mt-0.5">{preview.slice(0, 55)}</p>}
-              </button>
+              <div key={session.id} className="relative group">
+                <button onClick={() => setSelected(session)}
+                  className="w-full text-left rounded p-2.5 transition-all pr-7"
+                  style={{ background: isSel ? "#d4a85310" : "rgba(255,255,255,0.02)", border: `1px solid ${isSel ? "#d4a85330" : "rgba(255,255,255,0.05)"}` }}>
+                  <div className="flex items-center justify-between mb-0.5">
+                    <p className="text-[7px] font-mono" style={{ color: isSel ? "#d4a853" : "#71717a" }}>
+                      {date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                    </p>
+                    <span className="text-[6px] font-mono text-zinc-700">{session.command_count} cmds</span>
+                  </div>
+                  {session.duration_ms != null && (
+                    <p className="text-[6px] font-mono text-zinc-800">{fmtDuration(session.duration_ms)}</p>
+                  )}
+                  {preview && <p className="text-[7px] text-zinc-700 truncate mt-0.5">{preview.slice(0, 55)}</p>}
+                </button>
+                <button
+                  onClick={e => handleDelete(e, session.id)}
+                  disabled={isDeleting}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+                  style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)" }}
+                  title="Delete session">
+                  <Trash2 size={9} />
+                </button>
+              </div>
             );
           })}
         </div>
@@ -1417,7 +1442,7 @@ export default function JarvisPage() {
             </motion.div>
           ) : (
             <motion.div key="history" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-              <HistoryModeView sessions={pastSessions} loading={sessionsLoading} />
+              <HistoryModeView sessions={pastSessions} loading={sessionsLoading} onDelete={id => setPastSessions(prev => prev.filter(s => s.id !== id))} />
             </motion.div>
           )}
         </AnimatePresence>
