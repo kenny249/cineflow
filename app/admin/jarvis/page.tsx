@@ -1572,19 +1572,19 @@ export default function JarvisPage() {
                   </AnimatePresence>
                 </div>
 
-                {/* Perspective grid floor — fills the bottom dead zone */}
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ width: 1200, height: 380 }}>
-                  <div style={{ perspective: "440px", width: "100%", height: "100%" }}>
-                    <motion.div style={{ width: "100%", height: "220%", transformOrigin: "top center", transform: "rotateX(67deg)",
-                      backgroundImage: `linear-gradient(${c}20 1px, transparent 1px), linear-gradient(90deg, ${c}20 1px, transparent 1px)`,
+                {/* Perspective grid floor */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ width: 1000, height: 220 }}>
+                  <div style={{ perspective: "340px", width: "100%", height: "100%" }}>
+                    <motion.div style={{ width: "100%", height: "220%", transformOrigin: "top center", transform: "rotateX(64deg)",
+                      backgroundImage: `linear-gradient(${c}1c 1px, transparent 1px), linear-gradient(90deg, ${c}1c 1px, transparent 1px)`,
                       backgroundSize: "80px 80px" }}
                       animate={{ backgroundPosition: ["0px 0px", "0px 80px"] }}
                       transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }} />
                   </div>
-                  {/* Horizon glow */}
-                  <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c}40, transparent)` }} />
-                  {/* Fade mask — shorter so grid is visible higher up */}
-                  <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, black 0%, transparent 28%)" }} />
+                  {/* Horizon glow at the top edge of the grid */}
+                  <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c}35, transparent)` }} />
+                  {/* Fade mask */}
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, black 0%, transparent 45%)" }} />
                 </div>
 
                 <div className="mt-8 flex flex-col items-center gap-2.5 relative z-10">
