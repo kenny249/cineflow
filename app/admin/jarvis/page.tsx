@@ -353,6 +353,7 @@ export default function JarvisPage() {
   const animFrameRef          = useRef<number | null>(null);
   const transcriptEndRef      = useRef<HTMLDivElement>(null);
   const sendCommandRef        = useRef<(cmd: string) => void>(() => {});
+  const lastSpeechEndRef      = useRef(0); // timestamp when Jarvis last stopped speaking (echo guard)
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -451,7 +452,7 @@ export default function JarvisPage() {
       audioRef.current = audio;
       speakingRef.current = true;
       startAnalyser(audio);
-      audio.onended = () => { speakingRef.current = false; stopAnalyser(); URL.revokeObjectURL(url); audioRef.current = null; onEnd(); };
+      audio.onended = () => { speakingRef.current = false; lastSpeechEndRef.current = Date.now(); stopAnalyser(); URL.revokeObjectURL(url); audioRef.current = null; onEnd(); };
       audio.play().catch(onEnd);
       return;
     }
@@ -463,7 +464,7 @@ export default function JarvisPage() {
     audioRef.current = audio;
     speakingRef.current = true;
 
-    const cleanup = () => { speakingRef.current = false; stopAnalyser(); URL.revokeObjectURL(url); audioRef.current = null; mediaSourceRef.current = null; onEnd(); };
+    const cleanup = () => { speakingRef.current = false; lastSpeechEndRef.current = Date.now(); stopAnalyser(); URL.revokeObjectURL(url); audioRef.current = null; mediaSourceRef.current = null; onEnd(); };
     audio.onended = cleanup;
     audio.onerror = cleanup;
 
@@ -514,7 +515,8 @@ export default function JarvisPage() {
       const result = e.results[e.resultIndex];
       if (!result?.isFinal) return;
       const text: string = result[0].transcript.trim();
-      if (!text || text.length < 2) return;
+      if (!text || text.length < 5) return;
+      if (Date.now() - lastSpeechEndRef.current < 1200) return; // echo guard: ignore mic input for 1.2s after Jarvis stops speaking
 
       if (speakingRef.current) {
         // Barge-in: user spoke while Jarvis was talking — stop audio and process new command
@@ -652,7 +654,6 @@ export default function JarvisPage() {
       setCommandCount(0);
       setLatencies([]);
       startRecognition();
-      setTimeout(() => { if (conversationActiveRef.current) sendCommandRef.current("Brief me on current status."); }, 500);
     }
   }, [startRecognition, stopAudio]);
 
@@ -805,7 +806,7 @@ export default function JarvisPage() {
                       <motion.div key={`s${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}35` }} initial={{ width: 165, height: 165, opacity: 0.8 }} animate={{ width: 410, height: 410, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 1.6, delay, repeat: Infinity, ease: "easeOut" }} />
                     ))}
                     {state === "processing" && (
-                      <motion.div key="proc" className="absolute rounded-full border-2 pointer-events-none" style={{ width: 215, height: 215, borderColor: `${c}45`, borderTopColor: "transparent", borderRightColor: "transparent" }} animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: "linear" }} />
+                      <motion.div key="proc" className="absolute rounded-full border-2 pointer-events-none" style={{ width: 215, height: 215, borderColor: `${c}45`, borderTopColor: "transparent", borderRightColor: "transparent" }} animate={{ rotate: 360 }} transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }} />
                     )}
                   </AnimatePresence>
 
@@ -938,7 +939,7 @@ export default function JarvisPage() {
           <AnimatePresence mode="wait">
             {!sessionActive                          && <motion.span key="mic" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.1 }}><Mic className="h-3.5 w-3.5" /></motion.span>}
             {sessionActive && state === "listening"  && <motion.div key="pulse" className="h-3 w-3 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 8px ${c}` }} animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 0.5, repeat: Infinity }} />}
-            {sessionActive && state === "processing" && <motion.div key="spin" animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: "linear" }}><div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent" /></motion.div>}
+            {sessionActive && state === "processing" && <motion.div key="spin" animate={{ rotate: 360 }} transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}><div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent" /></motion.div>}
             {sessionActive && state === "speaking"   && <motion.span key="stop" initial={{ scale: 0 }} animate={{ scale: 1 }}><Square className="h-3 w-3 fill-current" /></motion.span>}
             {sessionActive && state === "idle"       && <motion.div key="breathe" className="h-3 w-3 rounded-full" style={{ backgroundColor: c }} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity }} />}
           </AnimatePresence>

@@ -510,7 +510,7 @@ function cleanForSpeech(text: string): string {
 
 // ── ElevenLabs TTS ─────────────────────────────────────────────────────────────
 
-function truncateForTTS(text: string, maxChars = 900): string {
+function truncateForTTS(text: string, maxChars = 1400): string {
   if (text.length <= maxChars) return text;
   const chunk = text.slice(0, maxChars);
   const last = Math.max(chunk.lastIndexOf(". "), chunk.lastIndexOf("! "), chunk.lastIndexOf("? "));
@@ -647,7 +647,7 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
     ];
 
     const response = await anthropic.messages.create({
-      model: "claude-opus-4-8",
+      model: "claude-sonnet-4-6",
       max_tokens: 4096,
       temperature: 0.7,
       system: systemPrompt,
@@ -691,7 +691,7 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
       }));
 
       const followUp = await anthropic.messages.create({
-        model: "claude-opus-4-8",
+        model: "claude-sonnet-4-6",
         max_tokens: 4096,
         temperature: 0.7,
         system: systemPrompt,
@@ -713,7 +713,9 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
     return speak(cleanForSpeech(text));
 
   } catch (err: any) {
-    const fallback = `I hit a technical error, ${firstName}. ${err?.message?.includes("API") ? "The AI service returned an error." : "Something went wrong on my end."} Please try again.`;
+    console.error("[Jarvis] API error:", err?.message, err?.status);
+    const detail = err?.message ? err.message.slice(0, 120) : "unknown error";
+    const fallback = `I hit a technical error, ${firstName}. Details: ${detail}. Please try again.`;
     return speak(fallback);
   }
 }
