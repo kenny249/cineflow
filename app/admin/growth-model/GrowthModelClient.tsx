@@ -420,7 +420,7 @@ export function GrowthModelClient() {
             <Slider
               label="New signups / month"
               value={monthlySignups}
-              min={1} max={200} step={1}
+              min={1} max={5000} step={5}
               onChange={(v) => { setMonthlySignups(v); handleSliderChange(); }}
               format={(v) => `${v}`}
               description="Organic + referral new users entering trial each month"
