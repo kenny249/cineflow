@@ -453,6 +453,13 @@ function cleanForSpeech(text: string): string {
 
 // ── ElevenLabs TTS ─────────────────────────────────────────────────────────────
 
+function truncateForTTS(text: string, maxChars = 900): string {
+  if (text.length <= maxChars) return text;
+  const chunk = text.slice(0, maxChars);
+  const last = Math.max(chunk.lastIndexOf(". "), chunk.lastIndexOf("! "), chunk.lastIndexOf("? "));
+  return (last > maxChars * 0.5 ? chunk.slice(0, last + 1) : chunk).trim();
+}
+
 async function streamTTS(text: string): Promise<Response | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "onwK4e9ZLuTAKqWW03F9";
@@ -463,7 +470,7 @@ async function streamTTS(text: string): Promise<Response | null> {
       method: "POST",
       headers: { "xi-api-key": apiKey, "Content-Type": "application/json", Accept: "audio/mpeg" },
       body: JSON.stringify({
-        text: text.slice(0, 600),
+        text: truncateForTTS(text),
         model_id: "eleven_turbo_v2",
         voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.15, use_speaker_boost: true },
       }),
@@ -538,7 +545,7 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 512,
+      max_tokens: 1024,
       system: systemPrompt,
       tools: TOOLS,
       messages,
@@ -547,41 +554,45 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
     let text = "";
 
     if (response.stop_reason === "tool_use") {
-      const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")!;
-      let toolResult: unknown;
+      // Handle all tool_use blocks in parallel (Claude may request multiple tools at once)
+      const toolUseBlocks = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
 
-      try {
-        switch (toolUse.name) {
-          case "get_stats":           toolResult = await executeGetStats(); break;
-          case "get_revenue":         toolResult = await executeGetRevenue(); break;
-          case "get_feedback":        toolResult = await executeGetFeedback(); break;
-          case "get_feature_flags":   toolResult = await executeGetFeatureFlags(); break;
-          case "get_user":            toolResult = await executeGetUser(toolUse.input as any); break;
-          case "get_referrals":       toolResult = await executeGetReferrals(); break;
-          case "get_invite_links":    toolResult = await executeGetInviteLinks(); break;
-          case "get_audit_log":       toolResult = await executeGetAuditLog(toolUse.input as any); break;
-          case "send_broadcast":      toolResult = await executeSendBroadcast(toolUse.input as any); break;
-          case "create_announcement": toolResult = await executeCreateAnnouncement(toolUse.input as any); break;
-          case "toggle_feature_flag": toolResult = await executeToggleFeatureFlag(toolUse.input as any); break;
-          case "read_file":           toolResult = await executeReadFile(toolUse.input as any); break;
-          case "list_directory":      toolResult = await executeListDirectory(toolUse.input as any); break;
-          case "search_codebase":     toolResult = await executeSearchCodebase(toolUse.input as any); break;
-          case "create_github_issue": toolResult = await executeCreateGitHubIssue(toolUse.input as any); break;
-          default:                    toolResult = { error: `Unknown tool: ${toolUse.name}` };
+      const toolResults = await Promise.all(toolUseBlocks.map(async (toolUse) => {
+        let result: unknown;
+        try {
+          switch (toolUse.name) {
+            case "get_stats":           result = await executeGetStats(); break;
+            case "get_revenue":         result = await executeGetRevenue(); break;
+            case "get_feedback":        result = await executeGetFeedback(); break;
+            case "get_feature_flags":   result = await executeGetFeatureFlags(); break;
+            case "get_user":            result = await executeGetUser(toolUse.input as any); break;
+            case "get_referrals":       result = await executeGetReferrals(); break;
+            case "get_invite_links":    result = await executeGetInviteLinks(); break;
+            case "get_audit_log":       result = await executeGetAuditLog(toolUse.input as any); break;
+            case "send_broadcast":      result = await executeSendBroadcast(toolUse.input as any); break;
+            case "create_announcement": result = await executeCreateAnnouncement(toolUse.input as any); break;
+            case "toggle_feature_flag": result = await executeToggleFeatureFlag(toolUse.input as any); break;
+            case "read_file":           result = await executeReadFile(toolUse.input as any); break;
+            case "list_directory":      result = await executeListDirectory(toolUse.input as any); break;
+            case "search_codebase":     result = await executeSearchCodebase(toolUse.input as any); break;
+            case "create_github_issue": result = await executeCreateGitHubIssue(toolUse.input as any); break;
+            default:                    result = { error: `Unknown tool: ${toolUse.name}` };
+          }
+        } catch (toolErr: any) {
+          result = { error: `Tool error: ${toolErr?.message ?? "unknown"}` };
         }
-      } catch (toolErr: any) {
-        toolResult = { error: `Tool error: ${toolErr?.message ?? "unknown"}` };
-      }
+        return { type: "tool_result" as const, tool_use_id: toolUse.id, content: JSON.stringify(result) };
+      }));
 
       const followUp = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 512,
+        max_tokens: 1024,
         system: systemPrompt,
         tools: TOOLS,
         messages: [
           ...messages,
           { role: "assistant", content: response.content },
-          { role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }] },
+          { role: "user", content: toolResults },
         ],
       });
 

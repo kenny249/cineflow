@@ -28,31 +28,49 @@ interface LiveStats {
   breakdown: Record<string, number>;
 }
 
+// ── Typewriter ─────────────────────────────────────────────────────────────────
+
+function TypewriterText({ text, speed = 14 }: { text: string; speed?: number }) {
+  const [shown, setShown] = useState("");
+  useEffect(() => {
+    setShown("");
+    if (!text) return;
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      setShown(text.slice(0, i));
+      if (i >= text.length) clearInterval(id);
+    }, speed);
+    return () => clearInterval(id);
+  }, [text, speed]);
+  return <>{shown}</>;
+}
+
 // ── Waveform bars ──────────────────────────────────────────────────────────────
 
 const BAR_PATTERNS = [
-  [3, 10, 5, 16, 7, 12, 4],
-  [6, 2, 14, 8, 18, 3, 9],
-  [10, 16, 4, 12, 6, 18, 8],
-  [8, 12, 18, 4, 10, 6, 14],
-  [5, 9, 3, 15, 11, 7, 16],
-  [9, 5, 12, 7, 3, 15, 8],
-  [4, 14, 8, 2, 16, 9, 5],
+  [4, 14, 6, 22, 8, 18, 5],
+  [8, 3, 20, 10, 26, 4, 12],
+  [14, 22, 5, 18, 8, 24, 10],
+  [10, 18, 24, 5, 14, 8, 20],
+  [6, 12, 4, 20, 16, 9, 22],
+  [12, 6, 18, 9, 4, 20, 10],
+  [5, 20, 10, 3, 22, 12, 6],
 ];
 const BAR_DELAYS = [0, 0.1, 0.05, 0.15, 0.08, 0.2, 0.03];
 
 function WaveformBars({ active, color }: { active: boolean; color: string }) {
   return (
-    <div className="flex items-center justify-center gap-[3px]" style={{ height: 24 }}>
+    <div className="flex items-center justify-center gap-[3px]" style={{ height: 32 }}>
       {BAR_PATTERNS.map((kf, i) => (
         <motion.div
           key={i}
           className="rounded-full"
-          style={{ backgroundColor: color, width: 2 }}
-          animate={active ? { height: kf.map(v => `${v}px`) } : { height: "2px" }}
+          style={{ backgroundColor: color, width: 3, boxShadow: active ? `0 0 6px ${color}` : "none" }}
+          animate={active ? { height: kf.map(v => `${v}px`) } : { height: "3px" }}
           transition={
             active
-              ? { duration: 0.7, repeat: Infinity, delay: BAR_DELAYS[i], ease: "easeInOut" }
+              ? { duration: 0.65, repeat: Infinity, delay: BAR_DELAYS[i], ease: "easeInOut" }
               : { duration: 0.3 }
           }
         />
@@ -71,7 +89,7 @@ function fmtDuration(ms: number): string {
   return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-// ── Data Mode View ─────────────────────────────────────────────────────────────
+// ── Data Mode ──────────────────────────────────────────────────────────────────
 
 const PLAN_META = [
   { key: "lifetime",   label: "LIFETIME",   color: "#d4a853" },
@@ -82,7 +100,7 @@ const PLAN_META = [
 ];
 
 function DataModeView({
-  stats, messages, sessionActive, commandCount, sessionElapsed, avgLatency, state, c,
+  stats, messages, sessionActive, commandCount, sessionElapsed, avgLatency, state, c, elevenlabsOk,
 }: {
   stats: LiveStats | null;
   messages: ChatMessage[];
@@ -92,6 +110,7 @@ function DataModeView({
   avgLatency: number | null;
   state: JarvisState;
   c: string;
+  elevenlabsOk: boolean;
 }) {
   const convRate = stats ? Math.round((stats.paid / Math.max(stats.totalUsers, 1)) * 100) : null;
 
@@ -103,42 +122,40 @@ function DataModeView({
     { label: "EXPIRED",     value: stats?.expired ?? 0,        color: "#ef4444" },
   ];
 
-  const metricTiles = [
-    { label: "TOTAL USERS",  value: stats?.totalUsers?.toLocaleString() ?? "···",               sub: "registered",       gold: false },
-    { label: "TODAY",        value: stats?.signupsToday?.toString() ?? "·",                     sub: "new signups",      gold: false },
-    { label: "THIS WEEK",    value: stats?.signupsWeek?.toString() ?? "···",                    sub: "new signups",      gold: false },
-    { label: "ACTIVE / 7D", value: stats?.activeLastWeek?.toLocaleString() ?? "···",            sub: "unique logins",    gold: false },
-    { label: "MRR",         value: stats ? `$${stats.mrr.toLocaleString()}` : "···",            sub: "monthly recurring", gold: true },
-    { label: "ARR",         value: stats ? `$${stats.arr.toLocaleString()}` : "···",            sub: "annual run rate",   gold: true },
-    { label: "CONVERSION",  value: convRate !== null ? `${convRate}%` : "···",                  sub: `${stats?.paid ?? 0} paid accounts`, gold: true },
+  const tiles = [
+    { label: "TOTAL USERS",  value: stats?.totalUsers?.toLocaleString() ?? "···",          sub: "registered",       accent: "#e2e8f0" },
+    { label: "TODAY",        value: stats?.signupsToday?.toString() ?? "·",                sub: "new signups",      accent: "#3b82f6" },
+    { label: "THIS WEEK",    value: stats?.signupsWeek?.toString() ?? "···",               sub: "new signups",      accent: "#3b82f6" },
+    { label: "ACTIVE / 7D",  value: stats?.activeLastWeek?.toLocaleString() ?? "···",      sub: "unique logins",    accent: "#10b981" },
+    { label: "MRR",          value: stats ? `$${stats.mrr.toLocaleString()}` : "···",      sub: "monthly recurring", accent: "#d4a853" },
+    { label: "ARR",          value: stats ? `$${stats.arr.toLocaleString()}` : "···",      sub: "annual run rate",   accent: "#d4a853" },
+    { label: "CONVERSION",   value: convRate !== null ? `${convRate}%` : "···",            sub: `${stats?.paid ?? 0} paid`, accent: "#d4a853" },
   ];
 
   return (
     <div className="flex flex-col w-full h-full gap-3 p-4 overflow-hidden">
 
-      {/* Row 1: metric tiles */}
+      {/* Metric tiles */}
       <div className="grid grid-cols-7 gap-2 shrink-0">
-        {metricTiles.map(({ label, value, sub, gold }, idx) => (
+        {tiles.map(({ label, value, sub, accent }, idx) => (
           <motion.div
             key={label}
-            initial={{ opacity: 0, y: -6 }}
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: idx * 0.04 }}
-            className="group rounded-lg border border-white/[0.05] bg-white/[0.01] p-3 hover:border-white/[0.12] hover:bg-white/[0.025] transition-all cursor-default"
+            className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-3 hover:bg-white/[0.03] transition-colors cursor-default"
+            style={{ borderColor: `${accent}18` }}
           >
             <p className="text-[5px] tracking-[0.5em] text-zinc-700 mb-1.5">{label}</p>
-            <p className={`text-xl font-bold font-mono tabular-nums leading-none ${gold ? "text-[#d4a853]" : "text-white"}`}>
-              {value}
-            </p>
+            <p className="text-xl font-bold font-mono tabular-nums leading-none" style={{ color: accent }}>{value}</p>
             <p className="text-[5px] text-zinc-800 mt-1.5 tracking-wider">{sub}</p>
           </motion.div>
         ))}
       </div>
 
-      {/* Row 2: charts */}
+      {/* Charts */}
       <div className="grid grid-cols-2 gap-3 flex-1 min-h-0">
 
-        {/* Plan distribution */}
         <motion.div
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
@@ -157,12 +174,12 @@ function DataModeView({
                 <div key={key}>
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-[8px] tracking-widest text-zinc-600 uppercase">{label}</span>
-                    <span className="text-[12px] font-mono font-bold" style={{ color }}>{count}</span>
+                    <span className="text-[13px] font-mono font-bold" style={{ color }}>{count}</span>
                   </div>
                   <div className="h-[5px] rounded-full bg-white/[0.04] overflow-hidden">
                     <motion.div
                       className="h-full rounded-full"
-                      style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}70` }}
+                      style={{ backgroundColor: color, boxShadow: `0 0 12px ${color}80` }}
                       initial={{ width: 0 }}
                       animate={{ width: `${count > 0 ? Math.max(pct, 5) : 0}%` }}
                       transition={{ duration: 1.1, ease: "easeOut", delay: 0.2 + i * 0.08 }}
@@ -174,7 +191,6 @@ function DataModeView({
           </div>
         </motion.div>
 
-        {/* User funnel */}
         <motion.div
           initial={{ opacity: 0, x: 8 }}
           animate={{ opacity: 1, x: 0 }}
@@ -183,11 +199,7 @@ function DataModeView({
         >
           <div className="flex items-center justify-between mb-5">
             <p className="text-[6px] tracking-[0.6em] text-zinc-700">USER FUNNEL</p>
-            <motion.div
-              className="h-1.5 w-1.5 rounded-full bg-emerald-500"
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 2, repeat: Infinity }}
-            />
+            <motion.div className="h-1.5 w-1.5 rounded-full bg-emerald-500" animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 2, repeat: Infinity }} />
           </div>
           <div className="flex-1 flex flex-col justify-around gap-3">
             {funnel.map(({ label, value, color }, i) => {
@@ -196,12 +208,12 @@ function DataModeView({
                 <div key={label}>
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-[8px] tracking-widest text-zinc-600">{label}</span>
-                    <span className="text-[12px] font-mono font-bold" style={{ color }}>{value}</span>
+                    <span className="text-[13px] font-mono font-bold" style={{ color }}>{value}</span>
                   </div>
                   <div className="h-[5px] rounded-full bg-white/[0.04] overflow-hidden">
                     <motion.div
                       className="h-full rounded-full"
-                      style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}70` }}
+                      style={{ backgroundColor: color, boxShadow: `0 0 12px ${color}80` }}
                       initial={{ width: 0 }}
                       animate={{ width: `${value > 0 ? Math.max(pct, 5) : 0}%` }}
                       transition={{ duration: 1.2, ease: "easeOut", delay: 0.25 + i * 0.08 }}
@@ -214,10 +226,9 @@ function DataModeView({
         </motion.div>
       </div>
 
-      {/* Row 3: system status + command log */}
+      {/* System + log */}
       <div className="grid grid-cols-2 gap-3 shrink-0" style={{ height: 150 }}>
 
-        {/* System status */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -227,9 +238,9 @@ function DataModeView({
           <p className="text-[6px] tracking-[0.6em] text-zinc-700 mb-3">SYSTEM STATUS</p>
           <div className="flex-1 flex flex-col justify-around">
             {[
-              { label: "SUPABASE",   node: "US-EAST-1",  on: true,    dur: 2.3 },
-              { label: "ANTHROPIC",  node: "API",         on: true,    dur: 3.1 },
-              { label: "ELEVENLABS", node: "TTS STREAM",  on: !!stats, dur: 2.7 },
+              { label: "SUPABASE",   node: "US-EAST-1",  on: true,         dur: 2.3 },
+              { label: "ANTHROPIC",  node: "API",         on: true,         dur: 3.1 },
+              { label: "ELEVENLABS", node: "TTS STREAM",  on: elevenlabsOk, dur: 2.7 },
             ].map(({ label, node, on, dur }) => (
               <div key={label} className="flex items-center gap-2">
                 <motion.div
@@ -239,15 +250,15 @@ function DataModeView({
                 />
                 <span className="text-[8px] tracking-widest text-zinc-500 w-24">{label}</span>
                 <div className="flex-1 border-b border-dashed border-white/[0.04]" />
-                <span className="text-[7px] font-mono text-zinc-700">{on ? node : "OFFLINE"}</span>
+                <span className="text-[7px] font-mono text-zinc-700">{on ? node : "NOT CONNECTED"}</span>
               </div>
             ))}
           </div>
           {sessionActive && (
             <div className="pt-2.5 mt-2.5 border-t border-white/[0.04] flex items-center gap-4">
               {[
-                { label: "SESSION",   val: fmtDuration(sessionElapsed) },
-                { label: "CMDS",      val: String(commandCount) },
+                { label: "SESSION", val: fmtDuration(sessionElapsed) },
+                { label: "CMDS",    val: String(commandCount) },
                 ...(avgLatency !== null ? [{ label: "AVG LAT", val: `${avgLatency}s` }] : []),
               ].map(({ label, val }) => (
                 <div key={label}>
@@ -263,7 +274,6 @@ function DataModeView({
           )}
         </motion.div>
 
-        {/* Command log */}
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -277,10 +287,7 @@ function DataModeView({
             ) : (
               messages.slice(-8).map((msg, i) => (
                 <div key={i} className="flex items-start gap-1.5">
-                  <span
-                    className="text-[9px] font-mono shrink-0 mt-0.5"
-                    style={{ color: msg.role === "user" ? "#3b82f6" : "#d4a853" }}
-                  >
+                  <span className="text-[9px] font-mono shrink-0 mt-0.5" style={{ color: msg.role === "user" ? "#3b82f6" : "#d4a853" }}>
                     {msg.role === "user" ? "›" : "‹"}
                   </span>
                   <p className={`text-[8px] font-mono leading-snug ${msg.role === "user" ? "text-zinc-600" : "text-zinc-400"}`}>
@@ -300,18 +307,20 @@ function DataModeView({
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function JarvisPage() {
-  const [state, setState]               = useState<JarvisState>("idle");
-  const [viewMode, setViewMode]         = useState<ViewMode>("voice");
+  const [state, setState]             = useState<JarvisState>("idle");
+  const [viewMode, setViewMode]       = useState<ViewMode>("voice");
   const [sessionActive, setSessionActive] = useState(false);
-  const [messages, setMessages]         = useState<ChatMessage[]>([]);
-  const [stats, setStats]               = useState<LiveStats | null>(null);
+  const [messages, setMessages]       = useState<ChatMessage[]>([]);
+  const [stats, setStats]             = useState<LiveStats | null>(null);
   const [lastTranscript, setLastTranscript] = useState("");
-  const [clock, setClock]               = useState("");
+  const [clock, setClock]             = useState("");
   const [sessionElapsed, setSessionElapsed] = useState(0);
   const [commandCount, setCommandCount] = useState(0);
-  const [latencies, setLatencies]       = useState<number[]>([]);
+  const [latencies, setLatencies]     = useState<number[]>([]);
+  const [elevenlabsOk, setElevenlabsOk] = useState(false);
 
   const conversationActiveRef = useRef(false);
+  const processingRef         = useRef(false);   // true while API call or audio is in-flight
   const sessionStartRef       = useRef<number | null>(null);
   const recognitionRef        = useRef<any>(null);
   const audioRef              = useRef<HTMLAudioElement | null>(null);
@@ -320,20 +329,17 @@ export default function JarvisPage() {
   const transcriptEndRef      = useRef<HTMLDivElement>(null);
   const sendCommandRef        = useRef<(cmd: string) => void>(() => {});
 
-  // ── Stats load ───────────────────────────────────────────────────────────────
+  // ── Stats ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch("/api/admin/jarvis/stats")
-      .then(r => r.json())
-      .then(setStats)
-      .catch(() => {});
+    fetch("/api/admin/jarvis/stats").then(r => r.json()).then(setStats).catch(() => {});
   }, []);
 
-  // ── Auto-scroll transcript ───────────────────────────────────────────────────
+  // ── Auto-scroll ────────────────────────────────────────────────────────────
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ── Live clock + session timer ───────────────────────────────────────────────
+  // ── Clock + session timer ──────────────────────────────────────────────────
   useEffect(() => {
     const tick = () => {
       setClock(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
@@ -344,16 +350,15 @@ export default function JarvisPage() {
     return () => clearInterval(id);
   }, []);
 
-  // ── Streaming audio via MediaSource ─────────────────────────────────────────
+  // ── Streaming audio ────────────────────────────────────────────────────────
   const playStreamingAudio = useCallback(async (response: Response, onEnd: () => void) => {
     if (!response.body) { onEnd(); return; }
 
-    const useMediaSource =
-      typeof MediaSource !== "undefined" && MediaSource.isTypeSupported("audio/mpeg");
+    const canMSE = typeof MediaSource !== "undefined" && MediaSource.isTypeSupported("audio/mpeg");
 
-    if (!useMediaSource) {
+    if (!canMSE) {
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const url  = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
       audio.onended = () => { URL.revokeObjectURL(url); audioRef.current = null; onEnd(); };
@@ -361,49 +366,38 @@ export default function JarvisPage() {
       return;
     }
 
-    const ms = new MediaSource();
+    const ms  = new MediaSource();
     mediaSourceRef.current = ms;
-    const url = URL.createObjectURL(ms);
+    const url  = URL.createObjectURL(ms);
     const audio = new Audio(url);
     audioRef.current = audio;
 
-    const cleanup = () => {
-      URL.revokeObjectURL(url);
-      audioRef.current = null;
-      mediaSourceRef.current = null;
-      onEnd();
-    };
+    const cleanup = () => { URL.revokeObjectURL(url); audioRef.current = null; mediaSourceRef.current = null; onEnd(); };
     audio.onended = cleanup;
     audio.onerror = cleanup;
 
-    await new Promise<void>(resolve => ms.addEventListener("sourceopen", () => resolve(), { once: true }));
+    await new Promise<void>(r => ms.addEventListener("sourceopen", () => r(), { once: true }));
 
     let sb: SourceBuffer;
-    try {
-      sb = ms.addSourceBuffer("audio/mpeg");
-    } catch {
-      cleanup();
-      return;
-    }
+    try { sb = ms.addSourceBuffer("audio/mpeg"); }
+    catch { cleanup(); return; }
 
     audio.play().catch(() => {});
 
     const reader = response.body.getReader();
     streamReaderRef.current = reader;
-
-    const waitForUpdate = () =>
-      new Promise<void>(r => sb.addEventListener("updateend", () => r(), { once: true }));
+    const waitUpdate = () => new Promise<void>(r => sb.addEventListener("updateend", () => r(), { once: true }));
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
           streamReaderRef.current = null;
-          if (sb.updating) await waitForUpdate();
+          if (sb.updating) await waitUpdate();
           if (ms.readyState === "open") ms.endOfStream();
           break;
         }
-        if (sb.updating) await waitForUpdate();
+        if (sb.updating) await waitUpdate();
         if (ms.readyState === "open") sb.appendBuffer(value);
       }
     } catch {
@@ -411,34 +405,30 @@ export default function JarvisPage() {
     }
   }, []);
 
-  // ── Speech recognition ───────────────────────────────────────────────────────
+  // ── Speech recognition — continuous:true, ONE instance per session ─────────
+  // continuous:true means the browser grants the mic ONCE per session.
+  // With continuous:false every restart is a new OS-level mic grant → indicator flashes.
   const startRecognition = useCallback(() => {
-    if (recognitionRef.current) {
-      try { recognitionRef.current.abort(); } catch {}
-      recognitionRef.current = null;
-    }
+    // If an instance is already live, leave it — it's still listening
+    if (recognitionRef.current) return;
 
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
 
-    setState("listening");
     const rec = new SR();
-    rec.lang = "en-US";
-    rec.continuous = false;
-    rec.interimResults = false;
+    rec.lang            = "en-US";
+    rec.continuous      = true;   // single mic grant for entire session
+    rec.interimResults  = false;
     rec.maxAlternatives = 1;
     recognitionRef.current = rec;
 
-    let gotResult = false;
-
     rec.onresult = (e: any) => {
-      gotResult = true;
-      const text: string = e.results[0][0].transcript.trim();
-      if (!text) {
-        recognitionRef.current = null;
-        if (conversationActiveRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 200);
-        return;
-      }
+      if (processingRef.current) return; // Jarvis is busy — ignore
+      const result = e.results[e.resultIndex];
+      if (!result?.isFinal) return;
+      const text: string = result[0].transcript.trim();
+      if (!text) return;
+      processingRef.current = true;
       setLastTranscript(text);
       setCommandCount(c => c + 1);
       sendCommandRef.current(text);
@@ -447,50 +437,48 @@ export default function JarvisPage() {
     rec.onerror = (e: any) => {
       if (e.error === "aborted") return;
       recognitionRef.current = null;
-      if (conversationActiveRef.current) {
-        setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 400);
-      } else {
+      if (!processingRef.current && conversationActiveRef.current) {
+        setTimeout(() => {
+          if (!processingRef.current && conversationActiveRef.current) startRecognition();
+        }, 400);
+      } else if (!conversationActiveRef.current) {
         setState("idle");
       }
     };
 
     rec.onend = () => {
       recognitionRef.current = null;
-      if (!gotResult && conversationActiveRef.current) {
-        setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 200);
+      // continuous:true only fires onend on explicit stop/abort or browser error
+      // If not processing, restart so the mic stays live
+      if (!processingRef.current && conversationActiveRef.current) {
+        setTimeout(() => {
+          if (!processingRef.current && conversationActiveRef.current) startRecognition();
+        }, 200);
       }
     };
 
+    setState("listening");
     try {
       rec.start();
     } catch {
       recognitionRef.current = null;
-      if (conversationActiveRef.current) {
-        setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 600);
-      } else {
-        setState("idle");
-      }
+      setTimeout(() => { if (!processingRef.current && conversationActiveRef.current) startRecognition(); }, 600);
     }
   }, []);
 
-  // ── Stop audio ───────────────────────────────────────────────────────────────
+  // ── Stop audio ─────────────────────────────────────────────────────────────
   const stopAudio = useCallback(() => {
     streamReaderRef.current?.cancel().catch(() => {});
     streamReaderRef.current = null;
-    if (mediaSourceRef.current && mediaSourceRef.current.readyState === "open") {
-      try { mediaSourceRef.current.endOfStream(); } catch {}
-    }
+    if (mediaSourceRef.current?.readyState === "open") { try { mediaSourceRef.current.endOfStream(); } catch {} }
     mediaSourceRef.current = null;
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.onended = null;
-      audioRef.current = null;
-    }
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.onended = null; audioRef.current = null; }
   }, []);
 
-  // ── sendCommand ──────────────────────────────────────────────────────────────
+  // ── sendCommand ────────────────────────────────────────────────────────────
   const sendCommand = useCallback(async (command: string) => {
     const t0 = Date.now();
+    processingRef.current = true;
     setState("processing");
     setMessages(prev => [...prev, { role: "user", text: command, ts: new Date() }]);
 
@@ -505,9 +493,9 @@ export default function JarvisPage() {
       const contentType = res.headers.get("Content-Type") ?? "";
 
       if (contentType.includes("audio")) {
+        setElevenlabsOk(true);
         const rawHeader = res.headers.get("X-Jarvis-Text") ?? "";
         const text = rawHeader ? decodeURIComponent(rawHeader) : "";
-
         if (text) {
           setMessages(prev => [...prev, { role: "jarvis", text, ts: new Date(), latencyMs }]);
           setLatencies(prev => [...prev, latencyMs]);
@@ -515,8 +503,13 @@ export default function JarvisPage() {
         setState("speaking");
 
         await playStreamingAudio(res, () => {
+          processingRef.current = false;
           if (conversationActiveRef.current) {
-            setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 350);
+            setState("listening");
+            // If recognition ended while we were processing/speaking, restart it
+            if (!recognitionRef.current) {
+              setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 300);
+            }
           } else {
             setState("idle");
           }
@@ -528,15 +521,19 @@ export default function JarvisPage() {
           setMessages(prev => [...prev, { role: "jarvis", text, ts: new Date(), latencyMs }]);
           setLatencies(prev => [...prev, latencyMs]);
         }
+        processingRef.current = false;
         if (conversationActiveRef.current) {
-          setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 350);
+          setState("listening");
+          if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 300);
         } else {
           setState("idle");
         }
       }
     } catch {
+      processingRef.current = false;
       if (conversationActiveRef.current) {
-        setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 600);
+        setState("listening");
+        if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 600);
       } else {
         setState("idle");
       }
@@ -545,33 +542,46 @@ export default function JarvisPage() {
 
   useEffect(() => { sendCommandRef.current = sendCommand; }, [sendCommand]);
 
-  // ── Session toggle ───────────────────────────────────────────────────────────
+  // ── Session toggle ─────────────────────────────────────────────────────────
   const toggleSession = useCallback(() => {
     if (conversationActiveRef.current) {
+      // End session
       conversationActiveRef.current = false;
+      processingRef.current = false;
       setSessionActive(false);
       sessionStartRef.current = null;
       setSessionElapsed(0);
       setCommandCount(0);
       setLatencies([]);
-      recognitionRef.current?.stop();
-      recognitionRef.current = null;
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+        recognitionRef.current = null;
+      }
       stopAudio();
       setState("idle");
     } else {
+      // Start session
       conversationActiveRef.current = true;
+      processingRef.current = true; // block recognition until auto-brief is done
       setSessionActive(true);
       sessionStartRef.current = Date.now();
       setCommandCount(0);
       setLatencies([]);
       startRecognition();
+      // Auto-brief: Jarvis opens with a live status summary
+      setTimeout(() => {
+        if (conversationActiveRef.current) sendCommandRef.current("Brief me on current status.");
+      }, 500);
     }
   }, [startRecognition, stopAudio]);
 
-  // ── Interrupt ────────────────────────────────────────────────────────────────
+  // ── Interrupt ──────────────────────────────────────────────────────────────
   const interrupt = useCallback(() => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
+    processingRef.current = false;
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch {}
+      recognitionRef.current = null;
+    }
     stopAudio();
     if (conversationActiveRef.current) {
       setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 150);
@@ -580,53 +590,75 @@ export default function JarvisPage() {
     }
   }, [startRecognition, stopAudio]);
 
-  // ── Derived ──────────────────────────────────────────────────────────────────
+  // ── Derived ────────────────────────────────────────────────────────────────
   const c = { idle: "#d4a853", listening: "#3b82f6", processing: "#8b5cf6", speaking: "#10b981" }[state];
   const avgLatency = latencies.length
     ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length / 100) / 10
     : null;
   const convRate = stats ? Math.round((stats.paid / Math.max(stats.totalUsers, 1)) * 100) : null;
 
-  const corners = [
-    "top-5 left-5 border-t border-l",
-    "top-5 right-5 border-t border-r",
-    "bottom-5 left-5 border-b border-l",
-    "bottom-5 right-5 border-b border-r",
-  ];
-
-  // ── Render ───────────────────────────────────────────────────────────────────
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="relative flex h-screen w-full overflow-hidden bg-black text-white select-none">
+    <div
+      className="relative flex h-screen w-full overflow-hidden text-white select-none transition-all duration-1000"
+      style={{
+        background: sessionActive
+          ? `radial-gradient(ellipse at 50% 38%, ${c}0a 0%, #000 58%)`
+          : "black",
+      }}
+    >
 
       {/* Hex grid */}
       <div
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute inset-0 z-0"
         style={{
-          opacity: 0.032,
+          opacity: 0.055,
           backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='104'%3E%3Cpolygon points='30,2 58,17 58,47 30,62 2,47 2,17' fill='none' stroke='%23d4a853' stroke-width='1'/%3E%3Cpolygon points='30,62 58,77 58,107 30,122 2,107 2,77' fill='none' stroke='%23d4a853' stroke-width='1'/%3E%3C/svg%3E")`,
           backgroundSize: "60px 104px",
         }}
       />
 
-      {/* Scanline */}
+      {/* Scanline 1 — slow, top-to-bottom */}
       <motion.div
         className="pointer-events-none absolute left-0 right-0 z-10 h-px"
-        style={{ background: `linear-gradient(90deg, transparent, ${c}18, transparent)` }}
+        style={{ background: `linear-gradient(90deg, transparent, ${c}22, transparent)` }}
         animate={{ top: ["0%", "100%"] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "linear" }}
+        transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+      />
+
+      {/* Scanline 2 — fast, bottom-to-top, dimmer */}
+      <motion.div
+        className="pointer-events-none absolute left-0 right-0 z-10 h-px"
+        style={{ background: `linear-gradient(90deg, transparent, ${c}10, transparent)` }}
+        animate={{ top: ["100%", "0%"] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
       />
 
       {/* Vignette */}
+      <div className="pointer-events-none absolute inset-0 z-0" style={{ background: "radial-gradient(ellipse at 50% 42%, transparent 28%, rgba(0,0,0,0.75) 100%)" }} />
+
+      {/* Full-viewport corner brackets */}
+      {[
+        "top-4 left-4 border-t-2 border-l-2",
+        "top-4 right-4 border-t-2 border-r-2",
+        "bottom-4 left-4 border-b-2 border-l-2",
+        "bottom-4 right-4 border-b-2 border-r-2",
+      ].map((cls, i) => (
+        <motion.div
+          key={i}
+          className={`absolute ${cls} pointer-events-none z-50 h-10 w-10`}
+          style={{ borderColor: `${c}35` }}
+          animate={{ opacity: [0.3, 0.8, 0.3] }}
+          transition={{ duration: 3.5, repeat: Infinity, delay: i * 0.6 }}
+        />
+      ))}
+
+      {/* ── TOP BAR ──────────────────────────────────────────────────────── */}
       <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "radial-gradient(ellipse at 50% 42%, transparent 30%, rgba(0,0,0,0.72) 100%)" }}
-      />
-
-      {/* ── TOP BAR ────────────────────────────────────────────────────────── */}
-      <div className="absolute top-0 left-0 right-0 z-30 flex items-center border-b border-white/[0.05] px-6 py-3">
-
-        {/* Left */}
-        <div className="flex items-center gap-4 w-56 shrink-0">
+        className="absolute top-0 left-0 right-0 z-30 flex items-center px-6 py-3 transition-colors duration-700"
+        style={{ borderBottom: `1px solid ${sessionActive ? c + "28" : "rgba(255,255,255,0.05)"}` }}
+      >
+        <div className="flex items-center gap-4 w-64 shrink-0">
           <Link href="/admin" className="flex items-center gap-1.5 text-[9px] tracking-widest text-zinc-700 hover:text-zinc-400 transition-colors">
             <ArrowLeft className="h-3 w-3" /> ADMIN
           </Link>
@@ -637,15 +669,12 @@ export default function JarvisPage() {
           </div>
         </div>
 
-        {/* Center */}
         <div className="flex-1 text-center">
           <p className="text-lg font-bold tracking-[1em] text-white">J A R V I S</p>
           <p className="text-[6px] tracking-[0.6em] text-zinc-800 mt-0.5">CINEFLOW INTELLIGENCE SYSTEM</p>
         </div>
 
-        {/* Right */}
-        <div className="flex items-center gap-4 w-56 shrink-0 justify-end">
-
+        <div className="flex items-center gap-4 w-64 shrink-0 justify-end">
           {/* View toggle */}
           <div className="flex items-center gap-0.5 rounded border border-white/[0.06] p-0.5">
             {(["voice", "data"] as ViewMode[]).map(mode => (
@@ -653,14 +682,10 @@ export default function JarvisPage() {
                 key={mode}
                 onClick={() => setViewMode(mode)}
                 className={`flex items-center gap-1 rounded px-2.5 py-1 text-[7px] tracking-widest font-medium transition-all ${
-                  viewMode === mode
-                    ? "bg-[#d4a853]/15 text-[#d4a853]"
-                    : "text-zinc-700 hover:text-zinc-500"
+                  viewMode === mode ? "bg-[#d4a853]/15 text-[#d4a853]" : "text-zinc-700 hover:text-zinc-500"
                 }`}
               >
-                {mode === "voice"
-                  ? <Mic className="h-2 w-2" />
-                  : <BarChart3 className="h-2 w-2" />}
+                {mode === "voice" ? <Mic className="h-2 w-2" /> : <BarChart3 className="h-2 w-2" />}
                 {mode.toUpperCase()}
               </button>
             ))}
@@ -671,16 +696,10 @@ export default function JarvisPage() {
             <motion.div
               className="h-1.5 w-1.5 rounded-full"
               style={{ backgroundColor: c }}
-              animate={{ opacity: state === "idle" ? [0.3, 1, 0.3] : 1 }}
-              transition={{ duration: 1.8, repeat: Infinity }}
+              animate={{ opacity: state === "idle" ? [0.3, 1, 0.3] : 1, scale: state === "listening" ? [1, 1.4, 1] : 1 }}
+              transition={{ duration: 1.5, repeat: Infinity }}
             />
-            <motion.span
-              key={state}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-[8px] tracking-[0.35em] font-medium"
-              style={{ color: c }}
-            >
+            <motion.span key={state} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[8px] tracking-[0.35em] font-medium" style={{ color: c }}>
               {state.toUpperCase()}
             </motion.span>
           </div>
@@ -695,46 +714,39 @@ export default function JarvisPage() {
         </div>
       </div>
 
-      {/* ── MAIN ───────────────────────────────────────────────────────────── */}
+      {/* ── MAIN ─────────────────────────────────────────────────────────── */}
       <div className="flex h-full w-full pt-[58px] pb-[62px]">
         <AnimatePresence mode="wait">
           {viewMode === "voice" ? (
 
-            // ── VOICE MODE ──────────────────────────────────────────────────
-            <motion.div
-              key="voice"
-              className="flex h-full w-full"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              {/* Left: metrics */}
-              <div className="w-56 shrink-0 border-r border-white/[0.05] flex flex-col p-4 gap-2">
-                <p className="text-[6px] tracking-[0.6em] text-zinc-700 mb-1">LIVE METRICS</p>
+            // ── VOICE MODE ────────────────────────────────────────────────
+            <motion.div key="voice" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
+              {/* Left metrics */}
+              <div className="w-56 shrink-0 flex flex-col p-4 gap-2" style={{ borderRight: `1px solid ${sessionActive ? c + "18" : "rgba(255,255,255,0.05)"}` }}>
+                <p className="text-[6px] tracking-[0.6em] text-zinc-700 mb-1">LIVE METRICS</p>
                 {[
-                  { label: "TOTAL USERS",   value: stats ? stats.totalUsers.toLocaleString() : "···" },
-                  { label: "MRR",           value: stats ? `$${stats.mrr.toLocaleString()}` : "···" },
-                  { label: "ARR",           value: stats ? `$${stats.arr.toLocaleString()}` : "···" },
-                  { label: "PAID ACCOUNTS", value: stats ? stats.paid.toLocaleString() : "···" },
-                  { label: "CONVERSION",    value: convRate !== null ? `${convRate}%` : "···" },
-                  { label: "SIGNUPS TODAY", value: stats ? stats.signupsToday.toString() : "·" },
-                  { label: "ACTIVE / 7D",   value: stats ? stats.activeLastWeek.toLocaleString() : "···" },
-                ].map(({ label, value }) => (
-                  <div key={label} className="rounded border border-white/[0.04] bg-white/[0.01] px-3 py-2">
+                  { label: "TOTAL USERS",   value: stats ? stats.totalUsers.toLocaleString() : "···",          color: "#e2e8f0" },
+                  { label: "MRR",           value: stats ? `$${stats.mrr.toLocaleString()}` : "···",           color: "#d4a853" },
+                  { label: "ARR",           value: stats ? `$${stats.arr.toLocaleString()}` : "···",           color: "#d4a853" },
+                  { label: "PAID ACCOUNTS", value: stats ? stats.paid.toLocaleString() : "···",               color: "#10b981" },
+                  { label: "CONVERSION",    value: convRate !== null ? `${convRate}%` : "···",                 color: "#d4a853" },
+                  { label: "SIGNUPS TODAY", value: stats ? stats.signupsToday.toString() : "·",               color: "#3b82f6" },
+                  { label: "ACTIVE / 7D",   value: stats ? stats.activeLastWeek.toLocaleString() : "···",     color: "#10b981" },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="rounded border border-white/[0.04] bg-white/[0.015] px-3 py-2">
                     <p className="text-[6px] tracking-[0.4em] text-zinc-700 mb-0.5">{label}</p>
-                    <p className="text-lg font-bold font-mono text-white leading-none tabular-nums">{value}</p>
+                    <p className="text-lg font-bold font-mono leading-none tabular-nums" style={{ color }}>{value}</p>
                   </div>
                 ))}
 
                 {/* Connections */}
-                <div className="mt-auto pt-3 border-t border-white/[0.04] space-y-1.5">
+                <div className="mt-auto pt-3 border-t border-white/[0.04] space-y-2">
                   <p className="text-[6px] tracking-[0.5em] text-zinc-800 mb-1">CONNECTIONS</p>
                   {[
-                    { label: "SUPABASE",   on: true,    node: "US-EAST-1", dur: 2.3 },
-                    { label: "ANTHROPIC",  on: true,    node: "API",       dur: 3.1 },
-                    { label: "ELEVENLABS", on: !!stats, node: "TTS",       dur: 2.7 },
+                    { label: "SUPABASE",   on: true,         node: "US-EAST-1", dur: 2.3 },
+                    { label: "ANTHROPIC",  on: true,         node: "API",       dur: 3.1 },
+                    { label: "ELEVENLABS", on: elevenlabsOk, node: "TTS",       dur: 2.7 },
                   ].map(({ label, on, node, dur }) => (
                     <div key={label} className="flex items-center gap-1.5">
                       <motion.div
@@ -743,142 +755,97 @@ export default function JarvisPage() {
                         transition={{ duration: dur, repeat: Infinity }}
                       />
                       <span className="text-[6px] tracking-widest text-zinc-700">{label}</span>
-                      <span className="ml-auto text-[6px] tracking-wider text-zinc-800">{on ? node : "OFFLINE"}</span>
+                      <span className="ml-auto text-[6px] tracking-wider text-zinc-800">{on ? node : "···"}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Center: orb */}
+              {/* Center orb */}
               <div className="relative flex-1 flex flex-col items-center justify-center">
-                {corners.map((cls, i) => (
-                  <div key={i} className={`absolute ${cls} border-[#d4a853]/10 h-8 w-8`} />
-                ))}
-
                 {/* Crosshair */}
                 <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gradient-to-b from-transparent via-[#d4a853]/04 to-transparent" />
-                  <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-transparent via-[#d4a853]/04 to-transparent" />
+                  <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gradient-to-b from-transparent via-white/[0.02] to-transparent" />
+                  <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-transparent via-white/[0.02] to-transparent" />
                 </div>
 
                 {/* ORB */}
                 <div className="relative flex items-center justify-center">
+                  {/* Ambient glow */}
                   <motion.div
                     className="absolute rounded-full pointer-events-none"
-                    style={{ background: `radial-gradient(circle, ${c}06 0%, transparent 70%)` }}
-                    animate={{
-                      width:  state === "listening" ? 460 : state === "speaking" ? 440 : 400,
-                      height: state === "listening" ? 460 : state === "speaking" ? 440 : 400,
-                    }}
-                    transition={{ duration: 0.7, ease: "easeInOut" }}
+                    style={{ background: `radial-gradient(circle, ${c}09 0%, transparent 70%)` }}
+                    animate={{ width: state === "listening" ? 500 : state === "speaking" ? 480 : 420, height: state === "listening" ? 500 : state === "speaking" ? 480 : 420 }}
+                    transition={{ duration: 0.6, ease: "easeInOut" }}
                   />
 
+                  {/* Pulse rings */}
                   <AnimatePresence>
-                    {state === "listening" && [0, 0.65, 1.3].map((delay, i) => (
-                      <motion.div
-                        key={`l${i}`}
-                        className="absolute rounded-full border pointer-events-none"
-                        style={{ borderColor: `${c}35` }}
-                        initial={{ width: 145, height: 145, opacity: 0.9 }}
-                        animate={{ width: 400, height: 400, opacity: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 2.4, delay, repeat: Infinity, ease: "easeOut" }}
-                      />
+                    {state === "listening" && [0, 0.7, 1.4].map((delay, i) => (
+                      <motion.div key={`l${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}40` }}
+                        initial={{ width: 150, height: 150, opacity: 1 }} animate={{ width: 430, height: 430, opacity: 0 }} exit={{ opacity: 0 }}
+                        transition={{ duration: 2.2, delay, repeat: Infinity, ease: "easeOut" }} />
                     ))}
-                    {state === "speaking" && [0, 0.5, 1.0].map((delay, i) => (
-                      <motion.div
-                        key={`s${i}`}
-                        className="absolute rounded-full border pointer-events-none"
-                        style={{ borderColor: `${c}28` }}
-                        initial={{ width: 160, height: 160, opacity: 0.7 }}
-                        animate={{ width: 380, height: 380, opacity: 0 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 2.0, delay, repeat: Infinity, ease: "easeOut" }}
-                      />
+                    {state === "speaking" && [0, 0.55, 1.1].map((delay, i) => (
+                      <motion.div key={`s${i}`} className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}30` }}
+                        initial={{ width: 165, height: 165, opacity: 0.8 }} animate={{ width: 400, height: 400, opacity: 0 }} exit={{ opacity: 0 }}
+                        transition={{ duration: 1.8, delay, repeat: Infinity, ease: "easeOut" }} />
                     ))}
                     {state === "processing" && (
-                      <motion.div
-                        key="proc"
-                        className="absolute rounded-full border-2 pointer-events-none"
-                        style={{ width: 205, height: 205, borderColor: `${c}40`, borderTopColor: "transparent", borderRightColor: "transparent" }}
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 0.75, repeat: Infinity, ease: "linear" }}
-                      />
+                      <motion.div key="proc" className="absolute rounded-full border-2 pointer-events-none"
+                        style={{ width: 215, height: 215, borderColor: `${c}45`, borderTopColor: "transparent", borderRightColor: "transparent" }}
+                        animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: "linear" }} />
                     )}
                   </AnimatePresence>
 
-                  <div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}06`, width: 272, height: 272 }} />
+                  {/* Static rings */}
+                  <div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}08`, width: 290, height: 290 }} />
+                  <motion.div className="absolute rounded-full pointer-events-none" style={{ width: 242, height: 242, border: `1px dashed ${c}20` }}
+                    animate={{ rotate: [0, 360] }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} />
+                  <motion.div className="absolute rounded-full border pointer-events-none"
+                    style={{ width: 195, height: 195, borderColor: `${c}28`, borderTopColor: "transparent", borderLeftColor: "transparent" }}
+                    animate={{ rotate: [360, 0] }} transition={{ duration: 9, repeat: Infinity, ease: "linear" }} />
+                  {/* Extra inner ring */}
+                  <motion.div className="absolute rounded-full pointer-events-none"
+                    style={{ width: 162, height: 162, border: `1px dashed ${c}15` }}
+                    animate={{ rotate: [0, -360] }} transition={{ duration: 14, repeat: Infinity, ease: "linear" }} />
 
-                  <motion.div
-                    className="absolute rounded-full pointer-events-none"
-                    style={{ width: 226, height: 226, border: `1px dashed ${c}18` }}
-                    animate={{ rotate: [0, 360] }}
-                    transition={{ duration: 22, repeat: Infinity, ease: "linear" }}
-                  />
-
-                  <motion.div
-                    className="absolute rounded-full border pointer-events-none"
-                    style={{ width: 180, height: 180, borderColor: `${c}22`, borderTopColor: "transparent", borderLeftColor: "transparent" }}
-                    animate={{ rotate: [360, 0] }}
-                    transition={{ duration: 11, repeat: Infinity, ease: "linear" }}
-                  />
-
-                  <motion.div
-                    className="absolute rounded-full border pointer-events-none"
-                    style={{ borderColor: `${c}45` }}
+                  {/* Inner glow ring */}
+                  <motion.div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}55` }}
                     animate={{
-                      width:     sessionActive ? 148 : state === "idle" ? 130 : 146,
-                      height:    sessionActive ? 148 : state === "idle" ? 130 : 146,
-                      boxShadow: [`0 0 8px ${c}18`, `0 0 24px ${c}32`, `0 0 8px ${c}18`],
+                      width:     sessionActive ? 152 : state === "idle" ? 132 : 150,
+                      height:    sessionActive ? 152 : state === "idle" ? 132 : 150,
+                      boxShadow: [`0 0 10px ${c}20`, `0 0 30px ${c}38`, `0 0 10px ${c}20`],
                     }}
-                    transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, boxShadow: { duration: 2.5, repeat: Infinity } }}
+                    transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, boxShadow: { duration: 2.2, repeat: Infinity } }}
                   />
 
+                  {/* Core sphere */}
                   <motion.div
                     className="relative z-10 rounded-full flex items-center justify-center overflow-hidden"
-                    animate={{
-                      width:  sessionActive ? 126 : state === "idle" ? 110 : 124,
-                      height: sessionActive ? 126 : state === "idle" ? 110 : 124,
-                    }}
+                    animate={{ width: sessionActive ? 130 : state === "idle" ? 112 : 128, height: sessionActive ? 130 : state === "idle" ? 112 : 128 }}
                     transition={{ duration: 0.4 }}
-                    style={{
-                      background:  `radial-gradient(circle at 38% 32%, ${c}35 0%, ${c}10 50%, transparent 78%)`,
-                      boxShadow:   `inset 0 0 28px ${c}10, 0 0 35px ${c}18`,
-                    }}
+                    style={{ background: `radial-gradient(circle at 36% 30%, ${c}40 0%, ${c}12 50%, transparent 78%)`, boxShadow: `inset 0 0 30px ${c}12, 0 0 40px ${c}22` }}
                   >
-                    <motion.div
-                      className="absolute inset-0 rounded-full"
-                      style={{ background: `conic-gradient(from 0deg, transparent, ${c}20, transparent)`, opacity: 0.25 }}
-                      animate={{ rotate: [0, 360] }}
-                      transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
-                    />
-                    <motion.div
-                      className="relative z-10 rounded-full"
-                      style={{ backgroundColor: c, boxShadow: `0 0 16px ${c}` }}
+                    <motion.div className="absolute inset-0 rounded-full"
+                      style={{ background: `conic-gradient(from 0deg, transparent, ${c}25, transparent)`, opacity: 0.3 }}
+                      animate={{ rotate: [0, 360] }} transition={{ duration: 4.5, repeat: Infinity, ease: "linear" }} />
+                    <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 20px ${c}` }}
                       animate={{
-                        width:   state === "speaking" ? 22 : state === "listening" ? 14 : sessionActive ? 10 : 8,
-                        height:  state === "speaking" ? 22 : state === "listening" ? 14 : sessionActive ? 10 : 8,
-                        opacity: state === "idle" && !sessionActive ? 0.4 : 1,
+                        width:   state === "speaking" ? 26 : state === "listening" ? 16 : sessionActive ? 11 : 8,
+                        height:  state === "speaking" ? 26 : state === "listening" ? 16 : sessionActive ? 11 : 8,
+                        opacity: state === "idle" && !sessionActive ? 0.35 : 1,
                       }}
-                      transition={{ duration: 0.3 }}
-                    />
+                      transition={{ duration: 0.25 }} />
                   </motion.div>
                 </div>
 
-                {/* Waveform + state label */}
+                {/* Waveform + label */}
                 <div className="mt-10 flex flex-col items-center gap-3">
                   <WaveformBars active={state === "listening" || state === "speaking"} color={c} />
-
                   <AnimatePresence mode="wait">
-                    <motion.p
-                      key={`${state}-${sessionActive}`}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.2 }}
-                      className="text-[9px] font-semibold tracking-[0.6em]"
-                      style={{ color: c }}
-                    >
+                    <motion.p key={`${state}-${sessionActive}`} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}
+                      className="text-[9px] font-semibold tracking-[0.6em]" style={{ color: c }}>
                       {state === "idle" && !sessionActive && "STANDBY"}
                       {state === "idle" && sessionActive  && "READY · · ·"}
                       {state === "listening"               && "LISTENING · · ·"}
@@ -886,15 +853,9 @@ export default function JarvisPage() {
                       {state === "speaking"                && "JARVIS SPEAKING"}
                     </motion.p>
                   </AnimatePresence>
-
                   <AnimatePresence>
                     {lastTranscript && (state === "processing" || state === "speaking") && (
-                      <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.35 }}
-                        exit={{ opacity: 0 }}
-                        className="text-[9px] font-mono text-zinc-600 max-w-xs text-center"
-                      >
+                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 0.35 }} exit={{ opacity: 0 }} className="text-[9px] font-mono text-zinc-600 max-w-xs text-center">
                         &ldquo;{lastTranscript}&rdquo;
                       </motion.p>
                     )}
@@ -902,8 +863,8 @@ export default function JarvisPage() {
                 </div>
               </div>
 
-              {/* Right: command log */}
-              <div className="w-72 shrink-0 border-l border-white/[0.05] flex flex-col p-4">
+              {/* Right command log */}
+              <div className="w-72 shrink-0 flex flex-col p-4" style={{ borderLeft: `1px solid ${sessionActive ? c + "18" : "rgba(255,255,255,0.05)"}` }}>
                 <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/[0.04]">
                   <p className="text-[6px] tracking-[0.5em] text-zinc-700">COMMAND LOG</p>
                   {sessionActive && (
@@ -930,43 +891,31 @@ export default function JarvisPage() {
                       </div>
                       <div>
                         <p className="text-[7px] tracking-[0.5em] text-zinc-700 mb-4">START A SESSION TO BEGIN</p>
-                        {[
-                          '"How many users do we have?"',
-                          '"What\'s our MRR right now?"',
-                          '"Read me the latest feedback"',
-                          '"Send a broadcast to all users"',
-                          '"List all feature flags"',
-                        ].map(ex => (
+                        {['"How many users do we have?"', '"What\'s our MRR?"', '"Read the latest feedback"', '"Send a broadcast"', '"What should I focus on?"'].map(ex => (
                           <p key={ex} className="text-[8px] font-mono text-zinc-800 mb-1.5 text-left">{ex}</p>
                         ))}
                       </div>
                     </div>
                   ) : (
                     messages.map((msg, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, x: msg.role === "user" ? 8 : -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.18 }}
-                      >
+                      <motion.div key={i} initial={{ opacity: 0, x: msg.role === "user" ? 8 : -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.18 }}>
                         <div className="flex items-center justify-between mb-1">
-                          <p className={`text-[6px] tracking-widest ${msg.role === "user" ? "text-zinc-700" : "text-[#d4a853]/40"}`}>
-                            {msg.role === "user" ? "KENNY" : "JARVIS"}
-                            {" · "}
+                          <p className={`text-[6px] tracking-widest ${msg.role === "user" ? "text-zinc-700" : "text-[#d4a853]/50"}`}>
+                            {msg.role === "user" ? "KENNY" : "JARVIS"}{" · "}
                             {msg.ts.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit" })}
                           </p>
                           {msg.role === "jarvis" && msg.latencyMs && (
-                            <span className="text-[6px] font-mono text-zinc-800">
-                              {(msg.latencyMs / 1000).toFixed(1)}s
-                            </span>
+                            <span className="text-[6px] font-mono text-zinc-800">{(msg.latencyMs / 1000).toFixed(1)}s</span>
                           )}
                         </div>
                         <div className={`rounded-lg p-2.5 text-[11px] leading-relaxed ${
                           msg.role === "user"
                             ? "bg-white/[0.025] border border-white/[0.05] text-zinc-400"
-                            : "bg-[#d4a853]/[0.04] border border-[#d4a853]/10 text-zinc-300"
-                        }`}>
-                          {msg.text}
+                            : "border text-zinc-300"
+                        }`} style={msg.role === "jarvis" ? { backgroundColor: `${c}06`, borderColor: `${c}18` } : {}}>
+                          {msg.role === "jarvis" && i === messages.length - 1
+                            ? <TypewriterText text={msg.text} />
+                            : msg.text}
                         </div>
                       </motion.div>
                     ))
@@ -974,28 +923,17 @@ export default function JarvisPage() {
                   <div ref={transcriptEndRef} />
                 </div>
               </div>
+
             </motion.div>
 
           ) : (
 
-            // ── DATA MODE ────────────────────────────────────────────────────
-            <motion.div
-              key="data"
-              className="flex h-full w-full"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
+            // ── DATA MODE ──────────────────────────────────────────────────
+            <motion.div key="data" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
               <DataModeView
-                stats={stats}
-                messages={messages}
-                sessionActive={sessionActive}
-                commandCount={commandCount}
-                sessionElapsed={sessionElapsed}
-                avgLatency={avgLatency}
-                state={state}
-                c={c}
+                stats={stats} messages={messages} sessionActive={sessionActive}
+                commandCount={commandCount} sessionElapsed={sessionElapsed}
+                avgLatency={avgLatency} state={state} c={c} elevenlabsOk={elevenlabsOk}
               />
             </motion.div>
 
@@ -1003,16 +941,13 @@ export default function JarvisPage() {
         </AnimatePresence>
       </div>
 
-      {/* ── BOTTOM BAR ─────────────────────────────────────────────────────── */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 flex items-center justify-center gap-3 border-t border-white/[0.05] px-6 py-3">
-
-        {/* Session stats (left) */}
+      {/* ── BOTTOM BAR ───────────────────────────────────────────────────── */}
+      <div
+        className="absolute bottom-0 left-0 right-0 z-30 flex items-center justify-center gap-3 px-6 py-3 transition-colors duration-700"
+        style={{ borderTop: `1px solid ${sessionActive ? c + "20" : "rgba(255,255,255,0.05)"}` }}
+      >
         {sessionActive && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="absolute left-6 flex items-center gap-5"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute left-6 flex items-center gap-5">
             {[
               { label: "SESSION",     val: fmtDuration(sessionElapsed) },
               { label: "COMMANDS",    val: String(commandCount) },
@@ -1026,70 +961,38 @@ export default function JarvisPage() {
           </motion.div>
         )}
 
-        {/* Primary button */}
         <motion.button
-          onClick={
-            state === "speaking"
-              ? interrupt
-              : sessionActive
-                ? (state === "idle" ? toggleSession : () => {})
-                : toggleSession
-          }
-          className="flex items-center gap-2.5 rounded-full px-8 py-2.5 text-[10px] font-bold tracking-[0.35em] transition-colors"
+          onClick={state === "speaking" ? interrupt : sessionActive ? (state === "idle" ? toggleSession : () => {}) : toggleSession}
+          className="flex items-center gap-2.5 rounded-full px-8 py-2.5 text-[10px] font-bold tracking-[0.35em] transition-all"
           style={{
             backgroundColor: `${c}12`,
-            border: `1px solid ${c}${sessionActive ? "55" : "28"}`,
-            color: c,
-            boxShadow: sessionActive ? `0 0 24px ${c}12` : "none",
+            border:     `1px solid ${c}${sessionActive ? "60" : "30"}`,
+            color:      c,
+            boxShadow:  sessionActive ? `0 0 28px ${c}18, inset 0 0 8px ${c}08` : "none",
           }}
           whileTap={{ scale: 0.97 }}
         >
           <AnimatePresence mode="wait">
-            {!sessionActive && (
-              <motion.span key="mic" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.1 }}>
-                <Mic className="h-3.5 w-3.5" />
-              </motion.span>
-            )}
-            {sessionActive && state === "listening" && (
-              <motion.div key="pulse" className="h-3 w-3 rounded-full" style={{ backgroundColor: c }}
-                animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 0.5, repeat: Infinity }} />
-            )}
-            {sessionActive && state === "processing" && (
-              <motion.div key="spin" animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}>
-                <div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent" />
-              </motion.div>
-            )}
-            {sessionActive && state === "speaking" && (
-              <motion.span key="stop" initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                <Square className="h-3 w-3 fill-current" />
-              </motion.span>
-            )}
-            {sessionActive && state === "idle" && (
-              <motion.div key="breathe" className="h-3 w-3 rounded-full" style={{ backgroundColor: c }}
-                animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity }} />
-            )}
+            {!sessionActive && (<motion.span key="mic" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.1 }}><Mic className="h-3.5 w-3.5" /></motion.span>)}
+            {sessionActive && state === "listening"  && (<motion.div key="pulse" className="h-3 w-3 rounded-full" style={{ backgroundColor: c }} animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 0.5, repeat: Infinity }} />)}
+            {sessionActive && state === "processing" && (<motion.div key="spin" animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: "linear" }}><div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent" /></motion.div>)}
+            {sessionActive && state === "speaking"   && (<motion.span key="stop" initial={{ scale: 0 }} animate={{ scale: 1 }}><Square className="h-3 w-3 fill-current" /></motion.span>)}
+            {sessionActive && state === "idle"       && (<motion.div key="breathe" className="h-3 w-3 rounded-full" style={{ backgroundColor: c }} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity }} />)}
           </AnimatePresence>
-
-          {!sessionActive                            && "START SESSION"}
-          {sessionActive && state === "listening"    && "LISTENING · · ·"}
-          {sessionActive && state === "processing"   && "PROCESSING · · ·"}
-          {sessionActive && state === "speaking"     && "INTERRUPT"}
-          {sessionActive && state === "idle"         && "SESSION ACTIVE"}
+          {!sessionActive                          && "START SESSION"}
+          {sessionActive && state === "listening"  && "LISTENING · · ·"}
+          {sessionActive && state === "processing" && "PROCESSING · · ·"}
+          {sessionActive && state === "speaking"   && "INTERRUPT"}
+          {sessionActive && state === "idle"       && "SESSION ACTIVE"}
         </motion.button>
 
-        {/* End session */}
         {sessionActive && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            onClick={toggleSession}
-            className="flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[9px] font-bold tracking-widest text-zinc-700 border border-white/[0.06] hover:border-white/[0.12] hover:text-zinc-400 transition-colors"
-          >
+          <motion.button initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} onClick={toggleSession}
+            className="flex items-center gap-1.5 rounded-full px-5 py-2.5 text-[9px] font-bold tracking-widest text-zinc-700 border border-white/[0.06] hover:border-white/[0.12] hover:text-zinc-400 transition-colors">
             <Square className="h-2.5 w-2.5" />
             END SESSION
           </motion.button>
         )}
-
       </div>
     </div>
   );
