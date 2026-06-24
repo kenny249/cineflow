@@ -792,6 +792,11 @@ export default function JarvisPage() {
   const [isCompact, setIsCompact] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<"" | "saved" | "error">("");
   const [muted, setMuted]               = useState(false);
+  const [hour12, setHour12]             = useState(() => {
+    if (typeof window === "undefined") return true;
+    const s = localStorage.getItem("jarvis-hour12");
+    return s !== null ? s === "true" : true;
+  });
 
   const containerRef          = useRef<HTMLDivElement>(null);
   const conversationActiveRef = useRef(false);
@@ -830,13 +835,13 @@ export default function JarvisPage() {
   // ── Clock ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     const tick = () => {
-      setClock(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }));
+      setClock(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12 }));
       if (sessionStartRef.current) setSessionElapsed(Date.now() - sessionStartRef.current);
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [hour12]);
 
   // ── Fullscreen ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1377,10 +1382,11 @@ export default function JarvisPage() {
             </motion.span>
           </div>
 
-          <div className="text-right">
+          <button onClick={() => setHour12(v => { const n = !v; localStorage.setItem("jarvis-hour12", String(n)); return n; })}
+            className="text-right hover:opacity-70 transition-opacity" title={hour12 ? "Switch to 24h" : "Switch to 12h"}>
             <p className="text-sm font-mono font-bold text-white tabular-nums tracking-wider">{clock}</p>
-            <p className="text-[6px] tracking-widest text-zinc-700">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase()}</p>
-          </div>
+            <p className="text-[6px] tracking-widest text-zinc-700">{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase()} · {hour12 ? "12H" : "24H"}</p>
+          </button>
         </div>
       </div>
 
