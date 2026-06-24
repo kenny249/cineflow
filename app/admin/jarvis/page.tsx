@@ -184,6 +184,12 @@ export default function JarvisPage() {
 
   // ── Speech recognition (no circular dep — uses sendCommandRef) ───────────────
   const startRecognition = useCallback(() => {
+    // Abort any lingering instance before creating a new one
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch {}
+      recognitionRef.current = null;
+    }
+
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
 
@@ -192,28 +198,56 @@ export default function JarvisPage() {
     rec.lang = "en-US";
     rec.continuous = false;
     rec.interimResults = false;
+    rec.maxAlternatives = 1;
     recognitionRef.current = rec;
 
+    let gotResult = false;
+
     rec.onresult = (e: any) => {
-      const text: string = e.results[0][0].transcript;
+      gotResult = true;
+      const text: string = e.results[0][0].transcript.trim();
+      if (!text) {
+        // Empty capture — restart silently
+        recognitionRef.current = null;
+        if (conversationActiveRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 200);
+        return;
+      }
       setLastTranscript(text);
-      rec.stop();
       setCommandCount(c => c + 1);
+      // Don't call rec.stop() here — let continuous:false stop it naturally.
+      // Calling stop() in onresult can race with onend and cause issues.
       sendCommandRef.current(text);
     };
 
     rec.onerror = (e: any) => {
-      // "no-speech" means silence timeout — restart quietly if session is active
-      if (conversationActiveRef.current && (e.error === "no-speech" || e.error === "aborted")) {
-        setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 300);
-      } else if (!conversationActiveRef.current) {
+      if (e.error === "aborted") return; // we triggered this intentionally
+      recognitionRef.current = null;
+      if (conversationActiveRef.current) {
+        setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 400);
+      } else {
         setState("idle");
       }
     };
 
-    rec.onend = () => { recognitionRef.current = null; };
+    rec.onend = () => {
+      recognitionRef.current = null;
+      // If we never got a result (silence timeout, browser glitch) and session
+      // is still active — restart automatically
+      if (!gotResult && conversationActiveRef.current) {
+        setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 200);
+      }
+    };
 
-    try { rec.start(); } catch { setState("idle"); }
+    try {
+      rec.start();
+    } catch {
+      recognitionRef.current = null;
+      if (conversationActiveRef.current) {
+        setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 600);
+      } else {
+        setState("idle");
+      }
+    }
   }, []);
 
   // ── Stop audio helper ────────────────────────────────────────────────────────
@@ -259,8 +293,12 @@ export default function JarvisPage() {
         setState("speaking");
 
         await playStreamingAudio(res, () => {
-          if (conversationActiveRef.current) startRecognition();
-          else setState("idle");
+          if (conversationActiveRef.current) {
+            // Small delay — let the audio device release before grabbing the mic
+            setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 350);
+          } else {
+            setState("idle");
+          }
         });
       } else {
         // Fallback JSON path (ElevenLabs not configured)
@@ -270,8 +308,11 @@ export default function JarvisPage() {
           setMessages(prev => [...prev, { role: "jarvis", text, ts: new Date(), latencyMs }]);
           setLatencies(prev => [...prev, latencyMs]);
         }
-        if (conversationActiveRef.current) startRecognition();
-        else setState("idle");
+        if (conversationActiveRef.current) {
+          setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 350);
+        } else {
+          setState("idle");
+        }
       }
     } catch {
       if (conversationActiveRef.current) {

@@ -7,6 +7,9 @@ import { Resend } from "resend";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+const GITHUB_REPO = "kenny249/cineflow";
+const GITHUB_API  = "https://api.github.com";
+
 function getAdmin() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,10 +36,7 @@ async function requireAdmin() {
   return profile?.is_admin ? { ...user, first_name: profile.first_name } : null;
 }
 
-// ── Pre-fetch context for system prompt injection ──────────────────────────────
-// Runs in parallel with auth so it adds ~0ms to total latency.
-// By injecting live numbers into the prompt, common queries ("how many users?",
-// "what's MRR?") resolve in ONE Claude pass with zero tool calls.
+// ── Context stats (injected into system prompt to skip tool calls) ─────────────
 
 async function fetchContextStats() {
   const admin = getAdmin();
@@ -68,32 +68,25 @@ async function fetchContextStats() {
   return {
     total: real.length,
     signupsToday: real.filter((u: any) => new Date(u.created_at) >= today).length,
-    signupsWeek: real.filter((u: any) => u.created_at >= weekAgo).length,
+    signupsWeek:  real.filter((u: any) => u.created_at >= weekAgo).length,
     activeLastWeek: real.filter((u: any) => u.last_sign_in_at && u.last_sign_in_at >= weekAgo).length,
-    paid: rp.filter((p: any) => p.plan_status === "active" || p.plan_status === "founding" || p.plan === "lifetime").length,
+    paid:     rp.filter((p: any) => p.plan_status === "active" || p.plan_status === "founding" || p.plan === "lifetime").length,
     trialing: rp.filter((p: any) => p.plan_status === "trialing" && new Date(p.trial_ends_at) > new Date()).length,
-    expired: rp.filter((p: any) => p.plan_status === "trialing" && new Date(p.trial_ends_at) <= new Date()).length,
-    mrr,
-    arr: mrr * 12,
-    breakdown,
+    expired:  rp.filter((p: any) => p.plan_status === "trialing" && new Date(p.trial_ends_at) <= new Date()).length,
+    mrr, arr: mrr * 12, breakdown,
   };
 }
 
 // ── Tool implementations ───────────────────────────────────────────────────────
 
-async function executeGetStats() {
-  return fetchContextStats();
-}
+async function executeGetStats() { return fetchContextStats(); }
 
 async function executeGetRevenue() {
   const admin = getAdmin();
   const planMRR: Record<string, number> = { solo: 39, studio: 79, agency: 159, enterprise: 299 };
-
   const { data: profiles } = await admin
-    .from("profiles")
-    .select("plan, plan_status, is_test")
-    .in("plan_status", ["active", "founding"])
-    .neq("is_test", true);
+    .from("profiles").select("plan, plan_status, is_test")
+    .in("plan_status", ["active", "founding"]).neq("is_test", true);
 
   let mrr = 0;
   const breakdown: Record<string, number> = {};
@@ -102,134 +95,232 @@ async function executeGetRevenue() {
     mrr += planMRR[p.plan] ?? 0;
     breakdown[p.plan] = (breakdown[p.plan] || 0) + 1;
   }
-
-  const { data: lifetimeProfiles } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("plan", "lifetime")
-    .neq("is_test", true);
-
-  return {
-    mrr,
-    arr: mrr * 12,
-    lifetimeDeals: lifetimeProfiles?.length ?? 0,
-    lifetimeRevenue: (lifetimeProfiles?.length ?? 0) * 299,
-    planBreakdown: breakdown,
-  };
+  const { data: lifetime } = await admin.from("profiles").select("id").eq("plan", "lifetime").neq("is_test", true);
+  return { mrr, arr: mrr * 12, lifetimeDeals: lifetime?.length ?? 0, lifetimeRevenue: (lifetime?.length ?? 0) * 299, planBreakdown: breakdown };
 }
 
 async function executeGetFeedback() {
   const admin = getAdmin();
-  const { data: feedback } = await admin
-    .from("feedback")
-    .select("content, type, created_at")
-    .order("created_at", { ascending: false })
-    .limit(5);
-  return { items: feedback ?? [], count: feedback?.length ?? 0 };
+  const { data } = await admin.from("feedback").select("content, type, created_at").order("created_at", { ascending: false }).limit(5);
+  return { items: data ?? [], count: data?.length ?? 0 };
 }
 
 async function executeGetFeatureFlags() {
   const admin = getAdmin();
-  const { data: flags } = await admin
-    .from("feature_flags")
-    .select("id, key, description, enabled")
-    .order("key");
-  return { flags: flags ?? [] };
+  const { data } = await admin.from("feature_flags").select("id, key, description, enabled").order("key");
+  return { flags: data ?? [] };
+}
+
+async function executeGetUser(args: { query: string }) {
+  const admin = getAdmin();
+  const { data: { users } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const q = args.query.toLowerCase();
+  const match = users.find((u: any) =>
+    u.email?.toLowerCase().includes(q)
+  );
+  if (!match) return { error: `No user found matching "${args.query}"` };
+  const { data: profile } = await admin.from("profiles").select("*").eq("id", match.id).single();
+  return {
+    id: match.id,
+    email: match.email,
+    created_at: match.created_at,
+    last_sign_in: match.last_sign_in_at,
+    profile: profile ?? null,
+  };
+}
+
+async function executeGetReferrals() {
+  const admin = getAdmin();
+  const { data: { users } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const { data: profiles } = await admin.from("profiles").select("id, first_name, last_name, referral_code, referred_by, plan");
+
+  const emailMap = Object.fromEntries(users.map((u: any) => [u.id, u.email ?? ""]));
+  const profileMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p]));
+
+  // Group by referrer
+  const referred = (profiles ?? []).filter((p: any) => p.referred_by);
+  const byReferrer: Record<string, { code: string; count: number; email: string; name: string; referrals: any[] }> = {};
+
+  for (const p of referred) {
+    const referrer = Object.values(profileMap).find((r: any) => r.referral_code === p.referred_by) as any;
+    if (!referrer) continue;
+    if (!byReferrer[referrer.id]) {
+      byReferrer[referrer.id] = {
+        code: referrer.referral_code,
+        count: 0,
+        email: emailMap[referrer.id] ?? "",
+        name: `${referrer.first_name ?? ""} ${referrer.last_name ?? ""}`.trim(),
+        referrals: [],
+      };
+    }
+    byReferrer[referrer.id].count++;
+    byReferrer[referrer.id].referrals.push({ name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim(), plan: p.plan, email: emailMap[p.id] });
+  }
+
+  const leaderboard = Object.values(byReferrer).sort((a, b) => b.count - a.count).slice(0, 10);
+  return { totalReferred: referred.length, topReferrers: leaderboard };
+}
+
+async function executeGetInviteLinks() {
+  const admin = getAdmin();
+  const { data: links } = await admin
+    .from("invite_links")
+    .select("id, code, plan, max_uses, uses, is_active, notes, invitee_name, access_type, trial_days, expires_at, created_at")
+    .order("created_at", { ascending: false });
+
+  const active = (links ?? []).filter((l: any) => l.is_active);
+  const totalUses = (links ?? []).reduce((s: number, l: any) => s + (l.uses ?? 0), 0);
+  return { total: links?.length ?? 0, active: active.length, totalUses, links: (links ?? []).slice(0, 10) };
+}
+
+async function executeGetAuditLog(args?: { limit?: number }) {
+  const admin = getAdmin();
+  const limit = Math.min(args?.limit ?? 10, 50);
+  const { data: logs } = await admin
+    .from("admin_audit_log")
+    .select("action, target_type, metadata, created_at, actor_id")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  const actorIds = [...new Set((logs ?? []).map((l: any) => l.actor_id))];
+  const { data: actors } = await admin.from("profiles").select("id, first_name, last_name").in("id", actorIds);
+  const actorMap = Object.fromEntries((actors ?? []).map((a: any) => [a.id, `${a.first_name ?? ""} ${a.last_name ?? ""}`.trim()]));
+
+  return {
+    entries: (logs ?? []).map((l: any) => ({
+      action: l.action,
+      actor: actorMap[l.actor_id] ?? "Unknown",
+      targetType: l.target_type,
+      metadata: l.metadata,
+      at: l.created_at,
+    })),
+  };
 }
 
 async function executeSendBroadcast(args: { segment: string; subject: string; message: string }) {
   if (!process.env.RESEND_API_KEY) return { error: "Email not configured" };
-
   const admin = getAdmin();
   const now = new Date().toISOString();
 
-  let query = admin
-    .from("profiles")
-    .select("id, first_name, last_name, plan, plan_status, trial_ends_at, is_test")
-    .neq("is_test", true);
-
-  if (args.segment === "paid") {
-    query = query.or("plan_status.eq.active,plan_status.eq.founding,plan.eq.lifetime") as typeof query;
-  } else if (args.segment === "trialing") {
-    query = query.eq("plan_status", "trialing").gt("trial_ends_at", now) as typeof query;
-  } else if (args.segment === "trial_expired") {
-    query = query.eq("plan_status", "trialing").lte("trial_ends_at", now) as typeof query;
-  } else if (["solo", "studio", "agency", "enterprise", "lifetime"].includes(args.segment)) {
-    query = query.eq("plan", args.segment) as typeof query;
-  }
+  let query = admin.from("profiles").select("id, first_name, last_name, plan, plan_status, trial_ends_at, is_test").neq("is_test", true);
+  if (args.segment === "paid")         query = query.or("plan_status.eq.active,plan_status.eq.founding,plan.eq.lifetime") as typeof query;
+  else if (args.segment === "trialing")     query = query.eq("plan_status", "trialing").gt("trial_ends_at", now) as typeof query;
+  else if (args.segment === "trial_expired") query = query.eq("plan_status", "trialing").lte("trial_ends_at", now) as typeof query;
+  else if (["solo","studio","agency","enterprise","lifetime"].includes(args.segment)) query = query.eq("plan", args.segment) as typeof query;
 
   const { data: profiles } = await query;
   if (!profiles?.length) return { error: "No recipients for this segment" };
 
   const { data: { users: authUsers } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   const emailMap = new Map((authUsers ?? []).map((u: any) => [u.id, u.email]));
-
   const recipients = profiles
-    .map((p: any) => ({
-      email: emailMap.get(p.id),
-      name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "there",
-    }))
+    .map((p: any) => ({ email: emailMap.get(p.id), name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "there" }))
     .filter((r: any) => r.email && !r.email.endsWith("@demo.usecineflow.com"));
 
   if (!recipients.length) return { error: "No valid email recipients" };
-
   const resend = new Resend(process.env.RESEND_API_KEY);
   let sent = 0;
-  const batchSize = 50;
-  for (let i = 0; i < recipients.length; i += batchSize) {
-    await Promise.all(
-      recipients.slice(i, i + batchSize).map((r: any) =>
-        resend.emails.send({
-          from: "Kenny at Cineflow <kenny@usecineflow.com>",
-          to: r.email,
-          subject: args.subject,
-          html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px"><p>Hi ${r.name},</p><p>${args.message.replace(/\n/g, "<br/>")}</p><p style="margin-top:24px;color:#666;font-size:12px">— Kenny<br/>Cineflow</p></div>`,
-        })
-      )
-    );
-    sent += Math.min(batchSize, recipients.length - i);
+  for (let i = 0; i < recipients.length; i += 50) {
+    await Promise.all(recipients.slice(i, i + 50).map((r: any) =>
+      resend.emails.send({ from: "Kenny at Cineflow <kenny@usecineflow.com>", to: r.email, subject: args.subject,
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px"><p>Hi ${r.name},</p><p>${args.message.replace(/\n/g,"<br/>")}</p><p style="margin-top:24px;color:#666;font-size:12px">— Kenny<br/>Cineflow</p></div>` })
+    ));
+    sent += Math.min(50, recipients.length - i);
   }
-
   return { sent, total: recipients.length, segment: args.segment };
 }
 
 async function executeCreateAnnouncement(args: { message: string; type?: string }) {
   const admin = getAdmin();
-  const { data, error } = await admin.from("announcements").insert({
-    message: args.message,
-    type: args.type ?? "info",
-    is_active: true,
-  }).select().single();
+  const { data, error } = await admin.from("announcements").insert({ message: args.message, type: args.type ?? "info", is_active: true }).select().single();
   if (error) return { error: error.message };
   return { created: true, id: data.id };
 }
 
 async function executeToggleFeatureFlag(args: { key: string; enabled: boolean }) {
   const admin = getAdmin();
-  const { error } = await admin
-    .from("feature_flags")
-    .update({ enabled: args.enabled, updated_at: new Date().toISOString() })
-    .eq("key", args.key);
+  const { error } = await admin.from("feature_flags").update({ enabled: args.enabled, updated_at: new Date().toISOString() }).eq("key", args.key);
   if (error) return { error: error.message };
   return { toggled: true, key: args.key, enabled: args.enabled };
 }
 
-// ── Tools ──────────────────────────────────────────────────────────────────────
+// ── GitHub codebase tools ──────────────────────────────────────────────────────
+
+async function githubFetch(path: string) {
+  const token = process.env.GITHUB_TOKEN;
+  const headers: Record<string, string> = { Accept: "application/vnd.github.v3+json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${GITHUB_API}${path}`, { headers });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+async function executeReadFile(args: { path: string }) {
+  const data = await githubFetch(`/repos/${GITHUB_REPO}/contents/${args.path}`);
+  if (!data || data.type !== "file") return { error: `File not found: ${args.path}` };
+  const content = Buffer.from(data.content, "base64").toString("utf-8");
+  // Truncate large files
+  const lines = content.split("\n");
+  const truncated = lines.length > 150;
+  return {
+    path: args.path,
+    lines: lines.length,
+    content: truncated ? lines.slice(0, 150).join("\n") + "\n... (truncated)" : content,
+    truncated,
+  };
+}
+
+async function executeListDirectory(args: { path?: string }) {
+  const p = args.path ?? "";
+  const data = await githubFetch(`/repos/${GITHUB_REPO}/contents/${p}`);
+  if (!Array.isArray(data)) return { error: `Directory not found: ${p || "(root)"}` };
+  return {
+    path: p || "(root)",
+    entries: data.map((e: any) => ({ name: e.name, type: e.type, path: e.path })),
+  };
+}
+
+async function executeSearchCodebase(args: { query: string }) {
+  if (!process.env.GITHUB_TOKEN) {
+    return { error: "GitHub token not configured — add GITHUB_TOKEN to Vercel env vars to enable codebase search." };
+  }
+  const data = await githubFetch(`/search/code?q=${encodeURIComponent(args.query)}+repo:${GITHUB_REPO}&per_page=8`);
+  if (!data?.items) return { error: "Search failed" };
+  return {
+    query: args.query,
+    totalCount: data.total_count,
+    results: data.items.map((i: any) => ({ path: i.path, url: i.html_url })),
+  };
+}
+
+async function executeCreateGitHubIssue(args: { title: string; body: string; labels?: string[] }) {
+  if (!process.env.GITHUB_TOKEN) return { error: "GitHub token not configured" };
+  const res = await fetch(`${GITHUB_API}/repos/${GITHUB_REPO}/issues`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.GITHUB_TOKEN}`, "Content-Type": "application/json", Accept: "application/vnd.github.v3+json" },
+    body: JSON.stringify({ title: args.title, body: args.body, labels: args.labels ?? [] }),
+  });
+  if (!res.ok) return { error: "Failed to create issue" };
+  const data = await res.json();
+  return { created: true, number: data.number, url: data.html_url, title: data.title };
+}
+
+// ── Tool definitions ───────────────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_stats",
-    description: "Get detailed user stats beyond what's already in the system prompt (churn breakdown, expired trials, week-over-week, etc).",
+    description: "Get detailed user stats: total, signups, active, paid vs trial vs expired, plan breakdown.",
     input_schema: { type: "object" as const, properties: {} },
   },
   {
     name: "get_revenue",
-    description: "Get detailed revenue data: plan breakdown, lifetime deal count, invoice totals.",
+    description: "Get revenue data: MRR, ARR, plan breakdown, lifetime deal count.",
     input_schema: { type: "object" as const, properties: {} },
   },
   {
     name: "get_feedback",
-    description: "Read the latest 5 user feedback submissions.",
+    description: "Get the latest 5 user feedback submissions.",
     input_schema: { type: "object" as const, properties: {} },
   },
   {
@@ -238,48 +329,145 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: { type: "object" as const, properties: {} },
   },
   {
+    name: "get_user",
+    description: "Look up a specific user by email address or name.",
+    input_schema: {
+      type: "object" as const,
+      properties: { query: { type: "string", description: "Email address or name to search" } },
+      required: ["query"],
+    },
+  },
+  {
+    name: "get_referrals",
+    description: "Get referral stats: total referred users, top referrers leaderboard.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "get_invite_links",
+    description: "Get invite link stats: total links, active links, usage counts.",
+    input_schema: { type: "object" as const, properties: {} },
+  },
+  {
+    name: "get_audit_log",
+    description: "Get recent admin actions from the audit log.",
+    input_schema: {
+      type: "object" as const,
+      properties: { limit: { type: "number", description: "Number of entries to return (max 50, default 10)" } },
+    },
+  },
+  {
     name: "send_broadcast",
     description: "Send an email broadcast to a segment of users.",
     input_schema: {
       type: "object" as const,
       properties: {
-        segment: { type: "string", enum: ["all", "paid", "trialing", "trial_expired", "solo", "studio", "agency", "enterprise", "lifetime"] },
+        segment: { type: "string", enum: ["all","paid","trialing","trial_expired","solo","studio","agency","enterprise","lifetime"] },
         subject: { type: "string" },
         message: { type: "string" },
       },
-      required: ["segment", "subject", "message"],
+      required: ["segment","subject","message"],
     },
   },
   {
     name: "create_announcement",
-    description: "Create an in-app announcement banner for users.",
+    description: "Create an in-app announcement banner for all users.",
     input_schema: {
       type: "object" as const,
       properties: {
         message: { type: "string" },
-        type: { type: "string", enum: ["info", "warning", "success", "error"] },
+        type: { type: "string", enum: ["info","warning","success","error"] },
       },
       required: ["message"],
     },
   },
   {
     name: "toggle_feature_flag",
-    description: "Enable or disable a feature flag by key.",
+    description: "Enable or disable a feature flag by its key name.",
+    input_schema: {
+      type: "object" as const,
+      properties: { key: { type: "string" }, enabled: { type: "boolean" } },
+      required: ["key","enabled"],
+    },
+  },
+  {
+    name: "read_file",
+    description: "Read the contents of a file from the Cineflow codebase on GitHub.",
+    input_schema: {
+      type: "object" as const,
+      properties: { path: { type: "string", description: "File path relative to repo root, e.g. app/admin/jarvis/page.tsx" } },
+      required: ["path"],
+    },
+  },
+  {
+    name: "list_directory",
+    description: "List files and folders in a directory of the Cineflow codebase.",
+    input_schema: {
+      type: "object" as const,
+      properties: { path: { type: "string", description: "Directory path, empty string for root" } },
+    },
+  },
+  {
+    name: "search_codebase",
+    description: "Search for a function, component, or string across the Cineflow codebase.",
+    input_schema: {
+      type: "object" as const,
+      properties: { query: { type: "string", description: "Search term, e.g. 'useCallSheet' or 'stripe webhook'" } },
+      required: ["query"],
+    },
+  },
+  {
+    name: "create_github_issue",
+    description: "Create a GitHub issue to track a bug, feature request, or task.",
     input_schema: {
       type: "object" as const,
       properties: {
-        key: { type: "string" },
-        enabled: { type: "boolean" },
+        title: { type: "string" },
+        body:  { type: "string", description: "Issue description in markdown" },
+        labels: { type: "array", items: { type: "string" }, description: "Optional labels" },
       },
-      required: ["key", "enabled"],
+      required: ["title","body"],
     },
   },
 ];
 
+// ── ElevenLabs TTS ─────────────────────────────────────────────────────────────
+
+async function streamTTS(text: string): Promise<Response | null> {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "onwK4e9ZLuTAKqWW03F9";
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
+      method: "POST",
+      headers: { "xi-api-key": apiKey, "Content-Type": "application/json", Accept: "audio/mpeg" },
+      body: JSON.stringify({
+        text: text.slice(0, 600),
+        model_id: "eleven_turbo_v2",
+        voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.15, use_speaker_boost: true },
+      }),
+    });
+    return res.ok ? res : null;
+  } catch {
+    return null;
+  }
+}
+
+function audioResponse(stream: Response, text: string) {
+  return new NextResponse(stream.body, {
+    headers: {
+      "Content-Type": "audio/mpeg",
+      "X-Jarvis-Text": encodeURIComponent(text.slice(0, 800)),
+      "Access-Control-Expose-Headers": "X-Jarvis-Text",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 // ── Main handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Run auth + stats pre-fetch in parallel — saves ~200ms on every request
+  // Run auth + stats pre-fetch in parallel to save ~200ms on every request
   const [caller, liveData] = await Promise.all([
     requireAdmin(),
     fetchContextStats().catch(() => null),
@@ -293,102 +481,100 @@ export async function POST(req: NextRequest) {
   const firstName = (caller as any).first_name || "Kenny";
 
   const dataBlock = liveData
-    ? `\n\nLIVE CINEFLOW DATA — use these numbers directly for simple questions (no tool call needed):
-- Total real users: ${liveData.total}
-- Signups today: ${liveData.signupsToday} | this week: ${liveData.signupsWeek}
+    ? `\n\nLIVE CINEFLOW DATA — answer simple questions directly from these numbers, no tool call needed:
+- Total users: ${liveData.total} | Signups today: ${liveData.signupsToday} | This week: ${liveData.signupsWeek}
 - Active last 7 days: ${liveData.activeLastWeek}
-- Paid accounts: ${liveData.paid} | Trialing: ${liveData.trialing} | Trial expired: ${liveData.expired}
+- Paid: ${liveData.paid} | Trialing: ${liveData.trialing} | Trial expired: ${liveData.expired}
 - MRR: $${liveData.mrr} | ARR: $${liveData.arr}
 - Plan breakdown: ${JSON.stringify(liveData.breakdown)}
-Only call get_stats/get_revenue if the user needs something more granular than the above.`
+Only call get_stats/get_revenue for queries needing more granular data than the above.`
     : "";
 
-  const systemPrompt = `You are Jarvis — AI command intelligence built into Cineflow, a film production SaaS.
-You are speaking directly to ${firstName}, the founder and sole admin.
+  const systemPrompt = `You are Jarvis — AI command intelligence for Cineflow, a film production SaaS.
+You speak directly to ${firstName}, the founder and sole admin of the platform.
 
-Character: Confident, precise, cinematic. Like J.A.R.V.I.S. from Iron Man — sharp wit, never robotic.
-Address ${firstName} by name occasionally. Keep responses concise — 1-3 sentences for voice.
-When reporting numbers, be specific. When taking actions, confirm what you did.
+Character: Confident, precise, cinematic. Like J.A.R.V.I.S. from Iron Man. Sharp, occasionally dry wit.
+Voice rules: 1-3 sentences unless reporting a list of data. Never say "I don't know" — always try a tool or give your best answer.
+CRITICAL: Always respond with something. If you can't complete a task, say exactly why in plain spoken language.
+If a tool is unavailable (e.g. GITHUB_TOKEN not set), tell ${firstName} clearly what env var is needed.
+Address ${firstName} by name occasionally.
 Current time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
-Pricing reference: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.${dataBlock}`;
+Cineflow pricing: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.
+GitHub repo: ${GITHUB_REPO}${dataBlock}`;
 
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: command }];
+  // ── Guaranteed response wrapper ──────────────────────────────────────────────
+  // Every path through this function MUST return a spoken response.
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 512,
-    system: systemPrompt,
-    tools: TOOLS,
-    messages,
-  });
+  const speak = async (text: string) => {
+    const tts = await streamTTS(text);
+    if (tts) return audioResponse(tts, text);
+    return NextResponse.json({ text });
+  };
 
-  let text = "";
+  try {
+    const messages: Anthropic.MessageParam[] = [{ role: "user", content: command }];
 
-  if (response.stop_reason === "tool_use") {
-    const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")!;
-    let toolResult: unknown;
-
-    switch (toolUse.name) {
-      case "get_stats":           toolResult = await executeGetStats(); break;
-      case "get_revenue":         toolResult = await executeGetRevenue(); break;
-      case "get_feedback":        toolResult = await executeGetFeedback(); break;
-      case "get_feature_flags":   toolResult = await executeGetFeatureFlags(); break;
-      case "send_broadcast":      toolResult = await executeSendBroadcast(toolUse.input as any); break;
-      case "create_announcement": toolResult = await executeCreateAnnouncement(toolUse.input as any); break;
-      case "toggle_feature_flag": toolResult = await executeToggleFeatureFlag(toolUse.input as any); break;
-      default:                    toolResult = { error: "Unknown tool" };
-    }
-
-    const followUp = await anthropic.messages.create({
+    const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 512,
       system: systemPrompt,
       tools: TOOLS,
-      messages: [
-        ...messages,
-        { role: "assistant", content: response.content },
-        { role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }] },
-      ],
+      messages,
     });
 
-    text = followUp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
-  } else {
-    text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
-  }
+    let text = "";
 
-  if (!text) return NextResponse.json({ text: "" });
+    if (response.stop_reason === "tool_use") {
+      const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")!;
+      let toolResult: unknown;
 
-  // Stream ElevenLabs audio directly — no second round-trip from the client
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "onwK4e9ZLuTAKqWW03F9";
+      try {
+        switch (toolUse.name) {
+          case "get_stats":           toolResult = await executeGetStats(); break;
+          case "get_revenue":         toolResult = await executeGetRevenue(); break;
+          case "get_feedback":        toolResult = await executeGetFeedback(); break;
+          case "get_feature_flags":   toolResult = await executeGetFeatureFlags(); break;
+          case "get_user":            toolResult = await executeGetUser(toolUse.input as any); break;
+          case "get_referrals":       toolResult = await executeGetReferrals(); break;
+          case "get_invite_links":    toolResult = await executeGetInviteLinks(); break;
+          case "get_audit_log":       toolResult = await executeGetAuditLog(toolUse.input as any); break;
+          case "send_broadcast":      toolResult = await executeSendBroadcast(toolUse.input as any); break;
+          case "create_announcement": toolResult = await executeCreateAnnouncement(toolUse.input as any); break;
+          case "toggle_feature_flag": toolResult = await executeToggleFeatureFlag(toolUse.input as any); break;
+          case "read_file":           toolResult = await executeReadFile(toolUse.input as any); break;
+          case "list_directory":      toolResult = await executeListDirectory(toolUse.input as any); break;
+          case "search_codebase":     toolResult = await executeSearchCodebase(toolUse.input as any); break;
+          case "create_github_issue": toolResult = await executeCreateGitHubIssue(toolUse.input as any); break;
+          default:                    toolResult = { error: `Unknown tool: ${toolUse.name}` };
+        }
+      } catch (toolErr: any) {
+        toolResult = { error: `Tool error: ${toolErr?.message ?? "unknown"}` };
+      }
 
-  if (apiKey) {
-    const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
-      method: "POST",
-      headers: {
-        "xi-api-key": apiKey,
-        "Content-Type": "application/json",
-        Accept: "audio/mpeg",
-      },
-      body: JSON.stringify({
-        text: text.slice(0, 600),
-        model_id: "eleven_turbo_v2",
-        voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.15, use_speaker_boost: true },
-      }),
-    });
-
-    if (ttsRes.ok && ttsRes.body) {
-      return new NextResponse(ttsRes.body, {
-        headers: {
-          "Content-Type": "audio/mpeg",
-          "X-Jarvis-Text": encodeURIComponent(text.slice(0, 800)),
-          "Access-Control-Expose-Headers": "X-Jarvis-Text",
-          "Cache-Control": "no-store",
-        },
+      const followUp = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 512,
+        system: systemPrompt,
+        tools: TOOLS,
+        messages: [
+          ...messages,
+          { role: "assistant", content: response.content },
+          { role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }] },
+        ],
       });
-    }
-  }
 
-  // Fallback: return text only (ElevenLabs not configured or failed)
-  return NextResponse.json({ text });
+      text = followUp.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
+    } else {
+      text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
+    }
+
+    if (!text) text = "I processed your request but didn't generate a response. Please try again.";
+
+    return speak(text);
+
+  } catch (err: any) {
+    // Guaranteed fallback — Jarvis always speaks, even on hard errors
+    const fallback = `I hit a technical error, ${firstName}. ${err?.message?.includes("API") ? "The AI service returned an error." : "Something went wrong on my end."} Please try again.`;
+    return speak(fallback);
+  }
 }
