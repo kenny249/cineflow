@@ -33,13 +33,15 @@ async function requireAdmin() {
   return profile?.is_admin ? { ...user, first_name: profile.first_name } : null;
 }
 
-// ── Tool implementations ───────────────────────────────────────────────────────
+// ── Pre-fetch context for system prompt injection ──────────────────────────────
+// Runs in parallel with auth so it adds ~0ms to total latency.
+// By injecting live numbers into the prompt, common queries ("how many users?",
+// "what's MRR?") resolve in ONE Claude pass with zero tool calls.
 
-async function executeGetStats() {
+async function fetchContextStats() {
   const admin = getAdmin();
-  const now = Date.now();
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const weekAgo = new Date(now - 7 * 86400000).toISOString();
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
   const [{ data: { users: allUsers } }, { data: profiles }] = await Promise.all([
     admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
@@ -47,38 +49,40 @@ async function executeGetStats() {
   ]);
 
   const testIds = new Set((profiles ?? []).filter((p: any) => p.is_test).map((p: any) => p.id));
-  const realUsers = (allUsers ?? []).filter(
+  const real = (allUsers ?? []).filter(
     (u: any) => !u.email?.endsWith("@demo.usecineflow.com") && !testIds.has(u.id)
   );
+  const realIds = new Set(real.map((u: any) => u.id));
+  const rp = (profiles ?? []).filter((p: any) => realIds.has(p.id));
 
-  const realIds = new Set(realUsers.map((u: any) => u.id));
-  const realProfiles = (profiles ?? []).filter((p: any) => realIds.has(p.id));
+  const planMRR: Record<string, number> = { solo: 39, studio: 79, agency: 159, enterprise: 299 };
+  const mrr = rp
+    .filter((p: any) => (p.plan_status === "active" || p.plan_status === "founding") && p.plan !== "lifetime")
+    .reduce((s: number, p: any) => s + (planMRR[p.plan] ?? 0), 0);
 
-  const paid = realProfiles.filter((p: any) =>
-    p.plan_status === "active" || p.plan_status === "founding" || p.plan === "lifetime"
-  ).length;
-  const trialing = realProfiles.filter((p: any) =>
-    p.plan_status === "trialing" && new Date(p.trial_ends_at) > new Date()
-  ).length;
-  const expired = realProfiles.filter((p: any) =>
-    p.plan_status === "trialing" && new Date(p.trial_ends_at) <= new Date()
-  ).length;
-
-  const planBreakdown: Record<string, number> = {};
-  for (const p of realProfiles) {
-    if (p.plan) planBreakdown[p.plan] = (planBreakdown[p.plan] || 0) + 1;
-  }
+  const breakdown = rp.reduce((acc: Record<string, number>, p: any) => {
+    if (p.plan) acc[p.plan] = (acc[p.plan] || 0) + 1;
+    return acc;
+  }, {});
 
   return {
-    total: realUsers.length,
-    signupsToday: realUsers.filter((u: any) => new Date(u.created_at) >= today).length,
-    signupsWeek: realUsers.filter((u: any) => u.created_at >= weekAgo).length,
-    activeLastWeek: realUsers.filter((u: any) => u.last_sign_in_at && u.last_sign_in_at >= weekAgo).length,
-    paid,
-    trialing,
-    expired,
-    planBreakdown,
+    total: real.length,
+    signupsToday: real.filter((u: any) => new Date(u.created_at) >= today).length,
+    signupsWeek: real.filter((u: any) => u.created_at >= weekAgo).length,
+    activeLastWeek: real.filter((u: any) => u.last_sign_in_at && u.last_sign_in_at >= weekAgo).length,
+    paid: rp.filter((p: any) => p.plan_status === "active" || p.plan_status === "founding" || p.plan === "lifetime").length,
+    trialing: rp.filter((p: any) => p.plan_status === "trialing" && new Date(p.trial_ends_at) > new Date()).length,
+    expired: rp.filter((p: any) => p.plan_status === "trialing" && new Date(p.trial_ends_at) <= new Date()).length,
+    mrr,
+    arr: mrr * 12,
+    breakdown,
   };
+}
+
+// ── Tool implementations ───────────────────────────────────────────────────────
+
+async function executeGetStats() {
+  return fetchContextStats();
 }
 
 async function executeGetRevenue() {
@@ -121,7 +125,6 @@ async function executeGetFeedback() {
     .select("content, type, created_at")
     .order("created_at", { ascending: false })
     .limit(5);
-
   return { items: feedback ?? [], count: feedback?.length ?? 0 };
 }
 
@@ -162,19 +165,20 @@ async function executeSendBroadcast(args: { segment: string; subject: string; me
   const emailMap = new Map((authUsers ?? []).map((u: any) => [u.id, u.email]));
 
   const recipients = profiles
-    .map((p: any) => ({ email: emailMap.get(p.id), name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "there" }))
+    .map((p: any) => ({
+      email: emailMap.get(p.id),
+      name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "there",
+    }))
     .filter((r: any) => r.email && !r.email.endsWith("@demo.usecineflow.com"));
 
   if (!recipients.length) return { error: "No valid email recipients" };
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-
-  const batchSize = 50;
   let sent = 0;
+  const batchSize = 50;
   for (let i = 0; i < recipients.length; i += batchSize) {
-    const batch = recipients.slice(i, i + batchSize);
     await Promise.all(
-      batch.map((r: any) =>
+      recipients.slice(i, i + batchSize).map((r: any) =>
         resend.emails.send({
           from: "Kenny at Cineflow <kenny@usecineflow.com>",
           to: r.email,
@@ -183,7 +187,7 @@ async function executeSendBroadcast(args: { segment: string; subject: string; me
         })
       )
     );
-    sent += batch.length;
+    sent += Math.min(batchSize, recipients.length - i);
   }
 
   return { sent, total: recipients.length, segment: args.segment };
@@ -210,27 +214,27 @@ async function executeToggleFeatureFlag(args: { key: string; enabled: boolean })
   return { toggled: true, key: args.key, enabled: args.enabled };
 }
 
-// ── Tools definition ───────────────────────────────────────────────────────────
+// ── Tools ──────────────────────────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_stats",
-    description: "Get live user statistics: total users, signups today/week, active users, paid vs trial vs expired counts, plan breakdown.",
+    description: "Get detailed user stats beyond what's already in the system prompt (churn breakdown, expired trials, week-over-week, etc).",
     input_schema: { type: "object" as const, properties: {} },
   },
   {
     name: "get_revenue",
-    description: "Get revenue data: MRR, ARR, plan breakdown, lifetime deal count.",
+    description: "Get detailed revenue data: plan breakdown, lifetime deal count, invoice totals.",
     input_schema: { type: "object" as const, properties: {} },
   },
   {
     name: "get_feedback",
-    description: "Get the latest 5 user feedback submissions.",
+    description: "Read the latest 5 user feedback submissions.",
     input_schema: { type: "object" as const, properties: {} },
   },
   {
     name: "get_feature_flags",
-    description: "List all feature flags and their current enabled/disabled state.",
+    description: "List all feature flags and their enabled/disabled state.",
     input_schema: { type: "object" as const, properties: {} },
   },
   {
@@ -239,20 +243,16 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: "object" as const,
       properties: {
-        segment: {
-          type: "string",
-          enum: ["all", "paid", "trialing", "trial_expired", "solo", "studio", "agency", "enterprise", "lifetime"],
-          description: "Which users to target",
-        },
-        subject: { type: "string", description: "Email subject line" },
-        message: { type: "string", description: "Email body text" },
+        segment: { type: "string", enum: ["all", "paid", "trialing", "trial_expired", "solo", "studio", "agency", "enterprise", "lifetime"] },
+        subject: { type: "string" },
+        message: { type: "string" },
       },
       required: ["segment", "subject", "message"],
     },
   },
   {
     name: "create_announcement",
-    description: "Create an in-app announcement banner visible to users.",
+    description: "Create an in-app announcement banner for users.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -264,11 +264,11 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "toggle_feature_flag",
-    description: "Enable or disable a feature flag by its key name.",
+    description: "Enable or disable a feature flag by key.",
     input_schema: {
       type: "object" as const,
       properties: {
-        key: { type: "string", description: "The feature flag key" },
+        key: { type: "string" },
         enabled: { type: "boolean" },
       },
       required: ["key", "enabled"],
@@ -276,10 +276,15 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-// ── Main route ─────────────────────────────────────────────────────────────────
+// ── Main handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const caller = await requireAdmin();
+  // Run auth + stats pre-fetch in parallel — saves ~200ms on every request
+  const [caller, liveData] = await Promise.all([
+    requireAdmin(),
+    fetchContextStats().catch(() => null),
+  ]);
+
   if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { command } = await req.json();
@@ -287,23 +292,31 @@ export async function POST(req: NextRequest) {
 
   const firstName = (caller as any).first_name || "Kenny";
 
-  const systemPrompt = `You are Jarvis — the AI command intelligence built into Cineflow, a film production SaaS platform.
-You are speaking directly to ${firstName}, the founder and sole admin. You run in the admin control center.
+  const dataBlock = liveData
+    ? `\n\nLIVE CINEFLOW DATA — use these numbers directly for simple questions (no tool call needed):
+- Total real users: ${liveData.total}
+- Signups today: ${liveData.signupsToday} | this week: ${liveData.signupsWeek}
+- Active last 7 days: ${liveData.activeLastWeek}
+- Paid accounts: ${liveData.paid} | Trialing: ${liveData.trialing} | Trial expired: ${liveData.expired}
+- MRR: $${liveData.mrr} | ARR: $${liveData.arr}
+- Plan breakdown: ${JSON.stringify(liveData.breakdown)}
+Only call get_stats/get_revenue if the user needs something more granular than the above.`
+    : "";
 
-Your character: Confident, precise, cinematic. Like J.A.R.V.I.S. from Iron Man — highly capable, slightly dry wit, never robotic.
-Address ${firstName} by name occasionally.
-Keep responses concise — you are speaking out loud, 1-3 sentences unless reporting detailed data.
-When reporting numbers, be specific and decisive. When taking actions, confirm what you did.
-If asked to send a broadcast, confirm the action before executing if details are missing.
+  const systemPrompt = `You are Jarvis — AI command intelligence built into Cineflow, a film production SaaS.
+You are speaking directly to ${firstName}, the founder and sole admin.
+
+Character: Confident, precise, cinematic. Like J.A.R.V.I.S. from Iron Man — sharp wit, never robotic.
+Address ${firstName} by name occasionally. Keep responses concise — 1-3 sentences for voice.
+When reporting numbers, be specific. When taking actions, confirm what you did.
 Current time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
-
-Cineflow pricing for context: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.`;
+Pricing reference: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.${dataBlock}`;
 
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: command }];
 
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
-    max_tokens: 1024,
+    max_tokens: 512,
     system: systemPrompt,
     tools: TOOLS,
     messages,
@@ -334,10 +347,7 @@ Cineflow pricing for context: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterp
       messages: [
         ...messages,
         { role: "assistant", content: response.content },
-        {
-          role: "user",
-          content: [{ type: "tool_result", tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }],
-        },
+        { role: "user", content: [{ type: "tool_result", tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }] },
       ],
     });
 
@@ -346,5 +356,39 @@ Cineflow pricing for context: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterp
     text = response.content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text ?? "";
   }
 
+  if (!text) return NextResponse.json({ text: "" });
+
+  // Stream ElevenLabs audio directly — no second round-trip from the client
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "onwK4e9ZLuTAKqWW03F9";
+
+  if (apiKey) {
+    const ttsRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
+      method: "POST",
+      headers: {
+        "xi-api-key": apiKey,
+        "Content-Type": "application/json",
+        Accept: "audio/mpeg",
+      },
+      body: JSON.stringify({
+        text: text.slice(0, 600),
+        model_id: "eleven_turbo_v2",
+        voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.15, use_speaker_boost: true },
+      }),
+    });
+
+    if (ttsRes.ok && ttsRes.body) {
+      return new NextResponse(ttsRes.body, {
+        headers: {
+          "Content-Type": "audio/mpeg",
+          "X-Jarvis-Text": encodeURIComponent(text.slice(0, 800)),
+          "Access-Control-Expose-Headers": "X-Jarvis-Text",
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+  }
+
+  // Fallback: return text only (ElevenLabs not configured or failed)
   return NextResponse.json({ text });
 }
