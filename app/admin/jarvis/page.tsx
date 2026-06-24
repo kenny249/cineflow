@@ -1552,21 +1552,27 @@ export default function JarvisPage() {
                     style={{ background: `radial-gradient(circle at 36% 28%, ${c}50 0%, ${c}16 48%, transparent 75%)`, boxShadow: `inset 0 0 50px ${c}18, 0 0 70px ${c}35, 0 0 130px ${c}12` }}>
                     <motion.div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent, ${c}35, transparent)`, opacity: 0.4 }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
                     <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 28px ${c}, 0 0 60px ${c}90` }}
-                      animate={{ width: state === "speaking" ? 36 : state === "listening" ? 22 : sessionActive ? 15 : 10, height: state === "speaking" ? 36 : state === "listening" ? 22 : sessionActive ? 15 : 10, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
+                      animate={{ width: state === "speaking" ? 0 : state === "listening" ? 22 : sessionActive ? 15 : 10, height: state === "speaking" ? 0 : state === "listening" ? 22 : sessionActive ? 15 : 10, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
                   </motion.div>
 
-                  {/* Waveform overlay — centered on ring system, speaking only, scaled up for visibility */}
+                  {/* Waveform overlay — fills orb container, centered bars, speaking only */}
                   <AnimatePresence>
                     {state === "speaking" && sessionActive && (
                       <motion.div
                         key="waveform-overlay"
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        transition={{ duration: 0.25 }}
-                        className="absolute z-25 pointer-events-none"
-                        style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}>
-                        <div style={{ transform: "scale(1.6)", transformOrigin: "center" }}>
-                          <WaveformBars active={true} color={c} audioHeights={barHeights} />
-                        </div>
+                        transition={{ duration: 0.2 }}
+                        className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center gap-[6px]">
+                        {barHeights.slice(1, 10).map((h, i) => (
+                          <div key={i} className="rounded-full flex-shrink-0"
+                            style={{
+                              width: 4,
+                              height: Math.max(5, Math.round((h / 52) * 68)),
+                              backgroundColor: c,
+                              boxShadow: `0 0 8px ${c}, 0 0 18px ${c}60`,
+                              transition: "height 0.05s linear",
+                            }} />
+                        ))}
                       </motion.div>
                     )}
                   </AnimatePresence>
