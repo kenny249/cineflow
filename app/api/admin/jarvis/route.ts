@@ -834,7 +834,7 @@ Cineflow Agency at $159/mo does what a $354+/mo stack does. Built by a filmmaker
 CODEBASE — FULL MAP (use read_file / search_codebase for any file)
 ═══════════════════════════════════════════════════════════
 
-TECH STACK: Next.js 15 App Router, TypeScript, Tailwind CSS, Framer Motion, Supabase (auth + Postgres + storage + SSR), Anthropic Claude API (claude-sonnet-4-6 for AI features), ElevenLabs (Jarvis TTS), Stripe (billing — checkout not yet wired for subscriptions), Vercel (hosting, auto-deploys from GitHub main on push).
+TECH STACK: Next.js 15 App Router, TypeScript, Tailwind CSS, Framer Motion, Supabase (auth + Postgres + storage + SSR), Anthropic Claude API (claude-sonnet-4-6 for AI features), ElevenLabs (Jarvis TTS), Stripe (billing — fully wired: subscription checkout, webhook handling, plan upgrades, payment links on invoices), Vercel (hosting, auto-deploys from GitHub main on push).
 
 REPO: ${GITHUB_REPO}
 KEY DIRECTORIES:
