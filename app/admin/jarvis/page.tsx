@@ -816,6 +816,7 @@ export default function JarvisPage() {
   const speechStartRef        = useRef(0); // timestamp when Jarvis started speaking (barge-in guard)
   const personalityRef        = useRef<Personality>({ humor: 50, energy: 50, formality: 50 });
   const messagesRef           = useRef<ChatMessage[]>([]);
+  const mutedRef              = useRef(false); // mirrors muted state for recognition callbacks
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1055,9 +1056,9 @@ export default function JarvisPage() {
     rec.onerror = (e: any) => {
       if (e.error === "aborted") return;
       recognitionRef.current = null;
-      // Don't restart while Jarvis is speaking — playStreamingAudio's onEnd callback handles that
-      if (!speakingRef.current && !processingRef.current && conversationActiveRef.current) {
-        setTimeout(() => { if (!speakingRef.current && !processingRef.current && conversationActiveRef.current) startRecognition(); }, 400);
+      // Don't restart while Jarvis is speaking, or while muted
+      if (!speakingRef.current && !processingRef.current && conversationActiveRef.current && !mutedRef.current) {
+        setTimeout(() => { if (!speakingRef.current && !processingRef.current && conversationActiveRef.current && !mutedRef.current) startRecognition(); }, 400);
       } else if (!conversationActiveRef.current) {
         setState("idle");
       }
@@ -1065,9 +1066,9 @@ export default function JarvisPage() {
 
     rec.onend = () => {
       recognitionRef.current = null;
-      // Don't restart while Jarvis is speaking — visual state would flip to "listening" prematurely
-      if (!speakingRef.current && !processingRef.current && conversationActiveRef.current) {
-        setTimeout(() => { if (!speakingRef.current && !processingRef.current && conversationActiveRef.current) startRecognition(); }, 200);
+      // Don't restart while Jarvis is speaking, or while muted
+      if (!speakingRef.current && !processingRef.current && conversationActiveRef.current && !mutedRef.current) {
+        setTimeout(() => { if (!speakingRef.current && !processingRef.current && conversationActiveRef.current && !mutedRef.current) startRecognition(); }, 200);
       }
     };
 
@@ -1197,6 +1198,7 @@ export default function JarvisPage() {
       conversationActiveRef.current = false;
       processingRef.current = false;
       speakingRef.current = false;
+      mutedRef.current = false;
       setSessionActive(false);
       setMuted(false);
       sessionStartRef.current = null;
@@ -1211,6 +1213,7 @@ export default function JarvisPage() {
     } else {
       conversationActiveRef.current = true;
       processingRef.current = false;
+      mutedRef.current = false;
       setSessionActive(true);
       setMuted(false);
       sessionStartRef.current = Date.now();
@@ -1239,10 +1242,12 @@ export default function JarvisPage() {
   // ── Mute / Unmute ──────────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
     if (muted) {
+      mutedRef.current = false;
       setMuted(false);
       startMicAnalyser();
       startRecognition();
     } else {
+      mutedRef.current = true;
       setMuted(true);
       stopMicAnalyser();
       if (recognitionRef.current) { try { recognitionRef.current.abort(); } catch {} recognitionRef.current = null; }
@@ -1546,37 +1551,40 @@ export default function JarvisPage() {
                     transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, scale: { duration: 4, repeat: Infinity, ease: "easeInOut" } }}
                     style={{ background: `radial-gradient(circle at 36% 28%, ${c}50 0%, ${c}16 48%, transparent 75%)`, boxShadow: `inset 0 0 50px ${c}18, 0 0 70px ${c}35, 0 0 130px ${c}12` }}>
                     <motion.div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent, ${c}35, transparent)`, opacity: 0.4 }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
-                    {/* Waveform inside sphere — listening dots or speaking bars, clipped cleanly by circle */}
-                    <AnimatePresence>
-                      {(state === "speaking" || state === "listening") && (
-                        <motion.div key={state} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
-                          className="absolute inset-0 flex items-center justify-center z-10">
-                          <WaveformBars
-                            active={state === "speaking"}
-                            listening={state === "listening"}
-                            color={c}
-                            audioHeights={state === "speaking" ? barHeights : undefined}
-                          />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    {/* Center dot — idle and processing only */}
                     <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 28px ${c}, 0 0 60px ${c}90` }}
-                      animate={{ width: (state === "speaking" || state === "listening") ? 0 : sessionActive ? 15 : 10, height: (state === "speaking" || state === "listening") ? 0 : sessionActive ? 15 : 10, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
+                      animate={{ width: state === "speaking" ? 36 : state === "listening" ? 22 : sessionActive ? 15 : 10, height: state === "speaking" ? 36 : state === "listening" ? 22 : sessionActive ? 15 : 10, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
                   </motion.div>
+
+                  {/* Waveform overlay — centered on ring system, speaking only, scaled up for visibility */}
+                  <AnimatePresence>
+                    {state === "speaking" && sessionActive && (
+                      <motion.div
+                        key="waveform-overlay"
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="absolute z-25 pointer-events-none"
+                        style={{ left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}>
+                        <div style={{ transform: "scale(1.6)", transformOrigin: "center" }}>
+                          <WaveformBars active={true} color={c} audioHeights={barHeights} />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
 
-                {/* Perspective grid floor */}
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ width: 900, height: 220 }}>
-                  <div style={{ perspective: "320px", width: "100%", height: "100%" }}>
-                    <motion.div style={{ width: "100%", height: "220%", transformOrigin: "top center", transform: "rotateX(64deg)",
-                      backgroundImage: `linear-gradient(${c}12 1px, transparent 1px), linear-gradient(90deg, ${c}12 1px, transparent 1px)`,
+                {/* Perspective grid floor — fills the bottom dead zone */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ width: 1200, height: 380 }}>
+                  <div style={{ perspective: "440px", width: "100%", height: "100%" }}>
+                    <motion.div style={{ width: "100%", height: "220%", transformOrigin: "top center", transform: "rotateX(67deg)",
+                      backgroundImage: `linear-gradient(${c}20 1px, transparent 1px), linear-gradient(90deg, ${c}20 1px, transparent 1px)`,
                       backgroundSize: "80px 80px" }}
                       animate={{ backgroundPosition: ["0px 0px", "0px 80px"] }}
                       transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }} />
                   </div>
-                  {/* Fade mask at top */}
-                  <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, black 0%, transparent 40%)" }} />
+                  {/* Horizon glow */}
+                  <div className="absolute top-0 left-0 right-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${c}40, transparent)` }} />
+                  {/* Fade mask — shorter so grid is visible higher up */}
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, black 0%, transparent 28%)" }} />
                 </div>
 
                 <div className="mt-8 flex flex-col items-center gap-2.5 relative z-10">
