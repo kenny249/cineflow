@@ -92,8 +92,21 @@ const BAR_PATTERNS = [
 const BAR_DELAYS = [0, 0.09, 0.05, 0.14, 0.07, 0.18, 0.03, 0.12, 0.01, 0.16, 0.08];
 
 const WaveformBars = memo(function WaveformBars({
-  active, color, audioHeights,
-}: { active: boolean; color: string; audioHeights?: number[] }) {
+  active, listening, color, audioHeights,
+}: { active: boolean; listening?: boolean; color: string; audioHeights?: number[] }) {
+  // Listening state: 3 slow-pulse dots — signals "waiting for input", not audio activity
+  if (listening && !active) {
+    return (
+      <div className="flex items-center justify-center gap-3" style={{ height: 52 }}>
+        {[0, 0.28, 0.56].map((delay, i) => (
+          <motion.div key={i} className="rounded-full"
+            style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}, 0 0 20px ${color}60` }}
+            animate={{ width: [5, 10, 5], height: [5, 10, 5], opacity: [0.35, 1, 0.35] }}
+            transition={{ duration: 1.5, delay, repeat: Infinity, ease: "easeInOut" }} />
+        ))}
+      </div>
+    );
+  }
   if (active && audioHeights) {
     return (
       <div className="flex items-center justify-center gap-[3px]" style={{ height: 52 }}>
@@ -647,7 +660,9 @@ export default function JarvisPage() {
   const animFrameRef          = useRef<number | null>(null);
   const transcriptEndRef      = useRef<HTMLDivElement>(null);
   const sendCommandRef        = useRef<(cmd: string) => void>(() => {});
-  const lastSpeechEndRef      = useRef(0); // timestamp when Jarvis last stopped speaking (echo guard)
+  const lastSpeechEndRef      = useRef(0);
+  const pendingTextRef        = useRef("");                                  // accumulated speech segments
+  const finalTimerRef         = useRef<ReturnType<typeof setTimeout> | null>(null); // debounce timer
   const speechStartRef        = useRef(0); // timestamp when Jarvis started speaking (barge-in guard)
   const personalityRef        = useRef<Personality>({ humor: 50, energy: 50, formality: 50 });
   const messagesRef           = useRef<ChatMessage[]>([]);
@@ -739,6 +754,9 @@ export default function JarvisPage() {
   // ── Streaming audio ────────────────────────────────────────────────────────
   const playStreamingAudio = useCallback(async (response: Response, onEnd: () => void) => {
     if (!response.body) { onEnd(); return; }
+    // Cancel any pending debounced command — Jarvis is about to respond
+    if (finalTimerRef.current) { clearTimeout(finalTimerRef.current); finalTimerRef.current = null; }
+    pendingTextRef.current = "";
 
     const canMSE = typeof MediaSource !== "undefined" && MediaSource.isTypeSupported("audio/mpeg");
 
@@ -816,18 +834,14 @@ export default function JarvisPage() {
       const result = e.results[e.resultIndex];
       if (!result?.isFinal) return;
       const text: string = result[0].transcript.trim();
-      const wordCount = text.split(/\s+/).filter(Boolean).length;
-      // Require at least 2 words — single words are almost always TTS echo artifacts
-      if (!text || wordCount < 2) return;
+      if (!text) return;
       // Post-speech echo guard: ignore mic for 2.5s after Jarvis finishes speaking
-      // (room echo of long TTS responses can linger 2-3 seconds)
       if (Date.now() - lastSpeechEndRef.current < 2500) return;
       // No voice barge-in during speaking — use the INTERRUPT button instead
       if (speakingRef.current) return;
       if (processingRef.current) return;
 
-      // Semantic echo detection: discard if transcript matches the start of a recent Jarvis response.
-      // This catches the case where the mic picks up TTS audio even after the cooldown period.
+      // Semantic echo detection
       const normalizedInput = text.toLowerCase().replace(/[.,!?'"]/g, "").trim();
       const recentJarvis = messagesRef.current.filter(m => m.role === "jarvis").slice(-3);
       const isEcho = recentJarvis.some(m => {
@@ -839,10 +853,27 @@ export default function JarvisPage() {
       });
       if (isEcho) return;
 
-      processingRef.current = true;
-      setLastTranscript(text);
-      setCommandCount(c => c + 1);
-      sendCommandRef.current(text);
+      // Debounce + accumulate: the Web Speech API fires isFinal after any brief pause,
+      // even mid-sentence. Accumulate segments and wait 750ms for the speaker to finish
+      // before dispatching the command. This prevents "my name is" being sent before
+      // Kenny says "Kenny Garcia".
+      pendingTextRef.current = pendingTextRef.current
+        ? `${pendingTextRef.current} ${text}`
+        : text;
+      if (finalTimerRef.current) clearTimeout(finalTimerRef.current);
+      finalTimerRef.current = setTimeout(() => {
+        finalTimerRef.current = null;
+        const captured = pendingTextRef.current.trim();
+        pendingTextRef.current = "";
+        if (!captured) return;
+        const words = captured.split(/\s+/).filter(Boolean).length;
+        if (words < 2) return; // still require ≥2 words total
+        if (speakingRef.current || processingRef.current) return;
+        processingRef.current = true;
+        setLastTranscript(captured);
+        setCommandCount(c => c + 1);
+        sendCommandRef.current(captured);
+      }, 750);
     };
 
     rec.onerror = (e: any) => {
@@ -976,6 +1007,8 @@ export default function JarvisPage() {
           .then(r => { setSaveFeedback(r.ok ? "saved" : "error"); setTimeout(() => setSaveFeedback(""), 3000); })
           .catch(() => { setSaveFeedback("error"); setTimeout(() => setSaveFeedback(""), 3000); });
       }
+      if (finalTimerRef.current) { clearTimeout(finalTimerRef.current); finalTimerRef.current = null; }
+      pendingTextRef.current = "";
       conversationActiveRef.current = false;
       processingRef.current = false;
       speakingRef.current = false;
@@ -1002,6 +1035,8 @@ export default function JarvisPage() {
 
   // ── Interrupt ──────────────────────────────────────────────────────────────
   const interrupt = useCallback(() => {
+    if (finalTimerRef.current) { clearTimeout(finalTimerRef.current); finalTimerRef.current = null; }
+    pendingTextRef.current = "";
     processingRef.current = false;
     if (recognitionRef.current) { try { recognitionRef.current.abort(); } catch {} recognitionRef.current = null; }
     stopAudio();
@@ -1143,10 +1178,10 @@ export default function JarvisPage() {
       <div className="flex h-full w-full pt-[58px] pb-[62px]">
         <AnimatePresence mode="wait">
           {viewMode === "voice" ? (
-            <motion.div key="voice" className="flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+            <motion.div key="voice" className="relative flex h-full w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
 
-              {/* Left metrics — HUD panel */}
-              <div className="w-56 shrink-0 flex flex-col p-4 gap-1.5 overflow-hidden" style={{ borderRight: `1px solid ${sessionActive ? c + "20" : "rgba(255,255,255,0.05)"}` }}>
+              {/* Left metrics — HUD panel; floats as overlay in compact so orb can center in full viewport */}
+              <div className={`${isCompact ? "absolute left-0 top-0 bottom-0 z-10 w-56" : "w-56 shrink-0"} flex flex-col p-4 gap-1.5 overflow-hidden`} style={{ borderRight: `1px solid ${sessionActive ? c + "20" : "rgba(255,255,255,0.05)"}`, background: isCompact ? "rgba(0,0,0,0.85)" : "transparent" }}>
                 {/* Panel scan line */}
                 <motion.div className="pointer-events-none absolute left-0 w-56 h-px z-10" style={{ background: `linear-gradient(90deg, transparent, ${c}30, transparent)` }} animate={{ top: ["8%", "92%"] }} transition={{ duration: 6, repeat: Infinity, ease: "linear", repeatType: "reverse" }} />
 
@@ -1195,8 +1230,8 @@ export default function JarvisPage() {
                 </div>
               </div>
 
-              {/* Center orb */}
-              <div className="relative flex-1 flex flex-col items-center justify-center">
+              {/* Center orb — absolute inset in compact so it spans full viewport width */}
+              <div className={`${isCompact ? "absolute inset-0" : "relative flex-1"} flex flex-col items-center justify-center`}>
                 <div className="absolute inset-0 pointer-events-none">
                   <div className="absolute top-0 bottom-0 left-1/2 w-px bg-gradient-to-b from-transparent via-white/[0.02] to-transparent" />
                   <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-transparent via-white/[0.02] to-transparent" />
@@ -1247,23 +1282,36 @@ export default function JarvisPage() {
 
                   {/* Glowing border ring — always breathes */}
                   <motion.div className="absolute rounded-full border pointer-events-none" style={{ borderColor: `${c}60` }}
-                    animate={{ width: sessionActive ? 152 : 132, height: sessionActive ? 152 : 132, boxShadow: sessionActive ? [`0 0 12px ${c}30`, `0 0 40px ${c}60`, `0 0 12px ${c}30`] : [`0 0 6px ${c}12`, `0 0 20px ${c}30`, `0 0 6px ${c}12`] }}
+                    animate={{ width: sessionActive ? 192 : 168, height: sessionActive ? 192 : 168, boxShadow: sessionActive ? [`0 0 16px ${c}35`, `0 0 50px ${c}65`, `0 0 16px ${c}35`] : [`0 0 8px ${c}15`, `0 0 26px ${c}35`, `0 0 8px ${c}15`] }}
                     transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, boxShadow: { duration: sessionActive ? 1.8 : 3.5, repeat: Infinity } }} />
 
                   {/* Core sphere — breathes in idle too */}
                   <motion.div className="relative z-10 rounded-full flex items-center justify-center overflow-hidden"
-                    animate={{ width: sessionActive ? 130 : 112, height: sessionActive ? 130 : 112, scale: state === "idle" ? [1, 1.03, 1] : 1 }}
+                    animate={{ width: sessionActive ? 170 : 148, height: sessionActive ? 170 : 148, scale: state === "idle" ? [1, 1.03, 1] : 1 }}
                     transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, scale: { duration: 4, repeat: Infinity, ease: "easeInOut" } }}
-                    style={{ background: `radial-gradient(circle at 36% 28%, ${c}50 0%, ${c}16 48%, transparent 75%)`, boxShadow: `inset 0 0 36px ${c}14, 0 0 50px ${c}28, 0 0 100px ${c}10` }}>
-                    <motion.div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent, ${c}30, transparent)`, opacity: 0.35 }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
-                    <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 22px ${c}, 0 0 50px ${c}90` }}
-                      animate={{ width: state === "speaking" ? 28 : state === "listening" ? 18 : sessionActive ? 12 : 8, height: state === "speaking" ? 28 : state === "listening" ? 18 : sessionActive ? 12 : 8, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
+                    style={{ background: `radial-gradient(circle at 36% 28%, ${c}50 0%, ${c}16 48%, transparent 75%)`, boxShadow: `inset 0 0 50px ${c}18, 0 0 70px ${c}35, 0 0 130px ${c}12` }}>
+                    <motion.div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent, ${c}35, transparent)`, opacity: 0.4 }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
+                    <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 28px ${c}, 0 0 60px ${c}90` }}
+                      animate={{ width: state === "speaking" ? 36 : state === "listening" ? 22 : sessionActive ? 15 : 10, height: state === "speaking" ? 36 : state === "listening" ? 22 : sessionActive ? 15 : 10, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
                   </motion.div>
+                </div>
+
+                {/* Perspective grid floor */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ width: 900, height: 220 }}>
+                  <div style={{ perspective: "320px", width: "100%", height: "100%" }}>
+                    <motion.div style={{ width: "100%", height: "220%", transformOrigin: "top center", transform: "rotateX(64deg)",
+                      backgroundImage: `linear-gradient(${c}12 1px, transparent 1px), linear-gradient(90deg, ${c}12 1px, transparent 1px)`,
+                      backgroundSize: "80px 80px" }}
+                      animate={{ backgroundPosition: ["0px 0px", "0px 80px"] }}
+                      transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }} />
+                  </div>
+                  {/* Fade mask at top */}
+                  <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, black 0%, transparent 40%)" }} />
                 </div>
 
                 <div className="mt-8 flex flex-col items-center gap-2.5">
                   <div className="flex items-center justify-center">
-                    <WaveformBars active={state === "listening" || state === "speaking"} color={c} audioHeights={state === "speaking" ? barHeights : undefined} />
+                    <WaveformBars active={state === "speaking"} listening={state === "listening"} color={c} audioHeights={state === "speaking" ? barHeights : undefined} />
                   </div>
 
                   <AnimatePresence mode="wait">
