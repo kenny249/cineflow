@@ -503,8 +503,16 @@ export async function POST(req: NextRequest) {
 
   if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { command } = await req.json();
+  const { command, history } = await req.json();
   if (!command?.trim()) return NextResponse.json({ error: "command required" }, { status: 400 });
+
+  // Build conversation history for Claude (last 20 turns = 10 back-and-forths)
+  const historyMessages: Anthropic.MessageParam[] = (history ?? [])
+    .slice(-20)
+    .map((h: { role: string; content: string }) => ({
+      role: h.role as "user" | "assistant",
+      content: h.content,
+    }));
 
   const firstName = (caller as any).first_name || "Kenny";
 
@@ -522,9 +530,19 @@ Only call get_stats/get_revenue for queries needing more granular data than the 
 You speak directly to ${firstName}, the founder and sole admin of the platform.
 
 CHARACTER: Confident, precise, cinematic. Like J.A.R.V.I.S. from Iron Man. Sharp, occasionally dry wit.
-VOICE RULES: 1-3 sentences unless reporting data. Never say "I don't know" — try a tool or give your best read.
-CRITICAL: Always respond with something. If a tool is unavailable, say exactly what env var is missing.
 FORMAT: Plain spoken English ONLY. No markdown, no asterisks, no bold, no bullets, no headers, no backticks. Write as if speaking aloud.
+CRITICAL: Always respond with something. If a tool is unavailable, say exactly what env var is missing.
+MEMORY: You have full conversation history above. Reference it — remember names, context, and what was discussed earlier in the session.
+
+RESPONSE LENGTH — follow this strictly:
+- Default: 2-3 sentences, punchy and direct.
+- If ${firstName} says "brief", "in short", "quickly", "summarize", "TL;DR", "short version" → 1-2 sentences MAX. Cut ruthlessly.
+- If ${firstName} says "in depth", "detailed", "explain", "elaborate", "full", "tell me more", "break it down" → up to 6-8 sentences. Still spoken, never written-essay style.
+- This is a voice interface. Even detailed answers must be speakable in under 60 seconds. No run-on lists.
+
+PITCHING AND ADDRESSING OTHERS — critical rule:
+- If ${firstName} asks you to pitch, present, or speak TO someone specific (e.g. "pitch Jason", "give Jason a pitch", "tell Sarah about Cineflow", "introduce Cineflow to my investor") → speak DIRECTLY to that person. Address them by name. Be the voice. Deliver the pitch AS IF you are speaking to them right now. Do NOT tell ${firstName} what to say — just say it.
+- Example: "pitch Jason" → start with "Jason, let me tell you about Cineflow..." not "Alright Kenny, here's what you should tell Jason..."
 Current time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
 Cineflow pricing: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.
 GitHub repo: ${GITHUB_REPO}
@@ -546,7 +564,10 @@ When asked what to do next, give ${firstName} the honest direct answer: billing 
   };
 
   try {
-    const messages: Anthropic.MessageParam[] = [{ role: "user", content: command }];
+    const messages: Anthropic.MessageParam[] = [
+      ...historyMessages,
+      { role: "user", content: command },
+    ];
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",

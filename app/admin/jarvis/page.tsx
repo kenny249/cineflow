@@ -568,10 +568,16 @@ export default function JarvisPage() {
     setMessages(prev => [...prev, { role: "user", text: command, ts: new Date() }]);
 
     try {
+      // Pass conversation history so Jarvis has full session memory
+      const history = messages.slice(-20).map(m => ({
+        role: m.role === "jarvis" ? "assistant" : "user",
+        content: m.text,
+      }));
+
       const res = await fetch("/api/admin/jarvis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command }),
+        body: JSON.stringify({ command, history }),
       });
 
       const latencyMs = Date.now() - t0;
