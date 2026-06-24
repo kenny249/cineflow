@@ -669,8 +669,10 @@ Competitors: StudioBinder ($29–$299/mo), Celtx ($15–$30/mo), Movie Magic (en
 
 STRATEGY:
 Beta. ${firstName} runs everything solo.
-#1 — Stripe billing broken: MRR $0 despite paid users. Lifetime deals only. Fix this first.
-#2 — Activation dead: zero users active last 7 days. Need re-engagement push.
+LIFETIME CONTEXT (critical — do not misread this as a Stripe bug):
+All "lifetime" users in the DB are ${firstName}'s friends and early supporters who were manually granted lifetime access for FREE. They did not pay. This was intentional. MRR = $0 is expected and correct — no paying subscription customers exist yet because Stripe billing has not been wired up to collect recurring payments. The lifetime plan shows $0 because these are gifted seats, not $299 purchases. Never suggest Stripe is broken because of this. The actual issue is: no subscription billing flow exists yet to convert new signups into paying subscribers.
+#1 — Wire Stripe billing: build the subscription checkout flow so new users can actually pay.
+#2 — Activation dead: zero users active last 7 days. Need re-engagement push to gifted lifetime users first.
 Roadmap: Stripe → landing page → Google OAuth → referrals → out of beta.
 
 Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
