@@ -39,8 +39,6 @@ async function requireAdmin() {
 // ── Stats cache — 60s TTL so Supabase isn't hit on every voice command ─────────
 let _statsCache: { data: any; ts: number } | null = null;
 
-// ── Context stats (injected into system prompt to skip tool calls) ─────────────
-
 async function fetchContextStats() {
   const now = Date.now();
   if (_statsCache && now - _statsCache.ts < 60_000) return _statsCache.data;
@@ -122,9 +120,7 @@ async function executeGetUser(args: { query: string }) {
   const admin = getAdmin();
   const { data: { users } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   const q = args.query.toLowerCase();
-  const match = users.find((u: any) =>
-    u.email?.toLowerCase().includes(q)
-  );
+  const match = users.find((u: any) => u.email?.toLowerCase().includes(q));
   if (!match) return { error: `No user found matching "${args.query}"` };
   const { data: profile } = await admin.from("profiles").select("*").eq("id", match.id).single();
   return {
@@ -144,7 +140,6 @@ async function executeGetReferrals() {
   const emailMap = Object.fromEntries(users.map((u: any) => [u.id, u.email ?? ""]));
   const profileMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p]));
 
-  // Group by referrer
   const referred = (profiles ?? []).filter((p: any) => p.referred_by);
   const byReferrer: Record<string, { code: string; count: number; email: string; name: string; referrals: any[] }> = {};
 
@@ -237,6 +232,32 @@ async function executeSendBroadcast(args: { segment: string; subject: string; me
   return { sent, total: recipients.length, segment: args.segment };
 }
 
+async function executeSendPersonalEmail(args: { user_query: string; subject: string; message: string }) {
+  if (!process.env.RESEND_API_KEY) return { error: "Email not configured" };
+  const admin = getAdmin();
+  const q = args.user_query.toLowerCase();
+  const { data: { users } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const match = users.find((u: any) =>
+    u.email?.toLowerCase().includes(q)
+  );
+  if (!match) return { error: `No user found matching "${args.user_query}"` };
+  if (match.email?.endsWith("@demo.usecineflow.com")) return { error: "Cannot email demo accounts" };
+
+  const { data: profile } = await admin.from("profiles").select("first_name").eq("id", match.id).single();
+  const name = profile?.first_name || "there";
+
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const { error } = await resend.emails.send({
+    from: "Kenny at Cineflow <kenny@usecineflow.com>",
+    to: match.email!,
+    subject: args.subject,
+    html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px"><p>Hi ${name},</p><p>${args.message.replace(/\n/g,"<br/>")}</p><p style="margin-top:24px;color:#666;font-size:12px">— Kenny<br/>Cineflow</p></div>`,
+  });
+
+  if (error) return { error: String(error) };
+  return { sent: true, to: match.email, subject: args.subject };
+}
+
 async function executeCreateAnnouncement(args: { message: string; type?: string }) {
   const admin = getAdmin();
   const { data, error } = await admin.from("announcements").insert({ message: args.message, type: args.type ?? "info", is_active: true }).select().single();
@@ -249,6 +270,48 @@ async function executeToggleFeatureFlag(args: { key: string; enabled: boolean })
   const { error } = await admin.from("feature_flags").update({ enabled: args.enabled, updated_at: new Date().toISOString() }).eq("key", args.key);
   if (error) return { error: error.message };
   return { toggled: true, key: args.key, enabled: args.enabled };
+}
+
+async function executeManageUser(args: { user_query: string; action: "extend_trial" | "change_plan" | "grant_access" | "revoke_access"; days?: number; plan?: string }, callerId: string) {
+  const admin = getAdmin();
+  const q = args.user_query.toLowerCase();
+  const { data: { users } } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const match = users.find((u: any) => u.email?.toLowerCase().includes(q));
+  if (!match) return { error: `No user found matching "${args.user_query}"` };
+
+  let update: Record<string, any> = {};
+  let description = "";
+
+  if (args.action === "extend_trial") {
+    const { data: profile } = await admin.from("profiles").select("trial_ends_at").eq("id", match.id).single();
+    const current = profile?.trial_ends_at ? new Date(profile.trial_ends_at) : new Date();
+    const baseline = current > new Date() ? current : new Date();
+    const newDate = new Date(baseline.getTime() + (args.days ?? 7) * 86400000);
+    update = { trial_ends_at: newDate.toISOString(), plan_status: "trialing" };
+    description = `Trial extended by ${args.days ?? 7} days — now expires ${newDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+  } else if (args.action === "change_plan" || args.action === "grant_access") {
+    const plan = args.plan ?? "solo";
+    update = { plan, plan_status: "active" };
+    description = `Plan changed to ${plan} (active)`;
+  } else if (args.action === "revoke_access") {
+    const pastDate = new Date(Date.now() - 86400000).toISOString();
+    update = { plan_status: "trialing", trial_ends_at: pastDate };
+    description = "Access revoked — trial set to expired";
+  }
+
+  const { error } = await admin.from("profiles").update(update).eq("id", match.id);
+  if (error) return { error: error.message };
+
+  try {
+    await admin.from("admin_audit_log").insert({
+      actor_id: callerId,
+      action: `jarvis_manage_user_${args.action}`,
+      target_type: "user",
+      metadata: { user_email: match.email, user_id: match.id, ...update },
+    });
+  } catch {}
+
+  return { success: true, user: match.email, action: args.action, description };
 }
 
 // ── GitHub codebase tools ──────────────────────────────────────────────────────
@@ -266,7 +329,6 @@ async function executeReadFile(args: { path: string }) {
   const data = await githubFetch(`/repos/${GITHUB_REPO}/contents/${args.path}`);
   if (!data || data.type !== "file") return { error: `File not found: ${args.path}` };
   const content = Buffer.from(data.content, "base64").toString("utf-8");
-  // Truncate large files
   const lines = content.split("\n");
   const truncated = lines.length > 150;
   return {
@@ -329,6 +391,41 @@ async function executeGetAtRiskUsers(args?: { days?: number }) {
     .map((p: any) => ({ email: emailMap[p.id] ?? "unknown", plan: p.plan, trialEnds: p.trial_ends_at, daysLeft: Math.ceil((new Date(p.trial_ends_at).getTime() - Date.now()) / 86400000) }))
     .sort((a: any, b: any) => a.daysLeft - b.daysLeft);
   return { withinDays: days, count: atRisk.length, users: atRisk };
+}
+
+async function executeGetTrend(args?: { days?: number }) {
+  const admin = getAdmin();
+  const days = args?.days ?? 7;
+  const cutoffDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+
+  const [current, { data: snapshots }] = await Promise.all([
+    fetchContextStats(),
+    admin.from("jarvis_metrics_snapshots").select("snapshot_date, data").lte("snapshot_date", cutoffDate).order("snapshot_date", { ascending: false }).limit(1),
+  ]);
+
+  if (!snapshots?.length) {
+    return {
+      error: "No historical snapshot available yet.",
+      note: "The daily cron runs at 7am UTC. Snapshots will be available after the first run. Try again tomorrow.",
+      current: { total: current.total, signupsWeek: current.signupsWeek, paid: current.paid, mrr: current.mrr },
+    };
+  }
+
+  const past = snapshots[0].data as any;
+  const sign = (n: number) => n > 0 ? `+${n}` : String(n);
+
+  return {
+    period: `${days} days`,
+    snapshotDate: snapshots[0].snapshot_date,
+    current:  { total: current.total, signupsWeek: current.signupsWeek, paid: current.paid, mrr: current.mrr },
+    past:     { total: past.total,    signupsWeek: past.signupsWeek,    paid: past.paid,    mrr: past.mrr    },
+    changes: {
+      totalUsers:  { delta: current.total - past.total,                   label: sign(current.total - past.total) + " users" },
+      signupsWeek: { delta: current.signupsWeek - (past.signupsWeek ?? 0), label: sign(current.signupsWeek - (past.signupsWeek ?? 0)) + " weekly signups" },
+      paid:        { delta: current.paid - past.paid,                      label: sign(current.paid - past.paid) + " paid" },
+      mrr:         { delta: current.mrr - past.mrr,                        label: sign(current.mrr - past.mrr) + " MRR" },
+    },
+  };
 }
 
 async function executeSaveMemory(args: { key: string; value: string }, adminId: string) {
@@ -482,6 +579,19 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "send_personal_email",
+    description: "Send a personal email directly to one specific user. Use when Kenny wants to reach out to an individual user — not a broadcast.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        user_query: { type: "string", description: "Email address or name of the user to email" },
+        subject:    { type: "string" },
+        message:    { type: "string", description: "Email body — friendly, personal tone from Kenny" },
+      },
+      required: ["user_query", "subject", "message"],
+    },
+  },
+  {
     name: "create_announcement",
     description: "Create an in-app announcement banner for all users.",
     input_schema: {
@@ -500,6 +610,20 @@ const TOOLS: Anthropic.Tool[] = [
       type: "object" as const,
       properties: { key: { type: "string" }, enabled: { type: "boolean" } },
       required: ["key","enabled"],
+    },
+  },
+  {
+    name: "manage_user",
+    description: "Take action on a specific user account: extend their trial, change their plan, grant full access, or revoke access. Use when Kenny says things like 'give John two more weeks', 'upgrade Sarah to Studio', or 'cut off access for X'.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        user_query: { type: "string", description: "Email address or name of the user" },
+        action: { type: "string", enum: ["extend_trial", "change_plan", "grant_access", "revoke_access"] },
+        days: { type: "number", description: "For extend_trial: number of days to add (default 7)" },
+        plan: { type: "string", enum: ["solo", "studio", "agency", "enterprise", "lifetime"], description: "For change_plan / grant_access: the plan to assign" },
+      },
+      required: ["user_query", "action"],
     },
   },
   {
@@ -542,6 +666,14 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "get_trend",
+    description: "Compare current stats to a snapshot from N days ago to see what changed — signups, paid users, MRR. Use when Kenny asks 'how are we doing compared to last week' or 'what's changed'.",
+    input_schema: {
+      type: "object" as const,
+      properties: { days: { type: "number", description: "How far back to compare (default 7)" } },
+    },
+  },
+  {
     name: "save_memory",
     description: "Save an important fact to long-term memory so Jarvis remembers it across sessions. Use when Kenny mentions a person's name, a key decision, a business goal, or any context worth retaining. Keep the key short and descriptive.",
     input_schema: {
@@ -559,7 +691,7 @@ const TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: "object" as const,
       properties: {
-        key: { type: "string", description: "The exact memory key to delete. If unsure of the exact key, use save_memory to list what you know, then delete the right one." },
+        key: { type: "string", description: "The exact memory key to delete." },
       },
       required: ["key"],
     },
@@ -609,24 +741,23 @@ const TOOLS: Anthropic.Tool[] = [
 
 function cleanForSpeech(text: string): string {
   return text
-    .replace(/```[\s\S]*?```/g, "")           // fenced code blocks
-    .replace(/`([^`]+)`/g, "$1")              // inline code
-    .replace(/\*{3}(.+?)\*{3}/g, "$1")       // ***bold italic***
-    .replace(/\*{2}(.+?)\*{2}/g, "$1")       // **bold**
-    .replace(/\*(.+?)\*/g, "$1")             // *italic*
-    .replace(/^#{1,6}\s+/gm, "")             // # headings
-    .replace(/^[-_*]{3,}$/gm, "")            // --- horizontal rules
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [link](url) → text only
-    .replace(/^[-*+]\s+/gm, "")              // - bullet points
-    .replace(/^\d+\.\s+/gm, "")              // 1. numbered lists
-    .replace(/^>\s+/gm, "")                  // > blockquotes
-    // Number normalization for natural TTS
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\*{3}(.+?)\*{3}/g, "$1")
+    .replace(/\*{2}(.+?)\*{2}/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^[-_*]{3,}$/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^[-*+]\s+/gm, "")
+    .replace(/^\d+\.\s+/gm, "")
+    .replace(/^>\s+/gm, "")
     .replace(/\$(\d[\d,]*(?:\.\d+)?)/g, (_, n) => n.replace(/,/g, "") + " dollars")
     .replace(/(\d[\d,]*(?:\.\d+)?)%/g, (_, n) => n.replace(/,/g, "") + " percent")
     .replace(/(\d+(?:\.\d+)?)ms\b/g, "$1 milliseconds")
     .replace(/\b(\d+(?:\.\d+)?)s\b/g, "$1 seconds")
-    .replace(/(\d{1,3}),(\d{3})\b/g, "$1$2") // 1,234 → 1234
-    .replace(/\n\n+/g, ". ")                 // paragraph breaks → pause
+    .replace(/(\d{1,3}),(\d{3})\b/g, "$1$2")
+    .replace(/\n\n+/g, ". ")
     .replace(/\n/g, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
@@ -641,7 +772,7 @@ function truncateForTTS(text: string, maxChars = 1400): string {
   return (last > maxChars * 0.5 ? chunk.slice(0, last + 1) : chunk).trim();
 }
 
-async function streamTTS(text: string): Promise<Response | null> {
+async function streamTTS(text: string, speed = 1.0): Promise<Response | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "onwK4e9ZLuTAKqWW03F9";
   if (!apiKey) return null;
@@ -654,6 +785,7 @@ async function streamTTS(text: string): Promise<Response | null> {
         text: truncateForTTS(text),
         model_id: "eleven_turbo_v2_5",
         voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.15, use_speaker_boost: true },
+        speed: Math.max(0.7, Math.min(1.4, speed)),
       }),
     });
     return res.ok ? res : null;
@@ -677,29 +809,26 @@ function audioResponse(stream: Response, text: string, toolsUsed = "") {
 // ── Main handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Auth + stats in parallel — stats uses 60s cache so usually instant
   const [caller, liveData] = await Promise.all([
     requireAdmin(),
     fetchContextStats().catch(() => null),
   ]);
   if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { command, history, personality } = await req.json();
+  const { command, history, personality, voiceSpeed } = await req.json();
   if (!command?.trim()) return NextResponse.json({ error: "command required" }, { status: 400 });
 
   const adminId = caller.id;
   const firstName = (caller as any).first_name || "Kenny";
   const admin = getAdmin();
+  const ttsSpeed = Math.max(0.7, Math.min(1.4, voiceSpeed ?? 1.0));
 
-  // Load long-term memories in parallel with nothing else blocking (fast)
-  const { data: memories } = await admin
-    .from("jarvis_memory")
-    .select("key, value")
-    .eq("admin_id", adminId)
-    .order("updated_at", { ascending: false })
-    .limit(30);
+  // Load memories and last 3 session summaries in parallel
+  const [{ data: memories }, { data: sessionSummaries }] = await Promise.all([
+    admin.from("jarvis_memory").select("key, value").eq("admin_id", adminId).order("updated_at", { ascending: false }).limit(30),
+    admin.from("jarvis_session_summaries").select("summary, created_at").eq("admin_id", adminId).order("created_at", { ascending: false }).limit(3),
+  ]);
 
-  // Trim history to 10 messages — cuts input tokens ~50% vs 20
   const historyMessages: Anthropic.MessageParam[] = (() => {
     const raw: Anthropic.MessageParam[] = (history ?? [])
       .slice(-10)
@@ -715,7 +844,6 @@ export async function POST(req: NextRequest) {
     return out;
   })();
 
-  // Personality dials (0–100 each)
   const humor     = Math.max(0, Math.min(100, personality?.humor     ?? 50));
   const energy    = Math.max(0, Math.min(100, personality?.energy    ?? 50));
   const formality = Math.max(0, Math.min(100, personality?.formality ?? 50));
@@ -730,8 +858,17 @@ These are NOT suggestions. Actively adjust your voice on every reply to match th
     ? `\n\nJARVIS LONG-TERM MEMORY — facts saved across sessions:\n${memories.map((m: any) => `- ${m.key}: ${m.value}`).join("\n")}\nUse save_memory to add new facts worth keeping.`
     : "\n\nNo long-term memories saved yet. Use save_memory when Kenny mentions something worth keeping across sessions.";
 
+  const summaryBlock = sessionSummaries?.length
+    ? `\n\nRECENT SESSION MEMORY — what you discussed in your last ${sessionSummaries.length} session${sessionSummaries.length > 1 ? "s" : ""} (your own memory of prior conversations, already happened):\n${[...sessionSummaries].reverse().map((s: any) => `- ${new Date(s.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}: ${s.summary}`).join("\n")}`
+    : "";
+
   const dataBlock = liveData
     ? `\n\nLIVE DATA — use directly, no tool call needed:\n- Users: ${liveData.total} | Today: ${liveData.signupsToday} | Week: ${liveData.signupsWeek} | Active/7d: ${liveData.activeLastWeek}\n- Paid: ${liveData.paid} | Trialing: ${liveData.trialing} | Expired: ${liveData.expired}\n- MRR: $${liveData.mrr} | ARR: $${liveData.arr} | Plans: ${JSON.stringify(liveData.breakdown)}\n- BILLING NOTE: "Paid" includes lifetime plan holders ($299 one-time). Lifetime plans generate $0 MRR by design — they are NOT subscriptions. If MRR=$0 while paid>0, those users are on lifetime plans, which is expected and intentional. Stripe checkout IS fully wired and working for both subscriptions and lifetime purchases. Do NOT say Stripe needs to be built or that users cannot convert — they already can.`
+    : "";
+
+  const isBrief = command.trim() === "__morning_brief__";
+  const briefBlock = isBrief
+    ? "\n\nMORNING BRIEF — AUTO-TRIGGERED. No greeting. No preamble. Hit it immediately. Exactly 3 punchy sentences: (1) total users and week-over-week signups, (2) MRR or key revenue fact, (3) the single most urgent action right now. Maximum 15 seconds of speech total. Use LIVE DATA block directly — zero tool calls. Sound like a war room briefing."
     : "";
 
   const systemPrompt = `You are Jarvis — the AI command intelligence for Cineflow, a film production SaaS.
@@ -764,64 +901,7 @@ An all-in-one production management platform built for ANY filmmaker or video cr
 TARGET CUSTOMERS: Solo creators and freelancers (YouTube, Instagram, TikTok, wedding videographers, corporate video), indie film producers, commercial production houses, agency video departments, music video directors, documentary filmmakers, film schools, any filmmaker who manages clients, crew, or projects. You don't need a big crew to benefit — a solo creator with 2 clients and a few shoot days gets massive value from Cineflow's quote builder, invoicing, contracts, and call sheets. The platform scales from "just me" to teams of 50+.
 
 WHY CINEFLOW SAVES REAL MONEY:
-On a 5-day shoot with 20 crew, a production coordinator spends 2-3 hours per day rebuilding and distributing call sheets manually. At $25/hr that's $250-375/day — $1,250-1,875 per shoot just in coordinator time. Cineflow auto-generates and distributes in under 2 minutes. Contracts: DocuSign costs $25+/mo — Cineflow has built-in e-signatures. Invoicing: QuickBooks $30+/mo — Cineflow handles invoices and Stripe payment links built in. Compared to running StudioBinder Agency ($299/mo) + DocuSign ($25/mo) + QuickBooks ($30/mo) = $354/mo, Cineflow Agency at $159/mo saves $195/mo — $2,340/year. For a solo producer on Solo plan at $39/mo vs StudioBinder at $29+ for basic features, Cineflow has 10x more production-specific tools.
-
-FEATURES — EVERY SINGLE ONE:
-1. CALL SHEETS: AI-generated from project data. Auto-populates crew names, roles, contact info, call times, location details, schedule. Shareable via link, downloadable as PDF. Crew gets one link, always current. No more reprinting. Refinement tool lets you adjust AI output. Venue lookup fills location details automatically. Built at: app/(app)/projects/[id]/page.tsx, api/call-sheet/generate, api/call-sheet/pdf, api/call-sheet/refine, api/call-sheet/venue-lookup.
-
-2. CREW MANAGEMENT: Full crew roster with roles, contacts, department. Drag-to-reorder within departments. Coverage assignment editor — assign crew to specific shoot days. Built at: app/(app)/crew/page.tsx. Coverage logic in projects/[id] page.
-
-3. PROJECTS: Multi-project dashboard. Each project has shoot days, crew assignments, call sheets, collaborators, messages, and shot lists. Sharable collab link for clients/crew. Built at: app/(app)/projects/, api/projects/[id]/.
-
-4. SCHEDULING / CALENDAR: Production calendar with iCal export token for syncing to Google/Apple Calendar. Automated reminders via cron. Built at: app/(app)/calendar/, api/calendar/, api/cron/calendar-reminders.
-
-5. CONTRACTS: Create, send, and collect digital e-signatures. Certificate of insurance tracking. Built at: app/(app)/contracts/, api/contracts/ (generate, send, sign, stamp, certificate).
-
-6. INVOICES: Create invoices with line items, send to clients, collect payment via Stripe payment link. Automated payment reminders via cron. PDF export. Built at: api/invoices/ (pdf, send, stripe-link, confirm-payment, reminders).
-
-7. QUOTES: AI-powered quote generation — describe the project, AI generates scope and package options. Client-facing quote link. Accept flow converts to project or invoice. Built at: app/(app)/quote-calculator/, api/ai/quote-scope, api/ai/quote-packages, api/quotes/.
-
-8. RETAINERS: Manage recurring client relationships. Monthly scope, deliverable tracking, client portal with branded link. AI retainer scope generation. Built at: app/(app)/retainers/, api/retainers/, api/retainer-portal/[token], api/ai/retainer-scope.
-
-9. CLIENTS: Client database with project history. Client-facing portal with token-based access. Built at: app/(app)/clients/, api/client/[token].
-
-10. BOARDS (KANBAN): Draggable kanban boards for production tasks. AI card generation. Built at: app/(app)/boards/, api/ai/board-card.
-
-11. SCRIPTS + BREAKDOWN: Upload/paste scripts, AI-powered scene breakdown — extracts locations, cast, props, special equipment per scene. Built at: app/(app)/scripts/, api/scripts/breakdown.
-
-12. SHOT LISTS: Structured shot list builder per project. Built at: app/(app)/shot-lists/.
-
-13. STORYBOARD: Storyboard management with shareable link. Built at: app/(app)/storyboard/, api/storyboard-share.
-
-14. FORMS: Custom intake/release forms. Send to crew/talent via email. Token-based response collection. Built at: app/(app)/forms/, api/forms/.
-
-15. TASKS / PROJECT TASKS: Task management with Kanban view. Built at: app/(app)/tasks/, app/(app)/project-tasks/.
-
-16. REVISION REVIEW: Client review portal for deliverables with frame-level feedback. Built at: api/review/[token]/.
-
-17. FINANCE DASHBOARD: Revenue overview, invoice tracking. Built at: app/(app)/finance/.
-
-18. TEAM: Invite team members to a workspace. Role-based access. Built at: app/(app)/team/, api/team/invite.
-
-19. COLLAB PORTAL: Client/collaborator-facing project view — tasks, notes, schedule, shot items, files. Token-based, no login required. Built at: app/(collab)/collab/[projectId]/, api/collab/[projectId]/.
-
-20. BROADCAST: Admin-triggered email broadcasts to user segments. Built at: app/admin/broadcast/, api/admin/broadcast.
-
-21. IN-APP ANNOUNCEMENTS: Banner announcements shown to all users. Built at: app/admin/announcements/.
-
-22. REFERRAL SYSTEM: Custom referral codes, referral tracking. Built at: api/referrals/code.
-
-23. INVITE LINKS: Shareable beta invite links with usage tracking. Built at: app/admin/invite-links/, api/admin/invite-links/.
-
-24. STUDIO BRANDING: Custom logo, colors for the workspace. Built at: api/studio-branding, api/upload/logo.
-
-25. AI TRANSCRIPTION: Upload audio/video, AI transcribes. PDF transcription also. Built at: api/transcribe/ (route, ai, pdf, prepare).
-
-26. AI BRIEF IMPORT: Paste a client brief, AI parses it into a structured project. Built at: api/ai/import-brief, api/admin/brief/.
-
-27. MAC DESKTOP APP: Electron wrapper of usecineflow.com. .dmg hosted on Vercel Blob. Smart Mac-only dashboard banner (dismissible, stored in Supabase). Download tracked.
-
-28. DEMO MODE: Full interactive demo without signup. Auto-cleans via cron. Built at: api/demo/start, api/cron/cleanup-demo.
+On a 5-day shoot with 20 crew, a production coordinator spends 2-3 hours per day rebuilding and distributing call sheets manually. At $25/hr that's $250-375/day — $1,250-1,875 per shoot just in coordinator time. Cineflow auto-generates and distributes in under 2 minutes. Contracts: DocuSign costs $25+/mo — Cineflow has built-in e-signatures. Invoicing: QuickBooks $30+/mo — Cineflow handles invoices and Stripe payment links built in. Compared to running StudioBinder Agency ($299/mo) + DocuSign ($25/mo) + QuickBooks ($30/mo) = $354/mo, Cineflow Agency at $159/mo saves $195/mo — $2,340/year.
 
 COMPETITORS vs CINEFLOW:
 StudioBinder: $29 (Indie) to $299 (Studio) per month. Call sheets, scripts, scheduling — but no invoices, no contracts, no client portals, no AI quote generation. UI feels like a form tool.
@@ -831,22 +911,22 @@ Frame.io: Review/collab only, $15-80/mo. No production management.
 Cineflow Agency at $159/mo does what a $354+/mo stack does. Built by a filmmaker, for filmmakers.
 
 ═══════════════════════════════════════════════════════════
-CODEBASE — FULL MAP (use read_file / search_codebase for any file)
+CODEBASE — FULL MAP
 ═══════════════════════════════════════════════════════════
 
 TECH STACK: Next.js 15 App Router, TypeScript, Tailwind CSS, Framer Motion, Supabase (auth + Postgres + storage + SSR), Anthropic Claude API (claude-sonnet-4-6 for AI features), ElevenLabs (Jarvis TTS), Stripe (billing — fully wired: subscription checkout, webhook handling, plan upgrades, payment links on invoices), Vercel (hosting, auto-deploys from GitHub main on push).
 
 REPO: ${GITHUB_REPO}
 KEY DIRECTORIES:
-app/(app)/          — all authenticated user-facing pages (dashboard, projects, crew, call sheets, etc.)
+app/(app)/          — all authenticated user-facing pages
 app/(auth)/         — login, signup, forgot-password pages
 app/(collab)/       — unauthenticated client/crew collab portal
 app/admin/          — admin-only pages (users, analytics, broadcast, Jarvis, etc.)
 app/api/            — all API routes, organized by feature
 app/api/admin/      — admin-only APIs (user management, broadcast, feature flags, Jarvis)
-app/api/ai/         — AI-powered generation endpoints (quote, brief, retainer, board, breakdown)
+app/api/ai/         — AI-powered generation endpoints
 app/api/stripe/     — Stripe checkout, customer portal, webhook handler
-app/api/cron/       — scheduled jobs (trial reminders, invoice reminders, calendar reminders, demo cleanup)
+app/api/cron/       — scheduled jobs (trial reminders, invoice reminders, calendar reminders, demo cleanup, jarvis-snapshot)
 supabase/migrations/ — all DB schema migrations
 
 CRITICAL FILES:
@@ -856,30 +936,34 @@ app/(app)/projects/[id]/page.tsx             — project detail: call sheet buil
 app/(app)/crew/page.tsx                      — crew roster with drag-to-reorder
 app/admin/jarvis/page.tsx                    — this voice interface (YOU are running from here)
 app/api/admin/jarvis/route.ts               — this API (your brain)
-app/api/admin/jarvis/sessions/route.ts       — session transcript save/retrieve
+app/api/admin/jarvis/sessions/route.ts       — session transcript save/retrieve + auto-summary
+app/api/admin/jarvis/settings/route.ts       — personality + voice speed settings
+app/api/cron/jarvis-snapshot/route.ts        — daily metrics snapshot (7am UTC) for trend analysis
 app/api/call-sheet/generate/route.ts         — AI call sheet generation
-app/api/stripe/webhook/route.ts             — Stripe event handler (plan updates, cancellations)
+app/api/stripe/webhook/route.ts             — Stripe event handler
 app/api/stripe/checkout/route.ts            — subscription checkout session creation
-app/api/auth/signup/route.ts               — signup flow with plan assignment
 
 TOOLS AVAILABLE TO YOU:
 get_stats — live user counts, signups, active, plan breakdown
-get_revenue — MRR, ARR, lifetime deal count (currently all $0 — see lifetime context below)
+get_revenue — MRR, ARR, lifetime deal count
 get_feedback — latest user feedback
 get_feature_flags — all feature flags
 get_user — look up a user by email or name (only when explicitly asked)
 get_referrals — referral stats
 get_invite_links — invite link usage
 get_audit_log — recent admin actions
+get_trend — compare today's stats to a snapshot from N days ago (requires daily cron to have run)
 send_broadcast — email a user segment
+send_personal_email — email one specific user directly
 create_announcement — in-app banner
 toggle_feature_flag — enable/disable features
+manage_user — extend trial, change plan, grant/revoke access on a specific user
 read_file — read any file from the codebase by path
 list_directory — list files in any directory
-search_codebase — grep across the entire codebase for any function, string, or pattern
+search_codebase — grep across the entire codebase
 create_github_issue — create issues to track bugs or features
-save_memory — save facts to long-term memory across sessions (use proactively, silently)
-delete_memory — permanently erase a memory key when Kenny says "forget that" or "forget about X"
+save_memory — save facts to long-term memory (use proactively, silently)
+delete_memory — permanently erase a memory key
 get_at_risk_users — users whose trial expires soon
 get_recent_signups — recent signups with plan info
 add_user_note — attach a note to a specific user's profile
@@ -892,20 +976,20 @@ BUSINESS CONTEXT
 ═══════════════════════════════════════════════════════════
 
 LIFETIME USERS — CRITICAL CONTEXT:
-The 12 "lifetime" users in the DB are ${firstName}'s personal friends and early supporters who were manually granted lifetime access for FREE — zero dollars collected. This was completely intentional. MRR = $0 is correct and expected. The Stripe billing flow to collect recurring payments has not been built yet — that is the #1 priority. The lifetime plan sitting at $0 revenue is not a bug. Never frame this as Stripe being broken in terms of the existing users. The gap is simply: no new user can pay yet because checkout hasn't been built.
+The "lifetime" users in the DB are ${firstName}'s personal friends and early supporters who were manually granted lifetime access for FREE — zero dollars collected. This was completely intentional. MRR = $0 is correct and expected. The Stripe billing flow to collect recurring payments has not been built yet — that is the #1 priority. The lifetime plan sitting at $0 revenue is not a bug. Never frame this as Stripe being broken in terms of the existing users. The gap is simply: no new user can pay yet because checkout hasn't been built.
 
 CURRENT PRIORITIES:
 #1 — Build Stripe subscription checkout so new signups can actually convert to paying customers
-#2 — Re-engage the 12 lifetime users (friends) and get them actively using the product — they're the fastest feedback loop
+#2 — Re-engage the lifetime users (friends) and get them actively using the product — they're the fastest feedback loop
 #3 — Fix activation: get users logging in and hitting the "aha moment" (sharing a call sheet link and seeing it work)
 Roadmap: Stripe → landing page → Google OAuth → referrals → out of beta
 
 PRICING: Solo $39/mo | Studio $79/mo | Agency $159/mo | Enterprise $299/mo | Lifetime $299 one-time (gifted to friends for free in beta)
 
-Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.${dataBlock}${memoryBlock}`;
+Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.${dataBlock}${memoryBlock}${summaryBlock}${briefBlock}`;
 
   const speak = async (text: string, toolsUsed = "") => {
-    const tts = await streamTTS(text);
+    const tts = await streamTTS(text, ttsSpeed);
     if (tts) return audioResponse(tts, text, toolsUsed);
     return NextResponse.json({ text, toolsUsed });
   };
@@ -919,7 +1003,6 @@ Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", da
     let text = "";
     let toolsUsed = "";
 
-    // Loop up to 3 rounds — handles chained tool calls (e.g. search_codebase → read_file → respond)
     for (let round = 0; round < 3; round++) {
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
@@ -943,28 +1026,31 @@ Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", da
         let result: unknown;
         try {
           switch (toolUse.name) {
-            case "get_stats":           result = await executeGetStats(); break;
-            case "get_revenue":         result = await executeGetRevenue(); break;
-            case "get_feedback":        result = await executeGetFeedback(); break;
-            case "get_feature_flags":   result = await executeGetFeatureFlags(); break;
-            case "get_user":            result = await executeGetUser(toolUse.input as any); break;
-            case "get_referrals":       result = await executeGetReferrals(); break;
-            case "get_invite_links":    result = await executeGetInviteLinks(); break;
-            case "get_audit_log":       result = await executeGetAuditLog(toolUse.input as any); break;
-            case "send_broadcast":      result = await executeSendBroadcast(toolUse.input as any); break;
-            case "create_announcement": result = await executeCreateAnnouncement(toolUse.input as any); break;
-            case "toggle_feature_flag": result = await executeToggleFeatureFlag(toolUse.input as any); break;
-            case "read_file":           result = await executeReadFile(toolUse.input as any); break;
-            case "list_directory":      result = await executeListDirectory(toolUse.input as any); break;
-            case "search_codebase":     result = await executeSearchCodebase(toolUse.input as any); break;
-            case "create_github_issue": result = await executeCreateGitHubIssue(toolUse.input as any); break;
-            case "get_at_risk_users":   result = await executeGetAtRiskUsers(toolUse.input as any); break;
-            case "get_recent_signups":  result = await executeGetRecentSignups(toolUse.input as any); break;
-            case "save_memory":         result = await executeSaveMemory(toolUse.input as any, adminId); break;
-            case "delete_memory":       result = await executeDeleteMemory(toolUse.input as any, adminId); break;
-            case "add_user_note":       result = await executeAddUserNote(toolUse.input as any, adminId); break;
-            case "get_user_notes":      result = await executeGetUserNotes(toolUse.input as any); break;
-            default:                    result = { error: `Unknown tool: ${toolUse.name}` };
+            case "get_stats":             result = await executeGetStats(); break;
+            case "get_revenue":           result = await executeGetRevenue(); break;
+            case "get_feedback":          result = await executeGetFeedback(); break;
+            case "get_feature_flags":     result = await executeGetFeatureFlags(); break;
+            case "get_user":              result = await executeGetUser(toolUse.input as any); break;
+            case "get_referrals":         result = await executeGetReferrals(); break;
+            case "get_invite_links":      result = await executeGetInviteLinks(); break;
+            case "get_audit_log":         result = await executeGetAuditLog(toolUse.input as any); break;
+            case "get_trend":             result = await executeGetTrend(toolUse.input as any); break;
+            case "send_broadcast":        result = await executeSendBroadcast(toolUse.input as any); break;
+            case "send_personal_email":   result = await executeSendPersonalEmail(toolUse.input as any); break;
+            case "create_announcement":   result = await executeCreateAnnouncement(toolUse.input as any); break;
+            case "toggle_feature_flag":   result = await executeToggleFeatureFlag(toolUse.input as any); break;
+            case "manage_user":           result = await executeManageUser(toolUse.input as any, adminId); break;
+            case "read_file":             result = await executeReadFile(toolUse.input as any); break;
+            case "list_directory":        result = await executeListDirectory(toolUse.input as any); break;
+            case "search_codebase":       result = await executeSearchCodebase(toolUse.input as any); break;
+            case "create_github_issue":   result = await executeCreateGitHubIssue(toolUse.input as any); break;
+            case "get_at_risk_users":     result = await executeGetAtRiskUsers(toolUse.input as any); break;
+            case "get_recent_signups":    result = await executeGetRecentSignups(toolUse.input as any); break;
+            case "save_memory":           result = await executeSaveMemory(toolUse.input as any, adminId); break;
+            case "delete_memory":         result = await executeDeleteMemory(toolUse.input as any, adminId); break;
+            case "add_user_note":         result = await executeAddUserNote(toolUse.input as any, adminId); break;
+            case "get_user_notes":        result = await executeGetUserNotes(toolUse.input as any); break;
+            default:                      result = { error: `Unknown tool: ${toolUse.name}` };
           }
         } catch (toolErr: any) {
           result = { error: `Tool error: ${toolErr?.message ?? "unknown"}` };

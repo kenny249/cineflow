@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Mic, MicOff, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh, Clock, Minus, Trash2 } from "lucide-react";
+import { ArrowLeft, Mic, MicOff, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh, Clock, Minus, Trash2, Volume2 } from "lucide-react";
 
 type JarvisState = "idle" | "listening" | "processing" | "speaking";
 type ViewMode    = "voice" | "data" | "history";
@@ -396,20 +396,33 @@ function HudReadout({ commandCount, sessionElapsed, state, c, sessionActive }: {
 
 interface Personality { humor: number; energy: number; formality: number }
 
-function PersonalityPanel({ value, onChange, c }: { value: Personality; onChange: (p: Personality) => void; c: string }) {
+function PersonalityPanel({ value, onChange, voiceSpeed, onSpeedChange, settingsSaved, c }: {
+  value: Personality;
+  onChange: (p: Personality) => void;
+  voiceSpeed: number;
+  onSpeedChange: (speed: number) => void;
+  settingsSaved: "" | "saved";
+  c: string;
+}) {
   const sliders = [
-    { key: "humor"     as const, label: "HUMOR",     icon: Laugh,  lo: "DEADPAN",      hi: "WITTY"       },
-    { key: "energy"    as const, label: "ENERGY",    icon: Zap,    lo: "CALM",         hi: "FIRED UP"    },
-    { key: "formality" as const, label: "FORMALITY", icon: Brain,  lo: "CASUAL",       hi: "FORMAL"      },
+    { key: "humor"     as const, label: "HUMOR",     icon: Laugh,  lo: "DEADPAN", hi: "WITTY"    },
+    { key: "energy"    as const, label: "ENERGY",    icon: Zap,    lo: "CALM",    hi: "FIRED UP" },
+    { key: "formality" as const, label: "FORMALITY", icon: Brain,  lo: "CASUAL",  hi: "FORMAL"   },
   ];
   return (
     <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }} transition={{ duration: 0.15 }}
-      className="absolute top-full right-0 mt-2 z-50 p-4 w-72 rounded"
-      style={{ background: "rgba(4,4,6,0.97)", border: `1px solid ${c}30`, boxShadow: `0 0 40px ${c}15` }}>
+      className="absolute top-full right-0 mt-2 z-50 p-4 w-76 rounded"
+      style={{ background: "rgba(4,4,6,0.97)", border: `1px solid ${c}30`, boxShadow: `0 0 40px ${c}15`, width: 288 }}>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-[7px] tracking-[0.5em] text-zinc-500">PERSONALITY DIALS</p>
-        <p className="text-[6px] font-mono text-zinc-700">AFFECTS ALL RESPONSES</p>
+        <p className="text-[7px] tracking-[0.5em] text-zinc-500">JARVIS SETTINGS</p>
+        <AnimatePresence>
+          {settingsSaved === "saved" && (
+            <motion.span key="saved" initial={{ opacity: 0, x: 4 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+              className="text-[6px] font-mono tracking-widest" style={{ color: "#10b981" }}>✓ SAVED</motion.span>
+          )}
+        </AnimatePresence>
       </div>
+      <p className="text-[5px] tracking-[0.5em] text-zinc-700 mb-3">PERSONALITY</p>
       <div className="space-y-4">
         {sliders.map(({ key, label, icon: Icon, lo, hi }) => (
           <div key={key}>
@@ -433,8 +446,31 @@ function PersonalityPanel({ value, onChange, c }: { value: Personality; onChange
           </div>
         ))}
       </div>
+
+      {/* Voice speed */}
       <div className="mt-4 pt-3 border-t border-white/[0.04]">
-        <button onClick={() => onChange({ humor: 50, energy: 50, formality: 50 })}
+        <p className="text-[5px] tracking-[0.5em] text-zinc-700 mb-3">VOICE</p>
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-1.5">
+            <Volume2 className="h-2.5 w-2.5" style={{ color: c }} />
+            <span className="text-[7px] tracking-widest font-medium" style={{ color: c }}>SPEED</span>
+          </div>
+          <span className="text-[7px] font-mono" style={{ color: `${c}80` }}>{voiceSpeed.toFixed(2)}x</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[5px] tracking-wider text-zinc-700 w-10 text-right">SLOWER</span>
+          <div className="relative flex-1 h-1 rounded-full" style={{ background: `${c}15` }}>
+            <motion.div className="absolute left-0 top-0 h-full rounded-full" style={{ width: `${((voiceSpeed - 0.7) / 0.7) * 100}%`, background: `linear-gradient(90deg, ${c}60, ${c})`, boxShadow: `0 0 8px ${c}` }} />
+            <input type="range" min={0.7} max={1.4} step={0.05} value={voiceSpeed}
+              onChange={e => onSpeedChange(Number(e.target.value))}
+              className="absolute inset-0 w-full opacity-0 cursor-pointer" style={{ height: "100%" }} />
+          </div>
+          <span className="text-[5px] tracking-wider text-zinc-700 w-10">FASTER</span>
+        </div>
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-white/[0.04]">
+        <button onClick={() => { onChange({ humor: 50, energy: 50, formality: 50 }); onSpeedChange(1.0); }}
           className="text-[6px] tracking-widest text-zinc-700 hover:text-zinc-400 transition-colors">RESET TO DEFAULTS</button>
       </div>
     </motion.div>
@@ -784,7 +820,18 @@ export default function JarvisPage() {
   const [elevenlabsOk, setElevenlabsOk] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [barHeights, setBarHeights]     = useState<number[]>([6, 22, 10, 40, 14, 30, 8, 44, 12, 26, 7]);
-  const [personality, setPersonality]   = useState<Personality>({ humor: 50, energy: 50, formality: 50 });
+  const [personality, setPersonality] = useState<Personality>(() => {
+    if (typeof window === "undefined") return { humor: 50, energy: 50, formality: 50 };
+    try {
+      const s = localStorage.getItem("jarvis-personality");
+      return s ? JSON.parse(s) : { humor: 50, energy: 50, formality: 50 };
+    } catch { return { humor: 50, energy: 50, formality: 50 }; }
+  });
+  const [voiceSpeed, setVoiceSpeed] = useState(() => {
+    if (typeof window === "undefined") return 1.0;
+    return parseFloat(localStorage.getItem("jarvis-voice-speed") ?? "1.0");
+  });
+  const [settingsSaved, setSettingsSaved] = useState<"" | "saved">("");
   const [showPersonality, setShowPersonality] = useState(false);
   const [activeTools, setActiveTools]   = useState<string[]>([]);
   const [pastSessions, setPastSessions] = useState<PastSession[]>([]);
@@ -822,10 +869,29 @@ export default function JarvisPage() {
   const personalityRef        = useRef<Personality>({ humor: 50, energy: 50, formality: 50 });
   const messagesRef           = useRef<ChatMessage[]>([]);
   const mutedRef              = useRef(false); // mirrors muted state for recognition callbacks
+  const voiceSpeedRef         = useRef(1.0);
+  const saveSettingsTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/admin/jarvis/stats").then(r => r.json()).then(setStats).catch(() => {});
+  }, []);
+
+  // ── Load saved settings from DB — overrides localStorage defaults ──────────
+  useEffect(() => {
+    fetch("/api/admin/jarvis/settings")
+      .then(r => r.json())
+      .then(data => {
+        if (data.personality && typeof data.personality === "object") {
+          setPersonality(data.personality);
+          localStorage.setItem("jarvis-personality", JSON.stringify(data.personality));
+        }
+        if (typeof data.voiceSpeed === "number") {
+          setVoiceSpeed(data.voiceSpeed);
+          localStorage.setItem("jarvis-voice-speed", String(data.voiceSpeed));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1088,7 +1154,8 @@ export default function JarvisPage() {
     const t0 = Date.now();
     processingRef.current = true;
     setState("processing");
-    setMessages(prev => [...prev, { role: "user", text: command, ts: new Date() }]);
+    const displayText = command === "__morning_brief__" ? "Morning brief" : command;
+    setMessages(prev => [...prev, { role: "user", text: displayText, ts: new Date() }]);
 
     try {
       // Use refs so we always get the current values — sendCommand is a stable callback
@@ -1101,7 +1168,7 @@ export default function JarvisPage() {
       const res = await fetch("/api/admin/jarvis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, history, personality: personalityRef.current }),
+        body: JSON.stringify({ command, history, personality: personalityRef.current, voiceSpeed: voiceSpeedRef.current }),
       });
 
       const latencyMs = Date.now() - t0;
@@ -1160,6 +1227,7 @@ export default function JarvisPage() {
   useEffect(() => { sendCommandRef.current = sendCommand; }, [sendCommand]);
   useEffect(() => { personalityRef.current = personality; }, [personality]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { voiceSpeedRef.current = voiceSpeed; }, [voiceSpeed]);
 
   // Fetch past sessions whenever the LOG tab opens
   useEffect(() => {
@@ -1227,6 +1295,14 @@ export default function JarvisPage() {
       setMessages([]);
       startMicAnalyser();
       startRecognition();
+      // Auto morning brief — fires once mic is ready
+      setTimeout(() => {
+        if (!conversationActiveRef.current || processingRef.current || speakingRef.current) return;
+        processingRef.current = true;
+        setCommandCount(c => c + 1);
+        setLastTranscript("Morning brief");
+        sendCommandRef.current("__morning_brief__");
+      }, 1500);
     }
   }, [startRecognition, stopAudio, startMicAnalyser, stopMicAnalyser]);
 
@@ -1261,6 +1337,27 @@ export default function JarvisPage() {
       if (!speakingRef.current) setState("idle");
     }
   }, [muted, startRecognition, startMicAnalyser, stopMicAnalyser]);
+
+  // ── Save settings (debounced) ──────────────────────────────────────────────
+  const saveSettings = useCallback((p: Personality, speed: number) => {
+    localStorage.setItem("jarvis-personality", JSON.stringify(p));
+    localStorage.setItem("jarvis-voice-speed", String(speed));
+    if (saveSettingsTimerRef.current) clearTimeout(saveSettingsTimerRef.current);
+    saveSettingsTimerRef.current = setTimeout(() => {
+      fetch("/api/admin/jarvis/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personality: p, voiceSpeed: speed }),
+      })
+        .then(r => {
+          if (r.ok) {
+            setSettingsSaved("saved");
+            setTimeout(() => setSettingsSaved(""), 2500);
+          }
+        })
+        .catch(() => {});
+    }, 700);
+  }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const c = { idle: "#d4a853", listening: "#3b82f6", processing: "#8b5cf6", speaking: "#10b981" }[state];
@@ -1350,7 +1447,14 @@ export default function JarvisPage() {
             </button>
             <AnimatePresence>
               {showPersonality && (
-                <PersonalityPanel value={personality} onChange={setPersonality} c="#d4a853" />
+                <PersonalityPanel
+                  value={personality}
+                  onChange={(p) => { setPersonality(p); saveSettings(p, voiceSpeedRef.current); }}
+                  voiceSpeed={voiceSpeed}
+                  onSpeedChange={(speed) => { setVoiceSpeed(speed); saveSettings(personalityRef.current, speed); }}
+                  settingsSaved={settingsSaved}
+                  c="#d4a853"
+                />
               )}
             </AnimatePresence>
           </div>

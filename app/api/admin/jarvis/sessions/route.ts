@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function getAdmin() {
   return createAdminClient(
@@ -23,6 +26,37 @@ async function requireAdmin() {
   const admin = getAdmin();
   const { data: profile } = await admin.from("profiles").select("is_admin").eq("id", user.id).single();
   return profile?.is_admin ? user : null;
+}
+
+// Fire-and-forget: summarise session with Haiku and save for cross-session memory
+async function saveSessionSummary(messages: any[], adminId: string, commandCount: number) {
+  try {
+    const transcript = messages
+      .slice(0, 24)
+      .map((m: any) => `${m.role === "user" ? "Kenny" : "Jarvis"}: ${m.text}`)
+      .join("\n");
+
+    const resp = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 130,
+      messages: [{
+        role: "user",
+        content: `Summarize this Cineflow admin session in 1-2 short sentences. Focus on what was discussed, any key data or user actions taken, and decisions made. Be specific with names/numbers if present.\n\n${transcript.slice(0, 3500)}`,
+      }],
+    });
+
+    const summary = (resp.content.find((b: any) => b.type === "text") as any)?.text?.trim() ?? "";
+    if (!summary) return;
+
+    const admin = getAdmin();
+    await admin.from("jarvis_session_summaries").insert({
+      admin_id: adminId,
+      summary,
+      command_count: commandCount ?? 0,
+    });
+  } catch {
+    // Non-critical — session is already saved, summary is best-effort
+  }
 }
 
 export async function GET() {
@@ -75,5 +109,9 @@ export async function POST(req: NextRequest) {
   });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Generate and save a session summary asynchronously — non-blocking
+  saveSessionSummary(messages, caller.id, commandCount);
+
   return NextResponse.json({ saved: true });
 }
