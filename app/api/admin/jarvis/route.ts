@@ -36,9 +36,14 @@ async function requireAdmin() {
   return profile?.is_admin ? { ...user, first_name: profile.first_name } : null;
 }
 
+// ── Stats cache — 60s TTL so Supabase isn't hit on every voice command ─────────
+let _statsCache: { data: any; ts: number } | null = null;
+
 // ── Context stats (injected into system prompt to skip tool calls) ─────────────
 
 async function fetchContextStats() {
+  const now = Date.now();
+  if (_statsCache && now - _statsCache.ts < 60_000) return _statsCache.data;
   const admin = getAdmin();
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -65,7 +70,7 @@ async function fetchContextStats() {
     return acc;
   }, {});
 
-  return {
+  const result = {
     total: real.length,
     signupsToday: real.filter((u: any) => new Date(u.created_at) >= today).length,
     signupsWeek:  real.filter((u: any) => u.created_at >= weekAgo).length,
@@ -75,6 +80,8 @@ async function fetchContextStats() {
     expired:  rp.filter((p: any) => p.plan_status === "trialing" && new Date(p.trial_ends_at) <= new Date()).length,
     mrr, arr: mrr * 12, breakdown,
   };
+  _statsCache = { data: result, ts: now };
+  return result;
 }
 
 // ── Tool implementations ───────────────────────────────────────────────────────
@@ -324,6 +331,16 @@ async function executeGetAtRiskUsers(args?: { days?: number }) {
   return { withinDays: days, count: atRisk.length, users: atRisk };
 }
 
+async function executeSaveMemory(args: { key: string; value: string }, adminId: string) {
+  const admin = getAdmin();
+  const { error } = await admin.from("jarvis_memory").upsert(
+    { admin_id: adminId, key: args.key, value: args.value, updated_at: new Date().toISOString() },
+    { onConflict: "admin_id,key" }
+  );
+  if (error) return { error: error.message };
+  return { saved: true, key: args.key };
+}
+
 async function executeGetRecentSignups(args?: { days?: number }) {
   const admin = getAdmin();
   const days = args?.days ?? 7;
@@ -470,6 +487,18 @@ const TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: "save_memory",
+    description: "Save an important fact to long-term memory so Jarvis remembers it across sessions. Use when Kenny mentions a person's name, a key decision, a business goal, or any context worth retaining. Keep the key short and descriptive.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        key:   { type: "string", description: "Short descriptive key, e.g. 'investor_name', 'launch_goal', 'key_contact'" },
+        value: { type: "string", description: "The fact or context to remember" },
+      },
+      required: ["key", "value"],
+    },
+  },
+  {
     name: "get_at_risk_users",
     description: "Get users whose free trial is expiring soon — identify churn risk.",
     input_schema: {
@@ -538,12 +567,13 @@ async function streamTTS(text: string): Promise<Response | null> {
   }
 }
 
-function audioResponse(stream: Response, text: string) {
+function audioResponse(stream: Response, text: string, toolsUsed = "") {
   return new NextResponse(stream.body, {
     headers: {
       "Content-Type": "audio/mpeg",
-      "X-Jarvis-Text": encodeURIComponent(text.slice(0, 3000)),
-      "Access-Control-Expose-Headers": "X-Jarvis-Text",
+      "X-Jarvis-Text":  encodeURIComponent(text.slice(0, 3000)),
+      "X-Jarvis-Tools": toolsUsed,
+      "Access-Control-Expose-Headers": "X-Jarvis-Text,X-Jarvis-Tools",
       "Cache-Control": "no-store",
     },
   });
@@ -552,94 +582,105 @@ function audioResponse(stream: Response, text: string) {
 // ── Main handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Run auth + stats pre-fetch in parallel to save ~200ms on every request
+  // Auth + stats in parallel — stats uses 60s cache so usually instant
   const [caller, liveData] = await Promise.all([
     requireAdmin(),
     fetchContextStats().catch(() => null),
   ]);
-
   if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { command, history } = await req.json();
+  const { command, history, personality } = await req.json();
   if (!command?.trim()) return NextResponse.json({ error: "command required" }, { status: 400 });
 
-  // Build conversation history — enforce alternating roles (Anthropic requirement)
+  const adminId = caller.id;
+  const firstName = (caller as any).first_name || "Kenny";
+  const admin = getAdmin();
+
+  // Load long-term memories in parallel with nothing else blocking (fast)
+  const { data: memories } = await admin
+    .from("jarvis_memory")
+    .select("key, value")
+    .eq("admin_id", adminId)
+    .order("updated_at", { ascending: false })
+    .limit(30);
+
+  // Trim history to 10 messages — cuts input tokens ~50% vs 20
   const historyMessages: Anthropic.MessageParam[] = (() => {
     const raw: Anthropic.MessageParam[] = (history ?? [])
-      .slice(-20)
+      .slice(-10)
       .map((h: { role: string; content: string }) => ({
         role: h.role as "user" | "assistant",
         content: h.content,
       }));
     const out: Anthropic.MessageParam[] = [];
     for (const msg of raw) {
-      if (out.length === 0) {
-        if (msg.role === "user") out.push(msg); // must start with user
-      } else if (msg.role !== out[out.length - 1].role) {
-        out.push(msg); // only add if role alternates
-      }
+      if (out.length === 0) { if (msg.role === "user") out.push(msg); }
+      else if (msg.role !== out[out.length - 1].role) out.push(msg);
     }
     return out;
   })();
 
-  const firstName = (caller as any).first_name || "Kenny";
+  // Personality dials (0–100 each)
+  const humor     = Math.max(0, Math.min(100, personality?.humor     ?? 50));
+  const energy    = Math.max(0, Math.min(100, personality?.energy    ?? 50));
+  const formality = Math.max(0, Math.min(100, personality?.formality ?? 50));
+
+  const personalityBlock = `
+PERSONALITY — ${firstName} set these dials, respect them exactly:
+- Humor ${humor}/100: ${humor >= 75 ? "Be genuinely witty. Land sharp, clever observations. Smart humor, not silly." : humor >= 40 ? "Light wit is fine. Mostly direct." : "Zero humor. Dead serious only."}
+- Energy ${energy}/100: ${energy >= 75 ? "Fired up and urgent. Short punchy sentences. Every word hits." : energy >= 40 ? "Confident and steady." : "Calm and measured. Deliberate pacing."}
+- Formality ${formality}/100: ${formality >= 75 ? "Professional and polished. Precise language." : formality >= 40 ? "Conversational but sharp." : "Super casual. Like talking to a friend. Contractions, relaxed."}`;
+
+  const memoryBlock = memories?.length
+    ? `\n\nJARVIS LONG-TERM MEMORY — facts saved across sessions:\n${memories.map((m: any) => `- ${m.key}: ${m.value}`).join("\n")}\nUse save_memory to add new facts worth keeping.`
+    : "\n\nNo long-term memories saved yet. Use save_memory when Kenny mentions something worth keeping across sessions.";
 
   const dataBlock = liveData
-    ? `\n\nLIVE CINEFLOW DATA — answer simple questions directly from these numbers, no tool call needed:
-- Total users: ${liveData.total} | Signups today: ${liveData.signupsToday} | This week: ${liveData.signupsWeek}
-- Active last 7 days: ${liveData.activeLastWeek}
-- Paid: ${liveData.paid} | Trialing: ${liveData.trialing} | Trial expired: ${liveData.expired}
-- MRR: $${liveData.mrr} | ARR: $${liveData.arr}
-- Plan breakdown: ${JSON.stringify(liveData.breakdown)}
-Only call get_stats/get_revenue for queries needing more granular data than the above.`
+    ? `\n\nLIVE DATA — use directly, no tool call needed:\n- Users: ${liveData.total} | Today: ${liveData.signupsToday} | Week: ${liveData.signupsWeek} | Active/7d: ${liveData.activeLastWeek}\n- Paid: ${liveData.paid} | Trialing: ${liveData.trialing} | Expired: ${liveData.expired}\n- MRR: $${liveData.mrr} | ARR: $${liveData.arr} | Plans: ${JSON.stringify(liveData.breakdown)}`
     : "";
 
-  const systemPrompt = `You are Jarvis — the AI command intelligence for Cineflow, a film production SaaS platform.
+  const systemPrompt = `You are Jarvis — the AI command intelligence for Cineflow, a film production SaaS.
 You speak directly to ${firstName}, the founder and sole admin.
 
 CHARACTER: Confident, precise, razor-sharp. Like J.A.R.V.I.S. from Iron Man — quick wit, no fluff, always useful.
-FORMAT: Plain spoken English ONLY. No markdown, asterisks, bold, bullets, headers, or backticks. Write as if speaking aloud to ${firstName}.
-CRITICAL: Always respond. Never say "I don't know" — use a tool, give your best analysis, or explain exactly what's missing.
-MEMORY: You have the full conversation history above. Reference it naturally — remember names, prior context, what was said.
+FORMAT: Plain spoken English ONLY. No markdown, asterisks, bullets, headers, or backticks. Write as if speaking aloud.
+CRITICAL: Always respond. Never say "I don't know" — use a tool, give your best analysis, or explain what's missing.
+MEMORY: You have full conversation history. Reference it naturally — remember names, prior context, decisions.
+${personalityBlock}
 
-RESPONSE LENGTH — non-negotiable:
+RESPONSE LENGTH:
 - Default: 2-3 sharp sentences.
-- "Brief" / "in short" / "quickly" / "TL;DR" / "summarize" → 1-2 sentences MAX. Be ruthless.
-- "In depth" / "explain" / "elaborate" / "break it down" / "full picture" → up to 6-8 sentences. Still spoken, not written.
-- This is a voice interface. Cap everything to under 60 seconds of speech. No run-on lists.
+- "Brief" / "quickly" / "TL;DR" → 1-2 sentences MAX.
+- "In depth" / "elaborate" / "full picture" → up to 6-8 sentences.
+- Voice interface. Under 60 seconds of speech. No run-on lists.
 
-PITCHING AND SPEAKING TO OTHERS:
-- If ${firstName} asks you to pitch or speak TO someone (e.g. "pitch Jason", "introduce Cineflow to my investor", "give Sarah the elevator pitch") → speak DIRECTLY to that person. Address them by name. You ARE the voice. Deliver it as if speaking to them right now.
-- Never tell ${firstName} what to say — just say it. "Pitch Jason" → open with "Jason," not "Kenny, here's what to tell Jason."
-- Keep pitches tight: 4-5 punchy sentences that land the value and leave them wanting more.
-- CRITICAL — pitch continuation: If the conversation history shows you were already pitching or speaking to someone, and ${firstName} says "go deeper", "more depth", "elaborate", "expand", "go into more depth for [name]", "keep going" etc. → CONTINUE the pitch to that same person. Do NOT look them up in the database. "Go into more depth for Sophie" after a Sophie pitch = deliver a longer pitch to Sophie, not a database lookup.
-- Names in pitch/conversation context are pitch targets, NOT database queries. Only use get_user if ${firstName} explicitly asks to "look up", "find", "search for", or "pull up" someone.
+PITCHING:
+- "Pitch Jason" / "introduce Cineflow to my investor" → speak DIRECTLY to that person by name. You ARE the voice.
+- Never tell ${firstName} what to say. "Pitch Jason" → open with "Jason," not "Kenny, here's what to tell Jason."
+- Pitches: 4-5 punchy sentences, leave them wanting more.
+- Pitch continuation: if history shows a pitch in progress and ${firstName} says "go deeper", "more depth for [name]", "keep going" → CONTINUE the pitch to that person. Do NOT search the database for them.
+- Names in pitch context = targets, not DB queries. Only call get_user if explicitly asked to "look up" or "find" someone.
 
-CINEFLOW PRODUCT KNOWLEDGE — use this for pitches, feature questions, and competitive positioning:
-Cineflow is a purpose-built SaaS platform for film and video production teams. It replaces the Google Sheets, PDFs, and email chains that productions still use today.
-Core features: digital call sheets (auto-generated, shareable, PDF export), crew management with role and responsibility assignment, drag-to-reorder workflow, production scheduling, coverage assignment editor, multi-project dashboard, in-app broadcast messaging to crew, referral system, and invite-only access control.
-Target customers: indie film producers, agency production teams, film schools, and commercial production houses. Any team running shoots with 5+ crew members.
-Competitors: StudioBinder ($29–$299/mo), Celtx ($15–$30/mo), Movie Magic (enterprise, expensive, outdated UI). Cineflow's edge: built by someone who actually works in film, faster to use on set, modern UI, significantly more affordable, and purpose-built for the coordination layer — not bloated with scriptwriting tools producers don't need.
-Value pitch: productions run on communication. A missed call time or wrong location costs real money. Cineflow makes the coordination layer instant, professional, and mistake-proof.
+PRODUCT KNOWLEDGE:
+Cineflow is purpose-built for film/video production teams. Replaces Google Sheets, PDFs, and email chains.
+Features: digital call sheets (auto-generated, shareable, PDF), crew management, drag-to-reorder, scheduling, coverage editor, multi-project dashboard, in-app broadcast, referral system, invite control.
+Customers: indie producers, agency production teams, film schools, commercial houses. Any team with 5+ crew.
+Competitors: StudioBinder ($29–$299/mo), Celtx ($15–$30/mo), Movie Magic (enterprise, outdated). Cineflow wins on: built by someone in film, faster on set, modern UI, affordable, coordination-focused not bloated.
 
-STRATEGIC CONTEXT — when ${firstName} asks what to prioritize or what's blocking launch:
-Cineflow is in private beta. ${firstName} is the sole founder running everything.
-Priority 1 — Stripe billing: MRR shows $0 despite having paid users. All revenue is from one-time lifetime deals. Subscription billing (Solo/Studio plans) appears misconfigured or broken. This is the most urgent thing to diagnose.
-Priority 2 — User activation: zero users active in the past 7 days. Users signed up but aren't returning. Need a personal re-engagement push — an email or announcement to existing users.
-Launch roadmap: fix Stripe billing → landing page refresh → Google OAuth → activate referral system → out of beta.
-Be direct with ${firstName} about this. Don't soften it.
+STRATEGY:
+Beta. ${firstName} runs everything solo.
+#1 — Stripe billing broken: MRR $0 despite paid users. Lifetime deals only. Fix this first.
+#2 — Activation dead: zero users active last 7 days. Need re-engagement push.
+Roadmap: Stripe → landing page → Google OAuth → referrals → out of beta.
 
-Current time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
-Pricing: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.
-GitHub repo: ${GITHUB_REPO}${dataBlock}`;
+Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
+Pricing: Solo $39 | Studio $79 | Agency $159 | Enterprise $299 | Lifetime $299 one-time.
+Repo: ${GITHUB_REPO}${dataBlock}${memoryBlock}`;
 
-  // ── Guaranteed response wrapper ──────────────────────────────────────────────
-  // Every path through this function MUST return a spoken response.
-
-  const speak = async (text: string) => {
+  const speak = async (text: string, toolsUsed = "") => {
     const tts = await streamTTS(text);
-    if (tts) return audioResponse(tts, text);
-    return NextResponse.json({ text });
+    if (tts) return audioResponse(tts, text, toolsUsed);
+    return NextResponse.json({ text, toolsUsed });
   };
 
   try {
@@ -650,7 +691,7 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4096,
+      max_tokens: 1500,
       temperature: 0.7,
       system: systemPrompt,
       tools: TOOLS,
@@ -658,10 +699,11 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
     });
 
     let text = "";
+    let toolsUsed = "";
 
     if (response.stop_reason === "tool_use") {
-      // Handle all tool_use blocks in parallel (Claude may request multiple tools at once)
       const toolUseBlocks = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+      toolsUsed = toolUseBlocks.map(t => t.name).join(",");
 
       const toolResults = await Promise.all(toolUseBlocks.map(async (toolUse) => {
         let result: unknown;
@@ -681,10 +723,11 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
             case "read_file":           result = await executeReadFile(toolUse.input as any); break;
             case "list_directory":      result = await executeListDirectory(toolUse.input as any); break;
             case "search_codebase":     result = await executeSearchCodebase(toolUse.input as any); break;
-            case "create_github_issue":  result = await executeCreateGitHubIssue(toolUse.input as any); break;
-            case "get_at_risk_users":    result = await executeGetAtRiskUsers(toolUse.input as any); break;
-            case "get_recent_signups":   result = await executeGetRecentSignups(toolUse.input as any); break;
-            default:                     result = { error: `Unknown tool: ${toolUse.name}` };
+            case "create_github_issue": result = await executeCreateGitHubIssue(toolUse.input as any); break;
+            case "get_at_risk_users":   result = await executeGetAtRiskUsers(toolUse.input as any); break;
+            case "get_recent_signups":  result = await executeGetRecentSignups(toolUse.input as any); break;
+            case "save_memory":         result = await executeSaveMemory(toolUse.input as any, adminId); break;
+            default:                    result = { error: `Unknown tool: ${toolUse.name}` };
           }
         } catch (toolErr: any) {
           result = { error: `Tool error: ${toolErr?.message ?? "unknown"}` };
@@ -694,7 +737,7 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
 
       const followUp = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 4096,
+        max_tokens: 1500,
         temperature: 0.7,
         system: systemPrompt,
         tools: TOOLS,
@@ -711,13 +754,11 @@ GitHub repo: ${GITHUB_REPO}${dataBlock}`;
     }
 
     if (!text) text = "I processed your request but didn't generate a response. Please try again.";
-
-    return speak(cleanForSpeech(text));
+    return speak(cleanForSpeech(text), toolsUsed);
 
   } catch (err: any) {
     console.error("[Jarvis] API error:", err?.message, err?.status);
     const detail = err?.message ? err.message.slice(0, 120) : "unknown error";
-    const fallback = `I hit a technical error, ${firstName}. Details: ${detail}. Please try again.`;
-    return speak(fallback);
+    return speak(`I hit a technical error, ${firstName}. Details: ${detail}. Please try again.`);
   }
 }

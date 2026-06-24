@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Mic, Square, Activity, BarChart3, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowLeft, Mic, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh } from "lucide-react";
 
 type JarvisState = "idle" | "listening" | "processing" | "speaking";
 type ViewMode    = "voice" | "data";
@@ -154,35 +154,59 @@ function TickRing({ radius, count, c }: { radius: number; count: number; c: stri
 
 function OrbitingNodes({ stats, c, sessionActive }: { stats: LiveStats | null; c: string; sessionActive: boolean }) {
   const nodes = [
-    { label: "USERS",  val: stats?.totalUsers,    angle: 22,  color: "#e2e8f0", prefix: "" },
-    { label: "MRR",    val: stats?.mrr,            angle: 112, color: "#d4a853", prefix: "$" },
-    { label: "PAID",   val: stats?.paid,           angle: 202, color: "#10b981", prefix: "" },
-    { label: "ACTIVE", val: stats?.activeLastWeek, angle: 298, color: "#3b82f6", prefix: "" },
+    { label: "USERS",  val: stats?.totalUsers,    angle: 20,  color: "#e2e8f0", prefix: "" },
+    { label: "MRR",    val: stats?.mrr,            angle: 110, color: "#d4a853", prefix: "$" },
+    { label: "PAID",   val: stats?.paid,           angle: 200, color: "#10b981", prefix: "" },
+    { label: "ACTIVE", val: stats?.activeLastWeek, angle: 300, color: "#3b82f6", prefix: "" },
   ];
-  const r = 200;
+  const r = 235; // increased from 200 to clear tick rings
+
+  // Pre-compute positions
+  const positions = nodes.map(({ angle }) => {
+    const rad = (angle - 90) * (Math.PI / 180);
+    return { x: Math.cos(rad) * r, y: Math.sin(rad) * r, rad };
+  });
+
   return (
     <>
-      {nodes.map(({ label, val, angle, color, prefix }) => {
-        const rad = (angle - 90) * (Math.PI / 180);
-        const x = Math.cos(rad) * r;
-        const y = Math.sin(rad) * r;
-        const lineRad = rad;
-        const lineLen = 28;
-        const lx1 = Math.cos(lineRad) * 148;
-        const ly1 = Math.sin(lineRad) * 148;
-        const lx2 = Math.cos(lineRad) * (148 + lineLen);
-        const ly2 = Math.sin(lineRad) * (148 + lineLen);
+      {/* Neural network lines between nodes */}
+      <svg className="absolute pointer-events-none" style={{ width: r * 2 + 100, height: r * 2 + 100, left: -(r + 50), top: -(r + 50), overflow: "visible" }}>
+        {positions.map((a, i) =>
+          positions.slice(i + 1).map((b, j) => (
+            <motion.line key={`${i}-${j}`}
+              x1={r + 50 + a.x} y1={r + 50 + a.y}
+              x2={r + 50 + b.x} y2={r + 50 + b.y}
+              stroke={`${c}18`} strokeWidth={0.75} strokeDasharray="4 6"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: sessionActive ? [0.2, 0.5, 0.2] : 0, strokeDashoffset: [0, -40] }}
+              transition={{ opacity: { duration: 3 + i * 0.7, repeat: Infinity }, strokeDashoffset: { duration: 4, repeat: Infinity, ease: "linear" } }}
+            />
+          ))
+        )}
+        {/* Lines from center to each node */}
+        {positions.map((pos, i) => (
+          <motion.line key={`c${i}`}
+            x1={r + 50} y1={r + 50}
+            x2={r + 50 + Math.cos(pos.rad) * 152} y2={r + 50 + Math.sin(pos.rad) * 152}
+            stroke={`${nodes[i].color}25`} strokeWidth={0.5} strokeDasharray="3 8"
+            animate={{ opacity: sessionActive ? [0.15, 0.4, 0.15] : 0, strokeDashoffset: [0, -22] }}
+            transition={{ opacity: { duration: 2.5 + i * 0.5, repeat: Infinity, delay: i * 0.3 }, strokeDashoffset: { duration: 3, repeat: Infinity, ease: "linear" } }}
+          />
+        ))}
+      </svg>
+
+      {/* Data node labels */}
+      {nodes.map(({ label, val, color, prefix }, idx) => {
+        const { x, y } = positions[idx];
         return (
           <motion.div key={label} className="absolute pointer-events-none" style={{ left: "50%", top: "50%" }}
-            initial={{ opacity: 0 }} animate={{ opacity: sessionActive ? 1 : 0.35 }} transition={{ duration: 0.8, delay: 0.2 }}>
-            <svg className="absolute" style={{ width: 2, height: 2, left: lx1, top: ly1, overflow: "visible" }}>
-              <line x1={0} y1={0} x2={lx2 - lx1} y2={ly2 - ly1} stroke={`${color}40`} strokeWidth={1} />
-            </svg>
+            initial={{ opacity: 0 }} animate={{ opacity: sessionActive ? 1 : 0.3 }} transition={{ duration: 0.8, delay: idx * 0.15 }}>
             <div className="absolute" style={{ transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))` }}>
-              <motion.div className="rounded px-2 py-1 text-center" style={{ border: `1px solid ${color}35`, background: "rgba(0,0,0,0.88)", minWidth: 46 }}
-                animate={{ boxShadow: [`0 0 0px ${color}00`, `0 0 8px ${color}30`, `0 0 0px ${color}00`] }} transition={{ duration: 2.8, repeat: Infinity, delay: nodes.findIndex(n => n.label === label) * 0.6 }}>
+              <motion.div className="rounded px-2 py-1 text-center" style={{ border: `1px solid ${color}35`, background: "rgba(0,0,0,0.9)", minWidth: 48 }}
+                animate={{ boxShadow: [`0 0 0px ${color}00`, `0 0 10px ${color}35`, `0 0 0px ${color}00`] }}
+                transition={{ duration: 2.8, repeat: Infinity, delay: idx * 0.7 }}>
                 <p className="text-[5px] tracking-[0.4em]" style={{ color: `${color}55` }}>{label}</p>
-                <p className="text-[10px] font-bold font-mono leading-tight" style={{ color, textShadow: `0 0 10px ${color}` }}>
+                <p className="text-[11px] font-bold font-mono leading-tight" style={{ color, textShadow: `0 0 10px ${color}` }}>
                   {val !== null && val !== undefined ? `${prefix}${val}` : "···"}
                 </p>
               </motion.div>
@@ -220,6 +244,90 @@ function HudReadout({ commandCount, sessionElapsed, state, c, sessionActive }: {
     </div>
   );
 }
+
+// ── Personality Panel ─────────────────────────────────────────────────────────
+
+interface Personality { humor: number; energy: number; formality: number }
+
+function PersonalityPanel({ value, onChange, c }: { value: Personality; onChange: (p: Personality) => void; c: string }) {
+  const sliders = [
+    { key: "humor"     as const, label: "HUMOR",     icon: Laugh,  lo: "DEADPAN",      hi: "WITTY"       },
+    { key: "energy"    as const, label: "ENERGY",    icon: Zap,    lo: "CALM",         hi: "FIRED UP"    },
+    { key: "formality" as const, label: "FORMALITY", icon: Brain,  lo: "CASUAL",       hi: "FORMAL"      },
+  ];
+  return (
+    <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }} transition={{ duration: 0.15 }}
+      className="absolute top-full right-0 mt-2 z-50 p-4 w-72 rounded"
+      style={{ background: "rgba(4,4,6,0.97)", border: `1px solid ${c}30`, boxShadow: `0 0 40px ${c}15` }}>
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-[7px] tracking-[0.5em] text-zinc-500">PERSONALITY DIALS</p>
+        <p className="text-[6px] font-mono text-zinc-700">AFFECTS ALL RESPONSES</p>
+      </div>
+      <div className="space-y-4">
+        {sliders.map(({ key, label, icon: Icon, lo, hi }) => (
+          <div key={key}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <Icon className="h-2.5 w-2.5" style={{ color: c }} />
+                <span className="text-[7px] tracking-widest font-medium" style={{ color: c }}>{label}</span>
+              </div>
+              <span className="text-[7px] font-mono" style={{ color: `${c}80` }}>{value[key]}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[5px] tracking-wider text-zinc-700 w-10 text-right">{lo}</span>
+              <div className="relative flex-1 h-1 rounded-full" style={{ background: `${c}15` }}>
+                <motion.div className="absolute left-0 top-0 h-full rounded-full" style={{ width: `${value[key]}%`, background: `linear-gradient(90deg, ${c}60, ${c})`, boxShadow: `0 0 8px ${c}` }} />
+                <input type="range" min={0} max={100} value={value[key]}
+                  onChange={e => onChange({ ...value, [key]: Number(e.target.value) })}
+                  className="absolute inset-0 w-full opacity-0 cursor-pointer" style={{ height: "100%" }} />
+              </div>
+              <span className="text-[5px] tracking-wider text-zinc-700 w-10">{hi}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 pt-3 border-t border-white/[0.04]">
+        <button onClick={() => onChange({ humor: 50, energy: 50, formality: 50 })}
+          className="text-[6px] tracking-widest text-zinc-700 hover:text-zinc-400 transition-colors">RESET TO DEFAULTS</button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Arc waveform (curved bars below orb during speaking/listening) ─────────────
+
+const ArcWaveform = memo(function ArcWaveform({ active, color, audioHeights }: { active: boolean; color: string; audioHeights?: number[] }) {
+  const bars = 11;
+  const arcR = 88;
+  const arcStart = -150; // degrees
+  const arcEnd   = -30;
+  const angleStep = (arcEnd - arcStart) / (bars - 1);
+
+  return (
+    <svg className="absolute pointer-events-none" style={{ width: arcR * 2 + 40, height: arcR + 30, left: -(arcR + 20), top: "50%" }} viewBox={`0 0 ${arcR * 2 + 40} ${arcR + 30}`}>
+      {Array.from({ length: bars }).map((_, i) => {
+        const angle = arcStart + i * angleStep;
+        const rad = (angle * Math.PI) / 180;
+        const cx = arcR + 20 + Math.cos(rad) * arcR;
+        const cy = arcR + Math.sin(rad) * arcR;
+        const rawH = audioHeights ? audioHeights[i % audioHeights.length] : 6;
+        const h = active ? Math.max(3, rawH * 0.9) : 3;
+        const nx = Math.cos(rad);
+        const ny = Math.sin(rad);
+        return (
+          <motion.line key={i}
+            x1={cx - nx * (h / 2)} y1={cy - ny * (h / 2)}
+            x2={cx + nx * (h / 2)} y2={cy + ny * (h / 2)}
+            stroke={color} strokeWidth={2} strokeLinecap="round"
+            style={{ filter: active ? `drop-shadow(0 0 3px ${color})` : "none" }}
+            animate={active && !audioHeights ? { strokeWidth: [1.5, 3, 1.5] } : {}}
+            transition={{ duration: 1.2 + i * 0.1, repeat: Infinity, delay: i * 0.08 }}
+          />
+        );
+      })}
+    </svg>
+  );
+});
 
 // ── Data Mode ──────────────────────────────────────────────────────────────────
 
@@ -455,6 +563,9 @@ export default function JarvisPage() {
   const [elevenlabsOk, setElevenlabsOk] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [barHeights, setBarHeights]     = useState<number[]>([4, 14, 6, 22, 8, 18, 5]);
+  const [personality, setPersonality]   = useState<Personality>({ humor: 50, energy: 50, formality: 50 });
+  const [showPersonality, setShowPersonality] = useState(false);
+  const [activeTools, setActiveTools]   = useState<string[]>([]);
 
   const containerRef          = useRef<HTMLDivElement>(null);
   const conversationActiveRef = useRef(false);
@@ -696,11 +807,15 @@ export default function JarvisPage() {
       const res = await fetch("/api/admin/jarvis", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command, history }),
+        body: JSON.stringify({ command, history, personality }),
       });
 
       const latencyMs = Date.now() - t0;
       const contentType = res.headers.get("Content-Type") ?? "";
+
+      // Show which tools Jarvis used
+      const toolsHeader = res.headers.get("X-Jarvis-Tools") ?? "";
+      if (toolsHeader) setActiveTools(toolsHeader.split(",").filter(Boolean));
 
       if (contentType.includes("audio")) {
         setElevenlabsOk(true);
@@ -714,6 +829,7 @@ export default function JarvisPage() {
 
         await playStreamingAudio(res, () => {
           processingRef.current = false;
+          setActiveTools([]);
           if (conversationActiveRef.current) {
             setState("listening");
             if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 300);
@@ -833,7 +949,23 @@ export default function JarvisPage() {
           <p className="text-[6px] tracking-[0.6em] text-zinc-800 mt-0.5">CINEFLOW INTELLIGENCE SYSTEM</p>
         </div>
 
-        <div className="flex items-center gap-3 w-64 shrink-0 justify-end">
+        <div className="flex items-center gap-3 shrink-0 justify-end">
+          {/* Live stats ticker */}
+          {stats && (
+            <div className="hidden lg:flex items-center gap-3 overflow-hidden max-w-[220px]">
+              {[
+                { label: "USR", val: stats.totalUsers, color: "#e2e8f0" },
+                { label: "MRR", val: `$${stats.mrr}`,  color: "#d4a853" },
+                { label: "ACT", val: stats.activeLastWeek, color: "#10b981" },
+              ].map(({ label, val, color }) => (
+                <div key={label} className="flex items-center gap-1">
+                  <span className="text-[5px] tracking-widest" style={{ color: `${color}50` }}>{label}</span>
+                  <span className="text-[8px] font-mono font-bold" style={{ color }}>{val}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center gap-0.5 rounded border border-white/[0.06] p-0.5">
             {(["voice", "data"] as ViewMode[]).map(mode => (
               <button key={mode} onClick={() => setViewMode(mode)}
@@ -842,6 +974,21 @@ export default function JarvisPage() {
                 {mode.toUpperCase()}
               </button>
             ))}
+          </div>
+
+          {/* Personality panel toggle */}
+          <div className="relative">
+            <button onClick={() => setShowPersonality(v => !v)}
+              className="p-1.5 rounded border transition-colors"
+              style={{ borderColor: showPersonality ? `${c}50` : "rgba(255,255,255,0.06)", color: showPersonality ? c : "#52525b" }}
+              title="Personality dials">
+              <SlidersHorizontal className="h-3 w-3" />
+            </button>
+            <AnimatePresence>
+              {showPersonality && (
+                <PersonalityPanel value={personality} onChange={setPersonality} c={c} />
+              )}
+            </AnimatePresence>
           </div>
 
           <button onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
@@ -931,17 +1078,17 @@ export default function JarvisPage() {
                   <motion.div className="absolute rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c}0a 0%, transparent 68%)` }}
                     animate={{ width: state === "listening" ? 560 : state === "speaking" ? 530 : 460, height: state === "listening" ? 560 : state === "speaking" ? 530 : 460 }} transition={{ duration: 0.7 }} />
 
-                  {/* Radar sweep — rotates behind everything */}
-                  <RadarSweep c={c} active={sessionActive} r={220} />
+                  {/* Radar sweep */}
+                  <RadarSweep c={c} active={sessionActive} r={250} />
 
                   {/* Outer tick ring */}
-                  <TickRing radius={195} count={64} c={c} />
+                  <TickRing radius={220} count={72} c={c} />
 
                   {/* Outer static ring */}
-                  <div className="absolute rounded-full pointer-events-none" style={{ width: 390, height: 390, border: `1px solid ${c}10` }} />
+                  <div className="absolute rounded-full pointer-events-none" style={{ width: 440, height: 440, border: `1px solid ${c}08` }} />
 
                   {/* Second tick ring */}
-                  <TickRing radius={155} count={32} c={c} />
+                  <TickRing radius={170} count={36} c={c} />
 
                   {/* Listening / speaking ripples */}
                   <AnimatePresence>
@@ -984,8 +1131,13 @@ export default function JarvisPage() {
                   </motion.div>
                 </div>
 
-                <div className="mt-10 flex flex-col items-center gap-3">
-                  <WaveformBars active={state === "listening" || state === "speaking"} color={c} audioHeights={state === "speaking" ? barHeights : undefined} />
+                <div className="mt-8 flex flex-col items-center gap-2.5">
+                  {/* Arc waveform — curves below the orb */}
+                  <div className="relative h-12 w-full flex items-center justify-center">
+                    <ArcWaveform active={state === "listening" || state === "speaking"} color={c} audioHeights={state === "speaking" ? barHeights : undefined} />
+                    <WaveformBars active={state === "listening" || state === "speaking"} color={c} audioHeights={state === "speaking" ? barHeights : undefined} />
+                  </div>
+
                   <AnimatePresence mode="wait">
                     <motion.p key={`${state}-${sessionActive}`} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}
                       className="text-[9px] font-semibold tracking-[0.6em]" style={{ color: c }}>
@@ -996,13 +1148,25 @@ export default function JarvisPage() {
                       {state === "speaking"                    && "JARVIS SPEAKING"}
                     </motion.p>
                   </AnimatePresence>
+
+                  {/* Tool indicator — shows which Jarvis tool is running */}
                   <AnimatePresence>
-                    {lastTranscript && (state === "processing" || state === "speaking") && (
-                      <motion.p initial={{ opacity: 0 }} animate={{ opacity: 0.3 }} exit={{ opacity: 0 }} className="text-[9px] font-mono text-zinc-500 max-w-xs text-center">
+                    {state === "processing" && activeTools.length > 0 && (
+                      <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded" style={{ border: `1px solid ${c}20`, background: `${c}06` }}>
+                        <motion.div className="h-1 w-1 rounded-full" style={{ backgroundColor: c }} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.6, repeat: Infinity }} />
+                        <span className="text-[6px] font-mono tracking-widest" style={{ color: `${c}80` }}>
+                          ↗ {activeTools[0].replace(/_/g, " ").toUpperCase()}
+                        </span>
+                      </motion.div>
+                    )}
+                    {lastTranscript && (state === "processing" || state === "speaking") && activeTools.length === 0 && (
+                      <motion.p key="transcript" initial={{ opacity: 0 }} animate={{ opacity: 0.3 }} exit={{ opacity: 0 }} className="text-[9px] font-mono text-zinc-500 max-w-xs text-center">
                         &ldquo;{lastTranscript}&rdquo;
                       </motion.p>
                     )}
                   </AnimatePresence>
+
                   <HudReadout commandCount={commandCount} sessionElapsed={sessionElapsed} state={state} c={c} sessionActive={sessionActive} />
                 </div>
               </div>
