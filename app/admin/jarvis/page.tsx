@@ -120,6 +120,107 @@ function fmtDuration(ms: number): string {
   return `${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// ── HUD Components ────────────────────────────────────────────────────────────
+
+function RadarSweep({ c, active, r = 210 }: { c: string; active: boolean; r?: number }) {
+  if (!active) return null;
+  return (
+    <motion.div className="absolute pointer-events-none rounded-full"
+      style={{ width: r * 2, height: r * 2, left: -r, top: -r,
+        background: `conic-gradient(from -8deg, transparent 0deg, ${c}05 6deg, ${c}18 20deg, ${c}06 38deg, transparent 65deg, transparent 360deg)`,
+      }} animate={{ rotate: 360 }} transition={{ duration: 5, repeat: Infinity, ease: "linear" }} />
+  );
+}
+
+function TickRing({ radius, count, c }: { radius: number; count: number; c: string }) {
+  const ticks = Array.from({ length: count }, (_, i) => {
+    const angle = (i / count) * 360;
+    const rad = (angle - 90) * (Math.PI / 180);
+    const major = i % Math.round(count / 8) === 0;
+    const inner = major ? radius - 11 : radius - 5;
+    return { rad, inner, major };
+  });
+  return (
+    <svg className="absolute pointer-events-none" style={{ width: radius * 2, height: radius * 2, left: -radius, top: -radius }} viewBox={`0 0 ${radius * 2} ${radius * 2}`}>
+      {ticks.map(({ rad, inner, major }, i) => (
+        <line key={i}
+          x1={radius + Math.cos(rad) * inner} y1={radius + Math.sin(rad) * inner}
+          x2={radius + Math.cos(rad) * radius} y2={radius + Math.sin(rad) * radius}
+          stroke={major ? `${c}55` : `${c}22`} strokeWidth={major ? 1.5 : 0.75} />
+      ))}
+    </svg>
+  );
+}
+
+function OrbitingNodes({ stats, c, sessionActive }: { stats: LiveStats | null; c: string; sessionActive: boolean }) {
+  const nodes = [
+    { label: "USERS",  val: stats?.totalUsers,    angle: 22,  color: "#e2e8f0", prefix: "" },
+    { label: "MRR",    val: stats?.mrr,            angle: 112, color: "#d4a853", prefix: "$" },
+    { label: "PAID",   val: stats?.paid,           angle: 202, color: "#10b981", prefix: "" },
+    { label: "ACTIVE", val: stats?.activeLastWeek, angle: 298, color: "#3b82f6", prefix: "" },
+  ];
+  const r = 200;
+  return (
+    <>
+      {nodes.map(({ label, val, angle, color, prefix }) => {
+        const rad = (angle - 90) * (Math.PI / 180);
+        const x = Math.cos(rad) * r;
+        const y = Math.sin(rad) * r;
+        const lineRad = rad;
+        const lineLen = 28;
+        const lx1 = Math.cos(lineRad) * 148;
+        const ly1 = Math.sin(lineRad) * 148;
+        const lx2 = Math.cos(lineRad) * (148 + lineLen);
+        const ly2 = Math.sin(lineRad) * (148 + lineLen);
+        return (
+          <motion.div key={label} className="absolute pointer-events-none" style={{ left: "50%", top: "50%" }}
+            initial={{ opacity: 0 }} animate={{ opacity: sessionActive ? 1 : 0.35 }} transition={{ duration: 0.8, delay: 0.2 }}>
+            <svg className="absolute" style={{ width: 2, height: 2, left: lx1, top: ly1, overflow: "visible" }}>
+              <line x1={0} y1={0} x2={lx2 - lx1} y2={ly2 - ly1} stroke={`${color}40`} strokeWidth={1} />
+            </svg>
+            <div className="absolute" style={{ transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))` }}>
+              <motion.div className="rounded px-2 py-1 text-center" style={{ border: `1px solid ${color}35`, background: "rgba(0,0,0,0.88)", minWidth: 46 }}
+                animate={{ boxShadow: [`0 0 0px ${color}00`, `0 0 8px ${color}30`, `0 0 0px ${color}00`] }} transition={{ duration: 2.8, repeat: Infinity, delay: nodes.findIndex(n => n.label === label) * 0.6 }}>
+                <p className="text-[5px] tracking-[0.4em]" style={{ color: `${color}55` }}>{label}</p>
+                <p className="text-[10px] font-bold font-mono leading-tight" style={{ color, textShadow: `0 0 10px ${color}` }}>
+                  {val !== null && val !== undefined ? `${prefix}${val}` : "···"}
+                </p>
+              </motion.div>
+            </div>
+          </motion.div>
+        );
+      })}
+    </>
+  );
+}
+
+function HudReadout({ commandCount, sessionElapsed, state, c, sessionActive }: {
+  commandCount: number; sessionElapsed: number; state: JarvisState; c: string; sessionActive: boolean;
+}) {
+  const [sig, setSig] = useState("98.7");
+  useEffect(() => {
+    if (!sessionActive) return;
+    const id = setInterval(() => setSig((98 + Math.random() * 2).toFixed(1)), 2200);
+    return () => clearInterval(id);
+  }, [sessionActive]);
+  return (
+    <div className="flex items-center gap-5 mt-3 px-4 py-1.5 rounded" style={{ border: `1px solid ${c}12`, background: `${c}04` }}>
+      {[
+        { label: "SIG", val: `${sig} MHz`, col: `${c}70` },
+        { label: "NODE", val: "CF-J4RV1S", col: "rgba(255,255,255,0.2)" },
+        { label: "CMD", val: `#${String(commandCount).padStart(3, "0")}`, col: `${c}80` },
+        { label: "UPTIME", val: fmtDuration(sessionElapsed), col: `${c}80` },
+        { label: "STATUS", val: state.toUpperCase(), col: c },
+      ].map(({ label, val, col }) => (
+        <div key={label}>
+          <p className="text-[4px] tracking-[0.5em] text-zinc-800">{label}</p>
+          <p className="text-[7px] font-mono" style={{ color: col }}>{val}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Data Mode ──────────────────────────────────────────────────────────────────
 
 const PLAN_META = [
@@ -648,7 +749,7 @@ export default function JarvisPage() {
       setState("idle");
     } else {
       conversationActiveRef.current = true;
-      processingRef.current = true;
+      processingRef.current = false;
       setSessionActive(true);
       sessionStartRef.current = Date.now();
       setCommandCount(0);
