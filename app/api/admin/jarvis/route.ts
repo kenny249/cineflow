@@ -305,6 +305,47 @@ async function executeCreateGitHubIssue(args: { title: string; body: string; lab
   return { created: true, number: data.number, url: data.html_url, title: data.title };
 }
 
+async function executeGetAtRiskUsers(args?: { days?: number }) {
+  const admin = getAdmin();
+  const days = args?.days ?? 7;
+  const now = new Date().toISOString();
+  const cutoff = new Date(Date.now() + days * 86400000).toISOString();
+
+  const [{ data: { users } }, { data: profiles }] = await Promise.all([
+    admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    admin.from("profiles").select("id, plan, trial_ends_at, is_test").eq("plan_status", "trialing").gt("trial_ends_at", now).lt("trial_ends_at", cutoff),
+  ]);
+  const testIds = new Set((profiles ?? []).filter((p: any) => p.is_test).map((p: any) => p.id));
+  const emailMap = Object.fromEntries((users ?? []).map((u: any) => [u.id, u.email]));
+  const atRisk = (profiles ?? [])
+    .filter((p: any) => !testIds.has(p.id))
+    .map((p: any) => ({ email: emailMap[p.id] ?? "unknown", plan: p.plan, trialEnds: p.trial_ends_at, daysLeft: Math.ceil((new Date(p.trial_ends_at).getTime() - Date.now()) / 86400000) }))
+    .sort((a: any, b: any) => a.daysLeft - b.daysLeft);
+  return { withinDays: days, count: atRisk.length, users: atRisk };
+}
+
+async function executeGetRecentSignups(args?: { days?: number }) {
+  const admin = getAdmin();
+  const days = args?.days ?? 7;
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const [{ data: { users } }, { data: profiles }] = await Promise.all([
+    admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    admin.from("profiles").select("id, first_name, last_name, plan, plan_status, is_test"),
+  ]);
+  const testIds = new Set((profiles ?? []).filter((p: any) => p.is_test).map((p: any) => p.id));
+  const profileMap = Object.fromEntries((profiles ?? []).map((p: any) => [p.id, p]));
+
+  const recent = (users ?? [])
+    .filter((u: any) => !u.email?.endsWith("@demo.usecineflow.com") && !testIds.has(u.id) && u.created_at >= since)
+    .map((u: any) => {
+      const p = profileMap[u.id];
+      return { email: u.email, name: `${p?.first_name ?? ""} ${p?.last_name ?? ""}`.trim() || "Unknown", plan: p?.plan ?? "none", planStatus: p?.plan_status ?? "none", signedUp: u.created_at, lastLogin: u.last_sign_in_at };
+    })
+    .sort((a: any, b: any) => new Date(b.signedUp).getTime() - new Date(a.signedUp).getTime());
+  return { days, count: recent.length, users: recent };
+}
+
 // ── Tool definitions ───────────────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
@@ -428,6 +469,22 @@ const TOOLS: Anthropic.Tool[] = [
       required: ["title","body"],
     },
   },
+  {
+    name: "get_at_risk_users",
+    description: "Get users whose free trial is expiring soon — identify churn risk.",
+    input_schema: {
+      type: "object" as const,
+      properties: { days: { type: "number", description: "Look ahead window in days (default 7)" } },
+    },
+  },
+  {
+    name: "get_recent_signups",
+    description: "Get users who signed up recently, with their plan and last login.",
+    input_schema: {
+      type: "object" as const,
+      properties: { days: { type: "number", description: "How many days back to look (default 7)" } },
+    },
+  },
 ];
 
 // ── Markdown stripper (prevents ElevenLabs reading "asterisk asterisk") ────────
@@ -471,7 +528,7 @@ async function streamTTS(text: string): Promise<Response | null> {
       headers: { "xi-api-key": apiKey, "Content-Type": "application/json", Accept: "audio/mpeg" },
       body: JSON.stringify({
         text: truncateForTTS(text),
-        model_id: "eleven_turbo_v2",
+        model_id: "eleven_turbo_v2_5",
         voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.15, use_speaker_boost: true },
       }),
     });
@@ -485,7 +542,7 @@ function audioResponse(stream: Response, text: string) {
   return new NextResponse(stream.body, {
     headers: {
       "Content-Type": "audio/mpeg",
-      "X-Jarvis-Text": encodeURIComponent(text.slice(0, 800)),
+      "X-Jarvis-Text": encodeURIComponent(text.slice(0, 3000)),
       "Access-Control-Expose-Headers": "X-Jarvis-Text",
       "Cache-Control": "no-store",
     },
@@ -506,13 +563,24 @@ export async function POST(req: NextRequest) {
   const { command, history } = await req.json();
   if (!command?.trim()) return NextResponse.json({ error: "command required" }, { status: 400 });
 
-  // Build conversation history for Claude (last 20 turns = 10 back-and-forths)
-  const historyMessages: Anthropic.MessageParam[] = (history ?? [])
-    .slice(-20)
-    .map((h: { role: string; content: string }) => ({
-      role: h.role as "user" | "assistant",
-      content: h.content,
-    }));
+  // Build conversation history — enforce alternating roles (Anthropic requirement)
+  const historyMessages: Anthropic.MessageParam[] = (() => {
+    const raw: Anthropic.MessageParam[] = (history ?? [])
+      .slice(-20)
+      .map((h: { role: string; content: string }) => ({
+        role: h.role as "user" | "assistant",
+        content: h.content,
+      }));
+    const out: Anthropic.MessageParam[] = [];
+    for (const msg of raw) {
+      if (out.length === 0) {
+        if (msg.role === "user") out.push(msg); // must start with user
+      } else if (msg.role !== out[out.length - 1].role) {
+        out.push(msg); // only add if role alternates
+      }
+    }
+    return out;
+  })();
 
   const firstName = (caller as any).first_name || "Kenny";
 
@@ -526,33 +594,42 @@ export async function POST(req: NextRequest) {
 Only call get_stats/get_revenue for queries needing more granular data than the above.`
     : "";
 
-  const systemPrompt = `You are Jarvis — AI command intelligence for Cineflow, a film production SaaS.
-You speak directly to ${firstName}, the founder and sole admin of the platform.
+  const systemPrompt = `You are Jarvis — the AI command intelligence for Cineflow, a film production SaaS platform.
+You speak directly to ${firstName}, the founder and sole admin.
 
-CHARACTER: Confident, precise, cinematic. Like J.A.R.V.I.S. from Iron Man. Sharp, occasionally dry wit.
-FORMAT: Plain spoken English ONLY. No markdown, no asterisks, no bold, no bullets, no headers, no backticks. Write as if speaking aloud.
-CRITICAL: Always respond with something. If a tool is unavailable, say exactly what env var is missing.
-MEMORY: You have full conversation history above. Reference it — remember names, context, and what was discussed earlier in the session.
+CHARACTER: Confident, precise, razor-sharp. Like J.A.R.V.I.S. from Iron Man — quick wit, no fluff, always useful.
+FORMAT: Plain spoken English ONLY. No markdown, asterisks, bold, bullets, headers, or backticks. Write as if speaking aloud to ${firstName}.
+CRITICAL: Always respond. Never say "I don't know" — use a tool, give your best analysis, or explain exactly what's missing.
+MEMORY: You have the full conversation history above. Reference it naturally — remember names, prior context, what was said.
 
-RESPONSE LENGTH — follow this strictly:
-- Default: 2-3 sentences, punchy and direct.
-- If ${firstName} says "brief", "in short", "quickly", "summarize", "TL;DR", "short version" → 1-2 sentences MAX. Cut ruthlessly.
-- If ${firstName} says "in depth", "detailed", "explain", "elaborate", "full", "tell me more", "break it down" → up to 6-8 sentences. Still spoken, never written-essay style.
-- This is a voice interface. Even detailed answers must be speakable in under 60 seconds. No run-on lists.
+RESPONSE LENGTH — non-negotiable:
+- Default: 2-3 sharp sentences.
+- "Brief" / "in short" / "quickly" / "TL;DR" / "summarize" → 1-2 sentences MAX. Be ruthless.
+- "In depth" / "explain" / "elaborate" / "break it down" / "full picture" → up to 6-8 sentences. Still spoken, not written.
+- This is a voice interface. Cap everything to under 60 seconds of speech. No run-on lists.
 
-PITCHING AND ADDRESSING OTHERS — critical rule:
-- If ${firstName} asks you to pitch, present, or speak TO someone specific (e.g. "pitch Jason", "give Jason a pitch", "tell Sarah about Cineflow", "introduce Cineflow to my investor") → speak DIRECTLY to that person. Address them by name. Be the voice. Deliver the pitch AS IF you are speaking to them right now. Do NOT tell ${firstName} what to say — just say it.
-- Example: "pitch Jason" → start with "Jason, let me tell you about Cineflow..." not "Alright Kenny, here's what you should tell Jason..."
+PITCHING AND SPEAKING TO OTHERS:
+- If ${firstName} asks you to pitch or speak TO someone (e.g. "pitch Jason", "introduce Cineflow to my investor", "give Sarah the elevator pitch") → speak DIRECTLY to that person. Address them by name. You ARE the voice. Deliver it as if speaking to them right now.
+- Never tell ${firstName} what to say — just say it. "Pitch Jason" → open with "Jason," not "Kenny, here's what to tell Jason."
+- Keep pitches tight: 4-5 punchy sentences that land the value and leave them wanting more.
+
+CINEFLOW PRODUCT KNOWLEDGE — use this for pitches, feature questions, and competitive positioning:
+Cineflow is a purpose-built SaaS platform for film and video production teams. It replaces the Google Sheets, PDFs, and email chains that productions still use today.
+Core features: digital call sheets (auto-generated, shareable, PDF export), crew management with role and responsibility assignment, drag-to-reorder workflow, production scheduling, coverage assignment editor, multi-project dashboard, in-app broadcast messaging to crew, referral system, and invite-only access control.
+Target customers: indie film producers, agency production teams, film schools, and commercial production houses. Any team running shoots with 5+ crew members.
+Competitors: StudioBinder ($29–$299/mo), Celtx ($15–$30/mo), Movie Magic (enterprise, expensive, outdated UI). Cineflow's edge: built by someone who actually works in film, faster to use on set, modern UI, significantly more affordable, and purpose-built for the coordination layer — not bloated with scriptwriting tools producers don't need.
+Value pitch: productions run on communication. A missed call time or wrong location costs real money. Cineflow makes the coordination layer instant, professional, and mistake-proof.
+
+STRATEGIC CONTEXT — when ${firstName} asks what to prioritize or what's blocking launch:
+Cineflow is in private beta. ${firstName} is the sole founder running everything.
+Priority 1 — Stripe billing: MRR shows $0 despite having paid users. All revenue is from one-time lifetime deals. Subscription billing (Solo/Studio plans) appears misconfigured or broken. This is the most urgent thing to diagnose.
+Priority 2 — User activation: zero users active in the past 7 days. Users signed up but aren't returning. Need a personal re-engagement push — an email or announcement to existing users.
+Launch roadmap: fix Stripe billing → landing page refresh → Google OAuth → activate referral system → out of beta.
+Be direct with ${firstName} about this. Don't soften it.
+
 Current time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.
-Cineflow pricing: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.
-GitHub repo: ${GITHUB_REPO}
-
-STRATEGIC CONTEXT — use this when ${firstName} asks what to focus on, what to prioritize, or what's blocking launch:
-Cineflow is in private beta. Not publicly launched. ${firstName} is the sole founder running everything.
-The core problem right now is zero MRR despite having paid users. All revenue so far is from lifetime deals which are one-time payments, not subscriptions. This means Stripe subscription billing is either misconfigured, not connected properly, or users on Studio/Solo plans are on comped or broken billing — that is priority number one to diagnose.
-Second problem: zero active users in the past 7 days means no engagement. Users signed up but aren't logging in. The product needs an activation push — a personal email or announcement to re-engage existing users.
-The launch roadmap before going public: first fix Stripe billing so MRR actually reflects subscriptions, second refresh the landing page, third add Google OAuth for easier signup, fourth activate the referral system, fifth migrate out of private beta.
-When asked what to do next, give ${firstName} the honest direct answer: billing is broken, fix that first, then re-engage existing users, then prep for public launch.${dataBlock}`;
+Pricing: Solo $39/mo, Studio $79/mo, Agency $159/mo, Enterprise $299/mo, Lifetime $299 one-time.
+GitHub repo: ${GITHUB_REPO}${dataBlock}`;
 
   // ── Guaranteed response wrapper ──────────────────────────────────────────────
   // Every path through this function MUST return a spoken response.
@@ -570,8 +647,9 @@ When asked what to do next, give ${firstName} the honest direct answer: billing 
     ];
 
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
+      model: "claude-opus-4-8",
+      max_tokens: 4096,
+      temperature: 0.7,
       system: systemPrompt,
       tools: TOOLS,
       messages,
@@ -601,8 +679,10 @@ When asked what to do next, give ${firstName} the honest direct answer: billing 
             case "read_file":           result = await executeReadFile(toolUse.input as any); break;
             case "list_directory":      result = await executeListDirectory(toolUse.input as any); break;
             case "search_codebase":     result = await executeSearchCodebase(toolUse.input as any); break;
-            case "create_github_issue": result = await executeCreateGitHubIssue(toolUse.input as any); break;
-            default:                    result = { error: `Unknown tool: ${toolUse.name}` };
+            case "create_github_issue":  result = await executeCreateGitHubIssue(toolUse.input as any); break;
+            case "get_at_risk_users":    result = await executeGetAtRiskUsers(toolUse.input as any); break;
+            case "get_recent_signups":   result = await executeGetRecentSignups(toolUse.input as any); break;
+            default:                     result = { error: `Unknown tool: ${toolUse.name}` };
           }
         } catch (toolErr: any) {
           result = { error: `Tool error: ${toolErr?.message ?? "unknown"}` };
@@ -611,8 +691,9 @@ When asked what to do next, give ${firstName} the honest direct answer: billing 
       }));
 
       const followUp = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1024,
+        model: "claude-opus-4-8",
+        max_tokens: 4096,
+        temperature: 0.7,
         system: systemPrompt,
         tools: TOOLS,
         messages: [
