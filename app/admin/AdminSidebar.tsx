@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown, MessageSquarePlus, BookOpen, Code2, LineChart } from "lucide-react";
+import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown, MessageSquarePlus, BookOpen, Code2, LineChart, ExternalLink, AlertTriangle, FlaskConical } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -112,6 +112,23 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
               </Link>
             );
           })}
+
+          {/* External tools */}
+          <div className="mt-3 pt-3 border-t border-white/[0.04] space-y-0.5">
+            <p className="px-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-zinc-700">Tools</p>
+            <a href="https://sentry.io" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Sentry
+              <ExternalLink className="h-3 w-3 ml-auto opacity-40" />
+            </a>
+            <a href="https://us.posthog.com" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300 transition-colors">
+              <FlaskConical className="h-4 w-4 shrink-0" />
+              PostHog
+              <ExternalLink className="h-3 w-3 ml-auto opacity-40" />
+            </a>
+          </div>
         </nav>
 
       </aside>

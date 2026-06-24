@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Film, Check } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
 import { scrollState } from "./scrollState";
+import { AdPixels } from "@/components/shared/AdPixels";
 
 interface Props { refCode?: string }
 
@@ -143,6 +144,7 @@ export function LandingPage({ refCode }: Props) {
 
   return (
     <div style={{ background: "#050508" }}>
+      <AdPixels />
       <BackgroundCanvas />
 
       {/* Nav */}

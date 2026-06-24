@@ -115,8 +115,11 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
-        <Section title="7. Cookies">
-          <p>Cineflow uses minimal cookies and browser storage. We use session storage and local storage to maintain your login session and remember UI preferences (such as sidebar state). We do not use third-party tracking cookies or advertising pixels.</p>
+        <Section title="7. Cookies &amp; Tracking Pixels">
+          <p>Cineflow uses minimal cookies and browser storage. We use session storage and local storage to maintain your login session and remember UI preferences (such as sidebar state).</p>
+          <p><strong className="text-zinc-200">Ad attribution pixels.</strong> On our public marketing and sign-up pages (not inside the authenticated app), we load ad attribution pixels from Meta (Facebook/Instagram), Google, and TikTok. These are used solely for measuring the effectiveness of our advertising campaigns — for example, to understand that an ad on Instagram led to a sign-up. These pixels are never active while you are logged into the app and working on your projects. If you arrived at Cineflow through an ad, these pixels help us understand which channel worked.</p>
+          <p><strong className="text-zinc-200">Product analytics.</strong> Inside the app, we use PostHog to collect anonymized, aggregated usage data — such as which features are used and where users encounter friction. This data is tied to your account but is never sold or shared with advertisers. You can request deletion of your analytics data at any time by contacting us.</p>
+          <p>We do not use cookies for behavioral profiling, cross-site tracking, or advertising targeting inside the app.</p>
         </Section>
 
         <Section title="8. Children's Privacy">

@@ -3,7 +3,6 @@ import { Inter, Syne } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { AdPixels } from "@/components/shared/AdPixels";
 import { UtmCapture } from "@/components/shared/UtmCapture";
 
 const inter = Inter({
@@ -65,7 +64,6 @@ export default function RootLayout({
       <body className={`${inter.variable} ${syne.variable} font-sans antialiased`}>
         {children}
         <Toaster />
-        <AdPixels />
         <Suspense fallback={null}>
           <UtmCapture />
         </Suspense>
