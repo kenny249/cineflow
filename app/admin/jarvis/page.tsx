@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { ArrowLeft, Mic, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh, Clock, Minus, Trash2 } from "lucide-react";
+import { ArrowLeft, Mic, MicOff, Square, Activity, BarChart3, Maximize2, Minimize2, SlidersHorizontal, Zap, Brain, Laugh, Clock, Minus, Trash2 } from "lucide-react";
 
 type JarvisState = "idle" | "listening" | "processing" | "speaking";
 type ViewMode    = "voice" | "data" | "history";
@@ -217,22 +217,25 @@ function SystemTicker({ c }: { c: string }) {
 
 const FREQ_COUNT = 26;
 
-function FrequencyBars({ c, active }: { c: string; active: boolean }) {
+function FrequencyBars({ c, active, heights }: { c: string; active: boolean; heights?: number[] }) {
   const [hs, setHs] = useState(() => Array.from({ length: FREQ_COUNT }, (_, i) => 4 + Math.abs(Math.sin(i * 0.7)) * 14));
   useEffect(() => {
+    if (heights) return;
     const id = setInterval(() => {
       setHs(prev => prev.map(h => Math.max(2, Math.min(38, h + (Math.random() - 0.5) * (active ? 11 : 2.5)))));
     }, active ? 65 : 500);
     return () => clearInterval(id);
-  }, [active]);
+  }, [active, heights]);
+  const display = heights ?? hs;
+  const hasSignal = heights ? heights.some(h => h > 6) : false;
   return (
-    <div className="flex items-end gap-px" style={{ height: 42, opacity: active ? 0.75 : 0.2, transition: "opacity 0.6s" }}>
-      {hs.map((h, i) => (
+    <div className="flex items-end gap-px" style={{ height: 42, opacity: heights ? (hasSignal ? 0.8 : 0.25) : active ? 0.75 : 0.2, transition: "opacity 0.4s" }}>
+      {display.map((h, i) => (
         <div key={i} style={{
-          width: 3, height: h,
+          width: 3, height: Math.max(2, h),
           background: `linear-gradient(to top, ${c}, ${c}55)`,
           borderRadius: "1px 1px 0 0",
-          transition: "height 65ms ease-out",
+          transition: heights ? "height 30ms linear" : "height 65ms ease-out",
         }} />
       ))}
     </div>
@@ -736,6 +739,8 @@ export default function JarvisPage() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<"" | "saved" | "error">("");
+  const [muted, setMuted]               = useState(false);
+  const [micFreqData, setMicFreqData]   = useState<number[]>(() => Array(26).fill(4));
 
   const containerRef          = useRef<HTMLDivElement>(null);
   const conversationActiveRef = useRef(false);
@@ -749,6 +754,10 @@ export default function JarvisPage() {
   const audioCtxRef           = useRef<AudioContext | null>(null);
   const analyserRef           = useRef<AnalyserNode | null>(null);
   const animFrameRef          = useRef<number | null>(null);
+  const micStreamRef          = useRef<MediaStream | null>(null);
+  const micAudioCtxRef        = useRef<AudioContext | null>(null);
+  const micAnalyserRef        = useRef<AnalyserNode | null>(null);
+  const micAnimFrameRef       = useRef<number | null>(null);
   const transcriptEndRef      = useRef<HTMLDivElement>(null);
   const sendCommandRef        = useRef<(cmd: string) => void>(() => {});
   const lastSpeechEndRef      = useRef(0);
@@ -798,6 +807,44 @@ export default function JarvisPage() {
     if (animFrameRef.current) { cancelAnimationFrame(animFrameRef.current); animFrameRef.current = null; }
     analyserRef.current = null;
     setBarHeights([6, 22, 10, 40, 14, 30, 8, 44, 12, 26, 7]);
+  }, []);
+
+  const stopMicAnalyser = useCallback(() => {
+    if (micAnimFrameRef.current) { cancelAnimationFrame(micAnimFrameRef.current); micAnimFrameRef.current = null; }
+    micAnalyserRef.current = null;
+    if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
+    setMicFreqData(Array(26).fill(4));
+  }, []);
+
+  const startMicAnalyser = useCallback(async () => {
+    if (micStreamRef.current) return; // already running
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      micStreamRef.current = stream;
+      if (!micAudioCtxRef.current || micAudioCtxRef.current.state === "closed") {
+        micAudioCtxRef.current = new AudioContext();
+      }
+      const ctx = micAudioCtxRef.current;
+      if (ctx.state === "suspended") await ctx.resume();
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 64;
+      analyser.smoothingTimeConstant = 0.8;
+      ctx.createMediaStreamSource(stream).connect(analyser); // don't connect to destination — no echo
+      micAnalyserRef.current = analyser;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const tick = () => {
+        if (!micAnalyserRef.current) return;
+        analyser.getByteFrequencyData(data);
+        setMicFreqData(Array.from({ length: 26 }, (_, i) => {
+          const bin = Math.floor((i / 26) * data.length);
+          return Math.max(2, Math.min(38, (data[bin] / 255) * 38));
+        }));
+        micAnimFrameRef.current = requestAnimationFrame(tick);
+      };
+      micAnimFrameRef.current = requestAnimationFrame(tick);
+    } catch {
+      // mic permission denied or unavailable — fall back to animated bars
+    }
   }, []);
 
   const startAnalyser = useCallback((audioEl: HTMLAudioElement) => {
@@ -1113,6 +1160,7 @@ export default function JarvisPage() {
       processingRef.current = false;
       speakingRef.current = false;
       setSessionActive(false);
+      setMuted(false);
       sessionStartRef.current = null;
       setSessionElapsed(0);
       setCommandCount(0);
@@ -1120,18 +1168,21 @@ export default function JarvisPage() {
       setMessages([]);
       if (recognitionRef.current) { try { recognitionRef.current.abort(); } catch {} recognitionRef.current = null; }
       stopAudio();
+      stopMicAnalyser();
       setState("idle");
     } else {
       conversationActiveRef.current = true;
       processingRef.current = false;
       setSessionActive(true);
+      setMuted(false);
       sessionStartRef.current = Date.now();
       setCommandCount(0);
       setLatencies([]);
       setMessages([]);
+      startMicAnalyser();
       startRecognition();
     }
-  }, [startRecognition, stopAudio]);
+  }, [startRecognition, stopAudio, startMicAnalyser, stopMicAnalyser]);
 
   // ── Interrupt ──────────────────────────────────────────────────────────────
   const interrupt = useCallback(() => {
@@ -1146,6 +1197,22 @@ export default function JarvisPage() {
       setState("idle");
     }
   }, [startRecognition, stopAudio]);
+
+  // ── Mute / Unmute ──────────────────────────────────────────────────────────
+  const toggleMute = useCallback(() => {
+    if (muted) {
+      setMuted(false);
+      startMicAnalyser();
+      startRecognition();
+    } else {
+      setMuted(true);
+      stopMicAnalyser();
+      if (recognitionRef.current) { try { recognitionRef.current.abort(); } catch {} recognitionRef.current = null; }
+      if (finalTimerRef.current) { clearTimeout(finalTimerRef.current); finalTimerRef.current = null; }
+      pendingTextRef.current = "";
+      if (!speakingRef.current) setState("idle");
+    }
+  }, [muted, startRecognition, startMicAnalyser, stopMicAnalyser]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const c = { idle: "#d4a853", listening: "#3b82f6", processing: "#8b5cf6", speaking: "#10b981" }[state];
@@ -1367,10 +1434,10 @@ export default function JarvisPage() {
                   </div>
                 </div>
 
-                {/* Signal spectrum above orb */}
+                {/* Signal spectrum above orb — driven by real mic FFT when session active */}
                 <div className="mb-2 flex flex-col items-center gap-1.5 pointer-events-none">
-                  <p className="text-[5px] tracking-[0.6em]" style={{ color: `${c}25` }}>SIG · SPECTRUM</p>
-                  <FrequencyBars c={c} active={sessionActive} />
+                  <p className="text-[5px] tracking-[0.6em]" style={{ color: `${c}25` }}>MIC · INPUT</p>
+                  <FrequencyBars c={c} active={sessionActive} heights={sessionActive && !muted ? micFreqData : undefined} />
                 </div>
 
                 <div className="relative flex items-center justify-center">
@@ -1586,23 +1653,42 @@ export default function JarvisPage() {
         )}
 
         <motion.button
-          onClick={state === "speaking" ? interrupt : sessionActive ? (() => {}) : toggleSession}
+          onClick={
+            state === "speaking" ? interrupt :
+            sessionActive && (state === "listening" || muted) ? toggleMute :
+            !sessionActive ? toggleSession :
+            () => {}
+          }
           className="flex items-center gap-2.5 rounded-full px-8 py-2.5 text-[10px] font-bold tracking-[0.35em] transition-all"
-          style={{ backgroundColor: `${c}12`, border: `1px solid ${c}${sessionActive ? "60" : "30"}`, color: c, boxShadow: sessionActive ? `0 0 28px ${c}18, inset 0 0 8px ${c}08` : "none" }}
+          style={{ backgroundColor: `${c}12`, border: `1px solid ${c}${sessionActive ? "60" : "30"}`, color: muted ? "#ef4444" : c, boxShadow: sessionActive ? `0 0 28px ${c}18, inset 0 0 8px ${c}08` : "none" }}
           whileTap={{ scale: 0.97 }}>
           <AnimatePresence mode="wait">
-            {!sessionActive                          && <motion.span key="mic" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.1 }}><Mic className="h-3.5 w-3.5" /></motion.span>}
-            {sessionActive && state === "listening"  && <motion.div key="pulse" className="h-3 w-3 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 8px ${c}` }} animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 0.5, repeat: Infinity }} />}
-            {sessionActive && state === "processing" && <motion.div key="spin" animate={{ rotate: 360 }} transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}><div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent" /></motion.div>}
-            {sessionActive && state === "speaking"   && <motion.span key="stop" initial={{ scale: 0 }} animate={{ scale: 1 }}><Square className="h-3 w-3 fill-current" /></motion.span>}
-            {sessionActive && state === "idle"       && <motion.div key="breathe" className="h-3 w-3 rounded-full" style={{ backgroundColor: c }} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity }} />}
+            {!sessionActive                                       && <motion.span key="mic" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.1 }}><Mic className="h-3.5 w-3.5" /></motion.span>}
+            {sessionActive && muted                               && <motion.span key="muted" initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={{ duration: 0.1 }}><MicOff className="h-3.5 w-3.5" /></motion.span>}
+            {sessionActive && !muted && state === "listening"     && <motion.div key="pulse" className="h-3 w-3 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 8px ${c}` }} animate={{ scale: [1, 1.5, 1] }} transition={{ duration: 0.5, repeat: Infinity }} />}
+            {sessionActive && !muted && state === "processing"    && <motion.div key="spin" animate={{ rotate: 360 }} transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}><div className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent" /></motion.div>}
+            {sessionActive && !muted && state === "speaking"      && <motion.span key="stop" initial={{ scale: 0 }} animate={{ scale: 1 }}><Square className="h-3 w-3 fill-current" /></motion.span>}
+            {sessionActive && !muted && state === "idle"          && <motion.div key="breathe" className="h-3 w-3 rounded-full" style={{ backgroundColor: c }} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.5, repeat: Infinity }} />}
           </AnimatePresence>
-          {!sessionActive                          && "START SESSION"}
-          {sessionActive && state === "listening"  && "LISTENING · · ·"}
-          {sessionActive && state === "processing" && "PROCESSING · · ·"}
-          {sessionActive && state === "speaking"   && "INTERRUPT"}
-          {sessionActive && state === "idle"       && "SESSION ACTIVE"}
+          {!sessionActive                                     && "START SESSION"}
+          {sessionActive && muted                             && "MUTED · CLICK TO UNMUTE"}
+          {sessionActive && !muted && state === "listening"   && "LISTENING · CLICK TO MUTE"}
+          {sessionActive && !muted && state === "processing"  && "PROCESSING · · ·"}
+          {sessionActive && !muted && state === "speaking"    && "INTERRUPT"}
+          {sessionActive && !muted && state === "idle"        && "SESSION ACTIVE"}
         </motion.button>
+
+        {sessionActive && (
+          <motion.button initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} onClick={toggleMute}
+            className="flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[9px] font-bold tracking-widest border transition-colors"
+            style={muted
+              ? { color: "#ef4444", borderColor: "#ef444430", background: "#ef444408" }
+              : { color: "#52525b", borderColor: "rgba(255,255,255,0.06)", background: "transparent" }}
+            title={muted ? "Unmute mic" : "Mute mic"}>
+            {muted ? <MicOff className="h-2.5 w-2.5" /> : <Mic className="h-2.5 w-2.5" />}
+            {muted ? "UNMUTE" : "MUTE"}
+          </motion.button>
+        )}
 
         {sessionActive && (
           <motion.button initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} onClick={toggleSession}
