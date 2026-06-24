@@ -1546,8 +1546,23 @@ export default function JarvisPage() {
                     transition={{ width: { duration: 0.4 }, height: { duration: 0.4 }, scale: { duration: 4, repeat: Infinity, ease: "easeInOut" } }}
                     style={{ background: `radial-gradient(circle at 36% 28%, ${c}50 0%, ${c}16 48%, transparent 75%)`, boxShadow: `inset 0 0 50px ${c}18, 0 0 70px ${c}35, 0 0 130px ${c}12` }}>
                     <motion.div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(from 0deg, transparent, ${c}35, transparent)`, opacity: 0.4 }} animate={{ rotate: [0, 360] }} transition={{ duration: 4, repeat: Infinity, ease: "linear" }} />
+                    {/* Waveform inside sphere — listening dots or speaking bars, clipped cleanly by circle */}
+                    <AnimatePresence>
+                      {(state === "speaking" || state === "listening") && (
+                        <motion.div key={state} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+                          className="absolute inset-0 flex items-center justify-center z-10">
+                          <WaveformBars
+                            active={state === "speaking"}
+                            listening={state === "listening"}
+                            color={c}
+                            audioHeights={state === "speaking" ? barHeights : undefined}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    {/* Center dot — idle and processing only */}
                     <motion.div className="relative z-10 rounded-full" style={{ backgroundColor: c, boxShadow: `0 0 28px ${c}, 0 0 60px ${c}90` }}
-                      animate={{ width: state === "speaking" ? 36 : state === "listening" ? 22 : sessionActive ? 15 : 10, height: state === "speaking" ? 36 : state === "listening" ? 22 : sessionActive ? 15 : 10, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
+                      animate={{ width: (state === "speaking" || state === "listening") ? 0 : sessionActive ? 15 : 10, height: (state === "speaking" || state === "listening") ? 0 : sessionActive ? 15 : 10, opacity: state === "idle" && !sessionActive ? [0.25, 0.55, 0.25] : 1 }} transition={{ duration: state === "idle" ? 3.5 : 0.2, repeat: state === "idle" ? Infinity : 0 }} />
                   </motion.div>
                 </div>
 
@@ -1564,11 +1579,7 @@ export default function JarvisPage() {
                   <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, black 0%, transparent 40%)" }} />
                 </div>
 
-                <div className="mt-8 flex flex-col items-center gap-2.5">
-                  <div className="flex items-center justify-center">
-                    <WaveformBars active={state === "speaking"} listening={state === "listening"} color={c} audioHeights={state === "speaking" ? barHeights : undefined} />
-                  </div>
-
+                <div className="mt-8 flex flex-col items-center gap-2.5 relative z-10">
                   <AnimatePresence mode="wait">
                     <motion.p key={`${state}-${sessionActive}`} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2 }}
                       className="text-[9px] font-semibold tracking-[0.6em]" style={{ color: c }}>
