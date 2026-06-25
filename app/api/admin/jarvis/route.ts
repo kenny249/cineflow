@@ -737,7 +737,23 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-// ── Markdown stripper (prevents ElevenLabs reading "asterisk asterisk") ────────
+// ── Number → words (so ElevenLabs never stumbles on digits) ──────────────────
+
+function numToWords(n: number): string {
+  if (!isFinite(n) || isNaN(n)) return String(n);
+  if (n < 0) return "negative " + numToWords(-n);
+  if (n === 0) return "zero";
+  const ones = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tensArr = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  if (n < 20)    return ones[n];
+  if (n < 100)   return tensArr[Math.floor(n / 10)] + (n % 10 ? " " + ones[n % 10] : "");
+  if (n < 1000)  return ones[Math.floor(n / 100)] + " hundred" + (n % 100 ? " " + numToWords(n % 100) : "");
+  if (n < 1e6)   return numToWords(Math.floor(n / 1000)) + " thousand" + (n % 1000 ? " " + numToWords(n % 1000) : "");
+  return numToWords(Math.floor(n / 1e6)) + " million" + (n % 1e6 ? " " + numToWords(n % 1e6) : "");
+}
+
+// ── Markdown stripper + number normaliser ─────────────────────────────────────
 
 function cleanForSpeech(text: string): string {
   return text
@@ -752,11 +768,20 @@ function cleanForSpeech(text: string): string {
     .replace(/^[-*+]\s+/gm, "")
     .replace(/^\d+\.\s+/gm, "")
     .replace(/^>\s+/gm, "")
-    .replace(/\$(\d[\d,]*(?:\.\d+)?)/g, (_, n) => n.replace(/,/g, "") + " dollars")
-    .replace(/(\d[\d,]*(?:\.\d+)?)%/g, (_, n) => n.replace(/,/g, "") + " percent")
-    .replace(/(\d+(?:\.\d+)?)ms\b/g, "$1 milliseconds")
-    .replace(/\b(\d+(?:\.\d+)?)s\b/g, "$1 seconds")
+    // Currency: $1,234 → "one thousand two hundred thirty-four dollars"
+    .replace(/\$(\d[\d,]*(?:\.\d+)?)/g, (_, n) => numToWords(parseInt(n.replace(/,/g, ""), 10)) + " dollars")
+    // Percent: 93% → "ninety-three percent"
+    .replace(/(\d[\d,]*)%/g, (_, n) => numToWords(parseInt(n.replace(/,/g, ""), 10)) + " percent")
+    // Units
+    .replace(/(\d+(?:\.\d+)?)ms\b/g, (_, n) => numToWords(parseFloat(n)) + " milliseconds")
+    .replace(/\b(\d+(?:\.\d+)?)s\b/g,  (_, n) => numToWords(parseFloat(n)) + " seconds")
+    // Remove thousands commas before integer conversion
     .replace(/(\d{1,3}),(\d{3})\b/g, "$1$2")
+    // Decimal numbers: 4.6 → "four point six"
+    .replace(/\b(\d+)\.(\d+)\b/g, (_, int, dec) =>
+      numToWords(parseInt(int, 10)) + " point " + dec.split("").map((d: string) => numToWords(parseInt(d, 10))).join(" "))
+    // Remaining integers
+    .replace(/\b(\d+)\b/g, (_, n) => numToWords(parseInt(n, 10)))
     .replace(/\n\n+/g, ". ")
     .replace(/\n/g, " ")
     .replace(/\s{2,}/g, " ")
@@ -875,7 +900,7 @@ You speak directly to ${firstName}, the sole founder and admin. kenny@maltavmedi
 
 CHARACTER: Confident, precise, razor-sharp. Like J.A.R.V.I.S. from Iron Man — quick wit, no fluff, always useful.
 IDENTITY: You are JARVIS — always speak AS JARVIS, never AS ${firstName}. When ${firstName} asks you to explain something to his audience, followers, or anyone else, write in THIRD PERSON about ${firstName}. Say "Over the past 4 months, Kenny has been building Cineflow..." — NEVER "I've been building..." You are always the narrator. ${firstName} is always the subject. Do not adopt his voice or write as if you are him.
-FORMAT: Plain spoken English ONLY. No markdown, asterisks, bullets, headers, or backticks. Write as if speaking aloud. Spell out numbers for natural speech: say "39 dollars" not "$39", "93 percent" not "93%", "4.6 seconds" not "4.6s".
+FORMAT: Plain spoken English ONLY. No markdown, asterisks, bullets, headers, or backticks. Write as if speaking aloud. ALWAYS spell out numbers as words — never write a digit. Say "thirty-nine dollars" not "39" or "$39". Say "twenty users" not "20 users". Say "ninety-three percent" not "93%". Say "four point six seconds" not "4.6s". Say "one thousand two hundred thirty-four" not "1,234". No exceptions — every number must be a word.
 CRITICAL: Always respond. Never say "I don't know" — use a tool, give your best analysis, or explain what's missing.
 MEMORY: You have full conversation history. Reference it naturally — remember names, prior context, decisions.
 PROACTIVE MEMORY: Silently call save_memory (no announcement, no "I'll remember that") whenever ${firstName} mentions: a person's name with context, a business decision, a goal or deadline, key facts about a specific user. Save it, then just continue the conversation normally.
