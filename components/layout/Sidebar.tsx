@@ -30,6 +30,7 @@ import {
   Calculator,
   ShieldCheck,
   ChevronDown,
+  Lock,
 } from "lucide-react";
 import { DroneIcon } from "@/components/icons/DroneIcon";
 import { cn } from "@/lib/utils";
@@ -128,12 +129,42 @@ function NavLink({
   collapsed,
   isActive,
   showNewBadge,
+  isGated,
 }: {
   item: NavItem;
   collapsed: boolean;
   isActive: boolean;
   showNewBadge?: boolean;
+  isGated?: boolean;
 }) {
+  if (isGated) {
+    const gatedEl = (
+      <div
+        className={cn(
+          "group relative flex h-9 cursor-not-allowed items-center gap-3 rounded-md px-2.5 text-sm opacity-35",
+          collapsed ? "justify-center w-9 px-0" : ""
+        )}
+      >
+        <item.icon className="h-4 w-4 shrink-0 text-white/40" />
+        {!collapsed && (
+          <>
+            <span className="truncate">{item.label}</span>
+            <span className="ml-auto shrink-0">
+              <Lock className="h-3 w-3 text-white/40" />
+            </span>
+          </>
+        )}
+        {collapsed && <Lock className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 text-white/40" />}
+      </div>
+    );
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{gatedEl}</TooltipTrigger>
+        <TooltipContent side="right" sideOffset={12}>Coming soon</TooltipContent>
+      </Tooltip>
+    );
+  }
+
   const link = (
     <Link
       href={item.href}
@@ -338,11 +369,15 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const [sidebarHidden, setSidebarHidden] = useState<string[]>([]);
   const [contextMenu,   setContextMenu]   = useState<{ href: string; x: number; y: number } | null>(null);
   const [newBadgeKeys,  setNewBadgeKeys]  = useState<Set<string>>(new Set());
+  const [gatedKeys,     setGatedKeys]     = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch("/api/feature-flags")
       .then((r) => r.json())
-      .then((d) => { if (d.badgeKeys) setNewBadgeKeys(new Set(d.badgeKeys as string[])); })
+      .then((d) => {
+        if (d.badgeKeys) setNewBadgeKeys(new Set(d.badgeKeys as string[]));
+        if (d.gatedKeys) setGatedKeys(new Set(d.gatedKeys as string[]));
+      })
       .catch(() => {});
   }, []);
 
@@ -526,6 +561,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                       collapsed={collapsed}
                       isActive={isActive(item.href)}
                       showNewBadge={newBadgeKeys.has(item.href.slice(1))}
+                      isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
                     />
                   </div>
                 ))}
@@ -563,7 +599,13 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                 )}
                 {moreExpanded && hiddenItems.map(item => (
                   <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
-                    <NavLink item={item} collapsed={collapsed} isActive={isActive(item.href)} showNewBadge={newBadgeKeys.has(item.href.slice(1))} />
+                    <NavLink
+                      item={item}
+                      collapsed={collapsed}
+                      isActive={isActive(item.href)}
+                      showNewBadge={newBadgeKeys.has(item.href.slice(1))}
+                      isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
+                    />
                   </div>
                 ))}
               </div>
@@ -618,6 +660,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               collapsed={collapsed}
               isActive={isActive(item.href)}
               showNewBadge={newBadgeKeys.has(item.href.slice(1))}
+              isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
             />
           ))}
           <Separator className="my-2" />

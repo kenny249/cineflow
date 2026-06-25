@@ -12,20 +12,31 @@ function getAdmin() {
   );
 }
 
-// Returns the set of flag keys where show_new_badge = true.
-// Used by the sidebar to render gold "NEW" badges on nav items.
+// Returns badgeKeys (active NEW badges) and gatedKeys (pages blocked for non-admins)
 export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ badgeKeys: [] });
+  if (!user) return NextResponse.json({ badgeKeys: [], gatedKeys: [] });
 
   const admin = getAdmin();
-  const { data } = await admin
-    .from("feature_flags")
-    .select("key")
-    .eq("show_new_badge", true)
-    .eq("enabled", true);
+  const now = new Date().toISOString();
 
-  const badgeKeys: string[] = (data ?? []).map((f: { key: string }) => f.key);
-  return NextResponse.json({ badgeKeys });
+  const [badgeResult, gatedResult] = await Promise.all([
+    admin
+      .from("feature_flags")
+      .select("key")
+      .eq("show_new_badge", true)
+      .eq("enabled", true)
+      .or(`expires_at.is.null,expires_at.gt.${now}`),
+    admin
+      .from("feature_flags")
+      .select("key")
+      .eq("gated", true)
+      .eq("enabled", true),
+  ]);
+
+  const badgeKeys: string[] = (badgeResult.data ?? []).map((f: { key: string }) => f.key);
+  const gatedKeys: string[] = (gatedResult.data ?? []).map((f: { key: string }) => f.key);
+
+  return NextResponse.json({ badgeKeys, gatedKeys });
 }
