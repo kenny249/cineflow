@@ -1012,6 +1012,7 @@ export default function JarvisPage() {
       const blob = await response.blob();
       const url  = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      audio.playbackRate = voiceSpeedRef.current;
       audioRef.current = audio;
       speakingRef.current = true;
       speechStartRef.current = Date.now();
@@ -1025,6 +1026,7 @@ export default function JarvisPage() {
     mediaSourceRef.current = ms;
     const url  = URL.createObjectURL(ms);
     const audio = new Audio(url);
+    audio.playbackRate = voiceSpeedRef.current;
     audioRef.current = audio;
     speakingRef.current = true;
     speechStartRef.current = Date.now();
@@ -1192,8 +1194,12 @@ export default function JarvisPage() {
           processingRef.current = false;
           setActiveTools([]);
           if (conversationActiveRef.current) {
-            setState("listening");
-            if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 300);
+            if (!mutedRef.current) {
+              setState("listening");
+              if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current && !mutedRef.current) startRecognition(); }, 300);
+            } else {
+              setState("idle");
+            }
           } else {
             setState("idle");
           }
@@ -1207,8 +1213,12 @@ export default function JarvisPage() {
         }
         processingRef.current = false;
         if (conversationActiveRef.current) {
-          setState("listening");
-          if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 300);
+          if (!mutedRef.current) {
+            setState("listening");
+            if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current && !mutedRef.current) startRecognition(); }, 300);
+          } else {
+            setState("idle");
+          }
         } else {
           setState("idle");
         }
@@ -1216,8 +1226,12 @@ export default function JarvisPage() {
     } catch {
       processingRef.current = false;
       if (conversationActiveRef.current) {
-        setState("listening");
-        if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current) startRecognition(); }, 600);
+        if (!mutedRef.current) {
+          setState("listening");
+          if (!recognitionRef.current) setTimeout(() => { if (conversationActiveRef.current && !mutedRef.current) startRecognition(); }, 600);
+        } else {
+          setState("idle");
+        }
       } else {
         setState("idle");
       }
@@ -1689,7 +1703,7 @@ export default function JarvisPage() {
                 </div>
 
                 {/* Perspective grid floor */}
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 pointer-events-none overflow-hidden" style={{ width: 1000, height: 220 }}>
+                <div className="absolute bottom-0 left-0 right-0 pointer-events-none overflow-hidden" style={{ height: 220 }}>
                   <div style={{ perspective: "340px", width: "100%", height: "100%" }}>
                     <motion.div style={{ width: "100%", height: "220%", transformOrigin: "top center", transform: "rotateX(64deg)",
                       backgroundImage: `linear-gradient(${c}1c 1px, transparent 1px), linear-gradient(90deg, ${c}1c 1px, transparent 1px)`,

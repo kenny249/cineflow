@@ -772,7 +772,7 @@ function truncateForTTS(text: string, maxChars = 1400): string {
   return (last > maxChars * 0.5 ? chunk.slice(0, last + 1) : chunk).trim();
 }
 
-async function streamTTS(text: string, speed = 1.0): Promise<Response | null> {
+async function streamTTS(text: string): Promise<Response | null> {
   const apiKey = process.env.ELEVENLABS_API_KEY;
   const voiceId = process.env.ELEVENLABS_VOICE_ID ?? "onwK4e9ZLuTAKqWW03F9";
   if (!apiKey) return null;
@@ -785,7 +785,6 @@ async function streamTTS(text: string, speed = 1.0): Promise<Response | null> {
         text: truncateForTTS(text),
         model_id: "eleven_turbo_v2_5",
         voice_settings: { stability: 0.45, similarity_boost: 0.82, style: 0.15, use_speaker_boost: true },
-        speed: Math.max(0.7, Math.min(1.4, speed)),
       }),
     });
     return res.ok ? res : null;
@@ -821,7 +820,6 @@ export async function POST(req: NextRequest) {
   const adminId = caller.id;
   const firstName = (caller as any).first_name || "Kenny";
   const admin = getAdmin();
-  const ttsSpeed = Math.max(0.7, Math.min(1.4, voiceSpeed ?? 1.0));
 
   // Load memories and last 3 session summaries in parallel
   const [{ data: memories }, { data: sessionSummaries }] = await Promise.all([
@@ -871,7 +869,8 @@ These are NOT suggestions. Actively adjust your voice on every reply to match th
     ? "\n\nMORNING BRIEF — AUTO-TRIGGERED. No greeting. No preamble. Hit it immediately. Exactly 3 punchy sentences: (1) total users and week-over-week signups, (2) MRR or key revenue fact, (3) the single most urgent action right now. Maximum 15 seconds of speech total. Use LIVE DATA block directly — zero tool calls. Sound like a war room briefing."
     : "";
 
-  const systemPrompt = `You are Jarvis — the AI command intelligence for Cineflow, a film production SaaS.
+  // Static block — eligible for Anthropic prompt caching (content never changes between requests)
+  const staticSystemBlock = `You are Jarvis — the AI command intelligence for Cineflow, a film production SaaS.
 You speak directly to ${firstName}, the sole founder and admin. kenny@maltavmedia.com.
 
 CHARACTER: Confident, precise, razor-sharp. Like J.A.R.V.I.S. from Iron Man — quick wit, no fluff, always useful.
@@ -881,7 +880,6 @@ CRITICAL: Always respond. Never say "I don't know" — use a tool, give your bes
 MEMORY: You have full conversation history. Reference it naturally — remember names, prior context, decisions.
 PROACTIVE MEMORY: Silently call save_memory (no announcement, no "I'll remember that") whenever ${firstName} mentions: a person's name with context, a business decision, a goal or deadline, key facts about a specific user. Save it, then just continue the conversation normally.
 USER NOTES: Use add_user_note when ${firstName} says anything notable about a specific user — a conversation they had, a follow-up needed, user context worth tracking. Use get_user_notes to pull up what's known about a user before discussing them.
-${personalityBlock}
 
 RESPONSE LENGTH:
 Default: 2-3 sharp sentences. "Brief/quickly/TL;DR" → 1-2 MAX. "In depth/elaborate/full picture" → up to 6-8. Voice interface — under 60 seconds of speech total.
@@ -984,12 +982,15 @@ CURRENT PRIORITIES:
 #3 — Fix activation: get users logging in and hitting the "aha moment" (sharing a call sheet link and seeing it work)
 Roadmap: Stripe → landing page → Google OAuth → referrals → out of beta
 
-PRICING: Solo $39/mo | Studio $79/mo | Agency $159/mo | Enterprise $299/mo | Lifetime $299 one-time (gifted to friends for free in beta)
+PRICING: Solo $39/mo | Studio $79/mo | Agency $159/mo | Enterprise $299/mo | Lifetime $299 one-time (gifted to friends for free in beta)`;
+
+  // Dynamic block — personality dials + live data + memory (changes every request)
+  const dynamicSystemBlock = `${personalityBlock}
 
 Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", dateStyle: "full", timeStyle: "short" })}.${dataBlock}${memoryBlock}${summaryBlock}${briefBlock}`;
 
   const speak = async (text: string, toolsUsed = "") => {
-    const tts = await streamTTS(text, ttsSpeed);
+    const tts = await streamTTS(text);
     if (tts) return audioResponse(tts, text, toolsUsed);
     return NextResponse.json({ text, toolsUsed });
   };
@@ -1006,9 +1007,12 @@ Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", da
     for (let round = 0; round < 3; round++) {
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 1500,
+        max_tokens: 700,
         temperature: 0.7,
-        system: systemPrompt,
+        system: [
+          { type: "text" as const, text: staticSystemBlock, cache_control: { type: "ephemeral" } as any },
+          { type: "text" as const, text: dynamicSystemBlock },
+        ],
         tools: TOOLS,
         messages: currentMessages,
       });

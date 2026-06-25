@@ -37,8 +37,8 @@ export async function GET() {
     .single();
 
   return NextResponse.json({
-    personality: data?.personality ?? { humor: 50, energy: 50, formality: 50 },
-    voiceSpeed: typeof data?.voice_speed === "number" ? data.voice_speed : 1.0,
+    personality: data?.personality ?? null,
+    voiceSpeed: typeof data?.voice_speed === "number" ? data.voice_speed : null,
   });
 }
 
