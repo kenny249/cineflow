@@ -240,6 +240,13 @@ export default function FinancePage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [activeTab, setActiveTab] = useState<"overview" | "invoices" | "projects" | "quotes">("overview");
+
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t === "invoices" || t === "projects" || t === "quotes" || t === "overview") {
+      setActiveTab(t);
+    }
+  }, []);
   const [invoiceDisplayCount, setInvoiceDisplayCount] = useState(15);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 

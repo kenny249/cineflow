@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   Plus, Trash2, ChevronDown, Save, FolderOpen, X,
   Calculator, Pencil, Info, Sparkles, Loader2, Users, BookTemplate, Check,
@@ -333,8 +334,11 @@ export function QuoteCalculator() {
   const [crewProfiles, setCrewProfiles] = useState<CrewProfile[]>([]);
   const [saving, setSaving] = useState(false);
 
+  const router = useRouter();
+
   // ── Quote modal state ──────────────────────────────────────────────────────
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [quoteSaved, setQuoteSaved] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -592,6 +596,52 @@ export function QuoteCalculator() {
 
   return (
     <div className="flex flex-col h-full">
+
+      {/* ── Quote Saved Banner ───────────────────────────────────────────── */}
+      {quoteSaved && (
+        <div className="shrink-0 mx-6 mt-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/15">
+                <Check className="h-4 w-4 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-400">Quote created</p>
+                <p className="text-xs text-muted-foreground mt-0.5">What would you like to do next?</p>
+              </div>
+            </div>
+            <button onClick={() => setQuoteSaved(false)} className="text-muted-foreground/40 hover:text-muted-foreground transition-colors mt-0.5">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => router.push("/finance?tab=quotes")}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/25 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+            >
+              View in Finance
+            </button>
+            <button
+              onClick={() => router.push("/contracts")}
+              className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-foreground hover:bg-white/[0.08] transition-colors"
+            >
+              Create Contract
+            </button>
+            <button
+              onClick={() => router.push("/finance")}
+              className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-foreground hover:bg-white/[0.08] transition-colors"
+            >
+              Create Invoice
+            </button>
+            <button
+              onClick={() => { setQuoteSaved(false); newEstimate(); }}
+              className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/[0.08] transition-colors"
+            >
+              Start new estimate
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="shrink-0 border-b border-border px-6 py-4 flex items-center gap-3">
@@ -1124,7 +1174,7 @@ export function QuoteCalculator() {
       <QuoteFormModal
         open={showQuoteModal}
         onClose={() => setShowQuoteModal(false)}
-        onSave={async () => { setShowQuoteModal(false); toast.success("Quote created — find it in Finance → Quotes"); }}
+        onSave={async () => { setShowQuoteModal(false); setQuoteSaved(true); }}
         initial={buildQuotePrefill()}
         packageBrief={scopeBrief}
         projects={projects}

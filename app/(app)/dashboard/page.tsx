@@ -66,6 +66,8 @@ export default function DashboardPage() {
   const [nameLast, setNameLast] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [savedQuickActions, setSavedQuickActions] = useState<string[] | null>(null);
+  const [pipelineQuotes, setPipelineQuotes] = useState(0);
+  const [pipelineContracts, setPipelineContracts] = useState(0);
   const [plan, setPlan] = useState<string>(() =>
     (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
   );
@@ -135,6 +137,16 @@ export default function DashboardPage() {
         setCalendarEvents(eventsData);
       } catch {
         // calendar_events table may not exist yet
+      }
+      try {
+        const [{ count: qCount }, { count: cCount }] = await Promise.all([
+          supabase.from("quotes").select("id", { count: "exact", head: true }).in("status", ["sent", "viewed"]),
+          supabase.from("contracts").select("id", { count: "exact", head: true }).eq("status", "sent"),
+        ]);
+        setPipelineQuotes(qCount ?? 0);
+        setPipelineContracts(cCount ?? 0);
+      } catch {
+        // pipeline counts are non-critical
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -474,6 +486,59 @@ export default function DashboardPage() {
                   savedKeys={savedQuickActions}
                   onNewProject={() => setModalOpen(true)}
                 />
+              </section>
+
+              {/* Revenue Pipeline */}
+              <section>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
+                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                    Revenue Pipeline
+                  </h2>
+                  <Link href="/finance" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
+                    Finance <ArrowUpRight className="h-3 w-3" />
+                  </Link>
+                </div>
+                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                  {[
+                    {
+                      label: "Quotes",
+                      sub: pipelineQuotes > 0 ? `${pipelineQuotes} pending` : "None sent",
+                      href: "/finance?tab=quotes",
+                      active: pipelineQuotes > 0,
+                      count: pipelineQuotes,
+                    },
+                    {
+                      label: "Contracts",
+                      sub: pipelineContracts > 0 ? `${pipelineContracts} awaiting signature` : "None sent",
+                      href: "/contracts",
+                      active: pipelineContracts > 0,
+                      count: pipelineContracts,
+                    },
+                    {
+                      label: "Invoices",
+                      sub: outstanding > 0 ? `$${outstanding.toLocaleString()} outstanding` : "All clear",
+                      href: "/finance?tab=invoices",
+                      active: outstanding > 0,
+                      count: outstanding > 0 ? 1 : 0,
+                    },
+                  ].map((step, i) => (
+                    <Link
+                      key={step.label}
+                      href={step.href}
+                      className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 border-b border-border last:border-0"
+                    >
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold transition-colors ${step.active ? "bg-[#d4a853]/15 text-[#d4a853]" : "bg-muted/30 text-muted-foreground/40"}`}>
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground group-hover:text-[#d4a853] transition-colors">{step.label}</p>
+                        <p className={`text-[10px] ${step.active ? "text-[#d4a853]/70" : "text-muted-foreground/50"}`}>{step.sub}</p>
+                      </div>
+                      <ArrowUpRight className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
+                    </Link>
+                  ))}
+                </div>
               </section>
 
               {/* Retainers widget */}

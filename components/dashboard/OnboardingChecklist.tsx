@@ -54,10 +54,10 @@ export function OnboardingChecklist({ hasProjects, hasClients, hasInvoices, hasR
 
   useEffect(() => {
     if (localStorage.getItem("cf_welcomed") === "true") return;
-    // Never show to accounts older than 7 days — they're not new users
+    // Never show to accounts older than 30 days
     if (userCreatedAt) {
       const ageMs = Date.now() - new Date(userCreatedAt).getTime();
-      if (ageMs > 7 * 24 * 60 * 60 * 1000) {
+      if (ageMs > 30 * 24 * 60 * 60 * 1000) {
         localStorage.setItem("cf_welcomed", "true");
         return;
       }
