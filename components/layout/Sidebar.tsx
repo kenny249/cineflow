@@ -576,12 +576,9 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
           {showCustomize ? (
             /* ── Edit mode: all items with toggles ── */
             <>
-              <div className="mx-0.5 rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/[0.06] px-3 py-2 flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#d4a853]">Editing navigation</p>
-                  <p className="text-[10px] text-white/30 mt-0.5">Tap any item to show or hide it</p>
-                </div>
-                <button onClick={resetAll} className="text-[10px] text-white/20 hover:text-white/50 transition-colors ml-2 shrink-0">
+              <div className="mx-0.5 flex items-center justify-between rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/[0.05] px-3 py-2.5">
+                <p className="text-[11px] text-white/40">Tap to show or hide</p>
+                <button onClick={resetAll} className="text-[10px] text-white/20 hover:text-[#d4a853]/60 transition-colors shrink-0">
                   Reset
                 </button>
               </div>
@@ -610,12 +607,12 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                             {item.label}
                           </span>
                           <div className={cn(
-                            "relative h-4 w-7 shrink-0 rounded-full transition-colors duration-200",
-                            visible ? "bg-[#d4a853]" : "bg-white/15"
+                            "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-200",
+                            visible ? "bg-[#d4a853]" : "bg-white/[0.12]"
                           )}>
                             <span className={cn(
-                              "absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200",
-                              visible ? "translate-x-3.5" : "translate-x-0.5"
+                              "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200",
+                              visible ? "translate-x-4" : "translate-x-0.5"
                             )} />
                           </div>
                         </button>
