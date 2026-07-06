@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   ChevronDown,
   Lock,
+  SlidersHorizontal,
 } from "lucide-react";
 import { DroneIcon } from "@/components/icons/DroneIcon";
 import { cn } from "@/lib/utils";
@@ -368,8 +369,9 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const [sidebarPins,   setSidebarPins]   = useState<string[]>([]);
   const [sidebarHidden, setSidebarHidden] = useState<string[]>([]);
   const [contextMenu,   setContextMenu]   = useState<{ href: string; x: number; y: number } | null>(null);
-  const [newBadgeKeys,  setNewBadgeKeys]  = useState<Set<string>>(new Set());
-  const [gatedKeys,     setGatedKeys]     = useState<Set<string>>(new Set());
+  const [newBadgeKeys,    setNewBadgeKeys]    = useState<Set<string>>(new Set());
+  const [gatedKeys,       setGatedKeys]       = useState<Set<string>>(new Set());
+  const [showCustomize,   setShowCustomize]   = useState(false);
 
   useEffect(() => {
     fetch("/api/feature-flags")
@@ -461,6 +463,25 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
     void supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) void supabase.from("profiles").update({ sidebar_pins: pins, sidebar_hidden: hidden }).eq("id", user.id);
     });
+  }
+
+  function toggleItem(href: string) {
+    if (isInMore(href)) {
+      const pins   = [...sidebarPins.filter(h => h !== href), href];
+      const hidden = sidebarHidden.filter(h => h !== href);
+      setSidebarPins(pins); setSidebarHidden(hidden);
+      saveCustomization(pins, hidden);
+    } else {
+      const hidden = [...sidebarHidden.filter(h => h !== href), href];
+      const pins   = sidebarPins.filter(h => h !== href);
+      setSidebarHidden(hidden); setSidebarPins(pins);
+      saveCustomization(pins, hidden);
+    }
+  }
+
+  function resetAll() {
+    setSidebarPins([]); setSidebarHidden([]);
+    saveCustomization([], []);
   }
 
   // Close context menu on outside click or Escape
@@ -611,6 +632,29 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               </div>
             );
           })()}
+          {/* Customize button */}
+          {!collapsed && (
+            <button
+              onClick={() => setShowCustomize(true)}
+              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[11px] text-white/25 hover:text-white/50 transition-colors w-full"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+              <span>Customize navigation</span>
+            </button>
+          )}
+          {collapsed && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setShowCustomize(true)}
+                  className="mx-auto flex h-9 w-9 items-center justify-center rounded-md text-white/25 hover:text-white/50 transition-colors"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={12}>Customize navigation</TooltipContent>
+            </Tooltip>
+          )}
         </nav>
 
         <SessionIndicator collapsed={collapsed} />
@@ -690,6 +734,88 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
           </div>
         </div>
       </aside>
+
+      {/* Customize navigation modal */}
+      {showCustomize && (
+        <div className="fixed inset-0 z-[400] flex items-center justify-center p-4" onClick={() => setShowCustomize(false)}>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm rounded-2xl border border-white/[0.08] bg-[#111] shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold text-white">Customize Navigation</p>
+                <p className="text-[11px] text-white/35 mt-0.5">Toggle items on or off</p>
+              </div>
+              <button
+                onClick={() => setShowCustomize(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-white/30 hover:text-white hover:bg-white/[0.06] transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Nav item list */}
+            <div className="max-h-[60vh] overflow-y-auto custom-scrollbar py-3">
+              {NAV_GROUPS.map((group, gi) => {
+                const groupItems = group.items.filter(
+                  item => !(solo && item.soloHidden) && !(item.producerOnly && !isProducer)
+                );
+                if (groupItems.length === 0) return null;
+                return (
+                  <div key={gi} className="mb-4">
+                    {group.label && (
+                      <p className="mb-1 px-5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/20">
+                        {group.label}
+                      </p>
+                    )}
+                    {groupItems.map(item => {
+                      const visible = !isInMore(item.href);
+                      return (
+                        <button
+                          key={item.href}
+                          onClick={() => toggleItem(item.href)}
+                          className="flex w-full items-center gap-3 px-5 py-2.5 transition-colors hover:bg-white/[0.04]"
+                        >
+                          <item.icon className={cn("h-4 w-4 shrink-0", visible ? "text-white/60" : "text-white/20")} />
+                          <span className={cn("flex-1 text-left text-sm", visible ? "text-white/80" : "text-white/25 line-through")}>{item.label}</span>
+                          <div className={cn(
+                            "relative h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors",
+                            visible ? "bg-[#d4a853]" : "bg-white/10"
+                          )}>
+                            <span className={cn(
+                              "absolute top-0 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                              visible ? "translate-x-4" : "translate-x-0"
+                            )} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between border-t border-white/[0.06] px-5 py-3">
+              <button
+                onClick={resetAll}
+                className="text-[11px] text-white/25 hover:text-white/50 transition-colors"
+              >
+                Reset to defaults
+              </button>
+              <button
+                onClick={() => setShowCustomize(false)}
+                className="rounded-lg bg-[#d4a853] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Right-click context menu */}
       {contextMenu && (
