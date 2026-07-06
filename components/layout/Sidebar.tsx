@@ -372,6 +372,13 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const [newBadgeKeys,    setNewBadgeKeys]    = useState<Set<string>>(new Set());
   const [gatedKeys,       setGatedKeys]       = useState<Set<string>>(new Set());
   const [showCustomize,   setShowCustomize]   = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const s = localStorage.getItem("sidebar-collapsed-sections");
+      return s ? new Set(JSON.parse(s)) : new Set();
+    } catch { return new Set(); }
+  });
 
   useEffect(() => {
     fetch("/api/feature-flags")
@@ -482,6 +489,15 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   function resetAll() {
     setSidebarPins([]); setSidebarHidden([]);
     saveCustomization([], []);
+  }
+
+  function toggleSection(label: string) {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      localStorage.setItem("sidebar-collapsed-sections", JSON.stringify([...next]));
+      return next;
+    });
   }
 
   // Close context menu on outside click or Escape
@@ -620,28 +636,47 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                     !isInMore(item.href)
                 );
                 if (visibleItems.length === 0) return null;
+                const isSectionCollapsed = !!group.label && collapsedSections.has(group.label);
 
                 return (
                   <div key={gi} className="flex flex-col gap-0.5">
+                    {/* Section header — collapsible when expanded sidebar */}
                     {group.label && !collapsed && (
-                      <p className="mb-1 px-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/20">
-                        {group.label}
-                      </p>
+                      <button
+                        onClick={() => toggleSection(group.label!)}
+                        className="group mb-1 flex w-full items-center justify-between rounded px-2.5 py-0.5 transition-colors hover:bg-white/[0.03]"
+                      >
+                        <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/20 transition-colors group-hover:text-white/40">
+                          {group.label}
+                        </span>
+                        <ChevronDown className={cn(
+                          "h-3 w-3 text-white/15 transition-all duration-200 group-hover:text-white/35",
+                          isSectionCollapsed && "-rotate-90"
+                        )} />
+                      </button>
                     )}
                     {group.label && collapsed && gi > 0 && (
                       <div className="mx-auto mb-1 h-px w-5 bg-white/10" />
                     )}
-                    {visibleItems.map((item) => (
-                      <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
-                        <NavLink
-                          item={item}
-                          collapsed={collapsed}
-                          isActive={isActive(item.href)}
-                          showNewBadge={newBadgeKeys.has(item.href.slice(1))}
-                          isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
-                        />
+                    {/* Items with grid animation */}
+                    <div className={cn(
+                      "grid transition-all duration-200 ease-in-out",
+                      isSectionCollapsed && !collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
+                    )}>
+                      <div className="flex flex-col gap-0.5 overflow-hidden">
+                        {visibleItems.map((item) => (
+                          <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
+                            <NavLink
+                              item={item}
+                              collapsed={collapsed}
+                              isActive={isActive(item.href)}
+                              showNewBadge={newBadgeKeys.has(item.href.slice(1))}
+                              isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
                 );
               })}
