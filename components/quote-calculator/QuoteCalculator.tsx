@@ -453,12 +453,18 @@ export function QuoteCalculator() {
       if (currentEstimateId) {
         const updated = await updateQuoteEstimate(currentEstimateId, payload);
         setSavedEstimates((prev) => prev.map((e) => e.id === updated.id ? updated : e));
-        toast.success("Estimate saved");
+        toast.success("Estimate updated", {
+          description: "Ready to send to a client?",
+          action: { label: "Build Quote →", onClick: openAIScope },
+        });
       } else {
         const created = await saveQuoteEstimate(payload);
         setSavedEstimates((prev) => [created, ...prev]);
         setCurrentEstimateId(created.id);
-        toast.success("Estimate saved");
+        toast.success("Estimate saved", {
+          description: "Ready to send to a client?",
+          action: { label: "Build Quote →", onClick: openAIScope },
+        });
       }
     } catch {
       toast.error("Failed to save estimate");
