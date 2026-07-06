@@ -632,29 +632,6 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               </div>
             );
           })()}
-          {/* Customize button */}
-          {!collapsed && (
-            <button
-              onClick={() => setShowCustomize(true)}
-              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[11px] text-white/25 hover:text-white/50 transition-colors w-full"
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
-              <span>Customize navigation</span>
-            </button>
-          )}
-          {collapsed && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setShowCustomize(true)}
-                  className="mx-auto flex h-9 w-9 items-center justify-center rounded-md text-white/25 hover:text-white/50 transition-colors"
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={12}>Customize navigation</TooltipContent>
-            </Tooltip>
-          )}
         </nav>
 
         <SessionIndicator collapsed={collapsed} />
@@ -707,6 +684,28 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
             />
           ))}
+          {/* Customize nav button */}
+          {!collapsed ? (
+            <button
+              onClick={() => setShowCustomize(true)}
+              className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm text-white/30 transition-all hover:bg-white/[0.06] hover:text-white/60"
+            >
+              <SlidersHorizontal className="h-4 w-4 shrink-0" />
+              <span>Customize</span>
+            </button>
+          ) : (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setShowCustomize(true)}
+                  className="mx-auto flex h-9 w-9 items-center justify-center rounded-md text-white/30 transition-all hover:bg-white/[0.06] hover:text-white/60"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={12}>Customize navigation</TooltipContent>
+            </Tooltip>
+          )}
           <Separator className="my-2" />
           <div
             className={cn(
