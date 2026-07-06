@@ -42,7 +42,7 @@ import { getInitials } from "@/lib/random-name";
 import { createClient } from "@/lib/supabase/client";
 import { isSoloPlan } from "@/types";
 import { trialDaysLeft } from "@/lib/billing";
-import { Zap, X } from "lucide-react";
+import { Zap, X, Check } from "lucide-react";
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 
@@ -556,82 +556,137 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
 
         {/* Main nav */}
         <nav className="flex flex-1 flex-col overflow-y-auto p-2 pt-3 custom-scrollbar gap-4">
-          {NAV_GROUPS.map((group, gi) => {
-            const visibleItems = group.items.filter(
-              (item) =>
-                !(solo && item.soloHidden) &&
-                !(item.producerOnly && !isProducer) &&
-                !isInMore(item.href)
-            );
-            if (visibleItems.length === 0) return null;
 
-            return (
-              <div key={gi} className="flex flex-col gap-0.5">
-                {group.label && !collapsed && (
-                  <p className="mb-1 px-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/20">
-                    {group.label}
-                  </p>
-                )}
-                {group.label && collapsed && gi > 0 && (
-                  <div className="mx-auto mb-1 h-px w-5 bg-white/10" />
-                )}
-                {visibleItems.map((item) => (
-                  <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
-                    <NavLink
-                      item={item}
-                      collapsed={collapsed}
-                      isActive={isActive(item.href)}
-                      showNewBadge={newBadgeKeys.has(item.href.slice(1))}
-                      isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
-                    />
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-
-          {/* More tools — items hidden by prefs or user choice */}
-          {(() => {
-            const hiddenItems = NAV_GROUPS.flatMap(g => g.items).filter(item => {
-              if (solo && item.soloHidden) return false;
-              if (item.producerOnly && !isProducer) return false;
-              return isInMore(item.href);
-            });
-            if (hiddenItems.length === 0) return null;
-            return (
-              <div className="flex flex-col gap-0.5">
-                {collapsed && <div className="mx-auto mb-1 h-px w-5 bg-white/10" />}
-                <button
-                  onClick={() => {
-                    const next = !moreExpanded;
-                    setMoreExpanded(next);
-                    if (typeof window !== "undefined") localStorage.setItem("sidebar-more", next ? "1" : "0");
-                  }}
-                  className={cn(
-                    "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[11px] transition-all duration-150 text-white/25 hover:text-white/45",
-                    collapsed ? "justify-center w-9 px-0" : ""
-                  )}
-                >
-                  <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200", moreExpanded && "rotate-180")} />
-                  {!collapsed && <span>{moreExpanded ? "Show less" : `${hiddenItems.length} more tools`}</span>}
+          {showCustomize ? (
+            /* ── Edit mode: all items with toggles ── */
+            <>
+              <div className="mx-0.5 rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/[0.06] px-3 py-2 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#d4a853]">Editing navigation</p>
+                  <p className="text-[10px] text-white/30 mt-0.5">Tap any item to show or hide it</p>
+                </div>
+                <button onClick={resetAll} className="text-[10px] text-white/20 hover:text-white/50 transition-colors ml-2 shrink-0">
+                  Reset
                 </button>
-                {!collapsed && (
-                  <p className="px-2.5 pb-0.5 text-[9px] text-white/15">Right-click any item to customize</p>
-                )}
-                {moreExpanded && hiddenItems.map(item => (
-                  <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
-                    <NavLink
-                      item={item}
-                      collapsed={collapsed}
-                      isActive={isActive(item.href)}
-                      showNewBadge={newBadgeKeys.has(item.href.slice(1))}
-                      isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
-                    />
-                  </div>
-                ))}
               </div>
-            );
-          })()}
+              {NAV_GROUPS.map((group, gi) => {
+                const allItems = group.items.filter(
+                  item => !(solo && item.soloHidden) && !(item.producerOnly && !isProducer)
+                );
+                if (allItems.length === 0) return null;
+                return (
+                  <div key={gi} className="flex flex-col gap-0.5">
+                    {group.label && (
+                      <p className="mb-1 px-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/20">
+                        {group.label}
+                      </p>
+                    )}
+                    {allItems.map(item => {
+                      const visible = !isInMore(item.href);
+                      return (
+                        <button
+                          key={item.href}
+                          onClick={() => toggleItem(item.href)}
+                          className="group flex h-9 w-full items-center gap-3 rounded-md px-2.5 transition-all hover:bg-white/[0.04]"
+                        >
+                          <item.icon className={cn("h-4 w-4 shrink-0 transition-colors", visible ? "text-white/50" : "text-white/15")} />
+                          <span className={cn("flex-1 text-left text-sm transition-colors", visible ? "text-white/70" : "text-white/20 line-through decoration-white/20")}>
+                            {item.label}
+                          </span>
+                          <div className={cn(
+                            "relative h-4 w-7 shrink-0 rounded-full transition-colors duration-200",
+                            visible ? "bg-[#d4a853]" : "bg-white/15"
+                          )}>
+                            <span className={cn(
+                              "absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200",
+                              visible ? "translate-x-3.5" : "translate-x-0.5"
+                            )} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </>
+          ) : (
+            /* ── Normal mode ── */
+            <>
+              {NAV_GROUPS.map((group, gi) => {
+                const visibleItems = group.items.filter(
+                  (item) =>
+                    !(solo && item.soloHidden) &&
+                    !(item.producerOnly && !isProducer) &&
+                    !isInMore(item.href)
+                );
+                if (visibleItems.length === 0) return null;
+
+                return (
+                  <div key={gi} className="flex flex-col gap-0.5">
+                    {group.label && !collapsed && (
+                      <p className="mb-1 px-2.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/20">
+                        {group.label}
+                      </p>
+                    )}
+                    {group.label && collapsed && gi > 0 && (
+                      <div className="mx-auto mb-1 h-px w-5 bg-white/10" />
+                    )}
+                    {visibleItems.map((item) => (
+                      <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
+                        <NavLink
+                          item={item}
+                          collapsed={collapsed}
+                          isActive={isActive(item.href)}
+                          showNewBadge={newBadgeKeys.has(item.href.slice(1))}
+                          isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+
+              {/* More tools */}
+              {(() => {
+                const hiddenItems = NAV_GROUPS.flatMap(g => g.items).filter(item => {
+                  if (solo && item.soloHidden) return false;
+                  if (item.producerOnly && !isProducer) return false;
+                  return isInMore(item.href);
+                });
+                if (hiddenItems.length === 0) return null;
+                return (
+                  <div className="flex flex-col gap-0.5">
+                    {collapsed && <div className="mx-auto mb-1 h-px w-5 bg-white/10" />}
+                    <button
+                      onClick={() => {
+                        const next = !moreExpanded;
+                        setMoreExpanded(next);
+                        if (typeof window !== "undefined") localStorage.setItem("sidebar-more", next ? "1" : "0");
+                      }}
+                      className={cn(
+                        "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[11px] transition-all duration-150 text-white/25 hover:text-white/45",
+                        collapsed ? "justify-center w-9 px-0" : ""
+                      )}
+                    >
+                      <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 transition-transform duration-200", moreExpanded && "rotate-180")} />
+                      {!collapsed && <span>{moreExpanded ? "Show less" : `${hiddenItems.length} more tools`}</span>}
+                    </button>
+                    {moreExpanded && hiddenItems.map(item => (
+                      <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
+                        <NavLink
+                          item={item}
+                          collapsed={collapsed}
+                          isActive={isActive(item.href)}
+                          showNewBadge={newBadgeKeys.has(item.href.slice(1))}
+                          isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </nav>
 
         <SessionIndicator collapsed={collapsed} />
@@ -684,20 +739,31 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
             />
           ))}
-          {/* Customize nav button */}
+          {/* Customize / Done button */}
           {!collapsed ? (
             <button
-              onClick={() => setShowCustomize(true)}
-              className="flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm text-white/30 transition-all hover:bg-white/[0.06] hover:text-white/60"
+              onClick={() => {
+                if (showCustomize) { setShowCustomize(false); return; }
+                if (collapsed) onToggle();
+                setShowCustomize(true);
+              }}
+              className={cn(
+                "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm transition-all",
+                showCustomize
+                  ? "bg-[#d4a853]/10 text-[#d4a853] hover:bg-[#d4a853]/15"
+                  : "text-white/30 hover:bg-white/[0.06] hover:text-white/60"
+              )}
             >
-              <SlidersHorizontal className="h-4 w-4 shrink-0" />
-              <span>Customize</span>
+              {showCustomize
+                ? <><Check className="h-4 w-4 shrink-0" /><span>Done editing</span></>
+                : <><SlidersHorizontal className="h-4 w-4 shrink-0" /><span>Customize</span></>
+              }
             </button>
           ) : (
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  onClick={() => setShowCustomize(true)}
+                  onClick={() => { if (collapsed) onToggle(); setShowCustomize(true); }}
                   className="mx-auto flex h-9 w-9 items-center justify-center rounded-md text-white/30 transition-all hover:bg-white/[0.06] hover:text-white/60"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
@@ -733,88 +799,6 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
           </div>
         </div>
       </aside>
-
-      {/* Customize navigation modal */}
-      {showCustomize && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center p-4" onClick={() => setShowCustomize(false)}>
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-w-sm rounded-2xl border border-white/[0.08] bg-[#111] shadow-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-              <div>
-                <p className="text-sm font-semibold text-white">Customize Navigation</p>
-                <p className="text-[11px] text-white/35 mt-0.5">Toggle items on or off</p>
-              </div>
-              <button
-                onClick={() => setShowCustomize(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-md text-white/30 hover:text-white hover:bg-white/[0.06] transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Nav item list */}
-            <div className="max-h-[60vh] overflow-y-auto custom-scrollbar py-3">
-              {NAV_GROUPS.map((group, gi) => {
-                const groupItems = group.items.filter(
-                  item => !(solo && item.soloHidden) && !(item.producerOnly && !isProducer)
-                );
-                if (groupItems.length === 0) return null;
-                return (
-                  <div key={gi} className="mb-4">
-                    {group.label && (
-                      <p className="mb-1 px-5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/20">
-                        {group.label}
-                      </p>
-                    )}
-                    {groupItems.map(item => {
-                      const visible = !isInMore(item.href);
-                      return (
-                        <button
-                          key={item.href}
-                          onClick={() => toggleItem(item.href)}
-                          className="flex w-full items-center gap-3 px-5 py-2.5 transition-colors hover:bg-white/[0.04]"
-                        >
-                          <item.icon className={cn("h-4 w-4 shrink-0", visible ? "text-white/60" : "text-white/20")} />
-                          <span className={cn("flex-1 text-left text-sm", visible ? "text-white/80" : "text-white/25 line-through")}>{item.label}</span>
-                          <div className={cn(
-                            "relative h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors",
-                            visible ? "bg-[#d4a853]" : "bg-white/10"
-                          )}>
-                            <span className={cn(
-                              "absolute top-0 h-4 w-4 rounded-full bg-white shadow transition-transform",
-                              visible ? "translate-x-4" : "translate-x-0"
-                            )} />
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between border-t border-white/[0.06] px-5 py-3">
-              <button
-                onClick={resetAll}
-                className="text-[11px] text-white/25 hover:text-white/50 transition-colors"
-              >
-                Reset to defaults
-              </button>
-              <button
-                onClick={() => setShowCustomize(false)}
-                className="rounded-lg bg-[#d4a853] px-4 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Right-click context menu */}
       {contextMenu && (
