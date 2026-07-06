@@ -611,8 +611,8 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                             visible ? "bg-[#d4a853]" : "bg-white/[0.12]"
                           )}>
                             <span className={cn(
-                              "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200",
-                              visible ? "translate-x-4" : "translate-x-0.5"
+                              "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200",
+                              visible ? "left-[18px]" : "left-[2px]"
                             )} />
                           </div>
                         </button>
