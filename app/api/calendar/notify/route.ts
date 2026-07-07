@@ -193,7 +193,9 @@ export async function POST(req: NextRequest) {
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) return NextResponse.json({ error: "RESEND_API_KEY not configured" }, { status: 500 });
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@usecineflow.com";
+    // Extract bare email in case RESEND_FROM_EMAIL is "Name <email@domain.com>"
+    const fromEnv = process.env.RESEND_FROM_EMAIL ?? "noreply@usecineflow.com";
+    const fromEmail = fromEnv.match(/<([^>]+)>/)?.[1] ?? fromEnv;
     const resend = new Resend(resendKey);
 
     const subject = isReminder
@@ -218,7 +220,14 @@ export async function POST(req: NextRequest) {
       )
     );
 
-    const sent = results.filter((r) => r.status === "fulfilled").length;
+    const sent = results.filter((r) => r.status === "fulfilled" && !r.value.error).length;
+    if (sent < results.length) {
+      const errs = results
+        .filter((r): r is PromiseRejectedResult | PromiseFulfilledResult<{ error: any }> => r.status === "rejected" || !!(r as any).value?.error)
+        .map((r) => r.status === "rejected" ? r.reason : (r as any).value.error?.message)
+        .join(", ");
+      console.error("[calendar/notify] Resend errors:", errs);
+    }
     return NextResponse.json({ sent, total: recipientEmails.length });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Failed to send notifications";

@@ -95,14 +95,21 @@ export async function POST(req: NextRequest) {
 </html>`;
 
     const resend = new Resend(process.env.RESEND_API_KEY!);
-    const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@usecineflow.com";
+    // Extract bare email in case RESEND_FROM_EMAIL is "Name <email@domain.com>"
+    const fromEnv = process.env.RESEND_FROM_EMAIL ?? "noreply@usecineflow.com";
+    const fromEmail = fromEnv.match(/<([^>]+)>/)?.[1] ?? fromEnv;
 
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: `${agencyName} <${fromEmail}>`,
       to: [retainer.client_email],
       subject: `${monthLabel} is starting — here's what we're creating`,
       html,
     });
+
+    if (error) {
+      console.error("[retainer/notify-start] Resend error:", JSON.stringify(error));
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ sent: 1 });
   } catch (e: unknown) {
