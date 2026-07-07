@@ -678,6 +678,22 @@ export default function ContractsPage() {
         description: `Signed by ${ipName.trim()}`,
         href: "/contracts",
       });
+      // Poll for signed_pdf_url — stamp fires async after signing
+      const targetId = selected.id;
+      const pdfDeadline = Date.now() + 12_000;
+      const pollForPdf = async () => {
+        if (Date.now() > pdfDeadline) return;
+        try {
+          const { data } = await supabase.from("contracts").select("signed_pdf_url").eq("id", targetId).single();
+          if (data?.signed_pdf_url) {
+            setContracts((prev) => prev.map((c) => c.id === targetId ? { ...c, signed_pdf_url: data.signed_pdf_url } : c));
+            setSelected((prev) => prev?.id === targetId ? { ...prev, signed_pdf_url: data.signed_pdf_url } : prev);
+            return;
+          }
+        } catch { /* silent */ }
+        setTimeout(pollForPdf, 1500);
+      };
+      setTimeout(pollForPdf, 1500);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save signature");
     } finally {

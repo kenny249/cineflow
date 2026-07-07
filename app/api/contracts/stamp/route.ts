@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 function getAdmin() {
@@ -20,11 +21,7 @@ function dataURLToBytes(dataUrl: string): Uint8Array {
 
 export async function POST(req: NextRequest) {
   const internalSecret = process.env.INTERNAL_API_SECRET;
-  if (!internalSecret || req.headers.get("x-internal-secret") !== internalSecret) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const supabase = getAdmin();
+  const isInternal = internalSecret && req.headers.get("x-internal-secret") === internalSecret;
 
   let body: { contractId: string };
   try {
@@ -32,9 +29,24 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (!body.contractId) return NextResponse.json({ error: "contractId required" }, { status: 400 });
 
+  if (!isInternal) {
+    // Fallback: accept authenticated requests from the contract owner
+    const userSupabase = await createClient();
+    const { data: { user } } = await userSupabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const { data: ownership } = await userSupabase
+      .from("contracts")
+      .select("id")
+      .eq("id", body.contractId)
+      .eq("created_by", user.id)
+      .single();
+    if (!ownership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const supabase = getAdmin();
   const { contractId } = body;
-  if (!contractId) return NextResponse.json({ error: "contractId required" }, { status: 400 });
 
   // Fetch contract
   const { data: contract, error: contractErr } = await supabase
