@@ -839,6 +839,7 @@ export default function JarvisPage() {
   const [isCompact, setIsCompact] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<"" | "saved" | "error">("");
   const [muted, setMuted]               = useState(false);
+  const [micError, setMicError]         = useState<string>("");
   const [hour12, setHour12]             = useState(() => {
     if (typeof window === "undefined") return true;
     const s = localStorage.getItem("jarvis-hour12");
@@ -1081,6 +1082,7 @@ export default function JarvisPage() {
     recognitionRef.current = rec;
 
     rec.onresult = (e: any) => {
+      setMicError("");
       const result = e.results[e.resultIndex];
       if (!result?.isFinal) return;
       const text: string = result[0].transcript.trim();
@@ -1128,7 +1130,14 @@ export default function JarvisPage() {
 
     rec.onerror = (e: any) => {
       if (e.error === "aborted") return;
+      console.error("[Jarvis] SpeechRecognition error:", e.error);
       recognitionRef.current = null;
+      // Permission denied — stop restarting, show error, don't loop forever
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        setMicError(e.error);
+        return;
+      }
+      setMicError(e.error);
       // Don't restart while Jarvis is speaking, or while muted
       if (!speakingRef.current && !processingRef.current && conversationActiveRef.current && !mutedRef.current) {
         setTimeout(() => { if (!speakingRef.current && !processingRef.current && conversationActiveRef.current && !mutedRef.current) startRecognition(); }, 400);
@@ -1301,6 +1310,7 @@ export default function JarvisPage() {
       conversationActiveRef.current = true;
       processingRef.current = false;
       mutedRef.current = false;
+      setMicError("");
       setSessionActive(true);
       setMuted(false);
       sessionStartRef.current = Date.now();
@@ -1834,6 +1844,15 @@ export default function JarvisPage() {
               </div>
             ))}
           </motion.div>
+        )}
+
+        {micError && sessionActive && (
+          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-lg px-4 py-2 text-[10px] font-bold tracking-widest text-red-400 border border-red-400/30 bg-red-400/10">
+            <span>MIC ERROR: {micError.toUpperCase().replace(/-/g, " ")}</span>
+            {(micError === "not-allowed" || micError === "service-not-allowed") && (
+              <span className="text-red-300/70 font-normal normal-case tracking-normal">— click the lock icon in Chrome address bar → allow microphone</span>
+            )}
+          </div>
         )}
 
         <motion.button
