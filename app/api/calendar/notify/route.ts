@@ -220,11 +220,11 @@ export async function POST(req: NextRequest) {
       )
     );
 
-    const sent = results.filter((r) => r.status === "fulfilled" && !r.value.error).length;
+    const sent = results.filter((r) => r.status === "fulfilled" && !(r as any).value?.error).length;
     if (sent < results.length) {
       const errs = results
-        .filter((r): r is PromiseRejectedResult | PromiseFulfilledResult<{ error: any }> => r.status === "rejected" || !!(r as any).value?.error)
-        .map((r) => r.status === "rejected" ? r.reason : (r as any).value.error?.message)
+        .filter((r) => r.status === "rejected" || !!(r as any).value?.error)
+        .map((r) => r.status === "rejected" ? String(r.reason) : (r as any).value?.error?.message)
         .join(", ");
       console.error("[calendar/notify] Resend errors:", errs);
     }
