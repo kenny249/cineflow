@@ -28,6 +28,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Contract not found" }, { status: 404 });
   }
 
+  if (!contract.file_url) {
+    return NextResponse.json({ error: "A PDF must be attached before sending." }, { status: 400 });
+  }
+
   if (!contract.recipient_email) {
     return NextResponse.json({ error: "Recipient email is required to send. Edit the contract first." }, { status: 400 });
   }

@@ -21,7 +21,9 @@ function dataURLToBytes(dataUrl: string): Uint8Array {
 
 export async function POST(req: NextRequest) {
   const internalSecret = process.env.INTERNAL_API_SECRET;
-  const isInternal = internalSecret && req.headers.get("x-internal-secret") === internalSecret;
+  // If no secret is configured, all calls are trusted (internal-only route).
+  // If a secret is configured, the caller must supply it OR be an authenticated owner.
+  const secretMatches = !internalSecret || req.headers.get("x-internal-secret") === internalSecret;
 
   let body: { contractId: string };
   try {
@@ -31,8 +33,8 @@ export async function POST(req: NextRequest) {
   }
   if (!body.contractId) return NextResponse.json({ error: "contractId required" }, { status: 400 });
 
-  if (!isInternal) {
-    // Fallback: accept authenticated requests from the contract owner
+  if (!secretMatches) {
+    // Secret is configured but didn't match — fall back to authenticated owner check
     const userSupabase = await createClient();
     const { data: { user } } = await userSupabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
