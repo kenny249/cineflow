@@ -364,6 +364,46 @@ export function emailSubscriptionCanceled({
   return { subject, html: base(subject, body, "You're receiving this because your CineFlow subscription was canceled.") };
 }
 
+// ─── Template: Deploy confirmation (sent to creator/agency) ──────────────────
+export function emailDeployConfirmation({
+  projectTitle,
+  revisionTitle,
+  versionNumber,
+  clientName,
+  clientEmail,
+  portalUrl,
+}: {
+  projectTitle: string;
+  revisionTitle: string;
+  versionNumber: number;
+  clientName: string;
+  clientEmail: string;
+  portalUrl: string;
+}): { subject: string; html: string } {
+  const subject = `Sent — ${clientName} has been notified for ${projectTitle}`;
+  const body = `
+    ${h1("Review sent to client.")}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;">Your client has been notified by email and their review portal is live.</p>
+    ${divider()}
+    <table cellpadding="0" cellspacing="0" width="100%">
+      ${meta("Project", projectTitle)}
+      ${meta("Revision", revisionTitle)}
+      ${meta("Version", `v${versionNumber}`)}
+      ${meta("Sent to", `${clientName} &lt;${clientEmail}&gt;`)}
+    </table>
+    ${divider()}
+    <p style="margin:0;font-size:13px;color:#666666;">If your client doesn't receive the email, share their portal link directly:</p>
+    <div style="margin:12px 0 0;background:#161616;border:1px solid #2a2a2a;border-radius:8px;padding:12px 16px;word-break:break-all;">
+      <a href="${portalUrl}" style="font-size:12px;color:#d4a853;text-decoration:none;">${portalUrl}</a>
+    </div>
+    ${btn("Open Review Hub", portalUrl.replace(/\/review\/.*/, "/revisions"))}
+  `;
+  return {
+    subject,
+    html: base(subject, body, "You're receiving this because you deployed a client review from CineFlow."),
+  };
+}
+
 // ─── Template: Owner — client requested changes ───────────────────────────────
 export function emailOwnerClientRequestedChanges({
   projectTitle,

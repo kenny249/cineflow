@@ -11,6 +11,7 @@ import {
   emailStageUpdate,
   emailOwnerClientApproved,
   emailOwnerClientRequestedChanges,
+  emailDeployConfirmation,
 } from "@/lib/email-templates";
 
 const resend = process.env.RESEND_API_KEY
@@ -27,7 +28,8 @@ export type NotifyEvent =
   | "final_delivery"
   | "stage_update"
   | "client_approved"
-  | "client_requested_changes";
+  | "client_requested_changes"
+  | "deploy_confirmed";
 
 export interface NotifyPayload {
   event: NotifyEvent;
@@ -186,12 +188,22 @@ export async function POST(req: NextRequest) {
         reviewUrl: portalUrl,
       });
       break;
+    case "deploy_confirmed":
+      template = emailDeployConfirmation({
+        projectTitle,
+        revisionTitle: revisionTitle ?? "Revision",
+        versionNumber: versionNumber ?? 1,
+        clientName,
+        clientEmail,
+        portalUrl,
+      });
+      break;
     default:
       return NextResponse.json({ error: "Unknown event" }, { status: 400 });
   }
 
   try {
-    const { error } = await resend.emails.send({
+    const { data: sendData, error } = await resend.emails.send({
       from: FROM,
       to: recipient,
       subject: template.subject,
@@ -199,11 +211,14 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) {
+      console.error("[notify] Resend error:", JSON.stringify(error), "| event:", event, "| from:", FROM, "| to:", recipient);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    console.log("[notify] sent ok:", sendData?.id, "| event:", event, "| to:", recipient);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    console.error("[notify] Resend threw:", err instanceof Error ? err.message : String(err), "| event:", event, "| from:", FROM, "| to:", recipient);
     return NextResponse.json({ error: "Failed to send email" }, { status: 500 });
   }
 }

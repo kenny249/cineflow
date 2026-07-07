@@ -78,6 +78,7 @@ function DeployModal({
   project,
   portalToken,
   clients,
+  creatorEmail,
   onDeployed,
   onClose,
 }: {
@@ -85,6 +86,7 @@ function DeployModal({
   project: Project;
   portalToken: ReviewToken | null;
   clients: ClientContact[];
+  creatorEmail: string;
   onDeployed: (token: ReviewToken) => void;
   onClose: () => void;
 }) {
@@ -154,6 +156,24 @@ function DeployModal({
         }),
       });
       if (!revisionReadyRes.ok) emailOk = false;
+
+      // Send confirmation to creator (fire-and-forget — don't block success on this)
+      if (creatorEmail) {
+        fetch("/api/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event: "deploy_confirmed",
+            to: creatorEmail,
+            clientName: token.client_name,
+            clientEmail: token.client_email,
+            projectTitle: project.title,
+            revisionTitle: revision.title,
+            versionNumber: revision.version_number,
+            portalUrl,
+          }),
+        }).catch(() => {});
+      }
 
       onDeployed(token);
       setEmailDelivered(emailOk);
@@ -528,6 +548,12 @@ export default function ReviewPage() {
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [deletingRevisionId, setDeletingRevisionId] = useState<string | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  // Creator email (for deploy confirmation)
+  const [creatorEmail, setCreatorEmail] = useState("");
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => setCreatorEmail(data.user?.email ?? ""));
+  }, []);
 
   // Portal token
   const [portalToken, setPortalToken] = useState<ReviewToken | null>(null);
@@ -1569,6 +1595,7 @@ export default function ReviewPage() {
           project={selectedProject}
           portalToken={portalToken}
           clients={clients}
+          creatorEmail={creatorEmail}
           onDeployed={(token) => {
             setPortalToken(token);
             setRevisions((prev) => prev.map((r) => r.id === deployTarget.id ? { ...r, status: "in_review" } : r));
