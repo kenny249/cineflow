@@ -36,20 +36,25 @@ export function ClientActivityWidget() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase
-        .from("notifications")
-        .select("id, type, title, description, href, created_at, read")
-        .eq("user_id", user.id)
-        .in("type", CLIENT_EVENT_TYPES)
-        .order("created_at", { ascending: false })
-        .limit(8)
-        .then(({ data }) => {
-          setEvents(data ?? []);
-          setLoading(false);
-        });
-    });
+    async function load() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
+        const { data } = await supabase
+          .from("notifications")
+          .select("id, type, title, description, href, created_at, read")
+          .eq("user_id", user.id)
+          .in("type", CLIENT_EVENT_TYPES)
+          .order("created_at", { ascending: false })
+          .limit(8);
+        setEvents(data ?? []);
+      } catch {
+        // non-fatal
+      } finally {
+        setLoading(false);
+      }
+    }
+    void load();
   }, []);
 
   const unread = events.filter((e) => !e.read).length;

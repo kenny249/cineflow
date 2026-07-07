@@ -246,11 +246,13 @@ export default function SigningPage() {
           <div className="mb-5 rounded-2xl border border-[#e4e4e7] bg-white p-5">
             <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#a1a1aa]">What happens next</p>
             <div className="space-y-3">
-              {[
-                { icon: Mail, text: "A signed copy will be emailed to you" },
-                { icon: Clock, text: "The production team will be in touch shortly" },
-                { icon: ExternalLink, text: "Your certificate of completion is ready to view" },
-              ].map(({ icon: Icon, text }, i) => (
+              {(
+                [
+                  ...(signerEmail ? [{ icon: Mail as typeof Mail, text: "A signed copy is being emailed to you" }] : []),
+                  { icon: Clock as typeof Clock, text: "The production team will be in touch shortly" },
+                  { icon: ExternalLink as typeof ExternalLink, text: "Your certificate of completion is ready to view" },
+                ]
+              ).map(({ icon: Icon, text }, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
                     <Icon className="h-3.5 w-3.5 text-emerald-600" />

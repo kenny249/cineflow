@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
   // In-app notification for the owner (fire-and-forget)
   supabase.from("notifications").insert({
     user_id: contract.created_by,
-    type: "revision_approved",
+    type: "status_changed",
     title: `${body.signer_name.trim()} signed "${contract.title}"`,
     description: "Contract is fully executed. Download the signed copy.",
     href: "/contracts",
