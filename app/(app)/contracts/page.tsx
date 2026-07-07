@@ -19,6 +19,7 @@ import dynamic from "next/dynamic";
 import type { Contract, ContractStatus, ContractRecipientRole, Project, SignatureField } from "@/types";
 import type { FieldDropMode } from "@/components/contracts/PDFViewer";
 import { ContractTemplatePicker, type ContractTemplate } from "@/components/contracts/ContractTemplatePicker";
+import { ContractBuilder } from "@/components/contracts/ContractBuilder";
 
 const PDFViewer = dynamic(
   () => import("@/components/contracts/PDFViewer").then((m) => m.PDFViewer),
@@ -85,6 +86,10 @@ export default function ContractsPage() {
 
   // Template picker
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+
+  // Contract builder (AI wizard)
+  const [builderOpen, setBuilderOpen] = useState(false);
+  const [builderTemplate, setBuilderTemplate] = useState<ContractTemplate | null>(null);
 
   // New contract dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -196,15 +201,9 @@ export default function ContractsPage() {
   }
 
   function handleTemplateSelect(template: ContractTemplate) {
-    setFTitle(template.suggestedTitle);
-    setFDescription(template.suggestedDescription);
-    setFRecipientRole(template.recipientRole);
-    setFRecipientName("");
-    setFRecipientEmail("");
-    setFProject("");
-    setFFile(null);
     setTemplatePickerOpen(false);
-    setDialogOpen(true);
+    setBuilderTemplate(template);
+    setBuilderOpen(true);
   }
 
   const handleCreate = useCallback(async () => {
@@ -1015,17 +1014,19 @@ export default function ContractsPage() {
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Actions</p>
                     <div className="space-y-1.5">
                       {(selected.status === "draft" || selected.status === "sent") && (
-                        <button
-                          onClick={selected.status === "sent" ? () => setResendConfirmOpen(true) : handleSend}
-                          disabled={sending || !selected.recipient_email || !selected.file_url}
-                          className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#d4a853] px-3 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
-                        >
-                          {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                          {sending ? "Sending…" : selected.status === "sent" ? "Resend for Signature" : "Send for Signature"}
-                        </button>
-                        {!selected.file_url && (
-                          <p className="text-[11px] text-amber-400/80 text-center">Upload a PDF before sending</p>
-                        )}
+                        <>
+                          <button
+                            onClick={selected.status === "sent" ? () => setResendConfirmOpen(true) : handleSend}
+                            disabled={sending || !selected.recipient_email || !selected.file_url}
+                            className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#d4a853] px-3 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
+                          >
+                            {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                            {sending ? "Sending…" : selected.status === "sent" ? "Resend for Signature" : "Send for Signature"}
+                          </button>
+                          {!selected.file_url && (
+                            <p className="text-[11px] text-amber-400/80 text-center">Upload a PDF before sending</p>
+                          )}
+                        </>
                       )}
                       {selected.status === "signed" && (
                         <div className="flex items-center gap-2 rounded-lg bg-emerald-400/10 border border-emerald-400/20 px-3 py-2">
@@ -1164,6 +1165,25 @@ export default function ContractsPage() {
         onClose={() => setTemplatePickerOpen(false)}
         onSelect={handleTemplateSelect}
       />
+
+      {/* ── Contract Builder (AI wizard) ─────────────────────────────────────── */}
+      <Dialog open={builderOpen} onOpenChange={(v) => { if (!v) setBuilderOpen(false); }}>
+        <DialogContent className="sm:max-w-2xl p-0 overflow-hidden max-h-[90dvh]">
+          {builderTemplate && (
+            <ContractBuilder
+              template={builderTemplate}
+              projects={projects}
+              onDone={(contract) => {
+                setContracts((prev) => [contract, ...prev]);
+                setSelected(contract);
+                setBuilderOpen(false);
+                toast.success("Contract created");
+              }}
+              onClose={() => setBuilderOpen(false)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Delete Confirmation Dialog ───────────────────────────────────────── */}
       <Dialog open={!!deleteTargetId} onOpenChange={(v) => { if (!v) setDeleteTargetId(null); }}>
