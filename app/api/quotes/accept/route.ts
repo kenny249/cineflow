@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
       const { data: q } = await supabase.from("quotes").select("description, client_name").eq("id", quote.id).single();
       supabase.from("notifications").insert({
         user_id: quote.created_by,
-        type: "status_changed",
+        type: "quote_accepted",
         title: `${trimmedName} accepted your quote`,
         description: (q as any)?.description || (q as any)?.client_name || "Quote accepted",
         href: "/finance?tab=quotes",

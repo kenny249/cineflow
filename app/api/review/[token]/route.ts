@@ -157,7 +157,7 @@ export async function POST(
       type: "comment_added",
       title: `${tokenRow.client_name} commented on "${revision?.title ?? "revision"}"`,
       description: content.trim().slice(0, 120),
-      href: "/revisions",
+      href: `/revisions?project=${tokenRow.project_id}`,
     }).then(() => {});
   }
 
@@ -252,7 +252,7 @@ export async function PATCH(
     type: action === "approve" ? "revision_approved" : "revision_uploaded",
     title: notifTitle,
     description: notifDescription,
-    href: `/revisions`,
+    href: `/revisions?project=${project.id}`,
   }).then(() => {});
 
   // Try to get owner email from profiles for email notification

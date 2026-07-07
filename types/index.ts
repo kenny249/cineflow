@@ -105,7 +105,9 @@ export type ActivityType =
   | "storyboard_updated"
   | "member_added"
   | "status_changed"
-  | "note_added";
+  | "note_added"
+  | "quote_accepted"
+  | "contract_signed";
 
 // ─── Projects ────────────────────────────────────────────────────────────────
 
