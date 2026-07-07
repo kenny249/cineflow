@@ -21,6 +21,7 @@ interface CertData {
     signed_at: string;
     ip_address?: string;
   } | null;
+  senderName: string;
 }
 
 export default function CertificatePage() {
@@ -58,7 +59,7 @@ export default function CertificatePage() {
     );
   }
 
-  const { contract, signature } = data;
+  const { contract, signature, senderName } = data;
   const signedDate = signature?.signed_at
     ? new Date(signature.signed_at).toLocaleString("en-US", {
         weekday: "long", year: "numeric", month: "long", day: "numeric",
@@ -122,7 +123,7 @@ export default function CertificatePage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-[#e4e4e7] bg-[#fafafa] px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[#a1a1aa] mb-1">Sender</p>
-                <p className="text-sm font-semibold text-[#18181b]">Cineflow Studio</p>
+                <p className="text-sm font-semibold text-[#18181b]">{senderName}</p>
               </div>
               <div className="rounded-xl border border-[#e4e4e7] bg-[#fafafa] px-4 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[#a1a1aa] mb-1">Signer</p>

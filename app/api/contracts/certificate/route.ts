@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
   const { data: contract, error: contractErr } = await supabase
     .from("contracts")
-    .select("id, title, description, status, recipient_name, recipient_email, signed_at")
+    .select("id, title, description, status, recipient_name, recipient_email, signed_at, created_by")
     .eq("signing_token", token)
     .single();
 
@@ -27,13 +27,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "This contract has not been signed yet" }, { status: 400 });
   }
 
-  const { data: signature } = await supabase
-    .from("contract_signatures")
-    .select("signer_name, signer_email, signature_data, signed_at, ip_address")
-    .eq("contract_id", contract.id)
-    .order("signed_at", { ascending: false })
-    .limit(1)
-    .single();
+  const [{ data: signature }, { data: senderProfile }] = await Promise.all([
+    supabase
+      .from("contract_signatures")
+      .select("signer_name, signer_email, signature_data, signed_at, ip_address")
+      .eq("contract_id", contract.id)
+      .order("signed_at", { ascending: false })
+      .limit(1)
+      .single(),
+    supabase
+      .from("profiles")
+      .select("full_name, business_name, company")
+      .eq("id", contract.created_by)
+      .single(),
+  ]);
 
-  return NextResponse.json({ contract, signature: signature ?? null });
+  const senderName =
+    senderProfile?.business_name ||
+    senderProfile?.company ||
+    senderProfile?.full_name ||
+    "Studio";
+
+  return NextResponse.json({ contract, signature: signature ?? null, senderName });
 }

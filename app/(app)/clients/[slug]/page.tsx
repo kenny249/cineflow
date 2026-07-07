@@ -338,18 +338,22 @@ export default function ClientDetailPage() {
           </section>
 
           {/* Contracts */}
-          {contracts.length > 0 && (
-            <section>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <FileSignature className="h-4 w-4 text-muted-foreground" />
-                  Contracts
-                  <span className="text-xs font-normal text-muted-foreground">{contracts.length}</span>
-                </h2>
-                <Link href="/contracts" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-                  View all <ExternalLink className="h-2.5 w-2.5" />
-                </Link>
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <FileSignature className="h-4 w-4 text-muted-foreground" />
+                Contracts
+                <span className="text-xs font-normal text-muted-foreground">{contracts.length}</span>
+              </h2>
+              <Link href="/contracts" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                View all <ExternalLink className="h-2.5 w-2.5" />
+              </Link>
+            </div>
+            {contracts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                <p className="text-sm text-muted-foreground">No contracts for this client yet</p>
               </div>
+            ) : (
               <div className="space-y-2">
                 {contracts.map((c) => (
                   <div key={c.id} className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3">
@@ -363,8 +367,8 @@ export default function ClientDetailPage() {
                   </div>
                 ))}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
           {/* Quick links */}
           <section>

@@ -59,6 +59,7 @@ export default function SigningPage() {
   const [signerEmail, setSignerEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pollingPdf, setPollingPdf] = useState(false);
 
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -84,6 +85,7 @@ export default function SigningPage() {
         }
         if (d.contract.recipient_email) setSignerEmail(d.contract.recipient_email);
         if (d.contract.status === "signed") setStep("done");
+        if (d.contract.status === "voided") setError("This contract has been voided and is no longer available.");
       })
       .catch(() => setError("Failed to load contract"))
       .finally(() => setLoading(false));
@@ -189,6 +191,23 @@ export default function SigningPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to submit");
       setStep("done");
+      // Poll for signed_pdf_url — stamp is async and may take a few seconds
+      setPollingPdf(true);
+      const deadline = Date.now() + 12_000;
+      const poll = async () => {
+        if (Date.now() > deadline) { setPollingPdf(false); return; }
+        try {
+          const r = await fetch(`/api/contracts/sign?token=${token}`);
+          const d = await r.json();
+          if (d.contract?.signed_pdf_url) {
+            setContract((prev) => prev ? { ...prev, signed_pdf_url: d.contract.signed_pdf_url } : prev);
+            setPollingPdf(false);
+            return;
+          }
+        } catch { /* silent */ }
+        setTimeout(poll, 1500);
+      };
+      setTimeout(poll, 1500);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to submit signature");
     } finally {
@@ -265,7 +284,7 @@ export default function SigningPage() {
 
           {/* Actions */}
           <div className="flex flex-col gap-2">
-            {contract?.signed_pdf_url && (
+            {contract?.signed_pdf_url ? (
               <a
                 href={contract.signed_pdf_url}
                 download
@@ -276,7 +295,12 @@ export default function SigningPage() {
                 <Download className="h-4 w-4" />
                 Download Signed Contract
               </a>
-            )}
+            ) : pollingPdf ? (
+              <div className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600/30 px-6 py-3 text-sm font-semibold text-emerald-700 cursor-not-allowed">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Preparing your signed copy…
+              </div>
+            ) : null}
             <a
               href={`/sign/${token}/certificate`}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#18181b] px-6 py-3 text-sm font-semibold text-white hover:bg-[#27272a] transition-colors"
