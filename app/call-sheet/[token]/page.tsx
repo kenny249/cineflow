@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { PrintButton } from "./PrintButton";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // ─── Types (mirrors CallSheetGenerator internals) ──────────────────────────────
 
@@ -81,12 +82,14 @@ interface CallSheet {
 
 async function getCallSheet(token: string): Promise<CallSheet | null> {
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://usecineflow.com"}/api/call-sheets/public/${token}`,
-      { cache: "no-store" }
-    );
-    if (!res.ok) return null;
-    return res.json();
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("call_sheets")
+      .select("id, title, shoot_date, data, project:projects(id, title)")
+      .eq("share_token", token)
+      .single();
+    if (error || !data) return null;
+    return data as unknown as CallSheet;
   } catch {
     return null;
   }
