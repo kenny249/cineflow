@@ -8,11 +8,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { CalcLineItem, CalcCategory, RateCardItem, QuoteEstimate, Project, Profile, Quote, CrewProfile } from "@/types";
+import type { CalcLineItem, CalcCategory, RateCardItem, QuoteEstimate, Project, Profile, Quote, CrewProfile, QuotePackage, LineItem, RetainerTemplateItem } from "@/types";
 import {
   getRateCardItems, getQuoteEstimates, saveQuoteEstimate,
   updateQuoteEstimate, deleteQuoteEstimate, getProjects, getProfile, updateProfile, getQuotes,
-  getMyCrewProfiles,
+  getMyCrewProfiles, createQuote,
 } from "@/lib/supabase/queries";
 import QuoteFormModal, { type QuoteFormState, type LineItemForm } from "@/components/quotes/QuoteFormModal";
 
@@ -1189,7 +1189,56 @@ export function QuoteCalculator() {
       <QuoteFormModal
         open={showQuoteModal}
         onClose={() => setShowQuoteModal(false)}
-        onSave={async () => { setShowQuoteModal(false); setQuoteSaved(true); }}
+        onSave={async (f: QuoteFormState) => {
+          try {
+            const lineItems: LineItem[] = f.line_items
+              .filter((li) => li.description.trim())
+              .map((li) => ({ id: li.id, description: li.description, quantity: parseFloat(li.quantity) || 1, rate: parseFloat(li.rate) || 0 }));
+            const packages: QuotePackage[] = f.packages.map((pkg) => {
+              const pkgItems: LineItem[] = pkg.line_items
+                .filter((li) => li.description.trim())
+                .map((li) => ({ id: li.id, description: li.description, quantity: parseFloat(li.quantity) || 1, rate: parseFloat(li.rate) || 0 }));
+              return { id: pkg.id, name: pkg.name, description: pkg.description || undefined, line_items: pkgItems, amount: pkgItems.reduce((s, li) => s + li.quantity * li.rate, 0), highlighted: pkg.highlighted };
+            });
+            const retainerDeliverables: RetainerTemplateItem[] = f.retainer_deliverables
+              .filter((d) => d.label.trim())
+              .map((d) => ({ type: d.type, label: d.label, quantity: parseInt(d.quantity) || 1 }));
+            const subtotal = f.use_packages ? 0 : lineItems.reduce((s, li) => s + li.quantity * li.rate, 0);
+            const discount = parseFloat(f.discount) || 0;
+            const taxRate = parseFloat(f.tax_rate) || 0;
+            const amount = f.quote_type === "retainer"
+              ? (parseFloat(f.monthly_rate) || 0) * (parseInt(f.retainer_months) || 1)
+              : f.use_packages ? 0 : subtotal - discount + (subtotal - discount) * (taxRate / 100);
+            await createQuote({
+              quote_number: f.quote_number,
+              quote_type: f.quote_type,
+              client_name: f.client_name,
+              client_email: f.client_email || undefined,
+              project_id: f.project_id || undefined,
+              description: f.description || undefined,
+              scope_of_work: f.scope_of_work || undefined,
+              line_items: f.use_packages ? [] : lineItems,
+              packages: f.use_packages ? packages : [],
+              tax_rate: taxRate,
+              discount,
+              payment_terms: f.payment_terms,
+              valid_until: f.valid_until || undefined,
+              notes: f.notes || undefined,
+              monthly_rate: f.quote_type === "retainer" ? parseFloat(f.monthly_rate) || undefined : undefined,
+              retainer_months: f.quote_type === "retainer" ? parseInt(f.retainer_months) || undefined : undefined,
+              retainer_deliverables: f.quote_type === "retainer" ? retainerDeliverables : undefined,
+              amount,
+              status: "draft" as const,
+              brand_logo_url: profile?.logo_url ?? undefined,
+              brand_name: profile?.business_name ?? undefined,
+              brand_color: profile?.brand_color ?? undefined,
+            });
+            setShowQuoteModal(false);
+            setQuoteSaved(true);
+          } catch {
+            toast.error("Failed to save quote");
+          }
+        }}
         initial={buildQuotePrefill()}
         packageBrief={scopeBrief}
         projects={projects}

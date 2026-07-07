@@ -1531,8 +1531,10 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
   const [pdfLoading, setPdfLoading] = useState(false);
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [savedSheetId, setSavedSheetId] = useState<string | null>(initialSheetId ?? null);
+  const [savedShareToken, setSavedShareToken] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [saving, setSaving] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [existingSheets, setExistingSheets] = useState<SavedCallSheet[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1606,6 +1608,7 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
     else if (freshLocs) setLocations(freshLocs);
     if (d.formData) setFormData(d.formData);
     setSavedSheetId(saved.id);
+    if (saved.share_token) setSavedShareToken(saved.share_token);
     setSavedAt(new Date(saved.updated_at));
     setStep(5);
   }
@@ -1636,11 +1639,13 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
     const payload = { title, shoot_date: shootDate, data: { sheet: currentSheet, crew, locations, formData } };
     try {
       if (savedSheetId) {
-        await fetch(`/api/call-sheets/${savedSheetId}`, {
+        const res = await fetch(`/api/call-sheets/${savedSheetId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        const updated = await res.json();
+        if (updated.share_token && !savedShareToken) setSavedShareToken(updated.share_token);
       } else {
         const res = await fetch("/api/call-sheets", {
           method: "POST",
@@ -1649,6 +1654,7 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
         });
         const created = await res.json();
         if (created.id) setSavedSheetId(created.id);
+        if (created.share_token) setSavedShareToken(created.share_token);
       }
       setSavedAt(new Date());
     } catch { /* silent — PDF still works */ }
@@ -1773,9 +1779,27 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
               </span>
             )}
           </div>
-          <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {step === 5 && (
+              <button
+                onClick={async () => {
+                  if (!savedShareToken) { toast.error("Save the sheet first — it will auto-save after a moment"); return; }
+                  const url = `${window.location.origin}/call-sheet/${savedShareToken}`;
+                  await navigator.clipboard.writeText(url);
+                  setShareCopied(true);
+                  toast.success("Crew link copied to clipboard");
+                  setTimeout(() => setShareCopied(false), 2000);
+                }}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
+              >
+                {shareCopied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Share2 className="h-3.5 w-3.5" />}
+                <span className="hidden sm:inline">{shareCopied ? "Copied!" : "Share"}</span>
+              </button>
+            )}
+            <button onClick={onClose} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Step content */}

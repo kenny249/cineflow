@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("call_sheets")
-    .select("id, title, shoot_date, created_at, updated_at")
+    .select("id, title, shoot_date, share_token, created_at, updated_at")
     .eq("project_id", projectId)
     .order("shoot_date", { ascending: false, nullsFirst: false });
 
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const { data: row, error } = await supabase
     .from("call_sheets")
     .insert({ project_id, title: title ?? "Call Sheet", shoot_date: shoot_date ?? null, data: data ?? {}, created_by: user.id })
-    .select("id, title, shoot_date, created_at, updated_at")
+    .select("id, title, shoot_date, share_token, created_at, updated_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

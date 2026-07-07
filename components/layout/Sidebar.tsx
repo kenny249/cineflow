@@ -32,6 +32,7 @@ import {
   ChevronDown,
   Lock,
   SlidersHorizontal,
+  Clipboard,
 } from "lucide-react";
 import { DroneIcon } from "@/components/icons/DroneIcon";
 import { cn } from "@/lib/utils";
@@ -83,6 +84,7 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Boards",         href: "/boards",         icon: LayoutGrid },
       { label: "Storyboard",    href: "/storyboard",    icon: Clapperboard },
       { label: "Shot Lists",    href: "/shot-lists",    icon: ListChecks },
+      { label: "Call Sheets",   href: "/call-sheets",   icon: Clipboard },
       { label: "Scripts",       href: "/scripts",       icon: ScrollText, soloHidden: true },
       { label: "Review",        href: "/revisions",     icon: Film },
       { label: "Project Tasks",  href: "/project-tasks", icon: ClipboardList },

@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .from("call_sheets")
     .update(patch)
     .eq("id", id)
-    .select("id, title, shoot_date, updated_at")
+    .select("id, title, shoot_date, share_token, updated_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
