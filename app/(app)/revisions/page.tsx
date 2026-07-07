@@ -99,6 +99,9 @@ function DeployModal({
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [emailDelivered, setEmailDelivered] = useState(true);
+  const [sentPortalUrl, setSentPortalUrl] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   async function handleSend() {
     if (step === "setup" && (!clientName.trim() || !clientEmail.trim())) {
@@ -108,6 +111,7 @@ function DeployModal({
     setSending(true);
     try {
       let token = portalToken;
+      let emailOk = true;
 
       // Step 1: Create portal token if first time
       if (!token) {
@@ -117,7 +121,7 @@ function DeployModal({
           client_email: clientEmail.trim(),
         });
         // Send portal_live email
-        await fetch("/api/notify", {
+        const portalLiveRes = await fetch("/api/notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -128,6 +132,7 @@ function DeployModal({
             portalUrl: `${window.location.origin}/review/${token.token}`,
           }),
         });
+        if (!portalLiveRes.ok) emailOk = false;
       }
 
       // Step 2: Update revision to in_review
@@ -135,7 +140,7 @@ function DeployModal({
 
       // Step 3: Send revision_ready email
       const portalUrl = `${window.location.origin}/review/${token.token}`;
-      await fetch("/api/notify", {
+      const revisionReadyRes = await fetch("/api/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -148,8 +153,11 @@ function DeployModal({
           portalUrl,
         }),
       });
+      if (!revisionReadyRes.ok) emailOk = false;
 
       onDeployed(token);
+      setEmailDelivered(emailOk);
+      setSentPortalUrl(portalUrl);
       setSent(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to deploy");
@@ -162,19 +170,39 @@ function DeployModal({
     : null;
 
   if (sent) {
+    const displayPortalUrl = sentPortalUrl ?? portalPreviewUrl;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
         <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#d4a853]/10 ring-1 ring-[#d4a853]/30 shadow-[0_0_30px_rgba(212,168,83,0.15)]">
-            <Rocket className="h-7 w-7 text-[#d4a853]" />
+          <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ring-1 shadow-lg ${emailDelivered ? "bg-[#d4a853]/10 ring-[#d4a853]/30 shadow-[0_0_30px_rgba(212,168,83,0.15)]" : "bg-amber-500/10 ring-amber-500/30"}`}>
+            <Rocket className={`h-7 w-7 ${emailDelivered ? "text-[#d4a853]" : "text-amber-400"}`} />
           </div>
           <p className="text-lg font-bold text-foreground">Deployed to client</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            <span className="text-foreground font-medium">{portalToken?.client_name ?? clientName}</span> has been notified by email.
-          </p>
+          {emailDelivered ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              <span className="text-foreground font-medium">{portalToken?.client_name ?? clientName}</span> has been notified by email.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-amber-400/80">
+              Email delivery failed — share the portal link directly.
+            </p>
+          )}
+          {displayPortalUrl && (
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(displayPortalUrl);
+                setCopiedLink(true);
+                setTimeout(() => setCopiedLink(false), 2000);
+              }}
+              className="mt-4 flex w-full items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-left text-xs text-muted-foreground hover:bg-muted/70 transition-colors"
+            >
+              <span className="flex-1 truncate font-mono">{displayPortalUrl}</span>
+              {copiedLink ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 shrink-0" />}
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="mt-6 w-full rounded-xl bg-muted py-2.5 text-sm font-semibold text-foreground hover:bg-muted/70 transition-colors"
+            className="mt-4 w-full rounded-xl bg-muted py-2.5 text-sm font-semibold text-foreground hover:bg-muted/70 transition-colors"
           >
             Done
           </button>
