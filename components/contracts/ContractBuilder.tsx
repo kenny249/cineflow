@@ -587,7 +587,8 @@ export function ContractBuilder({ template, projects, onDone, onClose }: Contrac
                     />
                   ) : (
                     <Input
-                      type={def.type === "number" ? "number" : def.type === "date" ? "date" : "text"}
+                      type={def.type === "date" ? "date" : "text"}
+                      inputMode={def.type === "number" ? "decimal" : undefined}
                       value={fields[def.key] ?? ""}
                       onChange={(e) => setField(def.key, e.target.value)}
                       placeholder={def.placeholder}
