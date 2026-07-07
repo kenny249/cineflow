@@ -18,7 +18,7 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? "notifications@usecineflow.com";
+const FROM = process.env.RESEND_FROM_EMAIL ?? "CineFlow <notifications@usecineflow.com>";
 
 export type NotifyEvent =
   | "portal_live"
