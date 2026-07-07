@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Check, Star, ExternalLink } from "lucide-react";
+import { Check, Star, ExternalLink, Mail, Phone, CalendarCheck } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import type { Quote, QuotePackage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,12 +37,20 @@ function paymentTermsLabel(pt?: string) {
 
 // ─── Acceptance modal ─────────────────────────────────────────────────────────
 
+const WHAT_NEXT = [
+  { icon: Mail, label: "Confirmation email sent to your inbox" },
+  { icon: Phone, label: "Production team reaches out within 1–2 business days" },
+  { icon: CalendarCheck, label: "Contract signed and kickoff scheduled" },
+];
+
 function AcceptModal({
+  open,
   quoteNumber,
   accentColor,
   onAccept,
   onClose,
 }: {
+  open: boolean;
   quoteNumber: string;
   accentColor: string;
   onAccept: (name: string, email: string) => Promise<void>;
@@ -66,17 +75,30 @@ function AcceptModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl">
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0f0f0f] p-6 shadow-2xl [&>button:last-child]:text-zinc-500 [&>button:last-child]:hover:text-zinc-300">
         {done ? (
-          <div className="text-center py-4">
+          <div className="text-center py-2">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full" style={{ background: `${accentColor}20`, border: `1px solid ${accentColor}60` }}>
               <Check className="h-7 w-7" style={{ color: accentColor }} />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Quote Accepted</h3>
-            <p className="text-sm text-zinc-400">Thank you, {name}! Your acceptance has been recorded. The team will be in touch shortly to get started.</p>
-            <button onClick={onClose} className="mt-5 rounded-xl px-6 py-2.5 text-sm font-semibold text-black transition-colors" style={{ background: accentColor }}>
-              Close
+            <h3 className="text-lg font-bold text-white mb-1">You're confirmed, {name}!</h3>
+            <p className="text-sm text-zinc-400 leading-relaxed">Your proposal has been accepted and the team has been notified.</p>
+
+            <div className="mt-5 text-left rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">What happens next</p>
+              {WHAT_NEXT.map(({ icon: Icon, label }, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: `${accentColor}18`, border: `1px solid ${accentColor}40` }}>
+                    <Icon className="h-3 w-3" style={{ color: accentColor }} />
+                  </div>
+                  <p className="text-xs text-zinc-300">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <button onClick={onClose} className="mt-5 w-full rounded-xl py-2.5 text-sm font-semibold text-black transition-colors hover:brightness-110" style={{ background: accentColor }}>
+              Done
             </button>
           </div>
         ) : (
@@ -131,8 +153,8 @@ function AcceptModal({
             </form>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -418,14 +440,13 @@ export default function QuotePortalClient({ quote }: { quote: Quote }) {
         </div>
       </div>
 
-      {showAccept && (
-        <AcceptModal
-          quoteNumber={quote.quote_number}
-          accentColor={accentColor}
-          onAccept={handleAccept}
-          onClose={() => setShowAccept(false)}
-        />
-      )}
+      <AcceptModal
+        open={showAccept}
+        quoteNumber={quote.quote_number}
+        accentColor={accentColor}
+        onAccept={handleAccept}
+        onClose={() => setShowAccept(false)}
+      />
     </div>
   );
 }

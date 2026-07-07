@@ -145,6 +145,22 @@ export async function POST(
     .eq("id", revision_id)
     .eq("status", "in_review");
 
+  // Notify the project owner of the comment (fire-and-forget)
+  const { data: proj } = await supabase
+    .from("projects")
+    .select("created_by, title")
+    .eq("id", tokenRow.project_id)
+    .single();
+  if (proj?.created_by) {
+    await supabase.from("notifications").insert({
+      user_id: proj.created_by,
+      type: "comment_added",
+      title: `${tokenRow.client_name} commented on "${revision?.title ?? "revision"}"`,
+      description: content.trim().slice(0, 120),
+      href: "/revisions",
+    }).then(() => {});
+  }
+
   return NextResponse.json({ comment }, { status: 201 });
 }
 

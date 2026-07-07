@@ -198,6 +198,18 @@ export async function POST(req: NextRequest) {
       if (retainerErr) console.error("[quotes/accept] retainer auto-create failed:", retainerErr.message);
     }
 
+    // In-app notification for the owner (fire-and-forget)
+    if (quote.created_by) {
+      const { data: q } = await supabase.from("quotes").select("description, client_name").eq("id", quote.id).single();
+      supabase.from("notifications").insert({
+        user_id: quote.created_by,
+        type: "status_changed",
+        title: `${trimmedName} accepted your quote`,
+        description: (q as any)?.description || (q as any)?.client_name || "Quote accepted",
+        href: "/finance?tab=quotes",
+      }).then(() => {});
+    }
+
     // Fire-and-forget email notifications
     sendQuoteEmails(supabase, quote.id, trimmedName, trimmedEmail ?? undefined);
 

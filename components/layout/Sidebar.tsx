@@ -43,6 +43,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSoloPlan } from "@/types";
 import { trialDaysLeft } from "@/lib/billing";
 import { Zap, X, Check } from "lucide-react";
+import { UpgradePlanModal } from "@/components/shared/UpgradePlanModal";
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 
@@ -372,6 +373,13 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const [newBadgeKeys,    setNewBadgeKeys]    = useState<Set<string>>(new Set());
   const [gatedKeys,       setGatedKeys]       = useState<Set<string>>(new Set());
   const [showCustomize,   setShowCustomize]   = useState(false);
+  const [upgradeModal, setUpgradeModal] = useState<string | null>(null);
+
+  const [showCustomizeHint, setShowCustomizeHint] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem("cf-customize-hint-seen");
+  });
+
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
     try {
@@ -584,7 +592,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               </div>
               {NAV_GROUPS.map((group, gi) => {
                 const allItems = group.items.filter(
-                  item => !(solo && item.soloHidden) && !(item.producerOnly && !isProducer)
+                  item => !(item.producerOnly && !isProducer)
                 );
                 if (allItems.length === 0) return null;
                 return (
@@ -628,7 +636,6 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               {NAV_GROUPS.map((group, gi) => {
                 const visibleItems = group.items.filter(
                   (item) =>
-                    !(solo && item.soloHidden) &&
                     !(item.producerOnly && !isProducer) &&
                     !isInMore(item.href)
                 );
@@ -661,17 +668,39 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
                       isSectionCollapsed && !collapsed ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"
                     )}>
                       <div className="flex flex-col gap-0.5 overflow-hidden">
-                        {visibleItems.map((item) => (
-                          <div key={item.href} onContextMenu={(e) => openCtx(e, item.href)}>
-                            <NavLink
-                              item={item}
-                              collapsed={collapsed}
-                              isActive={isActive(item.href)}
-                              showNewBadge={newBadgeKeys.has(item.href.slice(1))}
-                              isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
-                            />
-                          </div>
-                        ))}
+                        {visibleItems.map((item) => {
+                          const isSoloLocked = solo && !!item.soloHidden;
+                          return (
+                            <div key={item.href} onContextMenu={(e) => !isSoloLocked && openCtx(e, item.href)}>
+                              {isSoloLocked ? (
+                                <button
+                                  onClick={() => setUpgradeModal(item.label)}
+                                  className={cn(
+                                    "group relative flex h-9 w-full cursor-pointer items-center gap-3 rounded-md px-2.5 text-sm opacity-40 hover:opacity-60 transition-opacity",
+                                    collapsed ? "justify-center px-0" : ""
+                                  )}
+                                >
+                                  <item.icon className="h-4 w-4 shrink-0 text-white/40" />
+                                  {!collapsed && (
+                                    <>
+                                      <span className="truncate text-white/60">{item.label}</span>
+                                      <Lock className="ml-auto h-3 w-3 shrink-0 text-[#d4a853]/60" />
+                                    </>
+                                  )}
+                                  {collapsed && <Lock className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 text-[#d4a853]/60" />}
+                                </button>
+                              ) : (
+                                <NavLink
+                                  item={item}
+                                  collapsed={collapsed}
+                                  isActive={isActive(item.href)}
+                                  showNewBadge={newBadgeKeys.has(item.href.slice(1))}
+                                  isGated={!isAdmin && gatedKeys.has(item.href.slice(1))}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -681,7 +710,7 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
               {/* More tools */}
               {(() => {
                 const hiddenItems = NAV_GROUPS.flatMap(g => g.items).filter(item => {
-                  if (solo && item.soloHidden) return false;
+                  if (item.soloHidden) return false; // locked items don't appear in More
                   if (item.producerOnly && !isProducer) return false;
                   return isInMore(item.href);
                 });
@@ -775,17 +804,22 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
           {!collapsed ? (
             <button
               onClick={() => {
+                localStorage.setItem("cf-customize-hint-seen", "1");
+                setShowCustomizeHint(false);
                 if (showCustomize) { setShowCustomize(false); return; }
                 if (collapsed) onToggle();
                 setShowCustomize(true);
               }}
               className={cn(
-                "flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm transition-all",
+                "relative flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm transition-all",
                 showCustomize
                   ? "bg-[#d4a853]/10 text-[#d4a853] hover:bg-[#d4a853]/15"
                   : "text-white/30 hover:bg-white/[0.06] hover:text-white/60"
               )}
             >
+              {showCustomizeHint && !showCustomize && (
+                <span className="pointer-events-none absolute inset-0 rounded-md ring-1 ring-[#d4a853]/50 animate-pulse" />
+              )}
               {showCustomize
                 ? <><Check className="h-4 w-4 shrink-0" /><span>Done editing</span></>
                 : <><SlidersHorizontal className="h-4 w-4 shrink-0" /><span>Customize</span></>
@@ -831,6 +865,11 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
           </div>
         </div>
       </aside>
+
+      {/* Upgrade modal — shown when Solo user clicks a locked feature */}
+      {upgradeModal && (
+        <UpgradePlanModal featureLabel={upgradeModal} onClose={() => setUpgradeModal(null)} />
+      )}
 
       {/* Right-click context menu */}
       {contextMenu && (

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Film, Pen, RotateCcw, CheckCircle2, AlertCircle,
-  Loader2, FileText, ChevronRight, Download, ExternalLink,
+  Loader2, FileText, ChevronRight, Download, ExternalLink, Mail, Clock,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { SignatureField } from "@/types";
@@ -229,40 +229,65 @@ export default function SigningPage() {
 
   if (step === "done") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#f4f4f5] p-6 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-          <CheckCircle2 className="h-8 w-8 text-emerald-600" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-[#18181b]">Signed</h1>
-          <p className="mt-1 max-w-sm text-sm text-[#71717a]">
-            Your signature has been recorded. The contract is fully executed.
-          </p>
-        </div>
-        <div className="flex flex-col items-center gap-2 w-full max-w-xs">
-          {contract?.signed_pdf_url && (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#f4f4f5] p-6">
+        <div className="w-full max-w-sm">
+          {/* Success icon */}
+          <div className="mb-6 flex flex-col items-center text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+              <CheckCircle2 className="h-8 w-8 text-emerald-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-[#18181b]">You're all signed!</h1>
+            <p className="mt-2 text-sm text-[#71717a] leading-relaxed">
+              {contract?.title ? `"${contract.title}" is` : "Your contract is"} fully executed. Both parties have been notified.
+            </p>
+          </div>
+
+          {/* What happens next */}
+          <div className="mb-5 rounded-2xl border border-[#e4e4e7] bg-white p-5">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#a1a1aa]">What happens next</p>
+            <div className="space-y-3">
+              {[
+                { icon: Mail, text: "A signed copy will be emailed to you" },
+                { icon: Clock, text: "The production team will be in touch shortly" },
+                { icon: ExternalLink, text: "Your certificate of completion is ready to view" },
+              ].map(({ icon: Icon, text }, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
+                    <Icon className="h-3.5 w-3.5 text-emerald-600" />
+                  </div>
+                  <p className="text-sm text-[#3f3f46]">{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col gap-2">
+            {contract?.signed_pdf_url && (
+              <a
+                href={contract.signed_pdf_url}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+              >
+                <Download className="h-4 w-4" />
+                Download Signed Contract
+              </a>
+            )}
             <a
-              href={contract.signed_pdf_url}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+              href={`/sign/${token}/certificate`}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#18181b] px-6 py-3 text-sm font-semibold text-white hover:bg-[#27272a] transition-colors"
             >
-              <Download className="h-4 w-4" />
-              Download Signed Contract
+              <ExternalLink className="h-4 w-4" />
+              View Certificate
             </a>
-          )}
-          <a
-            href={`/sign/${token}/certificate`}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#18181b] px-6 py-3 text-sm font-semibold text-white hover:bg-[#27272a] transition-colors"
-          >
-            <ExternalLink className="h-4 w-4" />
-            View Certificate
-          </a>
-        </div>
-        <div className="mt-2 flex items-center gap-2 text-xs text-[#a1a1aa]">
-          <Film className="h-3.5 w-3.5" />
-          Powered by Cineflow
+          </div>
+
+          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[#a1a1aa]">
+            <Film className="h-3.5 w-3.5" />
+            Powered by Cineflow
+          </div>
         </div>
       </div>
     );

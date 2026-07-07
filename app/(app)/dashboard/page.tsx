@@ -40,6 +40,7 @@ function getDailyCompliment(): string {
   return COMPLIMENTS[day % COMPLIMENTS.length];
 }
 import { QuickActions } from "@/components/dashboard/QuickActions";
+import { ClientActivityWidget } from "@/components/dashboard/ClientActivityWidget";
 import { OnboardingChecklist } from "@/components/dashboard/OnboardingChecklist";
 import { UpcomingShoots } from "@/components/dashboard/UpcomingShoots";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
@@ -554,6 +555,9 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </section>
+
+              {/* Client Activity */}
+              <ClientActivityWidget />
 
               {/* Retainers widget */}
               {retainers.length > 0 && (

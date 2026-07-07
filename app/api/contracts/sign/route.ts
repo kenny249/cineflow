@@ -97,6 +97,15 @@ export async function POST(req: NextRequest) {
 
   const origin = req.headers.get("origin") ?? req.nextUrl.origin;
 
+  // In-app notification for the owner (fire-and-forget)
+  supabase.from("notifications").insert({
+    user_id: contract.created_by,
+    type: "revision_approved",
+    title: `${body.signer_name.trim()} signed "${contract.title}"`,
+    description: "Contract is fully executed. Download the signed copy.",
+    href: "/contracts",
+  }).then(() => {});
+
   // Fire stamp + confirmation emails in background — don't block the signing response
   Promise.all([
     fetch(`${origin}/api/contracts/stamp`, {
