@@ -221,14 +221,22 @@ function AutoTextarea({
 
 type Step = "form" | "generating" | "preview" | "creating" | "done";
 
+interface ContractBuilderPrefill {
+  recipientName?: string;
+  recipientEmail?: string;
+  projectId?: string;
+  fields?: Record<string, string>;
+}
+
 interface ContractBuilderProps {
   template: ContractTemplate;
   projects: Project[];
   onDone: (contract: Contract) => void;
   onClose: () => void;
+  prefill?: ContractBuilderPrefill;
 }
 
-export function ContractBuilder({ template, projects, onDone, onClose }: ContractBuilderProps) {
+export function ContractBuilder({ template, projects, onDone, onClose, prefill }: ContractBuilderProps) {
   const supabase = createClient();
 
   // Studio info
@@ -238,12 +246,12 @@ export function ContractBuilder({ template, projects, onDone, onClose }: Contrac
   const [step, setStep] = useState<Step>("form");
 
   // Common recipient fields
-  const [recipientName,  setRecipientName]  = useState("");
-  const [recipientEmail, setRecipientEmail] = useState("");
-  const [projectId,      setProjectId]      = useState("");
+  const [recipientName,  setRecipientName]  = useState(prefill?.recipientName ?? "");
+  const [recipientEmail, setRecipientEmail] = useState(prefill?.recipientEmail ?? "");
+  const [projectId,      setProjectId]      = useState(prefill?.projectId ?? "");
 
   // Template-specific fields
-  const [fields, setFields] = useState<Record<string, string>>({});
+  const [fields, setFields] = useState<Record<string, string>>(prefill?.fields ?? {});
 
   // Generated / editable sections
   const [sections, setSections] = useState<{ title: string; body: string }[]>([]);

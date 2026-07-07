@@ -345,8 +345,11 @@ export default function ClientDetailPage() {
                 Contracts
                 <span className="text-xs font-normal text-muted-foreground">{contracts.length}</span>
               </h2>
-              <Link href="/contracts" className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-                View all <ExternalLink className="h-2.5 w-2.5" />
+              <Link
+                href={`/contracts?recipientName=${encodeURIComponent(clientName)}${contact?.email ? `&recipientEmail=${encodeURIComponent(contact.email)}` : ""}`}
+                className="text-[11px] text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+              >
+                + New <ExternalLink className="h-2.5 w-2.5" />
               </Link>
             </div>
             {contracts.length === 0 ? (
@@ -379,7 +382,11 @@ export default function ClientDetailPage() {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {[
                 { label: "New Invoice",  href: "/finance",   icon: DollarSign },
-                { label: "New Contract", href: "/contracts", icon: FileSignature },
+                {
+                  label: "New Contract",
+                  href: `/contracts?recipientName=${encodeURIComponent(clientName)}${contact?.email ? `&recipientEmail=${encodeURIComponent(contact.email)}` : ""}`,
+                  icon: FileSignature,
+                },
                 { label: "Send a Form",  href: "/forms",     icon: ClipboardList },
               ].map(({ label, href, icon: Icon }) => (
                 <Link

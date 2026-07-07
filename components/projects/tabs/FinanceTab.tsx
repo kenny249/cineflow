@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
-import { Plus, Trash2, DollarSign, Edit3, Check, X, Receipt, AlertCircle, Clock, CheckCircle2, FileText, Send, ChevronDown, ChevronUp, ShoppingCart, Download, Upload, ExternalLink, Paperclip } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Plus, Trash2, DollarSign, Edit3, Check, X, Receipt, AlertCircle, Clock, CheckCircle2, FileText, Send, ChevronDown, ChevronUp, ShoppingCart, Download, ExternalLink, FileSignature, Paperclip } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getBudgetLines, createBudgetLine, updateBudgetLine, deleteBudgetLine, getInvoicesByProject, createInvoice, updateInvoice, deleteInvoice, ensureProjectOwner } from "@/lib/supabase/queries";
-import type { BudgetLine, Invoice, InvoiceStatus } from "@/types";
+import type { BudgetLine, Invoice, InvoiceStatus, Contract, ContractStatus } from "@/types";
 import { toast } from "sonner";
 import { downloadCSV, printTable } from "@/lib/export";
 
@@ -14,6 +15,14 @@ interface FinanceTabProps {
 }
 
 const CATEGORIES = ["Pre-Production", "Crew", "Cast", "Equipment", "Location", "Travel & Lodging", "Catering", "Post-Production", "Music & SFX", "Marketing", "Insurance", "Miscellaneous"];
+
+const CONTRACT_STATUS_META: Record<ContractStatus, { label: string; color: string }> = {
+  draft:    { label: "Draft",    color: "bg-muted/60 text-muted-foreground" },
+  sent:     { label: "Sent",     color: "bg-amber-400/10 text-amber-400 border border-amber-400/30" },
+  signed:   { label: "Signed",   color: "bg-emerald-400/10 text-emerald-400 border border-emerald-400/30" },
+  declined: { label: "Declined", color: "bg-red-400/10 text-red-400 border border-red-400/30" },
+  voided:   { label: "Voided",   color: "bg-muted/30 text-muted-foreground/50" },
+};
 
 const STATUS_META: Record<InvoiceStatus, { label: string; color: string; icon: React.ElementType }> = {
   draft:   { label: "Draft",   color: "bg-zinc-500/15 text-zinc-400 border-zinc-500/20",         icon: FileText },
@@ -59,8 +68,9 @@ const EXPENSE_DEPTS = ["Director", "Camera", "Lighting", "Sound", "Art", "Wardro
 export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
   const [lines, setLines] = useState<BudgetLine[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"budget" | "invoices" | "expenses">("budget");
+  const [activeSection, setActiveSection] = useState<"budget" | "invoices" | "expenses" | "contracts">("budget");
 
   // Expenses state (localStorage-backed)
   const [expenses, setExpenses] = useState<Expense[]>(() => {
@@ -123,17 +133,14 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
   const [savingInv, setSavingInv] = useState(false);
   const [deletingInvId, setDeletingInvId] = useState<string | null>(null);
 
-  // PDF upload state
-  const [uploadingPdf, setUploadingPdf] = useState(false);
-  const pdfInputRef = useRef<HTMLInputElement | null>(null);
-
   useEffect(() => {
-    // Pre-seed project membership so budget_lines RLS allows this user
+    const supabase = createClient();
     ensureProjectOwner(projectId).catch(() => {});
     Promise.all([
       getBudgetLines(projectId).catch(() => [] as BudgetLine[]),
       getInvoicesByProject(projectId).catch(() => [] as Invoice[]),
-    ]).then(([bl, inv]) => { setLines(bl); setInvoices(inv); }).finally(() => setLoading(false));
+      supabase.from("contracts").select("*").eq("project_id", projectId).order("created_at", { ascending: false }).then(({ data, error }) => (!error && data ? data as Contract[] : [] as Contract[])),
+    ]).then(([bl, inv, ctrs]) => { setLines(bl); setInvoices(inv); setContracts(ctrs); }).finally(() => setLoading(false));
   }, [projectId]);
 
   // ── Summary numbers ──
@@ -208,39 +215,6 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
     catch { toast.error("Failed to update"); }
   }
 
-  // ── PDF upload handler ────────────────────────────────────────────────────
-  async function handlePdfUpload(file: File) {
-    if (!file || file.type !== "application/pdf") { toast.error("Please select a PDF file"); return; }
-    setUploadingPdf(true);
-    try {
-      const supabase = createClient();
-      const ext = "pdf";
-      const path = `${projectId}/contracts/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file, { upsert: false });
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
-      // Create a placeholder invoice record for the uploaded doc
-      const num = `DOC-${String(invoices.length + 1).padStart(3, "0")}`;
-      const created = await createInvoice({
-        project_id: projectId,
-        invoice_number: num,
-        description: file.name.replace(/\.pdf$/i, ""),
-        amount: 0,
-        amount_paid: 0,
-        status: "draft" as const,
-        pdf_url: publicUrl,
-        is_external: true,
-        source: "uploaded",
-      } as Parameters<typeof createInvoice>[0]);
-      setInvoices((p) => [created, ...p]);
-      toast.success("Document uploaded");
-    } catch (err: any) {
-      toast.error(err?.message ?? "Upload failed");
-    } finally {
-      setUploadingPdf(false);
-      if (pdfInputRef.current) pdfInputRef.current.value = "";
-    }
-  }
 
   const fi = (k: keyof InvForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setInvForm((p) => ({ ...p, [k]: e.target.value }));
   const grouped = groupByCategory(lines);
@@ -265,12 +239,13 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
         </div>
         {/* Section tabs */}
         <div className="flex gap-1 border-b border-border">
-          {([
-            { key: "budget", label: `Budget (${lines.length})` },
-            { key: "invoices", label: `Invoices (${invoices.length})` },
-            { key: "expenses", label: `Expenses (${expenses.length})` },
-          ] as const).map((t) => (
-            <button key={t.key} onClick={() => setActiveSection(t.key)} className={`px-3 py-1.5 text-xs font-medium capitalize transition-colors border-b-2 -mb-px ${activeSection === t.key ? "border-[#d4a853] text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          {[
+            { key: "budget",    label: `Budget (${lines.length})` },
+            { key: "invoices",  label: `Invoices (${invoices.length})` },
+            { key: "expenses",  label: `Expenses (${expenses.length})` },
+            { key: "contracts", label: `Contracts (${contracts.length})` },
+          ].map((t) => (
+            <button key={t.key} onClick={() => setActiveSection(t.key as typeof activeSection)} className={`px-3 py-1.5 text-xs font-medium capitalize transition-colors border-b-2 -mb-px ${activeSection === t.key ? "border-[#d4a853] text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               {t.label}
             </button>
           ))}
@@ -384,23 +359,13 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
           <div className="flex shrink-0 items-center justify-between border-b border-border px-4 sm:px-5 py-2.5">
             <p className="text-xs text-muted-foreground">{invoices.length} invoice{invoices.length !== 1 ? "s" : ""} · {fmt(totalInvoiced)} invoiced · {fmt(totalCollected)} collected</p>
             <div className="flex items-center gap-2">
-              {/* Hidden PDF input */}
-              <input
-                ref={pdfInputRef}
-                type="file"
-                accept="application/pdf"
-                className="hidden"
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePdfUpload(f); }}
-              />
-              <button
-                onClick={() => pdfInputRef.current?.click()}
-                disabled={uploadingPdf}
-                className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-                title="Upload signed contract or external invoice PDF"
+              <Link
+                href={`/contracts?projectId=${projectId}`}
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
-                {uploadingPdf ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted/30 border-t-muted-foreground" /> : <Paperclip className="h-3.5 w-3.5" />}
-                Upload PDF
-              </button>
+                <FileSignature className="h-3.5 w-3.5" />
+                Contracts
+              </Link>
               <button onClick={() => { setInvForm({ ...EMPTY_INV, invoice_number: nextInvNumber() }); setEditingInvId(null); setShowInvForm(true); }} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors">
                 <Plus className="h-3.5 w-3.5" />New Invoice
               </button>
@@ -479,6 +444,61 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Contracts section ── */}
+      {activeSection === "contracts" && (
+        <>
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-4 sm:px-5 py-2.5">
+            <p className="text-xs text-muted-foreground">{contracts.length} contract{contracts.length !== 1 ? "s" : ""} linked to this project</p>
+            <Link
+              href={`/contracts?projectId=${projectId}&from=project`}
+              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />New Contract
+            </Link>
+          </div>
+          <div className="px-4 sm:px-5 py-4 space-y-2">
+            {loading ? (
+              <div className="flex items-center justify-center py-16"><span className="h-5 w-5 animate-spin rounded-full border-2 border-[#d4a853]/30 border-t-[#d4a853]" /></div>
+            ) : contracts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <FileSignature className="mb-3 h-10 w-10 text-muted-foreground/20" />
+                <p className="font-display font-semibold">No contracts yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">Create a contract and link it to this project</p>
+                <Link
+                  href={`/contracts?projectId=${projectId}&from=project`}
+                  className="mt-4 flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-2 text-sm font-semibold text-black hover:bg-[#c49843] transition-colors"
+                >
+                  <Plus className="h-4 w-4" />New Contract
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {contracts.map((c) => {
+                  const meta = CONTRACT_STATUS_META[c.status as ContractStatus] ?? CONTRACT_STATUS_META.draft;
+                  return (
+                    <Link
+                      key={c.id}
+                      href="/contracts"
+                      className="flex items-center gap-3 rounded-xl border border-border bg-card/50 px-4 py-3 hover:bg-muted/10 transition-colors group"
+                    >
+                      <FileSignature className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-[#d4a853] transition-colors" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">{c.title}</p>
+                        {c.recipient_name && <p className="text-xs text-muted-foreground">{c.recipient_name}</p>}
+                      </div>
+                      <span className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${meta.color}`}>
+                        {meta.label}
+                      </span>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </div>

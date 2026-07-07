@@ -628,7 +628,16 @@ export function QuoteCalculator() {
               View in Finance
             </button>
             <button
-              onClick={() => router.push("/contracts")}
+              onClick={() => {
+                const p = new URLSearchParams({ from: "quote", templateId: "production_agreement" });
+                const projName = scopeTitle || (estimateTitle !== "Untitled Estimate" ? estimateTitle : "");
+                if (projName) p.set("projectName", projName);
+                if (tierAmount) p.set("totalFee", String(Math.round(tierAmount)));
+                const delivsList = lineItems.map((li) => li.service).filter(Boolean).join(", ");
+                if (delivsList) p.set("deliverables", delivsList.slice(0, 400));
+                if (scopeDescription) p.set("projectDescription", scopeDescription.slice(0, 300));
+                router.push(`/contracts?${p.toString()}`);
+              }}
               className="flex items-center gap-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-foreground hover:bg-white/[0.08] transition-colors"
             >
               Create Contract

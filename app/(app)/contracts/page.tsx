@@ -18,7 +18,7 @@ import { getProjects, createNotification } from "@/lib/supabase/queries";
 import dynamic from "next/dynamic";
 import type { Contract, ContractStatus, ContractRecipientRole, Project, SignatureField } from "@/types";
 import type { FieldDropMode } from "@/components/contracts/PDFViewer";
-import { ContractTemplatePicker, type ContractTemplate } from "@/components/contracts/ContractTemplatePicker";
+import { ContractTemplatePicker, type ContractTemplate, CONTRACT_TEMPLATES } from "@/components/contracts/ContractTemplatePicker";
 import { ContractBuilder } from "@/components/contracts/ContractBuilder";
 
 const PDFViewer = dynamic(
@@ -90,6 +90,7 @@ export default function ContractsPage() {
   // Contract builder (AI wizard)
   const [builderOpen, setBuilderOpen] = useState(false);
   const [builderTemplate, setBuilderTemplate] = useState<ContractTemplate | null>(null);
+  const [builderPrefill, setBuilderPrefill] = useState<{ recipientName?: string; recipientEmail?: string; projectId?: string; fields?: Record<string, string> } | undefined>(undefined);
 
   // New contract dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -182,6 +183,42 @@ export default function ContractsPage() {
     }
     load();
   }, []);
+
+  // Auto-open builder from URL params (from quote calculator, client page, or project finance tab)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const from = sp.get("from");
+    const recipientName = sp.get("recipientName");
+    const recipientEmail = sp.get("recipientEmail");
+    const projectIdParam = sp.get("projectId");
+    const templateIdParam = sp.get("templateId") ?? "production_agreement";
+
+    if (!from && !recipientName && !projectIdParam) return;
+
+    const prefillFields: Record<string, string> = {};
+    const projectName = sp.get("projectName");
+    const totalFee = sp.get("totalFee");
+    const deliverables = sp.get("deliverables");
+    const projectDescription = sp.get("projectDescription");
+    if (projectName) prefillFields.projectName = projectName;
+    if (totalFee) prefillFields.totalFee = totalFee;
+    if (deliverables) prefillFields.deliverables = deliverables;
+    if (projectDescription) prefillFields.projectDescription = projectDescription;
+
+    const tpl = CONTRACT_TEMPLATES.find((t) => t.id === templateIdParam) ?? CONTRACT_TEMPLATES[0];
+    setBuilderPrefill({
+      recipientName: recipientName ?? undefined,
+      recipientEmail: recipientEmail ?? undefined,
+      projectId: projectIdParam ?? undefined,
+      fields: Object.keys(prefillFields).length > 0 ? prefillFields : undefined,
+    });
+    setBuilderTemplate(tpl);
+    setBuilderOpen(true);
+
+    // Clean the URL so a page reload doesn't re-trigger
+    window.history.replaceState({}, "", "/contracts");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync local field state + hydrate signatureData for sender fields
   useEffect(() => {
@@ -1173,13 +1210,15 @@ export default function ContractsPage() {
             <ContractBuilder
               template={builderTemplate}
               projects={projects}
+              prefill={builderPrefill}
               onDone={(contract) => {
                 setContracts((prev) => [contract, ...prev]);
                 setSelected(contract);
                 setBuilderOpen(false);
+                setBuilderPrefill(undefined);
                 toast.success("Contract created");
               }}
-              onClose={() => setBuilderOpen(false)}
+              onClose={() => { setBuilderOpen(false); setBuilderPrefill(undefined); }}
             />
           )}
         </DialogContent>
