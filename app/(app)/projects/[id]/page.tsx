@@ -83,7 +83,7 @@ export default async function SingleProjectPage({ params }: PageProps) {
         .order("created_at", { ascending: false }),
       supabase
         .from("shot_lists")
-        .select("*, shot_list_items (*)")
+        .select("*, items:shot_list_items (*)")
         .eq("project_id", id)
         .order("created_at", { ascending: false }),
       supabase
