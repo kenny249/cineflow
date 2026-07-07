@@ -131,7 +131,7 @@ function buildReminderEmail({
     <!-- Footer -->
     <div style="background:#fafafa;padding:14px 36px;border-top:1px solid #f4f4f5;text-align:center;">
       <p style="margin:0;font-size:11px;color:#a1a1aa;">
-        Sent via <strong>Cineflow</strong> · ${appUrl}
+        Sent via <strong>CineFlow</strong> · ${appUrl}
         ${bizEmail ? ` · <a href="mailto:${he(bizEmail)}" style="color:#a1a1aa;">${he(bizEmail)}</a>` : ""}
       </p>
     </div>

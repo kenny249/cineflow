@@ -27,29 +27,29 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL("https://usecineflow.com"),
   title: {
-    default: "Cineflow · Film Production Software",
-    template: "%s | Cineflow",
+    default: "CineFlow · Film Production Software",
+    template: "%s | CineFlow",
   },
   description:
     "Plan shoots, manage edits, and deliver projects. Built for solo creators and film teams.",
   keywords: ["filmmaking", "video production", "project management", "storyboard", "shot list", "solo creator"],
   openGraph: {
-    title: "Cineflow",
+    title: "CineFlow",
     description: "Film production software for solo creators and studios.",
     type: "website",
     url: "https://usecineflow.com",
-    siteName: "Cineflow",
-    images: [{ url: "/api/og", width: 1200, height: 630, alt: "Cineflow" }],
+    siteName: "CineFlow",
+    images: [{ url: "/api/og", width: 1200, height: 630, alt: "CineFlow" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Cineflow",
+    title: "CineFlow",
     description: "Film production software for solo creators and studios.",
     images: ["/api/og"],
   },
   appleWebApp: {
     capable: true,
-    title: "Cineflow",
+    title: "CineFlow",
     statusBarStyle: "black-translucent",
   },
 };

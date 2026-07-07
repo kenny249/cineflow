@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: { default: "Project Workspace", template: "%s | Cineflow" },
+  title: { default: "Project Workspace", template: "%s | CineFlow" },
   robots: { index: false, follow: false },
 };
 

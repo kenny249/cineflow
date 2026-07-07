@@ -11,7 +11,7 @@ const FRAMES = [
   {
     id: "welcome",
     eyebrow: "WELCOME TO",
-    headline: "Cineflow",
+    headline: "CineFlow",
     headlineGold: "flow",
     sub: "The production platform built for filmmakers who move fast.",
     icon: Film,
@@ -40,7 +40,7 @@ const FRAMES = [
     eyebrow: "YOU'RE IN EARLY",
     headline: "Your slate\nis ready.",
     headlineGold: null,
-    sub: "Shape what Cineflow becomes. Your feedback builds the product.",
+    sub: "Shape what CineFlow becomes. Your feedback builds the product.",
     icon: UploadCloud,
     cta: true,
   },
@@ -245,7 +245,7 @@ export function OnboardingIntro({ onDone }: OnboardingIntroProps) {
             className="cf-rise mt-10 flex items-center gap-2.5 rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black shadow-lg transition-all hover:bg-[#c9a040] hover:shadow-[0_0_28px_rgba(212,168,83,0.3)] active:scale-[0.97]"
             style={{ animationDelay: "310ms" }}
           >
-            {isLast ? "Enter Cineflow" : "Next"}
+            {isLast ? "Enter CineFlow" : "Next"}
             <ArrowRight className="h-4 w-4" />
           </button>
 

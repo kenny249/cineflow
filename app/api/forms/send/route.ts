@@ -88,7 +88,7 @@ function buildFormEmail({
         <!-- Footer -->
         <tr>
           <td style="padding:16px 36px 24px;border-top:1px solid #f4f4f5">
-            <p style="margin:0;font-size:11px;color:#a1a1aa;text-align:center">Powered by Cineflow · <a href="https://usecineflow.com" style="color:#a1a1aa">usecineflow.com</a></p>
+            <p style="margin:0;font-size:11px;color:#a1a1aa;text-align:center">Powered by CineFlow · <a href="https://usecineflow.com" style="color:#a1a1aa">usecineflow.com</a></p>
           </td>
         </tr>
       </table>

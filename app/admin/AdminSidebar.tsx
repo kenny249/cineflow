@@ -64,7 +64,7 @@ export function AdminSidebar({ adminName, adminRole }: { adminName?: string; adm
               <Film className="h-3.5 w-3.5 text-[#d4a853]" />
             </div>
             <div>
-              <p className="text-[0.6rem] font-bold tracking-[0.3em] text-[#d4a853] uppercase">Cineflow</p>
+              <p className="text-[0.6rem] font-bold tracking-[0.3em] text-[#d4a853] uppercase">CineFlow</p>
               <p className="text-[0.55rem] text-zinc-600 uppercase tracking-wider">Admin</p>
             </div>
           </div>

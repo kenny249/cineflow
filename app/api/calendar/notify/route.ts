@@ -38,7 +38,7 @@ function buildICS(ev: {
     new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
   const now = dt(new Date().toISOString());
   const lines = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Cineflow//EN",
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//CineFlow//EN",
     "CALSCALE:GREGORIAN", "METHOD:REQUEST",
     "BEGIN:VEVENT",
     `UID:${ev.id}@cineflow`,
@@ -128,7 +128,7 @@ function buildEmailHtml(ev: {
     <!-- Footer -->
     <div style="background:#fafafa;padding:16px 40px;border-top:1px solid #f4f4f5;text-align:center;">
       <p style="margin:0;font-size:11px;color:#a1a1aa;">
-        Sent by <strong>${agencyName}</strong> via <a href="${appUrl}" style="color:#a1a1aa;">Cineflow</a>
+        Sent by <strong>${agencyName}</strong> via <a href="${appUrl}" style="color:#a1a1aa;">CineFlow</a>
       </p>
     </div>
   </div>

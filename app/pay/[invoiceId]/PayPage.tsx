@@ -421,7 +421,7 @@ export function PayPage({ invoice, biz, sessionId }: PayPageProps & { sessionId?
 
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-zinc-400">
-          Powered by <span className="font-semibold text-zinc-500">Cineflow</span>
+          Powered by <span className="font-semibold text-zinc-500">CineFlow</span>
         </p>
       </div>
     </div>

@@ -83,7 +83,7 @@ export function FeedbackButton() {
             <div className="flex items-start justify-between border-b border-border px-5 py-4">
               <div>
                 <h3 className="font-display text-sm font-semibold text-foreground">Send feedback</h3>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">Help us improve Cineflow for beta.</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Help us improve CineFlow for beta.</p>
               </div>
               <button
                 onClick={() => setOpen(false)}

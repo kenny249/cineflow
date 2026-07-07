@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
               display: "flex",
             }}
           >
-            Powered by Cineflow
+            Powered by CineFlow
           </div>
         </div>
       ),

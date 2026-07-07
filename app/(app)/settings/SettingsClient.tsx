@@ -331,7 +331,7 @@ export default function SettingsClient() {
 
   const handleDeleteConfirm = () => {
     const subject = encodeURIComponent("Account Deletion Request");
-    const body = encodeURIComponent(`Hi,\n\nI'd like to permanently delete my Cineflow account and all associated data.\n\nEmail: ${email}\n\nPlease confirm once complete.\n\nThank you.`);
+    const body = encodeURIComponent(`Hi,\n\nI'd like to permanently delete my CineFlow account and all associated data.\n\nEmail: ${email}\n\nPlease confirm once complete.\n\nThank you.`);
     window.open(`mailto:support@usecineflow.com?subject=${subject}&body=${body}`, "_blank");
     setDeleteConfirmOpen(false);
     toast.success("Deletion request opened in your mail app.");
@@ -625,7 +625,7 @@ export default function SettingsClient() {
                 onToggle={() => setPaymentOpen(paymentOpen === "stripe" ? null : "stripe")}
               >
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Clients pay by card, Apple Pay, or Google Pay. Cineflow auto-generates a permanent payment link for each invoice.
+                  Clients pay by card, Apple Pay, or Google Pay. CineFlow auto-generates a permanent payment link for each invoice.
                 </p>
                 <div className="space-y-4">
                   <div className="space-y-1.5">
@@ -960,7 +960,7 @@ export default function SettingsClient() {
                   </div>
                 </div>
                 <p className="relative mt-4 text-xs text-[#d4a853]/70 leading-relaxed">
-                  You&apos;re one of the founding members of Cineflow — you helped shape what this became.
+                  You&apos;re one of the founding members of CineFlow — you helped shape what this became.
                   Your access never expires, and every feature we ship is yours, always.
                 </p>
                 <div className="relative mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
@@ -1139,7 +1139,7 @@ export default function SettingsClient() {
             <div className="rounded-xl border border-border bg-card p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">Invite people to Cineflow</p>
+                  <p className="text-sm font-semibold text-foreground">Invite people to CineFlow</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     Share your link — anyone who signs up through it is tracked to you.
                   </p>

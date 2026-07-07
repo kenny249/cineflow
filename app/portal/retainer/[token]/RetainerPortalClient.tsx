@@ -198,7 +198,7 @@ export default function RetainerPortalPage() {
             </div>
             <div className="flex flex-col leading-none">
               <span className="text-xs font-semibold tracking-tight text-white/80">{agencyName}</span>
-              <span className="text-[9px] text-white/20 tracking-widest uppercase">powered by Cineflow</span>
+              <span className="text-[9px] text-white/20 tracking-widest uppercase">powered by CineFlow</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -471,7 +471,7 @@ export default function RetainerPortalPage() {
 
       <footer className="border-t border-white/[0.04] px-4 py-6 text-center">
         <p className="text-[11px] text-white/15">
-          Managed by <span className="text-white/25">{agencyName}</span> · Powered by Cineflow
+          Managed by <span className="text-white/25">{agencyName}</span> · Powered by CineFlow
         </p>
       </footer>
     </div>

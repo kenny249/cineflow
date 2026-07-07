@@ -4,7 +4,7 @@ import { Film } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How Cineflow collects, uses, and protects your information.",
+  description: "How CineFlow collects, uses, and protects your information.",
 };
 
 const EFFECTIVE_DATE = "April 17, 2025";
@@ -48,7 +48,7 @@ export default function PrivacyPage() {
         </div>
 
         <p className="mb-10 text-sm leading-relaxed text-zinc-400">
-          Cineflow is a film production management platform operated by Maltav Media. This
+          CineFlow is a film production management platform operated by Maltav Media. This
           policy explains what information we collect, how we use it, and what rights you have
           over it. We keep this simple — we don't sell your data, we don't run ads, and we only
           collect what we need to run the product.
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
 
         <Section title="1. What We Collect">
           <p><strong className="text-zinc-200">Account information.</strong> When you sign up, we collect your email address, first name, last name, and company name. This is used to identify your account and personalize the app.</p>
-          <p><strong className="text-zinc-200">Project and production data.</strong> Everything you create inside Cineflow — projects, shot lists, storyboards, scripts, calendar events, client contacts, team members, and retainer plans — is stored and associated with your account.</p>
+          <p><strong className="text-zinc-200">Project and production data.</strong> Everything you create inside CineFlow — projects, shot lists, storyboards, scripts, calendar events, client contacts, team members, and retainer plans — is stored and associated with your account.</p>
           <p><strong className="text-zinc-200">Uploaded files.</strong> Project thumbnails, revision videos, and any other files you upload are stored securely in our cloud storage. These files are private to your account unless you explicitly share a review link.</p>
           <p><strong className="text-zinc-200">Financial data.</strong> Invoice details, client payment information you enter (amounts, line items, payment status), and contract content are stored to support the Finance and Contracts features. We do not process or store credit card numbers — payments are handled externally.</p>
           <p><strong className="text-zinc-200">Activity and usage data.</strong> We log in-app actions (e.g., project updates, file uploads) to populate your activity feed and help you track your work history. We may also collect basic usage analytics to understand how features are used.</p>
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="2. How We Use Your Information">
-          <p>We use your information only to operate and improve Cineflow:</p>
+          <p>We use your information only to operate and improve CineFlow:</p>
           <ul className="ml-4 list-disc space-y-1.5">
             <li>Authenticate you and secure your account</li>
             <li>Store and display your production data across devices</li>
@@ -73,7 +73,7 @@ export default function PrivacyPage() {
             <li>Improve the product through aggregated, anonymized usage patterns</li>
             <li>Respond to support requests</li>
           </ul>
-          <p>We do not use your data for advertising, behavioral profiling, or any purpose unrelated to providing Cineflow to you.</p>
+          <p>We do not use your data for advertising, behavioral profiling, or any purpose unrelated to providing CineFlow to you.</p>
         </Section>
 
         <Section title="3. Who We Share Data With">
@@ -116,18 +116,18 @@ export default function PrivacyPage() {
         </Section>
 
         <Section title="7. Cookies &amp; Tracking Pixels">
-          <p>Cineflow uses minimal cookies and browser storage. We use session storage and local storage to maintain your login session and remember UI preferences (such as sidebar state).</p>
-          <p><strong className="text-zinc-200">Ad attribution pixels.</strong> On our public marketing and sign-up pages (not inside the authenticated app), we load ad attribution pixels from Meta (Facebook/Instagram), Google, and TikTok. These are used solely for measuring the effectiveness of our advertising campaigns — for example, to understand that an ad on Instagram led to a sign-up. These pixels are never active while you are logged into the app and working on your projects. If you arrived at Cineflow through an ad, these pixels help us understand which channel worked.</p>
+          <p>CineFlow uses minimal cookies and browser storage. We use session storage and local storage to maintain your login session and remember UI preferences (such as sidebar state).</p>
+          <p><strong className="text-zinc-200">Ad attribution pixels.</strong> On our public marketing and sign-up pages (not inside the authenticated app), we load ad attribution pixels from Meta (Facebook/Instagram), Google, and TikTok. These are used solely for measuring the effectiveness of our advertising campaigns — for example, to understand that an ad on Instagram led to a sign-up. These pixels are never active while you are logged into the app and working on your projects. If you arrived at CineFlow through an ad, these pixels help us understand which channel worked.</p>
           <p><strong className="text-zinc-200">Product analytics.</strong> Inside the app, we use PostHog to collect anonymized, aggregated usage data — such as which features are used and where users encounter friction. This data is tied to your account but is never sold or shared with advertisers. You can request deletion of your analytics data at any time by contacting us.</p>
           <p>We do not use cookies for behavioral profiling, cross-site tracking, or advertising targeting inside the app.</p>
         </Section>
 
         <Section title="8. Children's Privacy">
-          <p>Cineflow is not intended for use by anyone under the age of 16. We do not knowingly collect personal information from children. If you believe a child has provided us with their information, please contact us and we will delete it promptly.</p>
+          <p>CineFlow is not intended for use by anyone under the age of 16. We do not knowingly collect personal information from children. If you believe a child has provided us with their information, please contact us and we will delete it promptly.</p>
         </Section>
 
         <Section title="9. Changes to This Policy">
-          <p>We may update this policy from time to time. When we do, we'll update the effective date at the top of this page. For significant changes, we'll notify active users by email. Continued use of Cineflow after a policy update constitutes your acceptance of the revised policy.</p>
+          <p>We may update this policy from time to time. When we do, we'll update the effective date at the top of this page. For significant changes, we'll notify active users by email. Continued use of CineFlow after a policy update constitutes your acceptance of the revised policy.</p>
         </Section>
 
         <Section title="10. Contact">

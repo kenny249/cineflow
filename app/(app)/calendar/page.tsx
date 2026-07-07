@@ -451,7 +451,7 @@ export default function CalendarPage() {
                 >
                   <div>
                     <p className="text-sm font-semibold text-foreground">Sync to Google Calendar</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Subscribe to your Cineflow events — updates automatically.</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Subscribe to your CineFlow events — updates automatically.</p>
                   </div>
 
                   {syncLoading ? (

@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
     month: "long", day: "numeric", year: "numeric",
     hour: "2-digit", minute: "2-digit", timeZoneName: "short",
   });
-  lastPage.drawText(`Electronically signed via Cineflow  ·  Document ID: ${contractId}  ·  ${now}`, {
+  lastPage.drawText(`Electronically signed via CineFlow  ·  Document ID: ${contractId}  ·  ${now}`, {
     x: 30,
     y: 18,
     size: 6.5,

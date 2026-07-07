@@ -45,7 +45,7 @@ async function ensureDemoImage(supabase: AnyClient, key: string, sourceUrl: stri
 
   try {
     const res = await fetch(sourceUrl, {
-      headers: { "User-Agent": "Cineflow/1.0 (demo image prefetch)" },
+      headers: { "User-Agent": "CineFlow/1.0 (demo image prefetch)" },
     });
     if (!res.ok) return "";
     const buf = await res.arrayBuffer();

@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       </div>
     </div>
     <div style="background:#fafafa;padding:16px 40px;border-top:1px solid #f4f4f5;text-align:center;">
-      <p style="margin:0;font-size:11px;color:#a1a1aa;">Sent via <strong>Cineflow</strong> · ${appUrl}</p>
+      <p style="margin:0;font-size:11px;color:#a1a1aa;">Sent via <strong>CineFlow</strong> · ${appUrl}</p>
     </div>
   </div>
 </body>

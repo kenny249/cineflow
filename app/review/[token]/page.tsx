@@ -35,12 +35,12 @@ export async function generateMetadata({
           : "Your";
 
         return {
-          title: `${project.title} – Client Portal | Cineflow`,
+          title: `${project.title} – Client Portal | CineFlow`,
           description: `${clientGreeting} project is ready for review. View cuts, leave feedback, and track progress.`,
           openGraph: {
             title: `${project.title} – Client Review Portal`,
             description: `${clientGreeting} project is ready for review. View cuts, leave feedback, and track progress.`,
-            siteName: "Cineflow",
+            siteName: "CineFlow",
           },
           twitter: {
             card: "summary",
@@ -55,16 +55,16 @@ export async function generateMetadata({
   }
 
   return {
-    title: "Client Review Portal | Cineflow",
+    title: "Client Review Portal | CineFlow",
     description: "Your project is ready for review. View cuts, leave feedback, and track progress.",
     openGraph: {
-      title: "Client Review Portal | Cineflow",
+      title: "Client Review Portal | CineFlow",
       description: "Your project is ready for review. View cuts, leave feedback, and track progress.",
-      siteName: "Cineflow",
+      siteName: "CineFlow",
     },
     twitter: {
       card: "summary",
-      title: "Client Review Portal | Cineflow",
+      title: "Client Review Portal | CineFlow",
       description: "Your project is ready for review.",
     },
   };

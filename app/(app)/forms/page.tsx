@@ -366,7 +366,7 @@ function BrandingCard({
         ) : (
           <p className="text-sm text-muted-foreground">Add your logo and agency name — clients see this at the top of every form</p>
         )}
-        <p className="text-xs text-muted-foreground/60 mt-0.5">Powered by Cineflow shown subtly at the bottom</p>
+        <p className="text-xs text-muted-foreground/60 mt-0.5">Powered by CineFlow shown subtly at the bottom</p>
       </div>
 
       <Button variant="outline" size="sm" onClick={onEdit} className="flex-shrink-0">
@@ -652,7 +652,7 @@ export default function FormsPage() {
                     <span className="text-sm font-bold text-foreground">{editName}</span>
                   )}
                 </div>
-                <p className="text-[10px] text-muted-foreground/50 mt-2">Powered by Cineflow</p>
+                <p className="text-[10px] text-muted-foreground/50 mt-2">Powered by CineFlow</p>
               </div>
             )}
           </div>

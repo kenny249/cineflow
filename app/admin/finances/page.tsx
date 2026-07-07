@@ -155,7 +155,7 @@ export default async function FinancesPage() {
       <div className="p-4 md:p-8">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-white">Finances</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">Cineflow subscription revenue</p>
+          <p className="text-sm text-zinc-500 mt-0.5">CineFlow subscription revenue</p>
         </div>
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />

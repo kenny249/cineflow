@@ -235,7 +235,7 @@ export default function FormClient({ token }: { token: string }) {
           <p className="text-lg font-bold text-zinc-900">You&apos;re all set!</p>
           <p className="mt-1 text-sm text-zinc-500">Thanks for filling this out. We&apos;ll be in touch soon.</p>
         </div>
-        <p className="mt-8 text-xs text-zinc-300">Powered by Cineflow</p>
+        <p className="mt-8 text-xs text-zinc-300">Powered by CineFlow</p>
       </div>
     );
   }
@@ -335,7 +335,7 @@ export default function FormClient({ token }: { token: string }) {
 
       {/* Footer */}
       <footer className="py-5 text-center">
-        <p className="text-xs text-zinc-300">Powered by <span className="font-medium text-zinc-400">Cineflow</span></p>
+        <p className="text-xs text-zinc-300">Powered by <span className="font-medium text-zinc-400">CineFlow</span></p>
       </footer>
     </div>
   );

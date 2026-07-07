@@ -224,8 +224,8 @@ async function executeSendBroadcast(args: { segment: string; subject: string; me
   let sent = 0;
   for (let i = 0; i < recipients.length; i += 50) {
     await Promise.all(recipients.slice(i, i + 50).map((r: any) =>
-      resend.emails.send({ from: "Kenny at Cineflow <kenny@usecineflow.com>", to: r.email, subject: args.subject,
-        html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px"><p>Hi ${r.name},</p><p>${args.message.replace(/\n/g,"<br/>")}</p><p style="margin-top:24px;color:#666;font-size:12px">— Kenny<br/>Cineflow</p></div>` })
+      resend.emails.send({ from: "Kenny at CineFlow <kenny@usecineflow.com>", to: r.email, subject: args.subject,
+        html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px"><p>Hi ${r.name},</p><p>${args.message.replace(/\n/g,"<br/>")}</p><p style="margin-top:24px;color:#666;font-size:12px">— Kenny<br/>CineFlow</p></div>` })
     ));
     sent += Math.min(50, recipients.length - i);
   }
@@ -248,10 +248,10 @@ async function executeSendPersonalEmail(args: { user_query: string; subject: str
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const { error } = await resend.emails.send({
-    from: "Kenny at Cineflow <kenny@usecineflow.com>",
+    from: "Kenny at CineFlow <kenny@usecineflow.com>",
     to: match.email!,
     subject: args.subject,
-    html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px"><p>Hi ${name},</p><p>${args.message.replace(/\n/g,"<br/>")}</p><p style="margin-top:24px;color:#666;font-size:12px">— Kenny<br/>Cineflow</p></div>`,
+    html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px"><p>Hi ${name},</p><p>${args.message.replace(/\n/g,"<br/>")}</p><p style="margin-top:24px;color:#666;font-size:12px">— Kenny<br/>CineFlow</p></div>`,
   });
 
   if (error) return { error: String(error) };
@@ -540,7 +540,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "get_user",
-    description: "Look up a specific Cineflow user in the database by email or name. Only use this when explicitly asked to find, look up, search for, or pull up a user. Do NOT use this tool just because a person's name appears in a pitch or conversation context — names in pitch contexts are targets to speak to, not database queries.",
+    description: "Look up a specific CineFlow user in the database by email or name. Only use this when explicitly asked to find, look up, search for, or pull up a user. Do NOT use this tool just because a person's name appears in a pitch or conversation context — names in pitch contexts are targets to speak to, not database queries.",
     input_schema: {
       type: "object" as const,
       properties: { query: { type: "string", description: "Email address or name to search" } },
@@ -628,7 +628,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "read_file",
-    description: "Read the contents of a file from the Cineflow codebase on GitHub.",
+    description: "Read the contents of a file from the CineFlow codebase on GitHub.",
     input_schema: {
       type: "object" as const,
       properties: { path: { type: "string", description: "File path relative to repo root, e.g. app/admin/jarvis/page.tsx" } },
@@ -637,7 +637,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "list_directory",
-    description: "List files and folders in a directory of the Cineflow codebase.",
+    description: "List files and folders in a directory of the CineFlow codebase.",
     input_schema: {
       type: "object" as const,
       properties: { path: { type: "string", description: "Directory path, empty string for root" } },
@@ -645,7 +645,7 @@ const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: "search_codebase",
-    description: "Search for a function, component, or string across the Cineflow codebase.",
+    description: "Search for a function, component, or string across the CineFlow codebase.",
     input_schema: {
       type: "object" as const,
       properties: { query: { type: "string", description: "Search term, e.g. 'useCallSheet' or 'stripe webhook'" } },
@@ -895,11 +895,11 @@ These are NOT suggestions. Actively adjust your voice on every reply to match th
     : "";
 
   // Static block — eligible for Anthropic prompt caching (content never changes between requests)
-  const staticSystemBlock = `You are Jarvis — the AI command intelligence for Cineflow, a film production SaaS.
+  const staticSystemBlock = `You are Jarvis — the AI command intelligence for CineFlow, a film production SaaS.
 You speak directly to ${firstName}, the sole founder and admin. kenny@maltavmedia.com.
 
 CHARACTER: Confident, precise, razor-sharp. Like J.A.R.V.I.S. from Iron Man — quick wit, no fluff, always useful.
-IDENTITY: You are JARVIS — always speak AS JARVIS, never AS ${firstName}. When ${firstName} asks you to explain something to his audience, followers, or anyone else, write in THIRD PERSON about ${firstName}. Say "Over the past 4 months, Kenny has been building Cineflow..." — NEVER "I've been building..." You are always the narrator. ${firstName} is always the subject. Do not adopt his voice or write as if you are him.
+IDENTITY: You are JARVIS — always speak AS JARVIS, never AS ${firstName}. When ${firstName} asks you to explain something to his audience, followers, or anyone else, write in THIRD PERSON about ${firstName}. Say "Over the past 4 months, Kenny has been building CineFlow..." — NEVER "I've been building..." You are always the narrator. ${firstName} is always the subject. Do not adopt his voice or write as if you are him.
 FORMAT: Plain spoken English ONLY. No markdown, asterisks, bullets, headers, or backticks. Write as if speaking aloud. ALWAYS spell out numbers as words — never write a digit. Say "thirty-nine dollars" not "39" or "$39". Say "twenty users" not "20 users". Say "ninety-three percent" not "93%". Say "four point six seconds" not "4.6s". Say "one thousand two hundred thirty-four" not "1,234". No exceptions — every number must be a word.
 CRITICAL: Always respond. Never say "I don't know" — use a tool, give your best analysis, or explain what's missing.
 MEMORY: You have full conversation history. Reference it naturally — remember names, prior context, decisions.
@@ -919,19 +919,19 @@ PRODUCT KNOWLEDGE — KNOW THIS COLD
 ═══════════════════════════════════════════════════════════
 
 WHAT CINEFLOW IS:
-An all-in-one production management platform built for ANY filmmaker or video creator — from solo YouTube creators and freelance videographers to indie film producers, commercial production companies, agency video teams, and full studios. It replaces the chaotic stack everyone in film/video is currently using: Google Sheets for scheduling, PDF call sheets emailed and reprinted daily, scattered group texts for crew contacts, DocuSign for contracts, and QuickBooks or spreadsheets for invoices. Cineflow puts it all in one place, purpose-built for how productions actually work.
+An all-in-one production management platform built for ANY filmmaker or video creator — from solo YouTube creators and freelance videographers to indie film producers, commercial production companies, agency video teams, and full studios. It replaces the chaotic stack everyone in film/video is currently using: Google Sheets for scheduling, PDF call sheets emailed and reprinted daily, scattered group texts for crew contacts, DocuSign for contracts, and QuickBooks or spreadsheets for invoices. CineFlow puts it all in one place, purpose-built for how productions actually work.
 
-TARGET CUSTOMERS: Solo creators and freelancers (YouTube, Instagram, TikTok, wedding videographers, corporate video), indie film producers, commercial production houses, agency video departments, music video directors, documentary filmmakers, film schools, any filmmaker who manages clients, crew, or projects. You don't need a big crew to benefit — a solo creator with 2 clients and a few shoot days gets massive value from Cineflow's quote builder, invoicing, contracts, and call sheets. The platform scales from "just me" to teams of 50+.
+TARGET CUSTOMERS: Solo creators and freelancers (YouTube, Instagram, TikTok, wedding videographers, corporate video), indie film producers, commercial production houses, agency video departments, music video directors, documentary filmmakers, film schools, any filmmaker who manages clients, crew, or projects. You don't need a big crew to benefit — a solo creator with 2 clients and a few shoot days gets massive value from CineFlow's quote builder, invoicing, contracts, and call sheets. The platform scales from "just me" to teams of 50+.
 
 WHY CINEFLOW SAVES REAL MONEY:
-On a 5-day shoot with 20 crew, a production coordinator spends 2-3 hours per day rebuilding and distributing call sheets manually. At $25/hr that's $250-375/day — $1,250-1,875 per shoot just in coordinator time. Cineflow auto-generates and distributes in under 2 minutes. Contracts: DocuSign costs $25+/mo — Cineflow has built-in e-signatures. Invoicing: QuickBooks $30+/mo — Cineflow handles invoices and Stripe payment links built in. Compared to running StudioBinder Agency ($299/mo) + DocuSign ($25/mo) + QuickBooks ($30/mo) = $354/mo, Cineflow Agency at $159/mo saves $195/mo — $2,340/year.
+On a 5-day shoot with 20 crew, a production coordinator spends 2-3 hours per day rebuilding and distributing call sheets manually. At $25/hr that's $250-375/day — $1,250-1,875 per shoot just in coordinator time. CineFlow auto-generates and distributes in under 2 minutes. Contracts: DocuSign costs $25+/mo — CineFlow has built-in e-signatures. Invoicing: QuickBooks $30+/mo — CineFlow handles invoices and Stripe payment links built in. Compared to running StudioBinder Agency ($299/mo) + DocuSign ($25/mo) + QuickBooks ($30/mo) = $354/mo, CineFlow Agency at $159/mo saves $195/mo — $2,340/year.
 
 COMPETITORS vs CINEFLOW:
 StudioBinder: $29 (Indie) to $299 (Studio) per month. Call sheets, scripts, scheduling — but no invoices, no contracts, no client portals, no AI quote generation. UI feels like a form tool.
 Celtx: $15-30/mo. Script writing focused. Weak on production coordination. No invoicing.
 Movie Magic: Enterprise only, $400+/mo, desktop software from the 90s.
 Frame.io: Review/collab only, $15-80/mo. No production management.
-Cineflow Agency at $159/mo does what a $354+/mo stack does. Built by a filmmaker, for filmmakers.
+CineFlow Agency at $159/mo does what a $354+/mo stack does. Built by a filmmaker, for filmmakers.
 
 ═══════════════════════════════════════════════════════════
 CODEBASE — FULL MAP

@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Cineflow",
-    short_name: "Cineflow",
+    name: "CineFlow",
+    short_name: "CineFlow",
     description: "Film production software for solo creators and studios.",
     start_url: "/dashboard",
     display: "standalone",

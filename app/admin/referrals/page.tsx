@@ -71,7 +71,7 @@ export default async function ReferralsPage() {
     <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-white">Referrals</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">Track who&apos;s referring new users to Cineflow</p>
+        <p className="text-sm text-zinc-500 mt-0.5">Track who&apos;s referring new users to CineFlow</p>
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">

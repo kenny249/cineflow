@@ -276,7 +276,7 @@ export default function QuotePortalClient({ quote }: { quote: Quote }) {
           {quote.brand_logo_url ? (
             <img src={quote.brand_logo_url} alt={quote.brand_name ?? "Logo"} className="h-7 max-w-[120px] object-contain" />
           ) : (
-            <span className="text-sm font-bold text-white">{quote.brand_name ?? "Cineflow"}</span>
+            <span className="text-sm font-bold text-white">{quote.brand_name ?? "CineFlow"}</span>
           )}
         </div>
         <span className="font-mono text-xs text-zinc-500">{quote.quote_number}</span>
@@ -425,7 +425,7 @@ export default function QuotePortalClient({ quote }: { quote: Quote }) {
           </div>
         )}
 
-        {/* ── Footer — Built by Cineflow ── */}
+        {/* ── Footer — Built by CineFlow ── */}
         <div className="border-t border-white/5 pt-8 flex flex-col items-center gap-2 text-center">
           <a
             href="https://www.usecineflow.com"
@@ -433,7 +433,7 @@ export default function QuotePortalClient({ quote }: { quote: Quote }) {
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
           >
-            Built by <span className="font-semibold text-zinc-400">Cineflow</span>
+            Built by <span className="font-semibold text-zinc-400">CineFlow</span>
             <ExternalLink className="h-3 w-3" />
           </a>
           <p className="text-[10px] text-zinc-700">Professional tools for filmmakers</p>

@@ -24,19 +24,19 @@ export async function generateMetadata({
       .single();
     if (portal?.client_name) {
       return {
-        title: `${portal.client_name} – Content Library | Cineflow`,
+        title: `${portal.client_name} – Content Library | CineFlow`,
         description: "Your delivered videos, organized and ready to view or download.",
         openGraph: {
           title: `${portal.client_name} – Content Library`,
           description: "Your delivered videos, organized and ready to view or download.",
-          siteName: "Cineflow",
+          siteName: "CineFlow",
         },
       };
     }
   } catch {}
 
   return {
-    title: "Client Content Library | Cineflow",
+    title: "Client Content Library | CineFlow",
     description: "Your delivered videos, organized and ready to view or download.",
   };
 }

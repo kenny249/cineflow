@@ -33,7 +33,7 @@ const STEPS = (isSolo: boolean) => [
   {
     id: "invoice",
     label: "Create an invoice",
-    sub: "Get paid directly from Cineflow",
+    sub: "Get paid directly from CineFlow",
     href: "/finance",
   },
 ];

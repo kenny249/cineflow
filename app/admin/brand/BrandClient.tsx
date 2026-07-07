@@ -4,11 +4,11 @@ import { useState, useRef, useCallback, useId } from "react";
 import { toast } from "sonner";
 import { Upload, Trash2, Download, FileIcon } from "lucide-react";
 
-// ─── Cineflow Mark SVG ───────────────────────────────────────────────────────
+// ─── CineFlow Mark SVG ───────────────────────────────────────────────────────
 // Gold metallic diagonal slash on deep obsidian rounded square.
 // The parallelogram references motion, the editorial cut, and forward momentum.
 
-function CineflowIcon({ size = 64 }: { size?: number }) {
+function CineFlowIcon({ size = 64 }: { size?: number }) {
   const u = useId().replace(/:/g, "");
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
@@ -46,7 +46,7 @@ function CineflowIcon({ size = 64 }: { size?: number }) {
 }
 
 // Standalone slash mark — for use directly on dark surfaces (no background)
-function CineflowMark({ size = 64 }: { size?: number }) {
+function CineFlowMark({ size = 64 }: { size?: number }) {
   const u = useId().replace(/:/g, "");
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: "block" }}>
@@ -157,13 +157,13 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-white">Brand</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">Cineflow brand system — logos, colors, type, assets</p>
+        <p className="text-sm text-zinc-500 mt-0.5">CineFlow brand system — logos, colors, type, assets</p>
       </div>
 
-      {/* ── Cineflow Mark ──────────────────────────────────────────────────── */}
+      {/* ── CineFlow Mark ──────────────────────────────────────────────────── */}
       <section>
         <div className="mb-5">
-          <h2 className="text-base font-bold text-white">Cineflow Mark — Concept Preview</h2>
+          <h2 className="text-base font-bold text-white">CineFlow Mark — Concept Preview</h2>
           <p className="text-xs text-zinc-500 mt-1">
             Gold metallic diagonal slash on deep obsidian. The parallelogram references the editorial cut, forward motion, and the cinematic frame.
             This is an SVG concept — not yet applied to the live app.
@@ -179,7 +179,7 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
           <div className="mx-5 mb-5 bg-[#080808] rounded-xl border border-white/[0.04] py-10 flex items-end justify-center gap-8 flex-wrap">
             {[192, 96, 64, 48, 32, 24, 16].map((sz) => (
               <div key={sz} className="flex flex-col items-center gap-2">
-                <CineflowIcon size={sz} />
+                <CineFlowIcon size={sz} />
                 <span className="text-[9px] text-zinc-700">{sz}px</span>
               </div>
             ))}
@@ -201,7 +201,7 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
                 { iconSz: 20, textClass: "text-xs tracking-[0.12em]" },
               ].map(({ iconSz, textClass }, i) => (
                 <div key={i} className="flex items-center gap-3">
-                  <CineflowIcon size={iconSz} />
+                  <CineFlowIcon size={iconSz} />
                   <span className={`font-bold text-white ${textClass}`} style={{ fontFamily: "var(--font-syne)" }}>
                     CINEFLOW
                   </span>
@@ -219,25 +219,25 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
             <div className="mx-5 mb-5 flex items-end gap-6 flex-wrap">
               <div className="flex flex-col items-center gap-2">
                 <div className="h-16 w-16 rounded-full bg-[#080808] border border-white/[0.06] flex items-center justify-center overflow-hidden">
-                  <CineflowIcon size={60} />
+                  <CineFlowIcon size={60} />
                 </div>
                 <span className="text-[9px] text-zinc-700">Profile pic</span>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="h-16 w-16 rounded-xl bg-[#080808] border border-white/[0.06] flex items-center justify-center overflow-hidden">
-                  <CineflowIcon size={64} />
+                  <CineFlowIcon size={64} />
                 </div>
                 <span className="text-[9px] text-zinc-700">IG / TikTok</span>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="h-12 w-12 rounded-2xl bg-[#080808] border border-white/[0.06] flex items-center justify-center overflow-hidden">
-                  <CineflowIcon size={48} />
+                  <CineFlowIcon size={48} />
                 </div>
                 <span className="text-[9px] text-zinc-700">iOS Home</span>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="h-8 w-8 rounded bg-[#080808] border border-white/[0.06] flex items-center justify-center overflow-hidden">
-                  <CineflowIcon size={32} />
+                  <CineFlowIcon size={32} />
                 </div>
                 <span className="text-[9px] text-zinc-700">Favicon</span>
               </div>
@@ -255,7 +255,7 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
             <div className="mx-5 mb-5 bg-[#0d0d0d] rounded-xl border border-white/[0.04] py-8 flex items-end justify-center gap-6">
               {[80, 56, 40, 28].map((sz) => (
                 <div key={sz} className="flex flex-col items-center gap-2">
-                  <CineflowMark size={sz} />
+                  <CineFlowMark size={sz} />
                   <span className="text-[9px] text-zinc-700">{sz}px</span>
                 </div>
               ))}
@@ -270,7 +270,7 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
             <div className="mx-5 mb-5 bg-white rounded-xl py-8 flex items-end justify-center gap-6">
               {[96, 64, 48, 32].map((sz) => (
                 <div key={sz} className="flex flex-col items-center gap-2">
-                  <CineflowIcon size={sz} />
+                  <CineFlowIcon size={sz} />
                   <span className="text-[9px] text-zinc-500">{sz}px</span>
                 </div>
               ))}
@@ -305,7 +305,7 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600 mb-4">Display — Syne</p>
             <p className="font-display text-5xl font-bold text-white leading-none" style={{ fontFamily: "var(--font-syne)" }}>
-              Cineflow
+              CineFlow
             </p>
             <p className="font-display text-2xl font-bold text-[#d4a853] mt-2 tracking-widest" style={{ fontFamily: "var(--font-syne)" }}>
               CINEFLOW

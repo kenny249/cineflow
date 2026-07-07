@@ -91,7 +91,7 @@ export default function CollabHomePage() {
               <Film className="h-3.5 w-3.5 text-[#d4a853]" />
             </div>
             <div className="flex flex-col leading-none">
-              <span className="text-xs font-semibold tracking-tight text-white/80">Cineflow</span>
+              <span className="text-xs font-semibold tracking-tight text-white/80">CineFlow</span>
               <span className="text-[9px] text-white/20 tracking-widest uppercase">Project Workspace</span>
             </div>
           </div>

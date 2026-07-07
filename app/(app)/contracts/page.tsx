@@ -764,7 +764,7 @@ export default function ContractsPage() {
       <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
         <div>
           <h1 className="font-display text-xl font-bold text-foreground">Contracts</h1>
-          <p className="text-xs text-muted-foreground">Send contracts for e-signature directly from Cineflow.</p>
+          <p className="text-xs text-muted-foreground">Send contracts for e-signature directly from CineFlow.</p>
         </div>
         <Button variant="gold" size="sm" className="h-9 gap-2" onClick={openNew}>
           <Plus className="h-4 w-4" /> New Contract

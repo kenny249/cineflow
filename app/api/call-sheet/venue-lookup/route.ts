@@ -12,7 +12,7 @@ async function nominatimSearch(query: string): Promise<{ lat: string; lon: strin
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1&addressdetails=1`,
-      { headers: { "User-Agent": "Cineflow/1.0 (contact@usecineflow.com)", "Accept-Language": "en" } }
+      { headers: { "User-Agent": "CineFlow/1.0 (contact@usecineflow.com)", "Accept-Language": "en" } }
     );
     const data = await res.json();
     if (!data?.length) return null;

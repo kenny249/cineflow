@@ -41,7 +41,7 @@ async function saveSessionSummary(messages: any[], adminId: string, commandCount
       max_tokens: 130,
       messages: [{
         role: "user",
-        content: `Summarize this Cineflow admin session in 1-2 short sentences. Focus on what was discussed, any key data or user actions taken, and decisions made. Be specific with names/numbers if present.\n\n${transcript.slice(0, 3500)}`,
+        content: `Summarize this CineFlow admin session in 1-2 short sentences. Focus on what was discussed, any key data or user actions taken, and decisions made. Be specific with names/numbers if present.\n\n${transcript.slice(0, 3500)}`,
       }],
     });
 

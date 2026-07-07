@@ -253,7 +253,7 @@ export default function ClientPortalPage({ token }: { token: string }) {
                 {brand?.business_name ? (
                   <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/50">{brand.business_name}</span>
                 ) : (
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d4a853]/60">Cineflow</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d4a853]/60">CineFlow</span>
                 )}
               </div>
               <h1 className="font-display text-2xl font-bold text-white tracking-tight">

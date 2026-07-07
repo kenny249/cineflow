@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     <!-- Footer -->
     <div style="background:#fafafa;padding:16px 40px;border-top:1px solid #f4f4f5;text-align:center;">
       <p style="margin:0;font-size:11px;color:#a1a1aa;">
-        Sent by <strong>${agencyName}</strong> via <a href="${appUrl}" style="color:#a1a1aa;">Cineflow</a>
+        Sent by <strong>${agencyName}</strong> via <a href="${appUrl}" style="color:#a1a1aa;">CineFlow</a>
       </p>
     </div>
   </div>

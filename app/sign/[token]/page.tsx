@@ -312,7 +312,7 @@ export default function SigningPage() {
 
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-[#a1a1aa]">
             <Film className="h-3.5 w-3.5" />
-            Powered by Cineflow
+            Powered by CineFlow
           </div>
         </div>
       </div>
@@ -334,7 +334,7 @@ export default function SigningPage() {
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#18181b]">
                 <Film className="h-3.5 w-3.5 text-[#d4a853]" />
               </div>
-              <span className="text-sm font-semibold text-[#18181b]">Cineflow</span>
+              <span className="text-sm font-semibold text-[#18181b]">CineFlow</span>
             </div>
             {/* Step progress */}
             <div className="flex items-center gap-1.5 text-xs text-[#71717a]">
@@ -429,7 +429,7 @@ export default function SigningPage() {
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#18181b]">
               <Film className="h-3.5 w-3.5 text-[#d4a853]" />
             </div>
-            <span className="text-sm font-semibold text-[#18181b]">Cineflow</span>
+            <span className="text-sm font-semibold text-[#18181b]">CineFlow</span>
           </div>
           {/* Step progress */}
           <div className="flex items-center gap-1.5 text-xs text-[#71717a]">
@@ -614,7 +614,7 @@ export default function SigningPage() {
         </div>
 
         <p className="text-center text-xs text-[#a1a1aa] pb-6">
-          Powered by <strong>Cineflow</strong> · Secure electronic signing
+          Powered by <strong>CineFlow</strong> · Secure electronic signing
         </p>
       </div>
     </div>

@@ -254,7 +254,7 @@ export default function DashboardPage() {
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#d4a853]/20 bg-[#d4a853]/10">
                 <Clapperboard className="h-6 w-6 text-[#d4a853]" />
               </div>
-              <h2 className="font-display text-lg font-bold text-foreground">Welcome to Cineflow</h2>
+              <h2 className="font-display text-lg font-bold text-foreground">Welcome to CineFlow</h2>
               <p className="mt-1 text-sm text-muted-foreground">What should we call you?</p>
             </div>
             <div className="space-y-3">
