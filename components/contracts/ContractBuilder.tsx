@@ -248,6 +248,9 @@ export function ContractBuilder({ template, projects, onDone, onClose }: Contrac
   // Generated / editable sections
   const [sections, setSections] = useState<{ title: string; body: string }[]>([]);
 
+  // Cache the created contract so PDF generation retries don't create duplicate records
+  const [savedContract, setSavedContract] = useState<Contract | null>(null);
+
   // Upload-instead mode
   const [uploadMode, setUploadMode] = useState(template.id === "blank_contract");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -279,6 +282,9 @@ export function ContractBuilder({ template, projects, onDone, onClose }: Contrac
   function validate(): string | null {
     if (!recipientName.trim()) return "Recipient name is required.";
     if (!recipientEmail.trim()) return "Recipient email is required.";
+    if (template.id === "blank_contract" && !fields.customTitle?.trim()) {
+      return "Contract title is required.";
+    }
     if (uploadMode) {
       if (!uploadFile) return "Please select a PDF to upload.";
       return null;
@@ -343,26 +349,30 @@ export function ContractBuilder({ template, projects, onDone, onClose }: Contrac
         fileUrl = publicUrl;
       }
 
-      // Create the contract record
-      const createRes = await fetch("/api/contracts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: template.id === "blank_contract"
-            ? (fields.customTitle?.trim() || "Contract")
-            : template.suggestedTitle,
-          description: template.suggestedDescription || undefined,
-          project_id: projectId || undefined,
-          recipient_name: recipientName.trim(),
-          recipient_email: recipientEmail.trim(),
-          recipient_role: template.recipientRole,
-          file_url: fileUrl,
-        }),
-      });
-      const createData = await createRes.json();
-      if (!createRes.ok) throw new Error(createData.error || "Failed to create contract");
+      // Reuse existing contract on retry so PDF generation failures don't orphan records
+      let createdContract: Contract = savedContract!;
 
-      const createdContract: Contract = createData.contract;
+      if (!savedContract) {
+        const createRes = await fetch("/api/contracts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: template.id === "blank_contract"
+              ? (fields.customTitle?.trim() || "Contract")
+              : template.suggestedTitle,
+            description: template.suggestedDescription || undefined,
+            project_id: projectId || undefined,
+            recipient_name: recipientName.trim(),
+            recipient_email: recipientEmail.trim(),
+            recipient_role: template.recipientRole,
+            file_url: fileUrl,
+          }),
+        });
+        const createData = await createRes.json();
+        if (!createRes.ok) throw new Error(createData.error || "Failed to create contract");
+        createdContract = createData.contract;
+        setSavedContract(createdContract);
+      }
 
       // AI path: generate the PDF and attach it
       if (!uploadMode && sections.length > 0) {
@@ -426,6 +436,20 @@ export function ContractBuilder({ template, projects, onDone, onClose }: Contrac
             <div className="flex items-center gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2.5">
               <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
               <p className="text-sm text-red-400">{error}</p>
+            </div>
+          )}
+
+          {/* Title — only for blank_contract since templates provide suggestedTitle */}
+          {template.id === "blank_contract" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Contract Title <span className="text-red-400">*</span></Label>
+              <Input
+                value={fields.customTitle ?? ""}
+                onChange={(e) => setField("customTitle", e.target.value)}
+                placeholder="e.g. Services Agreement — Client Name"
+                className="h-9 text-sm"
+                autoFocus
+              />
             </div>
           )}
 
@@ -587,7 +611,12 @@ export function ContractBuilder({ template, projects, onDone, onClose }: Contrac
               variant="gold"
               size="sm"
               onClick={handleCreate}
-              disabled={!uploadFile || !recipientName.trim() || !recipientEmail.trim()}
+              disabled={
+                !uploadFile ||
+                !recipientName.trim() ||
+                !recipientEmail.trim() ||
+                (template.id === "blank_contract" && !fields.customTitle?.trim())
+              }
             >
               <Upload className="h-4 w-4 mr-2" />
               Create Contract
