@@ -58,7 +58,9 @@ export async function POST(req: NextRequest) {
   const signingUrl = `${appUrl}/sign/${signingToken}`;
   const bizName = profile?.business_name || profile?.company || profile?.full_name || "Studio";
   const fromName = ps.invoice_from_name || bizName;
-  const fromEmail = ps.invoice_from_email || process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  // Extract bare email — RESEND_FROM_EMAIL may already be "Name <email>" format
+  const rawFromEmail = ps.invoice_from_email || process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+  const fromEmail = rawFromEmail.match(/<([^>]+)>/)?.[1] ?? rawFromEmail;
 
   const recipientName = contract.recipient_name || contract.recipient_email;
 

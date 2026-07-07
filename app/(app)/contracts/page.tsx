@@ -1017,12 +1017,15 @@ export default function ContractsPage() {
                       {(selected.status === "draft" || selected.status === "sent") && (
                         <button
                           onClick={selected.status === "sent" ? () => setResendConfirmOpen(true) : handleSend}
-                          disabled={sending || !selected.recipient_email}
+                          disabled={sending || !selected.recipient_email || !selected.file_url}
                           className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#d4a853] px-3 py-2.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors"
                         >
                           {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                           {sending ? "Sending…" : selected.status === "sent" ? "Resend for Signature" : "Send for Signature"}
                         </button>
+                        {!selected.file_url && (
+                          <p className="text-[11px] text-amber-400/80 text-center">Upload a PDF before sending</p>
+                        )}
                       )}
                       {selected.status === "signed" && (
                         <div className="flex items-center gap-2 rounded-lg bg-emerald-400/10 border border-emerald-400/20 px-3 py-2">
