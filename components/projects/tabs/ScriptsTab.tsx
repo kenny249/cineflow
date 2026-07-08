@@ -369,17 +369,41 @@ export function ScriptsTab({ projectId, canEdit, projectTitle }: ScriptsTabProps
       if (data.error) throw new Error(data.error);
 
       const supabase = createClient();
-      const { data: list, error: listErr } = await supabase
-        .from("shot_lists")
-        .insert({ project_id: projectId, title: "Shot List", description: "Generated from script" })
-        .select()
-        .single();
-      if (listErr) throw listErr;
 
-      for (const shot of data.shots) {
-        await supabase.from("shot_list_items").insert({ shot_list_id: list.id, ...shot, is_complete: false });
+      // Reuse existing shot list if one already exists — avoid creating duplicates
+      const { data: existing } = await supabase
+        .from("shot_lists")
+        .select("id, shot_list_items(id)")
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let shotListId: string;
+      let existingCount = 0;
+
+      if (existing) {
+        shotListId = existing.id;
+        existingCount = (existing.shot_list_items as unknown[])?.length ?? 0;
+      } else {
+        const { data: created, error: listErr } = await supabase
+          .from("shot_lists")
+          .insert({ project_id: projectId, title: "Shot List", description: "Generated from script" })
+          .select()
+          .single();
+        if (listErr) throw listErr;
+        shotListId = created.id;
       }
-      toast.success(`Shot list created with ${data.shots.length} shots — open the Shot List tab to review`);
+
+      for (let i = 0; i < data.shots.length; i++) {
+        await supabase.from("shot_list_items").insert({
+          shot_list_id: shotListId,
+          ...data.shots[i],
+          shot_number: existingCount + i + 1,
+          is_complete: false,
+        });
+      }
+      toast.success(`${data.shots.length} shots added to your shot list — open the Shot List tab to review`);
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to generate shot list");
     } finally {
@@ -400,11 +424,19 @@ export function ScriptsTab({ projectId, canEdit, projectTitle }: ScriptsTabProps
       if (data.error) throw new Error(data.error);
 
       const supabase = createClient();
+
+      // Count existing frames so new ones don't collide on frame_number
+      const { count: existingFrameCount } = await supabase
+        .from("storyboard_frames")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", projectId);
+      const offset = existingFrameCount ?? 0;
+
       for (let i = 0; i < data.frames.length; i++) {
         const frame = data.frames[i];
         await supabase.from("storyboard_frames").insert({
           project_id: projectId,
-          frame_number: i + 1,
+          frame_number: offset + i + 1,
           title: frame.title,
           description: frame.description,
           shot_type: frame.shot_type,

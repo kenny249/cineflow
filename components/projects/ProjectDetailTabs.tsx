@@ -1897,10 +1897,11 @@ export default function ProjectDetailTabs({
               {/* ── Project Status Strip ── */}
               {(() => {
                 const statusItems = [
-                  { label: "Script", done: hasScript, onClick: () => { setActiveTab("scripts"); } },
+                  { label: "Script", done: hasScript, onClick: () => setActiveTab("scripts") },
                   { label: "Storyboard", done: storyboardFrames.length > 0, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("storyboard"); } },
                   { label: "Shot List", done: (shotList?.items?.length ?? 0) > 0, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("shots"); } },
-                  { label: "Quote", done: !!hasQuote, onClick: () => setActiveTab("finance") },
+                  // Finance tab is admin-only — non-admins see Quote status but can't navigate there
+                  ...(isAdmin ? [{ label: "Quote", done: !!hasQuote, onClick: () => setActiveTab("finance") }] : [{ label: "Quote", done: !!hasQuote, onClick: undefined as (() => void) | undefined }]),
                   { label: "Call Sheet", done: hasCallSheet, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("shots"); setShowShootDays(true); } },
                 ];
                 const doneCount = statusItems.filter((s) => s.done).length;
@@ -1914,8 +1915,10 @@ export default function ProjectDetailTabs({
                       {statusItems.map(({ label, done, onClick }) => (
                         <button
                           key={label}
-                          onClick={onClick}
-                          className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all hover:scale-[1.02] ${
+                          onClick={onClick ?? undefined}
+                          className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                            onClick ? "hover:scale-[1.02] cursor-pointer" : "cursor-default"
+                          } ${
                             done
                               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
                               : "border-border bg-card text-muted-foreground hover:border-[#d4a853]/30 hover:text-foreground"
