@@ -869,24 +869,6 @@ export default function ProjectDetailTabs({
   const [generatingFromStoryboard, setGeneratingFromStoryboard] = useState(false);
   const [showShootDays, setShowShootDays] = useState(false);
 
-  // ── Project status strip (script + call sheet checks) ──
-  const [hasScript, setHasScript] = useState(false);
-  const [hasCallSheet, setHasCallSheet] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    import("@/lib/supabase/client").then(({ createClient }) => {
-      const supabase = createClient();
-      Promise.all([
-        supabase.from("project_files").select("id", { count: "exact", head: true }).eq("project_id", project.id).eq("tab", "scripts"),
-        supabase.from("call_sheets").select("id", { count: "exact", head: true }).eq("project_id", project.id),
-      ]).then(([filesRes, sheetsRes]) => {
-        if (cancelled) return;
-        setHasScript((filesRes.count ?? 0) > 0);
-        setHasCallSheet((sheetsRes.count ?? 0) > 0);
-      }).catch(() => {});
-    });
-    return () => { cancelled = true; };
-  }, [project.id]);
   const initialSheetParam = searchParams.get("sheet");
   const [callSheetOpen, setCallSheetOpen] = useState(!!initialSheetParam);
   const [callSheetInitialId, setCallSheetInitialId] = useState<string | undefined>(
@@ -1903,47 +1885,6 @@ export default function ProjectDetailTabs({
 
           <div ref={tabScrollRef} className={`flex-1 min-h-0 custom-scrollbar ${activeTab === "people" ? "overflow-hidden" : "overflow-y-auto"}`}>
             <TabsContent value="overview" className="m-0 p-5 sm:p-6">
-              {/* ── Project Status Strip ── */}
-              {(() => {
-                const statusItems = [
-                  { label: "Script", done: hasScript, onClick: () => setActiveTab("scripts") },
-                  { label: "Storyboard", done: storyboardFrames.length > 0, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("storyboard"); } },
-                  { label: "Shot List", done: (shotList?.items?.length ?? 0) > 0, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("shots"); } },
-                  // Finance tab is admin-only — non-admins see Quote status but can't navigate there
-                  ...(isAdmin ? [{ label: "Quote", done: !!hasQuote, onClick: () => openFinanceSection("quotes") }] : [{ label: "Quote", done: !!hasQuote, onClick: undefined as (() => void) | undefined }]),
-                  { label: "Call Sheet", done: hasCallSheet, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("shots"); setShowShootDays(true); } },
-                ];
-                const doneCount = statusItems.filter((s) => s.done).length;
-                return (
-                  <section className="mb-5">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-display text-xs font-semibold uppercase tracking-wide text-muted-foreground">Production Status</h3>
-                      <span className="text-[11px] text-muted-foreground tabular-nums">{doneCount}/{statusItems.length}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {statusItems.map(({ label, done, onClick }) => (
-                        <button
-                          key={label}
-                          onClick={onClick ?? undefined}
-                          className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all ${
-                            onClick ? "hover:scale-[1.02] cursor-pointer" : "cursor-default"
-                          } ${
-                            done
-                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                              : "border-border bg-card text-muted-foreground hover:border-[#d4a853]/30 hover:text-foreground"
-                          }`}
-                        >
-                          {done
-                            ? <CheckCircle2 className="h-3 w-3 shrink-0" />
-                            : <Circle className="h-3 w-3 shrink-0" />
-                          }
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                );
-              })()}
 
               <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
                 <div className="space-y-5">
