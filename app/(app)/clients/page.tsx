@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, ChevronDown, ChevronRight, Briefcase, Search, Film, CheckCircle2, Clock, ArrowRight, X, Phone, Mail, Globe, UserCircle2, Edit2, FileSignature, ExternalLink, Link2, Copy, Check, Repeat2 } from "lucide-react";
-import { getProjects, createProject, getClientContacts, upsertClientContact, getClientPortals, getOrCreateClientPortal, getRetainers, getMyReviewTokens, updateReviewToken } from "@/lib/supabase/queries";
+import { getProjects, createProject, getClientContacts, upsertClientContact, getClientPortals, getOrCreateClientPortal, getRetainers, getMyReviewTokens } from "@/lib/supabase/queries";
+import { ManagePortalModal } from "@/components/portal/ManagePortalModal";
 import type { ClientContact as DBClientContact } from "@/lib/supabase/queries";
 import type { ClientPortal, Retainer, ReviewToken } from "@/types";
 
@@ -74,25 +75,8 @@ export default function ClientsPage() {
 
   // Project client portals (review_tokens — the ones clients use for review + deliverables)
   const [projectPortals, setProjectPortals] = useState<ProjectPortal[]>([]);
-  const [editingPortalId, setEditingPortalId] = useState<string | null>(null);
-  const [portalEmailDraft, setPortalEmailDraft] = useState("");
-  const [savingPortalId, setSavingPortalId] = useState<string | null>(null);
+  const [managingPortal, setManagingPortal] = useState<ProjectPortal | null>(null);
   const [copiedPortalLink, setCopiedPortalLink] = useState<string | null>(null);
-
-  async function savePortalEmail(id: string) {
-    if (!portalEmailDraft.trim()) { toast.error("Email is required"); return; }
-    setSavingPortalId(id);
-    try {
-      const updated = await updateReviewToken(id, { client_email: portalEmailDraft.trim() });
-      setProjectPortals((prev) => prev.map((p) => p.id === id ? { ...p, client_email: updated.client_email } : p));
-      setEditingPortalId(null);
-      toast.success("Portal email updated — the link is unchanged");
-    } catch {
-      toast.error("Failed to update portal email");
-    } finally {
-      setSavingPortalId(null);
-    }
-  }
 
   function copyPortalLink(token: string, id: string) {
     navigator.clipboard.writeText(`${window.location.origin}/review/${token}`);
@@ -583,30 +567,10 @@ export default function ClientsPage() {
                                       {pt.project?.title ?? "Project portal"}
                                     </Link>
                                   </div>
-                                  {editingPortalId === pt.id ? (
-                                    <div className="flex items-center gap-1.5 mt-1.5">
-                                      <input
-                                        type="email"
-                                        value={portalEmailDraft}
-                                        onChange={(e) => setPortalEmailDraft(e.target.value)}
-                                        placeholder="client@email.com"
-                                        className="flex-1 min-w-0 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-foreground focus:border-[#d4a853]/50 focus:outline-none"
-                                      />
-                                      <button onClick={() => savePortalEmail(pt.id)} disabled={savingPortalId === pt.id} className="rounded-md bg-[#d4a853] px-2 py-1 text-[10px] font-semibold text-black hover:bg-[#c49843] disabled:opacity-60">
-                                        {savingPortalId === pt.id ? "…" : "Save"}
-                                      </button>
-                                      <button onClick={() => setEditingPortalId(null)} className="rounded-md px-1.5 py-1 text-[10px] text-muted-foreground hover:text-foreground">Cancel</button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => { setEditingPortalId(pt.id); setPortalEmailDraft(pt.client_email ?? ""); }}
-                                      className="group/pe mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-[#d4a853] transition-colors"
-                                    >
-                                      <Mail className="h-2.5 w-2.5" />
-                                      {pt.client_email || <span className="italic">add client email</span>}
-                                      <Edit2 className="h-2.5 w-2.5 opacity-0 group-hover/pe:opacity-100 transition-opacity" />
-                                    </button>
-                                  )}
+                                  <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                                    <Mail className="h-2.5 w-2.5" />
+                                    {pt.client_email || <span className="italic">no client email</span>}
+                                  </p>
                                   {pt.last_viewed_at && (
                                     <p className="text-[10px] text-muted-foreground/60 mt-1">
                                       Last viewed {new Date(pt.last_viewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -621,15 +585,13 @@ export default function ClientsPage() {
                                   >
                                     {copiedPortalLink === pt.id ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                                   </button>
-                                  <a
-                                    href={`${typeof window !== "undefined" ? window.location.origin : ""}/review/${pt.token}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    title="Preview as client"
-                                    className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                  <button
+                                    onClick={() => setManagingPortal(pt)}
+                                    title="Manage portal"
+                                    className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:border-[#d4a853]/40 hover:text-[#d4a853] transition-colors"
                                   >
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                  </a>
+                                    <Edit2 className="h-3 w-3" /> Manage
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -771,6 +733,19 @@ export default function ClientsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {managingPortal && (
+        <ManagePortalModal
+          token={managingPortal}
+          projectTitle={managingPortal.project?.title}
+          onUpdated={(u) => {
+            setProjectPortals((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p));
+            setManagingPortal((cur) => cur && cur.id === u.id ? { ...cur, ...u } : cur);
+          }}
+          onRevoked={() => setProjectPortals((prev) => prev.filter((p) => p.id !== managingPortal.id))}
+          onClose={() => setManagingPortal(null)}
+        />
       )}
     </div>
   );

@@ -7,9 +7,10 @@ import {
   MessageSquare, X, Trash2, Upload, Search, Loader2,
   Copy, Check, Send, ChevronDown, ExternalLink, Rocket,
   Users, AlertCircle, CheckCircle2, Clock, Eye, Plus,
-  ArrowRight, Layers,
+  ArrowRight, Layers, Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ManagePortalModal } from "@/components/portal/ManagePortalModal";
 import {
   getProjects,
   getProjectRevisions,
@@ -558,6 +559,7 @@ export default function ReviewPage() {
   // Portal token
   const [portalToken, setPortalToken] = useState<ReviewToken | null>(null);
   const [copiedPortal, setCopiedPortal] = useState(false);
+  const [managingPortal, setManagingPortal] = useState<ReviewToken | null>(null);
 
   // Deploy modal
   const [deployTarget, setDeployTarget] = useState<Revision | null>(null);
@@ -1056,6 +1058,13 @@ export default function ReviewPage() {
                       className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border py-1.5 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                     >
                       {copiedPortal ? <><Check className="h-3 w-3 text-emerald-400" /> Copied</> : <><Copy className="h-3 w-3" /> Copy link</>}
+                    </button>
+                    <button
+                      onClick={() => setManagingPortal(portalToken)}
+                      title="Manage portal"
+                      className="flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] text-muted-foreground hover:text-[#d4a853] hover:border-[#d4a853]/40 transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" /> Manage
                     </button>
                     <a
                       href={portalUrl!}
@@ -1604,6 +1613,16 @@ export default function ReviewPage() {
             }
           }}
           onClose={() => setDeployTarget(null)}
+        />
+      )}
+
+      {managingPortal && (
+        <ManagePortalModal
+          token={managingPortal}
+          projectTitle={selectedProject?.title}
+          onUpdated={(u) => { setPortalToken(u); setManagingPortal(u); }}
+          onRevoked={() => setPortalToken(null)}
+          onClose={() => setManagingPortal(null)}
         />
       )}
     </>

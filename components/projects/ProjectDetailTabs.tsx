@@ -23,11 +23,12 @@ import { useCompletionBurst, BurstRenderer } from "@/components/shared/Completio
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole, ReviewToken, PortalDeliverable } from "@/types";
-import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, updateReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame, createStoryboardFrame, getProjectDeliverables, createProjectDeliverable, updateProjectDeliverable, deleteProjectDeliverable, createProjectTemplate, softDeleteProject } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame, createStoryboardFrame, getProjectDeliverables, createProjectDeliverable, updateProjectDeliverable, deleteProjectDeliverable, createProjectTemplate, softDeleteProject } from "@/lib/supabase/queries";
 import type { ProjectDeliverable } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
 import { FinanceTab } from "@/components/projects/tabs/FinanceTab";
+import { ManagePortalModal } from "@/components/portal/ManagePortalModal";
 import { ProductionDocsTab } from "@/components/projects/tabs/ProductionDocsTab";
 import { ScriptsTab } from "@/components/projects/tabs/ScriptsTab";
 import { ProjectTasksTab } from "@/components/projects/tabs/ProjectTasksTab";
@@ -499,11 +500,7 @@ export default function ProjectDetailTabs({
   const [portalClientEmail, setPortalClientEmail] = useState(project.client_email ?? "");
   const [portalShowForm, setPortalShowForm] = useState(false);
   const [portalCopied, setPortalCopied] = useState(false);
-  const [portalEditing, setPortalEditing] = useState(false);
-  const [editPortalName, setEditPortalName] = useState("");
-  const [editPortalEmail, setEditPortalEmail] = useState("");
-  const [portalSaving, setPortalSaving] = useState(false);
-  const [portalResending, setPortalResending] = useState(false);
+  const [showPortalModal, setShowPortalModal] = useState(false);
   const [deliverables, setDeliverables] = useState<PortalDeliverable[]>([]);
   const deliverablesLoadedRef = useRef(false);
   const [newDeliverable, setNewDeliverable] = useState("");
@@ -586,57 +583,6 @@ export default function ProjectDetailTabs({
     }
   }
 
-  function startEditPortal() {
-    if (!portalToken) return;
-    setEditPortalName(portalToken.client_name ?? "");
-    setEditPortalEmail(portalToken.client_email ?? "");
-    setPortalEditing(true);
-  }
-
-  async function handleSavePortalEdit() {
-    if (!portalToken) return;
-    if (!editPortalName.trim() || !editPortalEmail.trim()) {
-      toast.error("Client name and email are required");
-      return;
-    }
-    setPortalSaving(true);
-    try {
-      const updated = await updateReviewToken(portalToken.id, {
-        client_name: editPortalName.trim(),
-        client_email: editPortalEmail.trim(),
-      });
-      setPortalToken(updated);
-      setPortalEditing(false);
-      toast.success("Portal details updated — the link is unchanged");
-    } catch {
-      toast.error("Failed to update portal");
-    } finally {
-      setPortalSaving(false);
-    }
-  }
-
-  async function handleResendInvite() {
-    if (!portalToken?.client_email) return;
-    setPortalResending(true);
-    try {
-      await fetch("/api/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event: "portal_live",
-          clientName: portalToken.client_name,
-          clientEmail: portalToken.client_email,
-          projectTitle: title,
-          portalUrl: portalUrl(portalToken.token),
-        }),
-      });
-      toast.success(`Invite re-sent to ${portalToken.client_email}`);
-    } catch {
-      toast.error("Failed to send invite");
-    } finally {
-      setPortalResending(false);
-    }
-  }
 
   function handleCopyPortalUrl() {
     if (!portalToken) return;
@@ -2993,6 +2939,13 @@ export default function ProjectDetailTabs({
                   >
                     {portalCopied ? <><Check className="h-3 w-3 text-emerald-400" /> Copied</> : <><Copy className="h-3 w-3" /> Copy link</>}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPortalModal(true)}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-[#d4a853] hover:border-[#d4a853]/40 transition-colors"
+                  >
+                    <Pencil className="h-3 w-3" /> Manage
+                  </button>
                 </div>
               )}
             </TabsContent>
@@ -3141,8 +3094,8 @@ export default function ProjectDetailTabs({
                     <p className="mt-0.5 text-xs text-muted-foreground">Share a private link so your client can track progress, review cuts, and download deliverables.</p>
                   </div>
                   {portalToken && (
-                    <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-red-400" onClick={handleRevokePortal}>
-                      <Trash2 className="h-3 w-3" /> Revoke
+                    <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setShowPortalModal(true)}>
+                      <Pencil className="h-3 w-3" /> Manage
                     </Button>
                   )}
                 </div>
@@ -3162,55 +3115,16 @@ export default function ProjectDetailTabs({
                             <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                             <span className="text-xs font-semibold text-emerald-400">Portal Active</span>
                           </div>
-                          {portalEditing ? (
-                            <div className="space-y-2 mt-2">
-                              <input
-                                type="text"
-                                value={editPortalName}
-                                onChange={(e) => setEditPortalName(e.target.value)}
-                                placeholder="Client name"
-                                className="w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
-                              />
-                              <input
-                                type="email"
-                                value={editPortalEmail}
-                                onChange={(e) => setEditPortalEmail(e.target.value)}
-                                placeholder="client@email.com"
-                                className="w-full rounded-lg border border-border bg-muted/30 px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/50 focus:outline-none"
-                              />
-                              <div className="flex items-center gap-2">
-                                <Button variant="gold" size="sm" className="h-7 gap-1.5 text-xs" onClick={handleSavePortalEdit} disabled={portalSaving}>
-                                  {portalSaving ? "Saving…" : "Save"}
-                                </Button>
-                                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPortalEditing(false)}>Cancel</Button>
-                              </div>
-                            </div>
+                          <p className="text-sm font-medium text-foreground truncate">{portalToken.client_name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{portalToken.client_email}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          {portalToken.last_viewed_at ? (
+                            <p className="text-[10px] text-muted-foreground">Last viewed<br/><span className="text-foreground">{new Date(portalToken.last_viewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></p>
                           ) : (
-                            <div className="group/edit flex items-center gap-2">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground truncate">{portalToken.client_name}</p>
-                                <p className="text-xs text-muted-foreground truncate">{portalToken.client_email}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={startEditPortal}
-                                title="Edit client name & email"
-                                className="shrink-0 rounded-md p-1 text-muted-foreground/60 opacity-0 group-hover/edit:opacity-100 hover:bg-accent hover:text-foreground transition-all"
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </button>
-                            </div>
+                            <p className="text-[10px] text-muted-foreground">Not yet viewed</p>
                           )}
                         </div>
-                        {!portalEditing && (
-                          <div className="text-right shrink-0">
-                            {portalToken.last_viewed_at ? (
-                              <p className="text-[10px] text-muted-foreground">Last viewed<br/><span className="text-foreground">{new Date(portalToken.last_viewed_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></p>
-                            ) : (
-                              <p className="text-[10px] text-muted-foreground">Not yet viewed</p>
-                            )}
-                          </div>
-                        )}
                       </div>
                       {/* Portal URL + actions */}
                       <div className="space-y-2">
@@ -3232,12 +3146,11 @@ export default function ProjectDetailTabs({
                           </a>
                           <button
                             type="button"
-                            onClick={handleResendInvite}
-                            disabled={portalResending}
-                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/20 py-2 text-xs font-medium text-muted-foreground transition hover:border-[#d4a853]/30 hover:bg-[#d4a853]/[0.05] hover:text-[#d4a853] disabled:opacity-60"
+                            onClick={() => setShowPortalModal(true)}
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-muted/20 py-2 text-xs font-medium text-muted-foreground transition hover:border-[#d4a853]/30 hover:bg-[#d4a853]/[0.05] hover:text-[#d4a853]"
                           >
-                            <Send className="h-3.5 w-3.5" />
-                            {portalResending ? "Sending…" : "Resend invite"}
+                            <Pencil className="h-3.5 w-3.5" />
+                            Manage portal
                           </button>
                         </div>
                       </div>
@@ -3721,6 +3634,16 @@ export default function ProjectDetailTabs({
             setShowImportBrief(false);
             toast.success(summary);
           }}
+        />
+      )}
+
+      {showPortalModal && portalToken && (
+        <ManagePortalModal
+          token={portalToken}
+          projectTitle={title}
+          onUpdated={(u) => setPortalToken(u)}
+          onRevoked={() => setPortalToken(null)}
+          onClose={() => setShowPortalModal(false)}
         />
       )}
     </div>
