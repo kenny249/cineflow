@@ -700,6 +700,80 @@ export async function deleteProjectEquipment(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// ─── Project Expenses ─────────────────────────────────────────────────────────
+// UI uses `date`; the column is `expense_date`. Map on the way in/out.
+
+export interface ProjectExpense {
+  id: string;
+  description: string;
+  amount: number;
+  category: string;
+  dept: string;
+  payment_method: string;
+  purchased_by: string;
+  date: string;
+  reimbursed: boolean;
+  flagged: boolean;
+  receipt_note: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapExpenseRow(r: any): ProjectExpense {
+  return {
+    id: r.id,
+    description: r.description ?? '',
+    amount: Number(r.amount) || 0,
+    category: r.category ?? '',
+    dept: r.dept ?? '',
+    payment_method: r.payment_method ?? '',
+    purchased_by: r.purchased_by ?? '',
+    date: r.expense_date ?? '',
+    reimbursed: !!r.reimbursed,
+    flagged: !!r.flagged,
+    receipt_note: r.receipt_note ?? '',
+  };
+}
+
+function expensePayload(projectId: string, e: Omit<ProjectExpense, 'id'>) {
+  return {
+    project_id: projectId,
+    description: e.description,
+    amount: e.amount,
+    category: e.category || null,
+    dept: e.dept || null,
+    payment_method: e.payment_method || null,
+    purchased_by: e.purchased_by || null,
+    expense_date: e.date || null,
+    reimbursed: e.reimbursed,
+    flagged: e.flagged,
+    receipt_note: e.receipt_note || null,
+  };
+}
+
+export async function getProjectExpenses(projectId: string): Promise<ProjectExpense[]> {
+  const { data, error } = await db().from('project_expenses').select('*').eq('project_id', projectId).order('expense_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []).map(mapExpenseRow);
+}
+
+export async function createProjectExpense(projectId: string, e: Omit<ProjectExpense, 'id'>): Promise<ProjectExpense> {
+  const { data: { user } } = await db().auth.getUser();
+  const { data, error } = await db().from('project_expenses').insert({ ...expensePayload(projectId, e), created_by: user?.id ?? null }).select().single();
+  if (error) throw error;
+  return mapExpenseRow(data);
+}
+
+export async function updateProjectExpense(id: string, projectId: string, e: Omit<ProjectExpense, 'id'>): Promise<ProjectExpense> {
+  const { data, error } = await db().from('project_expenses').update({ ...expensePayload(projectId, e), updated_at: new Date().toISOString() }).eq('id', id).select().single();
+  if (error) throw error;
+  return mapExpenseRow(data);
+}
+
+export async function deleteProjectExpense(id: string): Promise<void> {
+  const { error } = await db().from('project_expenses').delete().eq('id', id);
+  if (error) throw error;
+}
+
 
 // ─── Project Membership Helper ───────────────────────────────────────────────
 // Ensures the current user is in project_members (needed for budget RLS).

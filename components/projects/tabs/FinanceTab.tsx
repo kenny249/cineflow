@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { Plus, Trash2, DollarSign, Edit3, Check, X, Receipt, AlertCircle, Clock, CheckCircle2, FileText, Send, ChevronDown, ChevronUp, ShoppingCart, Download, ExternalLink, FileSignature, Paperclip } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { getBudgetLines, createBudgetLine, updateBudgetLine, deleteBudgetLine, getInvoicesByProject, createInvoice, updateInvoice, deleteInvoice, ensureProjectOwner } from "@/lib/supabase/queries";
+import { getBudgetLines, createBudgetLine, updateBudgetLine, deleteBudgetLine, getInvoicesByProject, createInvoice, updateInvoice, deleteInvoice, ensureProjectOwner, getProjectExpenses, createProjectExpense, updateProjectExpense, deleteProjectExpense, type ProjectExpense } from "@/lib/supabase/queries";
 import type { BudgetLine, Invoice, InvoiceStatus, Contract, ContractStatus } from "@/types";
 import { toast } from "sonner";
 import { downloadCSV, printTable } from "@/lib/export";
@@ -61,7 +61,7 @@ const EMPTY_LINE: LineForm = { category: "Crew", description: "", budgeted: "", 
 interface InvForm { invoice_number: string; client_name: string; description: string; amount: string; amount_paid: string; status: InvoiceStatus; due_date: string; paid_date: string; notes: string; }
 const EMPTY_INV: InvForm = { invoice_number: "", client_name: "", description: "", amount: "", amount_paid: "0", status: "draft", due_date: "", paid_date: "", notes: "" };
 
-interface Expense { id: string; description: string; amount: number; category: string; dept: string; payment_method: string; purchased_by: string; date: string; reimbursed: boolean; flagged: boolean; receipt_note: string; }
+type Expense = ProjectExpense;
 const EMPTY_EXPENSE: Partial<Expense> = { description: "", amount: 0, category: "Miscellaneous", dept: "", payment_method: "card", purchased_by: "", date: new Date().toISOString().split("T")[0], reimbursed: false, flagged: false, receipt_note: "" };
 const EXPENSE_DEPTS = ["Director", "Camera", "Lighting", "Sound", "Art", "Wardrobe", "Post-Production", "Production", "Travel", "Catering", "Other"];
 
@@ -72,25 +72,16 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
   const [loading, setLoading] = useState(true);
   const [activeSection, setActiveSection] = useState<"budget" | "invoices" | "expenses" | "contracts">("budget");
 
-  // Expenses state (localStorage-backed)
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    if (typeof window === "undefined") return [];
-    try { const raw = localStorage.getItem(`cf_expenses_${projectId}`); return raw ? JSON.parse(raw) : []; } catch { return []; }
-  });
+  // Expenses state (DB-backed)
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [expenseForm, setExpenseForm] = useState<Partial<Expense>>(EMPTY_EXPENSE);
+  const [savingExpense, setSavingExpense] = useState(false);
 
-  function saveExpenses(updated: Expense[]) {
-    setExpenses(updated);
-    try { localStorage.setItem(`cf_expenses_${projectId}`, JSON.stringify(updated)); } catch {}
-  }
-
-  function handleSaveExpense() {
-    if (!expenseForm.description?.trim()) { return; }
-    const exp: Expense = {
-      id: editingExpenseId ?? `exp_${Date.now()}`,
-      description: expenseForm.description,
+  function formToExpenseInput(): Omit<Expense, "id"> {
+    return {
+      description: expenseForm.description?.trim() ?? "",
       amount: Number(expenseForm.amount) || 0,
       category: expenseForm.category ?? "Miscellaneous",
       dept: expenseForm.dept ?? "",
@@ -101,17 +92,54 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
       flagged: expenseForm.flagged ?? false,
       receipt_note: expenseForm.receipt_note ?? "",
     };
-    if (editingExpenseId) {
-      saveExpenses(expenses.map((e) => e.id === editingExpenseId ? exp : e));
-    } else {
-      saveExpenses([...expenses, exp]);
-    }
-    setShowExpenseForm(false);
-    setEditingExpenseId(null);
-    setExpenseForm(EMPTY_EXPENSE);
   }
 
-  function deleteExpense(id: string) { saveExpenses(expenses.filter((e) => e.id !== id)); }
+  async function handleSaveExpense() {
+    if (!expenseForm.description?.trim()) { toast.error("Description is required"); return; }
+    setSavingExpense(true);
+    const input = formToExpenseInput();
+    try {
+      if (editingExpenseId) {
+        const saved = await updateProjectExpense(editingExpenseId, projectId, input);
+        setExpenses((prev) => prev.map((e) => e.id === editingExpenseId ? saved : e));
+      } else {
+        const saved = await createProjectExpense(projectId, input);
+        setExpenses((prev) => [saved, ...prev]);
+      }
+      setShowExpenseForm(false);
+      setEditingExpenseId(null);
+      setExpenseForm(EMPTY_EXPENSE);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save expense");
+    } finally {
+      setSavingExpense(false);
+    }
+  }
+
+  async function deleteExpense(id: string) {
+    const prev = expenses;
+    setExpenses((cur) => cur.filter((e) => e.id !== id)); // optimistic
+    try {
+      await deleteProjectExpense(id);
+    } catch {
+      setExpenses(prev); // rollback
+      toast.error("Failed to delete expense");
+    }
+  }
+
+  async function toggleReimbursed(exp: Expense) {
+    const prev = expenses;
+    const next = { ...exp, reimbursed: !exp.reimbursed };
+    setExpenses((cur) => cur.map((e) => e.id === exp.id ? next : e)); // optimistic
+    try {
+      const { id, ...input } = next;
+      void id;
+      await updateProjectExpense(exp.id, projectId, input);
+    } catch {
+      setExpenses(prev); // rollback
+      toast.error("Failed to update expense");
+    }
+  }
 
   function startEditExpense(e: Expense) {
     setExpenseForm({ ...e });
@@ -141,6 +169,42 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
       getInvoicesByProject(projectId).catch(() => [] as Invoice[]),
       supabase.from("contracts").select("*").eq("project_id", projectId).order("created_at", { ascending: false }).then(({ data, error }) => (!error && data ? data as Contract[] : [] as Contract[])),
     ]).then(([bl, inv, ctrs]) => { setLines(bl); setInvoices(inv); setContracts(ctrs); }).finally(() => setLoading(false));
+
+    // Load expenses, migrating any legacy localStorage records into the DB once.
+    (async () => {
+      let dbExpenses = await getProjectExpenses(projectId).catch(() => [] as Expense[]);
+      try {
+        const raw = typeof window !== "undefined" ? localStorage.getItem(`cf_expenses_${projectId}`) : null;
+        const legacy: Expense[] = raw ? JSON.parse(raw) : [];
+        if (legacy.length > 0) {
+          const migrated: Expense[] = [];
+          for (const e of legacy) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { id, ...input } = e;
+              migrated.push(await createProjectExpense(projectId, {
+                description: input.description ?? "",
+                amount: Number(input.amount) || 0,
+                category: input.category ?? "",
+                dept: input.dept ?? "",
+                payment_method: input.payment_method ?? "",
+                purchased_by: input.purchased_by ?? "",
+                date: input.date ?? "",
+                reimbursed: !!input.reimbursed,
+                flagged: !!input.flagged,
+                receipt_note: input.receipt_note ?? "",
+              }));
+            } catch { /* skip a bad legacy row */ }
+          }
+          if (migrated.length > 0) {
+            localStorage.removeItem(`cf_expenses_${projectId}`);
+            dbExpenses = [...migrated, ...dbExpenses];
+            toast.success(`Migrated ${migrated.length} saved expense${migrated.length !== 1 ? "s" : ""} to the cloud`);
+          }
+        }
+      } catch { /* migration is best-effort */ }
+      setExpenses(dbExpenses);
+    })();
   }, [projectId]);
 
   // ── Summary numbers ──
@@ -430,7 +494,7 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
                         <td className="px-3 py-2.5 text-right"><span className="text-sm font-semibold text-foreground">{fmt(e.amount)}</span></td>
                         <td className="px-3 py-2.5"><span className="text-[11px] text-muted-foreground">{e.date}</span></td>
                         <td className="px-3 py-2.5 text-center">
-                          <button onClick={() => { const updated = expenses.map((x) => x.id === e.id ? { ...x, reimbursed: !x.reimbursed } : x); saveExpenses(updated); }} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${e.reimbursed ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"}`}>
+                          <button onClick={() => toggleReimbursed(e)} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${e.reimbursed ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"}`}>
                             {e.reimbursed ? "Reimbursed" : "Pending"}
                           </button>
                         </td>
@@ -555,8 +619,8 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
             </div>
             <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
               <button onClick={() => setShowExpenseForm(false)} className="rounded-lg border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-muted/20">Cancel</button>
-              <button onClick={handleSaveExpense} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843]">
-                <Check className="h-3.5 w-3.5" />{editingExpenseId ? "Save" : "Log"}
+              <button onClick={handleSaveExpense} disabled={savingExpense} className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-1.5 text-sm font-semibold text-black hover:bg-[#c49843] disabled:opacity-60">
+                <Check className="h-3.5 w-3.5" />{savingExpense ? "Saving…" : editingExpenseId ? "Save" : "Log"}
               </button>
             </div>
           </div>
