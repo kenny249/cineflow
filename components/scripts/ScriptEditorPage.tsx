@@ -552,7 +552,7 @@ export function ScriptEditorPage({
   const hasContent = content.trim().length > 0;
 
   return (
-    <div className="flex h-screen flex-col bg-background overflow-hidden">
+    <div className="flex h-full flex-col bg-background overflow-hidden">
       {/* ── Header ── */}
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-4 py-2.5">
         <div className="flex items-center gap-3 min-w-0">
