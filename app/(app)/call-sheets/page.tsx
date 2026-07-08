@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Clipboard, Plus, Share2, Check, Calendar, ChevronRight, Loader2, Clock } from "lucide-react";
+import { Clipboard, Plus, Share2, Check, Calendar, ChevronRight, Loader2, Clock, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
@@ -104,6 +104,8 @@ export default function CallSheetsPage() {
   const router = useRouter();
   const [sheets, setSheets] = useState<CallSheetRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -120,16 +122,37 @@ export default function CallSheetsPage() {
     load();
   }, []);
 
+  const projects = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const s of sheets) {
+      if (s.project && !seen.has(s.project.id)) seen.set(s.project.id, s.project.title);
+    }
+    return Array.from(seen.entries()).map(([id, title]) => ({ id, title }));
+  }, [sheets]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return sheets.filter((s) => {
+      if (projectFilter && s.project?.id !== projectFilter) return false;
+      if (q) {
+        const matchTitle = s.title.toLowerCase().includes(q);
+        const matchProject = s.project?.title.toLowerCase().includes(q) ?? false;
+        if (!matchTitle && !matchProject) return false;
+      }
+      return true;
+    });
+  }, [sheets, search, projectFilter]);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const upcoming = sheets.filter((s) => {
+  const upcoming = filtered.filter((s) => {
     if (!s.shoot_date) return false;
     const d = new Date(s.shoot_date + "T00:00:00");
     return d >= today;
   });
 
-  const past = sheets
+  const past = filtered
     .filter((s) => {
       if (!s.shoot_date) return true;
       const d = new Date(s.shoot_date + "T00:00:00");
@@ -175,6 +198,45 @@ export default function CallSheetsPage() {
           </button>
         </div>
 
+        {sheets.length > 0 && (
+          <div className="mb-6 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search call sheets…"
+                className="w-full rounded-xl border border-border bg-card pl-9 pr-9 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition-colors">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {projects.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setProjectFilter(null)}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${projectFilter === null ? "border-[#d4a853]/50 bg-[#d4a853]/10 text-[#d4a853]" : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"}`}
+                >
+                  All projects
+                </button>
+                {projects.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setProjectFilter(projectFilter === p.id ? null : p.id)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${projectFilter === p.id ? "border-[#d4a853]/50 bg-[#d4a853]/10 text-[#d4a853]" : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"}`}
+                  >
+                    {p.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {sheets.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 py-20 text-center px-6">
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-card">
@@ -184,6 +246,13 @@ export default function CallSheetsPage() {
             <p className="mt-1.5 text-xs text-muted-foreground max-w-xs leading-relaxed">
               Open any project and click the Call Sheet button to build your first one. It auto-saves and shows up here.
             </p>
+          </div>
+        )}
+
+        {sheets.length > 0 && filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 py-16 text-center px-6">
+            <p className="text-sm font-semibold text-foreground">No results</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">Try a different search or clear the project filter.</p>
           </div>
         )}
 
