@@ -149,37 +149,46 @@ export async function POST(
     .eq("id", revision_id)
     .eq("status", "in_review");
 
-  // Notify the project owner of the comment (fire-and-forget)
+  // In-app notification only — no email per comment (that would flood the
+  // owner's inbox on a normal review pass). Comments group into ONE unread
+  // notification per revision instead of one row each; the owner is emailed
+  // once the client submits a verdict (Approve/Request Changes bundles all
+  // pending comments into that email) or via the daily digest safety net for
+  // stragglers who never submit one.
   const { data: proj } = await supabase
     .from("projects")
     .select("created_by, title")
     .eq("id", tokenRow.project_id)
     .single();
   if (proj?.created_by) {
-    await supabase.from("notifications").insert({
-      user_id: proj.created_by,
-      type: "comment_added",
-      title: `${tokenRow.client_name} commented on "${revision?.title ?? "revision"}"`,
-      description: content.trim().slice(0, 120),
-      href: `/revisions?project=${tokenRow.project_id}`,
-    }).then(() => {});
-  }
+    const href = `/revisions?project=${tokenRow.project_id}&revision=${revision_id}`;
+    const { data: existing } = await supabase
+      .from("notifications")
+      .select("id, title")
+      .eq("user_id", proj.created_by)
+      .eq("type", "comment_added")
+      .eq("href", href)
+      .eq("read", false)
+      .maybeSingle();
 
-  // Email the owner too, so comments aren't missed when they're out of the app.
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com";
-  fetch(`${siteUrl}/api/notify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      event: "client_commented",
-      clientName: tokenRow.client_name,
-      clientEmail: "",
-      projectTitle: proj?.title ?? "your project",
-      revisionTitle: revision?.title ?? "Revision",
-      feedback: content.trim(),
-      portalUrl: `${siteUrl}/review/${token}`,
-    }),
-  }).catch(() => {});
+    if (existing) {
+      const countMatch = existing.title.match(/left (\d+) comments?/);
+      const nextCount = (countMatch ? parseInt(countMatch[1]) : 1) + 1;
+      await supabase.from("notifications").update({
+        title: `${tokenRow.client_name} left ${nextCount} comments on "${revision?.title ?? "revision"}"`,
+        description: content.trim().slice(0, 120),
+        created_at: new Date().toISOString(), // bump to top of the feed
+      }).eq("id", existing.id).then(() => {});
+    } else {
+      await supabase.from("notifications").insert({
+        user_id: proj.created_by,
+        type: "comment_added",
+        title: `${tokenRow.client_name} commented on "${revision?.title ?? "revision"}"`,
+        description: content.trim().slice(0, 120),
+        href,
+      }).then(() => {});
+    }
+  }
 
   return NextResponse.json({ comment }, { status: 201 });
 }
@@ -259,13 +268,24 @@ export async function PATCH(
     return NextResponse.json({ error: "Failed to update revision" }, { status: 500 });
   }
 
-  // Create in-app notification for the project owner
+  // Create in-app notification for the project owner. This is the definitive
+  // "here's their verdict" card — supersede any grouped "left N comments" card
+  // for this revision by marking it read so it doesn't linger stale.
   const notifTitle = action === "approve"
     ? `${tokenRow.client_name} approved "${revision.title}"`
     : `${tokenRow.client_name} requested changes on "${revision.title}"`;
   const notifDescription = action === "approve"
     ? `Ready to mark as Final and deliver.`
     : feedback?.slice(0, 120) ?? "Check the review hub for details.";
+
+  const commentHref = `/revisions?project=${project.id}&revision=${revision_id}`;
+  await supabase.from("notifications")
+    .update({ read: true })
+    .eq("user_id", project.created_by)
+    .eq("type", "comment_added")
+    .eq("href", commentHref)
+    .eq("read", false)
+    .then(() => {});
 
   await supabase.from("notifications").insert({
     user_id: project.created_by,
@@ -274,6 +294,23 @@ export async function PATCH(
     description: notifDescription,
     href: `/revisions?project=${project.id}`,
   }).then(() => {});
+
+  // Bundle any comments left during this review session that haven't been
+  // emailed yet, so the owner gets full context in ONE email instead of one
+  // per comment plus this one.
+  const { data: pendingComments } = await supabase
+    .from("revision_comments")
+    .select("id, content, timestamp_seconds")
+    .eq("revision_id", revision_id)
+    .is("notified_at", null)
+    .order("created_at", { ascending: true });
+
+  if (pendingComments && pendingComments.length > 0) {
+    await supabase.from("revision_comments")
+      .update({ notified_at: new Date().toISOString() })
+      .in("id", pendingComments.map((c) => c.id))
+      .then(() => {});
+  }
 
   // Try to get owner email from profiles for email notification
   const { data: ownerProfile } = await supabase
@@ -300,6 +337,7 @@ export async function PATCH(
         versionNumber: revision.version_number,
         portalUrl: reviewUrl,
         feedback: feedback ?? "",
+        comments: (pendingComments ?? []).map((c) => ({ content: c.content, timestamp_seconds: c.timestamp_seconds })),
       }),
     }).catch((err) => console.error("[review/PATCH] notify email failed:", err));
   }

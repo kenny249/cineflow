@@ -11,8 +11,8 @@ import {
   emailStageUpdate,
   emailOwnerClientApproved,
   emailOwnerClientRequestedChanges,
-  emailOwnerClientCommented,
   emailDeployConfirmation,
+  type PendingComment,
 } from "@/lib/email-templates";
 
 const resend = process.env.RESEND_API_KEY
@@ -30,7 +30,6 @@ export type NotifyEvent =
   | "stage_update"
   | "client_approved"
   | "client_requested_changes"
-  | "client_commented"
   | "deploy_confirmed";
 
 export interface NotifyPayload {
@@ -49,6 +48,7 @@ export interface NotifyPayload {
   // Owner notification extras
   ownerName?: string;
   feedback?: string;
+  comments?: PendingComment[];
 }
 
 export async function POST(req: NextRequest) {
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const isOwnerEvent = body.event === "client_approved" || body.event === "client_requested_changes" || body.event === "client_commented";
+  const isOwnerEvent = body.event === "client_approved" || body.event === "client_requested_changes";
   if (!user && !isOwnerEvent) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
     stageDescription,
     ownerName,
     feedback,
+    comments,
   } = body;
 
   const recipient = to ?? clientEmail;
@@ -179,6 +180,7 @@ export async function POST(req: NextRequest) {
         revisionTitle: revisionTitle ?? "Revision",
         clientName,
         reviewUrl: portalUrl,
+        comments: comments ?? [],
       });
       break;
     case "client_requested_changes":
@@ -188,15 +190,7 @@ export async function POST(req: NextRequest) {
         clientName,
         feedback: feedback ?? "(no details provided)",
         reviewUrl: portalUrl,
-      });
-      break;
-    case "client_commented":
-      template = emailOwnerClientCommented({
-        projectTitle,
-        revisionTitle: revisionTitle ?? "Revision",
-        clientName,
-        feedback: feedback ?? "(no details provided)",
-        reviewUrl: portalUrl,
+        comments: comments ?? [],
       });
       break;
     case "deploy_confirmed":

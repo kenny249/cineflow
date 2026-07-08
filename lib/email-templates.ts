@@ -66,6 +66,42 @@ function meta(label: string, value: string): string {
   </tr>`;
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function fmtTimestamp(seconds?: number | null): string {
+  if (seconds == null) return "";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+export interface PendingComment {
+  content: string;
+  timestamp_seconds?: number | null;
+}
+
+// Renders a bundled list of the client's timestamped comments — used to give
+// full context in one email instead of one email per comment.
+function commentsListHtml(comments: PendingComment[]): string {
+  if (comments.length === 0) return "";
+  const rows = comments.map((c) => {
+    const ts = fmtTimestamp(c.timestamp_seconds);
+    return `<div style="padding:8px 0;border-bottom:1px solid #1c1c1c;">
+      ${ts ? `<span style="display:inline-block;min-width:36px;font-family:monospace;font-size:11px;font-weight:700;color:#d4a853;">${ts}</span>` : ""}
+      <span style="font-size:13px;line-height:1.6;color:#cccccc;">${escapeHtml(c.content)}</span>
+    </div>`;
+  }).join("");
+  return `
+    ${divider()}
+    <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#555555;text-transform:uppercase;letter-spacing:0.06em;">Comments left along the way (${comments.length}):</p>
+    <div style="background:#161616;border-radius:8px;padding:4px 14px;margin:0;">
+      ${rows}
+    </div>
+  `;
+}
+
 // ─── Template: Portal is live ──────────────────────────────────────────────────
 export function emailPortalLive({
   clientName,
@@ -199,16 +235,19 @@ export function emailOwnerClientApproved({
   revisionTitle,
   clientName,
   reviewUrl,
+  comments = [],
 }: {
   projectTitle: string;
   revisionTitle: string;
   clientName: string;
   reviewUrl: string;
+  comments?: PendingComment[];
 }): { subject: string; html: string } {
   const subject = `${clientName} approved "${revisionTitle}" — ${projectTitle}`;
   const body = `
     ${h1("Client approved a cut.")}
     <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;"><strong style="color:#f0f0f0;">${clientName}</strong> has approved <strong style="color:#f0f0f0;">${revisionTitle}</strong> for <strong style="color:#f0f0f0;">${projectTitle}</strong>. You can now prepare the final delivery.</p>
+    ${commentsListHtml(comments)}
     ${divider()}
     <table cellpadding="0" cellspacing="0" width="100%">
       ${meta("Project", projectTitle)}
@@ -404,28 +443,27 @@ export function emailDeployConfirmation({
   };
 }
 
-// ─── Template: Owner — client requested changes ───────────────────────────────
-export function emailOwnerClientCommented({
+// ─── Template: Owner — daily digest of comments never formally submitted ──────
+// Sent by the cron safety net for comments left on a revision that the client
+// never followed up on with Approve/Request Changes.
+export function emailOwnerPendingComments({
   projectTitle,
   revisionTitle,
   clientName,
-  feedback,
+  comments,
   reviewUrl,
 }: {
   projectTitle: string;
   revisionTitle: string;
   clientName: string;
-  feedback: string;
+  comments: PendingComment[];
   reviewUrl: string;
 }): { subject: string; html: string } {
-  const subject = `${clientName} commented on ${projectTitle}`;
+  const subject = `${clientName} left ${comments.length} comment${comments.length !== 1 ? "s" : ""} on ${projectTitle}`;
   const body = `
-    ${h1("New client comment.")}
-    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;"><strong style="color:#f0f0f0;">${clientName}</strong> left a comment on <strong style="color:#f0f0f0;">${revisionTitle}</strong> in <strong style="color:#f0f0f0;">${projectTitle}</strong>.</p>
-    ${divider()}
-    <div style="background:#161616;border-left:3px solid #60a5fa;border-radius:0 8px 8px 0;padding:14px 16px;margin:0;">
-      <p style="margin:0;font-size:14px;line-height:1.7;color:#cccccc;white-space:pre-wrap;">${feedback.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
-    </div>
+    ${h1("Client feedback waiting for you.")}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;"><strong style="color:#f0f0f0;">${clientName}</strong> left notes on <strong style="color:#f0f0f0;">${revisionTitle}</strong> in <strong style="color:#f0f0f0;">${projectTitle}</strong> but hasn't formally submitted a review yet.</p>
+    ${commentsListHtml(comments)}
     ${btn("Open Review hub", reviewUrl)}
   `;
   return { subject, html: base(subject, body) };
@@ -437,12 +475,14 @@ export function emailOwnerClientRequestedChanges({
   clientName,
   feedback,
   reviewUrl,
+  comments = [],
 }: {
   projectTitle: string;
   revisionTitle: string;
   clientName: string;
   feedback: string;
   reviewUrl: string;
+  comments?: PendingComment[];
 }): { subject: string; html: string } {
   const subject = `${clientName} requested changes on ${projectTitle}`;
   const body = `
@@ -453,6 +493,7 @@ export function emailOwnerClientRequestedChanges({
     <div style="background:#161616;border-left:3px solid #d4a853;border-radius:0 8px 8px 0;padding:14px 16px;margin:0;">
       <p style="margin:0;font-size:14px;line-height:1.7;color:#cccccc;white-space:pre-wrap;">${feedback.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
     </div>
+    ${commentsListHtml(comments)}
     ${divider()}
     <p style="margin:0;font-size:13px;color:#666666;">Address their notes and upload a new version when ready.</p>
     ${btn("Open Review hub", reviewUrl)}

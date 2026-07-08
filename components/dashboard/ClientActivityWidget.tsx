@@ -25,7 +25,6 @@ interface ClientEvent {
 
 const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   comment_added:     { icon: MessageSquare,  color: "text-blue-400",    bg: "bg-blue-400/10" },
-  client_commented:  { icon: MessageSquare,  color: "text-blue-400",    bg: "bg-blue-400/10" },
   revision_approved: { icon: CheckCheck,     color: "text-purple-400",  bg: "bg-purple-400/10" },
   changes_requested: { icon: RefreshCw,      color: "text-amber-400",   bg: "bg-amber-400/10" },
   revision_uploaded: { icon: RefreshCw,      color: "text-amber-400",   bg: "bg-amber-400/10" },
@@ -35,7 +34,6 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
 
 const CLIENT_EVENT_TYPES = [
   "comment_added",
-  "client_commented",
   "revision_approved",
   "changes_requested",
   "revision_uploaded",
