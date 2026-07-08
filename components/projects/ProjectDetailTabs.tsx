@@ -857,7 +857,27 @@ export default function ProjectDetailTabs({
 
   // ── Shot list sub-mode (shots / storyboard) ──
   const [shotListSubMode, setShotListSubMode] = useState<"shots" | "storyboard">("shots");
+  const [generatingFromStoryboard, setGeneratingFromStoryboard] = useState(false);
   const [showShootDays, setShowShootDays] = useState(false);
+
+  // ── Project status strip (script + call sheet checks) ──
+  const [hasScript, setHasScript] = useState(false);
+  const [hasCallSheet, setHasCallSheet] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    import("@/lib/supabase/client").then(({ createClient }) => {
+      const supabase = createClient();
+      Promise.all([
+        supabase.from("project_files").select("id", { count: "exact", head: true }).eq("project_id", project.id).eq("tab", "scripts"),
+        supabase.from("call_sheets").select("id", { count: "exact", head: true }).eq("project_id", project.id),
+      ]).then(([filesRes, sheetsRes]) => {
+        if (cancelled) return;
+        setHasScript((filesRes.count ?? 0) > 0);
+        setHasCallSheet((sheetsRes.count ?? 0) > 0);
+      }).catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [project.id]);
   const initialSheetParam = searchParams.get("sheet");
   const [callSheetOpen, setCallSheetOpen] = useState(!!initialSheetParam);
   const [callSheetInitialId, setCallSheetInitialId] = useState<string | undefined>(
@@ -936,6 +956,44 @@ export default function ProjectDetailTabs({
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const handleGenerateShotListFromStoryboard = async () => {
+    if (storyboardFrames.length === 0 || generatingFromStoryboard) return;
+    setGeneratingFromStoryboard(true);
+    try {
+      const res = await fetch("/api/ai/flow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "storyboard-to-shotlist", frames: storyboardFrames }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      let activeList = shotList;
+      const isFakeId = !activeList?.id || activeList.id.startsWith("sl_");
+      if (!activeList || isFakeId) {
+        const created = await createShotList({ project_id: project.id, title: "Shot List", description: "Generated from storyboard" });
+        activeList = { ...created, items: [] };
+        setShotList(activeList);
+      }
+
+      const existingCount = activeList.items?.length ?? 0;
+      const newItems: ShotListItem[] = [];
+      for (let i = 0; i < data.shots.length; i++) {
+        const shot = { ...data.shots[i], shot_list_id: activeList.id, shot_number: existingCount + i + 1 };
+        const created = await createShotListItem(shot);
+        newItems.push(created);
+      }
+
+      setShotList((prev) => prev ? { ...prev, items: [...(prev.items ?? []), ...newItems] } : prev);
+      setShotListSubMode("shots");
+      toast.success(`${newItems.length} shots generated from storyboard`);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "Failed to generate shot list");
+    } finally {
+      setGeneratingFromStoryboard(false);
+    }
   };
 
   const handleAddShot = async () => {
@@ -1836,6 +1894,45 @@ export default function ProjectDetailTabs({
 
           <div ref={tabScrollRef} className={`flex-1 min-h-0 custom-scrollbar ${activeTab === "people" ? "overflow-hidden" : "overflow-y-auto"}`}>
             <TabsContent value="overview" className="m-0 p-5 sm:p-6">
+              {/* ── Project Status Strip ── */}
+              {(() => {
+                const statusItems = [
+                  { label: "Script", done: hasScript, onClick: () => { setActiveTab("scripts"); } },
+                  { label: "Storyboard", done: storyboardFrames.length > 0, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("storyboard"); } },
+                  { label: "Shot List", done: (shotList?.items?.length ?? 0) > 0, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("shots"); } },
+                  { label: "Quote", done: !!hasQuote, onClick: () => setActiveTab("finance") },
+                  { label: "Call Sheet", done: hasCallSheet, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("shots"); setShowShootDays(true); } },
+                ];
+                const doneCount = statusItems.filter((s) => s.done).length;
+                return (
+                  <section className="mb-5">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-display text-xs font-semibold uppercase tracking-wide text-muted-foreground">Production Status</h3>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">{doneCount}/{statusItems.length}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {statusItems.map(({ label, done, onClick }) => (
+                        <button
+                          key={label}
+                          onClick={onClick}
+                          className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all hover:scale-[1.02] ${
+                            done
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                              : "border-border bg-card text-muted-foreground hover:border-[#d4a853]/30 hover:text-foreground"
+                          }`}
+                        >
+                          {done
+                            ? <CheckCircle2 className="h-3 w-3 shrink-0" />
+                            : <Circle className="h-3 w-3 shrink-0" />
+                          }
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })()}
+
               <div className="grid gap-5 xl:grid-cols-[1fr_280px]">
                 <div className="space-y-5">
                   {description && (
@@ -2418,7 +2515,24 @@ export default function ProjectDetailTabs({
                 <div>
                   <div className="mb-4 flex items-center justify-between">
                     <h3 className="font-display text-sm font-semibold text-foreground">Storyboard</h3>
-                    <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowFrameDialog(true)}>+ Add Frame</Button>
+                    <div className="flex items-center gap-2">
+                      {storyboardFrames.length > 0 && canEdit && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 text-xs"
+                          onClick={handleGenerateShotListFromStoryboard}
+                          disabled={generatingFromStoryboard}
+                        >
+                          {generatingFromStoryboard ? (
+                            <><span className="h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" /> Generating…</>
+                          ) : (
+                            <><ListChecks className="h-3.5 w-3.5" /> → Shot List</>
+                          )}
+                        </Button>
+                      )}
+                      <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowFrameDialog(true)}>+ Add Frame</Button>
+                    </div>
                   </div>
                   {storyboardFrames.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16">

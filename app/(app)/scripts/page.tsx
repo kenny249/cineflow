@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ScrollText, Search, Film, FileText, Download, Eye, X, FolderKanban, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ScrollText, Search, Film, FileText, Download, Eye, X, FolderKanban, Sparkles, Plus, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getProjects } from "@/lib/supabase/queries";
 import { formatFileSize } from "@/lib/utils";
@@ -172,11 +173,43 @@ function isBreakdownSupported(mime?: string, name?: string): boolean {
   return !!(mime?.includes("text") || ["txt", "fountain", "fdx"].includes(ext ?? ""));
 }
 
+function NewScriptModal({ projects, onClose }: { projects: Project[]; onClose: () => void }) {
+  const router = useRouter();
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl border border-border bg-background shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">Choose a project</p>
+          <button onClick={onClose} className="rounded-lg p-1 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="max-h-72 overflow-y-auto py-1.5">
+          {projects.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => { router.push(`/projects/${p.id}?tab=scripts`); onClose(); }}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
+            >
+              <FolderKanban className="h-4 w-4 shrink-0 text-[#d4a853]" />
+              <span className="flex-1 truncate">{p.title}</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
+            </button>
+          ))}
+        </div>
+        <div className="border-t border-border px-4 py-3">
+          <p className="text-xs text-muted-foreground">Scripts are written inside a project. Select one to open the script editor.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ScriptsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [files, setFiles] = useState<ScriptFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [showNewScript, setShowNewScript] = useState(false);
   const [preview, setPreview] = useState<ScriptFile | null>(null);
   const [breakdown, setBreakdown] = useState<ScriptFile | null>(null);
 
@@ -214,13 +247,28 @@ export default function ScriptsPage() {
     load();
   }, []);
 
-  const filtered = files.filter((f) => {
-    const q = search.toLowerCase();
-    return (
-      f.name.toLowerCase().includes(q) ||
-      (f.projectTitle ?? "").toLowerCase().includes(q)
-    );
-  });
+  const uniqueProjects = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const f of files) {
+      if (f.projectId && f.projectTitle && !seen.has(f.projectId)) {
+        seen.set(f.projectId, f.projectTitle);
+      }
+    }
+    return Array.from(seen.entries()).map(([id, title]) => ({ id, title }));
+  }, [files]);
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return files.filter((f) => {
+      if (projectFilter && f.projectId !== projectFilter) return false;
+      if (q) {
+        const matchName = f.name.toLowerCase().includes(q);
+        const matchProject = (f.projectTitle ?? "").toLowerCase().includes(q);
+        if (!matchName && !matchProject) return false;
+      }
+      return true;
+    });
+  }, [files, search, projectFilter]);
 
   return (
     <>
@@ -234,11 +282,19 @@ export default function ScriptsPage() {
               <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground">{files.length}</span>
             )}
           </div>
+          {projects.length > 0 && (
+            <button
+              onClick={() => setShowNewScript(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" /> New Script
+            </button>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {/* Search */}
-          <div className="border-b border-border px-5 py-3">
+          {/* Search + project filter */}
+          <div className="border-b border-border px-5 py-3 space-y-2.5">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
               <input
@@ -246,9 +302,33 @@ export default function ScriptsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search scripts or projects…"
-                className="w-full rounded-lg border border-border bg-muted/30 py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/40 focus:outline-none"
+                className="w-full rounded-lg border border-border bg-muted/30 py-2 pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground focus:border-[#d4a853]/40 focus:outline-none"
               />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
+            {uniqueProjects.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setProjectFilter(null)}
+                  className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${projectFilter === null ? "border-[#d4a853]/40 bg-[#d4a853]/10 text-[#d4a853]" : "border-border text-muted-foreground hover:text-foreground"}`}
+                >
+                  All
+                </button>
+                {uniqueProjects.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setProjectFilter(projectFilter === p.id ? null : p.id)}
+                    className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${projectFilter === p.id ? "border-[#d4a853]/40 bg-[#d4a853]/10 text-[#d4a853]" : "border-border text-muted-foreground hover:text-foreground"}`}
+                  >
+                    {p.title}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* File list */}
@@ -281,7 +361,7 @@ export default function ScriptsPage() {
             {!loading && filtered.length === 0 && files.length > 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-center gap-3">
                 <Film className="h-8 w-8 text-muted-foreground/30" />
-                <p className="text-xs text-muted-foreground">No results for &ldquo;{search}&rdquo;</p>
+                <p className="text-xs text-muted-foreground">No results — try clearing the search or project filter.</p>
               </div>
             )}
 
@@ -370,6 +450,7 @@ export default function ScriptsPage() {
         </div>
       </div>
 
+      {showNewScript && <NewScriptModal projects={projects} onClose={() => setShowNewScript(false)} />}
       {preview && <PreviewModal file={preview} onClose={() => setPreview(null)} />}
       {breakdown && (
         <BreakdownPanel
