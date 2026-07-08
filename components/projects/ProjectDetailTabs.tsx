@@ -228,6 +228,14 @@ export default function ProjectDetailTabs({
   const isClient = userRole === "client";
   const canEdit = !isClient;
   const [members, setMembers] = useState<ProjectMember[]>(initialMembers);
+  const [collaborators, setCollaborators] = useState<import("@/types").ProjectCollaborator[]>([]);
+
+  useEffect(() => {
+    fetch(`/api/projects/${project.id}/collaborators`)
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setCollaborators(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [project.id]);
   const isStaleUrl = (url?: string | null) =>
     !url || url.includes("unsplash.com") || url.includes("picsum.photos") || url.startsWith("data:");
   const [coverUrl, setCoverUrl] = useState(
@@ -2172,12 +2180,30 @@ export default function ProjectDetailTabs({
                   <section>
                     <h3 className="mb-2 font-display text-sm font-semibold text-foreground">Team</h3>
                     <div className="rounded-xl border border-border bg-card p-3 space-y-2">
+                      {collaborators.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground/50 px-1">No collaborators yet</p>
+                      ) : (
+                        collaborators.map((c) => (
+                          <div key={c.id} className="flex items-center gap-2.5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/5 text-[10px] font-semibold text-white/60">
+                              {(c.name || c.email).charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-foreground truncate">{c.name || c.email}</p>
+                              <p className="text-[10px] text-muted-foreground capitalize">{c.role ?? "Collaborator"}</p>
+                            </div>
+                            {c.status === "pending" && (
+                              <span className="shrink-0 rounded-full bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-semibold text-amber-400">Pending</span>
+                            )}
+                          </div>
+                        ))
+                      )}
                       <button
                         onClick={() => setActiveTab("people")}
                         className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                       >
                         <User className="h-3 w-3" />
-                        Manage team in People tab
+                        {collaborators.length > 0 ? "Manage team" : "Invite collaborators"}
                       </button>
                     </div>
                   </section>
