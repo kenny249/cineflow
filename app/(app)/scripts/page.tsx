@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ScrollText, Search, Film, FileText, Download, Eye, X, FolderKanban, Sparkles, Plus, ChevronRight } from "lucide-react";
+import { ScrollText, Search, Film, FileText, Download, Eye, X, FolderKanban, Sparkles, Plus, ChevronRight, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -186,7 +186,7 @@ function NewScriptModal({ projects, onClose }: { projects: Project[]; onClose: (
           {projects.map((p) => (
             <button
               key={p.id}
-              onClick={() => { router.push(`/projects/${p.id}?tab=scripts`); onClose(); }}
+              onClick={() => { router.push(`/scripts/write/${p.id}`); onClose(); }}
               className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground hover:bg-accent transition-colors"
             >
               <FolderKanban className="h-4 w-4 shrink-0 text-[#d4a853]" />
@@ -196,7 +196,7 @@ function NewScriptModal({ projects, onClose }: { projects: Project[]; onClose: (
           ))}
         </div>
         <div className="border-t border-border px-4 py-3">
-          <p className="text-xs text-muted-foreground">Scripts are written inside a project. Select one to open the script editor.</p>
+          <p className="text-xs text-muted-foreground">Opens the full-screen script editor linked to that project.</p>
         </div>
       </div>
     </div>
@@ -228,7 +228,6 @@ export default function ScriptsPage() {
           .select("*")
           .in("project_id", projectIds)
           .eq("tab", "scripts")
-          .neq("name", "script.fountain")
           .order("created_at", { ascending: false });
 
         const projectMap = Object.fromEntries(projs.map((p) => [p.id, p]));
@@ -344,16 +343,18 @@ export default function ScriptsPage() {
                 <ScrollText className="h-10 w-10 text-muted-foreground/20" />
                 <div>
                   <p className="font-display font-semibold text-foreground">No scripts yet</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Upload scripts from the Scripts tab inside any project.</p>
+                  <p className="mt-1 text-xs text-muted-foreground max-w-xs leading-relaxed">
+                    Click "New Script" to open the full-screen editor, or upload script files from inside a project.
+                  </p>
                 </div>
                 {projects.length > 0 && (
-                  <Link
-                    href={`/projects/${projects[0].id}?tab=scripts`}
+                  <button
+                    onClick={() => setShowNewScript(true)}
                     className="mt-2 flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
                   >
-                    <FolderKanban className="h-3.5 w-3.5" />
-                    Go to {projects[0].title}
-                  </Link>
+                    <Plus className="h-3.5 w-3.5" />
+                    New Script
+                  </button>
                 )}
               </div>
             )}
@@ -365,87 +366,117 @@ export default function ScriptsPage() {
               </div>
             )}
 
-            {filtered.map((file) => (
-              <div
-                key={file.id}
-                className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-[#d4a853]/30 hover:bg-card"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/50 text-muted-foreground">
-                  <FileText className="h-4 w-4" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
-                    <FileTypeTag mime={file.mime_type} name={file.name} />
+            {filtered.map((file) => {
+              const isWrittenScript = file.name === "script.fountain";
+              return (
+                <div
+                  key={file.id}
+                  className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-all hover:border-[#d4a853]/30 hover:bg-card"
+                >
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isWrittenScript ? "bg-[#d4a853]/10 text-[#d4a853]" : "bg-muted/50 text-muted-foreground"}`}>
+                    {isWrittenScript ? <ScrollText className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                    {file.projectTitle && (
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {isWrittenScript ? "Written Script" : file.name}
+                      </p>
+                      {isWrittenScript ? (
+                        <span className="rounded-full bg-[#d4a853]/10 px-2 py-0.5 text-[10px] font-semibold text-[#d4a853]">Fountain</span>
+                      ) : (
+                        <FileTypeTag mime={file.mime_type} name={file.name} />
+                      )}
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                      {file.projectTitle && (
+                        <>
+                          <FolderKanban className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{file.projectTitle}</span>
+                          <span className="text-muted-foreground/30">·</span>
+                        </>
+                      )}
+                      {file.size ? <span>{formatFileSize(file.size)}</span> : null}
+                      {file.created_at && (
+                        <span>{new Date(file.created_at).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
+                    {isWrittenScript && file.projectId ? (
                       <>
-                        <FolderKanban className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{file.projectTitle}</span>
-                        <span className="text-muted-foreground/30">·</span>
+                        <Link
+                          href={`/scripts/write/${file.projectId}`}
+                          className="flex items-center gap-1 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/8 px-2.5 py-1.5 text-xs font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-colors"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => setBreakdown(file)}
+                          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Breakdown
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {isBreakdownSupported(file.mime_type, file.name) && (
+                          <button
+                            onClick={() => setBreakdown(file)}
+                            className="flex items-center gap-1 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/8 px-2.5 py-1.5 text-xs font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-colors"
+                          >
+                            <Sparkles className="h-3.5 w-3.5" />
+                            AI Breakdown
+                          </button>
+                        )}
+                        {(canPreview(file.mime_type, file.name) || isTextFile(file.mime_type, file.name)) && (
+                          <button
+                            onClick={() => setPreview(file)}
+                            className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            View
+                          </button>
+                        )}
+                        <button
+                          onClick={async () => {
+                            if (!file.public_url) return;
+                            try {
+                              const res = await fetch(file.public_url);
+                              const blob = await res.blob();
+                              const objectUrl = URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = objectUrl;
+                              a.download = file.name;
+                              a.click();
+                              URL.revokeObjectURL(objectUrl);
+                            } catch {
+                              window.open(file.public_url, "_blank");
+                            }
+                          }}
+                          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Download
+                        </button>
+                        {file.projectId && (
+                          <Link
+                            href={`/projects/${file.projectId}?tab=scripts`}
+                            className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                          >
+                            <FolderKanban className="h-3.5 w-3.5" />
+                            Project
+                          </Link>
+                        )}
                       </>
                     )}
-                    {file.size ? <span>{formatFileSize(file.size)}</span> : null}
-                    {file.created_at && (
-                      <span>{new Date(file.created_at).toLocaleDateString()}</span>
-                    )}
                   </div>
                 </div>
-
-                <div className="flex shrink-0 items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity">
-                  {isBreakdownSupported(file.mime_type, file.name) && (
-                    <button
-                      onClick={() => setBreakdown(file)}
-                      className="flex items-center gap-1 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/8 px-2.5 py-1.5 text-xs font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-colors"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      AI Breakdown
-                    </button>
-                  )}
-                  {(canPreview(file.mime_type, file.name) || isTextFile(file.mime_type, file.name)) && (
-                    <button
-                      onClick={() => setPreview(file)}
-                      className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      View
-                    </button>
-                  )}
-                  <button
-                    onClick={async () => {
-                      if (!file.public_url) return;
-                      try {
-                        const res = await fetch(file.public_url);
-                        const blob = await res.blob();
-                        const objectUrl = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = objectUrl;
-                        a.download = file.name;
-                        a.click();
-                        URL.revokeObjectURL(objectUrl);
-                      } catch {
-                        window.open(file.public_url, "_blank");
-                      }
-                    }}
-                    className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                  </button>
-                  {file.projectId && (
-                    <Link
-                      href={`/projects/${file.projectId}?tab=scripts`}
-                      className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                    >
-                      <FolderKanban className="h-3.5 w-3.5" />
-                      Project
-                    </Link>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

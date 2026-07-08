@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ScrollText, Upload, FileText, Save, Trash2, Files, Sparkles, Bot, Send, X, ListChecks, ImageIcon, Loader2, RotateCcw } from "lucide-react";
+import { ScrollText, Upload, FileText, Save, Trash2, Files, Sparkles, Bot, Send, X, ListChecks, ImageIcon, Loader2, RotateCcw, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getProjectFiles, createProjectFile, deleteProjectFile } from "@/lib/supabase/queries";
 import { FileUploadZone } from "./FileUploadZone";
@@ -527,6 +528,16 @@ export function ScriptsTab({ projectId, canEdit, projectTitle }: ScriptsTabProps
                 <span className="hidden sm:inline">AI Breakdown</span>
               </button>
             )}
+
+            {/* Open in full-screen editor */}
+            <Link
+              href={`/scripts/write/${projectId}`}
+              className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title="Open full-screen editor"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Full Editor
+            </Link>
 
             {/* AI Writer toggle */}
             <button
