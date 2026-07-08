@@ -699,10 +699,6 @@ export default function ProjectDetailTabs({
     }
   }
 
-  const [showMemberDialog, setShowMemberDialog] = useState(false);
-  const [newMemberName, setNewMemberName] = useState("");
-  const [newMemberRole, setNewMemberRole] = useState<ProjectMember["role"]>("Editor");
-  const [newMemberEmail, setNewMemberEmail] = useState("");
 
   const [showShotDialog, setShowShotDialog] = useState(false);
   const [newShotDescription, setNewShotDescription] = useState("");
@@ -932,36 +928,6 @@ export default function ProjectDetailTabs({
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const handleAddMember = () => {
-    if (!newMemberName.trim()) {
-      toast.error("Please provide a name for the new member.");
-      return;
-    }
-
-    const nextMember: ProjectMember = {
-      id: `mem_${Math.random().toString(36).slice(2)}`,
-      project_id: project.id,
-      user_id: `user_${Math.random().toString(36).slice(2)}`,
-      role: newMemberRole,
-      profile: {
-        id: `user_${Math.random().toString(36).slice(2)}`,
-        full_name: newMemberName.trim(),
-        email: newMemberEmail.trim() || `${newMemberName.trim().split(" ").join(".").toLowerCase()}@example.com`,
-        avatar_url: `https://source.unsplash.com/collection/888146/80x80?sig=${Math.floor(Math.random() * 1000)}`,
-        role: newMemberRole,
-        created_at: new Date().toISOString(),
-      },
-      joined_at: new Date().toISOString(),
-    };
-
-    setMembers((prev) => [nextMember, ...prev]);
-    setShowMemberDialog(false);
-    setNewMemberName("");
-    setNewMemberEmail("");
-    setNewMemberRole("Editor");
-    toast.success("Member added to the project.");
   };
 
   const handleAddShot = async () => {
@@ -1683,9 +1649,6 @@ export default function ProjectDetailTabs({
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-4 shrink-0">
-              <AvatarGroup members={members.map((m) => m.profile)} max={4} size="md" />
-            </div>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-4 sm:gap-6">
@@ -2209,24 +2172,12 @@ export default function ProjectDetailTabs({
                   <section>
                     <h3 className="mb-2 font-display text-sm font-semibold text-foreground">Team</h3>
                     <div className="rounded-xl border border-border bg-card p-3 space-y-2">
-                      {members.map((member) => (
-                        <div key={member.id} className="flex items-center gap-2.5">
-                          <Avatar className="h-7 w-7">
-                            <AvatarImage src={member.profile.avatar_url} alt={member.profile.full_name} />
-                            <AvatarFallback className="text-[10px]">{getInitials(member.profile.full_name ?? member.profile.email ?? "")}</AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium text-foreground truncate">{member.profile.full_name}</p>
-                            <p className="text-[10px] text-muted-foreground capitalize">{member.role}</p>
-                          </div>
-                        </div>
-                      ))}
                       <button
-                        onClick={() => setShowMemberDialog(true)}
+                        onClick={() => setActiveTab("people")}
                         className="mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                       >
                         <User className="h-3 w-3" />
-                        Add member
+                        Manage team in People tab
                       </button>
                     </div>
                   </section>
@@ -3352,37 +3303,6 @@ export default function ProjectDetailTabs({
               <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowEditDialog(false)}>Cancel</Button>
               <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleSaveProject}>Save</Button>
             </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={showMemberDialog} onOpenChange={setShowMemberDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add member</DialogTitle>
-            <DialogDescription>Invite a team member or client to collaborate on this project.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="member-name">Name</Label>
-              <Input id="member-name" value={newMemberName} onChange={(e) => setNewMemberName(e.target.value)} placeholder="Name" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="member-email">Email</Label>
-              <Input id="member-email" value={newMemberEmail} onChange={(e) => setNewMemberEmail(e.target.value)} placeholder="Email" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="member-role">Role</Label>
-              <select id="member-role" value={newMemberRole} onChange={(e) => setNewMemberRole(e.target.value as ProjectMember["role"])} className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground">
-                {PROJECT_ROLES.map((role) => (
-                  <option key={role} value={role}>{role}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowMemberDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddMember}>Add member</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
