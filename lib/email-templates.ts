@@ -405,6 +405,32 @@ export function emailDeployConfirmation({
 }
 
 // ─── Template: Owner — client requested changes ───────────────────────────────
+export function emailOwnerClientCommented({
+  projectTitle,
+  revisionTitle,
+  clientName,
+  feedback,
+  reviewUrl,
+}: {
+  projectTitle: string;
+  revisionTitle: string;
+  clientName: string;
+  feedback: string;
+  reviewUrl: string;
+}): { subject: string; html: string } {
+  const subject = `${clientName} commented on ${projectTitle}`;
+  const body = `
+    ${h1("New client comment.")}
+    <p style="margin:12px 0 0;font-size:14px;line-height:1.6;color:#888888;"><strong style="color:#f0f0f0;">${clientName}</strong> left a comment on <strong style="color:#f0f0f0;">${revisionTitle}</strong> in <strong style="color:#f0f0f0;">${projectTitle}</strong>.</p>
+    ${divider()}
+    <div style="background:#161616;border-left:3px solid #60a5fa;border-radius:0 8px 8px 0;padding:14px 16px;margin:0;">
+      <p style="margin:0;font-size:14px;line-height:1.7;color:#cccccc;white-space:pre-wrap;">${feedback.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+    </div>
+    ${btn("Open Review hub", reviewUrl)}
+  `;
+  return { subject, html: base(subject, body) };
+}
+
 export function emailOwnerClientRequestedChanges({
   projectTitle,
   revisionTitle,

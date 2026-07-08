@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Search, ChevronDown, LogOut, User, Settings, Clapperboard, CalendarDays, Upload, CheckCheck, Film, Sun, Moon, DollarSign, FileSignature } from "lucide-react";
+import { Bell, Search, ChevronDown, LogOut, User, Settings, Clapperboard, CalendarDays, Upload, CheckCheck, Film, Sun, Moon, DollarSign, FileSignature, RefreshCw, MessageSquare } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +23,9 @@ import { formatDistanceToNow } from "date-fns";
 // Map notification type → icon + colors
 const NOTIF_ICON_MAP: Record<string, { Icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
   revision_uploaded:  { Icon: Upload,         color: "text-amber-400",  bg: "bg-amber-400/10" },
+  changes_requested:  { Icon: RefreshCw,      color: "text-amber-400",  bg: "bg-amber-400/10" },
   revision_approved:  { Icon: CheckCheck,     color: "text-purple-400", bg: "bg-purple-400/10" },
-  comment_added:      { Icon: Film,           color: "text-blue-400",   bg: "bg-blue-400/10" },
+  comment_added:      { Icon: MessageSquare,  color: "text-blue-400",   bg: "bg-blue-400/10" },
   status_changed:     { Icon: Clapperboard,   color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10" },
   quote_accepted:     { Icon: DollarSign,     color: "text-emerald-400",bg: "bg-emerald-400/10" },
   contract_signed:    { Icon: FileSignature,  color: "text-emerald-400",bg: "bg-emerald-400/10" },

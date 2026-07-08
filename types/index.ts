@@ -680,7 +680,9 @@ export interface ReviewToken {
   token: string;
   project_id: string;
   client_name: string;
-  client_email: string;
+  client_email: string;        // primary contact (kept in sync with client_emails[0])
+  client_emails?: string[];    // all recipients we notify
+  invited_emails?: string[];   // recipients who have actually been sent the invite
   is_active: boolean;
   last_viewed_at?: string;
   created_at: string;

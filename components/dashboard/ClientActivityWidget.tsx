@@ -7,9 +7,11 @@ import {
   Bell, DollarSign, FileSignature, RefreshCw,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { markNotificationRead } from "@/lib/supabase/queries";
+import { markNotificationRead, getRevisionsNeedingAttention } from "@/lib/supabase/queries";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+
+interface AttentionItem { id: string; title: string; project_id: string; project?: { id: string; title: string } }
 
 interface ClientEvent {
   id: string;
@@ -23,7 +25,9 @@ interface ClientEvent {
 
 const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
   comment_added:     { icon: MessageSquare,  color: "text-blue-400",    bg: "bg-blue-400/10" },
+  client_commented:  { icon: MessageSquare,  color: "text-blue-400",    bg: "bg-blue-400/10" },
   revision_approved: { icon: CheckCheck,     color: "text-purple-400",  bg: "bg-purple-400/10" },
+  changes_requested: { icon: RefreshCw,      color: "text-amber-400",   bg: "bg-amber-400/10" },
   revision_uploaded: { icon: RefreshCw,      color: "text-amber-400",   bg: "bg-amber-400/10" },
   quote_accepted:    { icon: DollarSign,     color: "text-emerald-400", bg: "bg-emerald-400/10" },
   contract_signed:   { icon: FileSignature,  color: "text-emerald-400", bg: "bg-emerald-400/10" },
@@ -31,7 +35,9 @@ const TYPE_CONFIG: Record<string, { icon: React.ElementType; color: string; bg: 
 
 const CLIENT_EVENT_TYPES = [
   "comment_added",
+  "client_commented",
   "revision_approved",
+  "changes_requested",
   "revision_uploaded",
   "quote_accepted",
   "contract_signed",
@@ -39,6 +45,7 @@ const CLIENT_EVENT_TYPES = [
 
 export function ClientActivityWidget() {
   const [events, setEvents] = useState<ClientEvent[]>([]);
+  const [needsAttention, setNeedsAttention] = useState<AttentionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -70,6 +77,9 @@ export function ClientActivityWidget() {
       }
     }
     void load();
+    getRevisionsNeedingAttention()
+      .then((revs) => setNeedsAttention(revs.map((r) => ({ id: r.id, title: r.title, project_id: r.project_id, project: r.project }))))
+      .catch(() => {});
 
     // Real-time: new client events appear instantly
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -124,7 +134,7 @@ export function ClientActivityWidget() {
     localStorage.setItem("cf-client-activity-collapsed", next ? "1" : "0");
   }
 
-  if (!loading && events.length === 0) return null;
+  if (!loading && events.length === 0 && needsAttention.length === 0) return null;
 
   return (
     <section>
@@ -147,7 +157,33 @@ export function ClientActivityWidget() {
         )} />
       </button>
 
-      {!collapsed && (
+      {/* Needs attention — cuts where a client requested changes */}
+      {!collapsed && needsAttention.length > 0 && (
+        <div className="mb-3 rounded-xl border border-amber-400/25 bg-amber-400/[0.04] overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-amber-400/15">
+            <RefreshCw className="h-3.5 w-3.5 text-amber-400" />
+            <p className="text-xs font-semibold text-amber-400">
+              Needs your attention · {needsAttention.length} cut{needsAttention.length !== 1 ? "s" : ""} awaiting a revision
+            </p>
+          </div>
+          {needsAttention.map((r) => (
+            <Link
+              key={r.id}
+              href={`/revisions?project=${r.project_id}`}
+              className="flex items-center gap-3 px-4 py-2.5 border-b border-amber-400/10 last:border-0 hover:bg-amber-400/[0.06] transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate">{r.title}</p>
+                {r.project?.title && <p className="text-[10px] text-muted-foreground truncate">{r.project.title}</p>}
+              </div>
+              <span className="shrink-0 text-[10px] font-medium text-amber-400">Upload revision</span>
+              <ArrowUpRight className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {!collapsed && events.length > 0 && (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-6">

@@ -165,6 +165,22 @@ export async function POST(
     }).then(() => {});
   }
 
+  // Email the owner too, so comments aren't missed when they're out of the app.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com";
+  fetch(`${siteUrl}/api/notify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event: "client_commented",
+      clientName: tokenRow.client_name,
+      clientEmail: "",
+      projectTitle: proj?.title ?? "your project",
+      revisionTitle: revision?.title ?? "Revision",
+      feedback: content.trim(),
+      portalUrl: `${siteUrl}/review/${token}`,
+    }),
+  }).catch(() => {});
+
   return NextResponse.json({ comment }, { status: 201 });
 }
 
@@ -253,7 +269,7 @@ export async function PATCH(
 
   await supabase.from("notifications").insert({
     user_id: project.created_by,
-    type: action === "approve" ? "revision_approved" : "revision_uploaded",
+    type: action === "approve" ? "revision_approved" : "changes_requested",
     title: notifTitle,
     description: notifDescription,
     href: `/revisions?project=${project.id}`,

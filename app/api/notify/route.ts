@@ -11,6 +11,7 @@ import {
   emailStageUpdate,
   emailOwnerClientApproved,
   emailOwnerClientRequestedChanges,
+  emailOwnerClientCommented,
   emailDeployConfirmation,
 } from "@/lib/email-templates";
 
@@ -29,6 +30,7 @@ export type NotifyEvent =
   | "stage_update"
   | "client_approved"
   | "client_requested_changes"
+  | "client_commented"
   | "deploy_confirmed";
 
 export interface NotifyPayload {
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const isOwnerEvent = body.event === "client_approved" || body.event === "client_requested_changes";
+  const isOwnerEvent = body.event === "client_approved" || body.event === "client_requested_changes" || body.event === "client_commented";
   if (!user && !isOwnerEvent) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -181,6 +183,15 @@ export async function POST(req: NextRequest) {
       break;
     case "client_requested_changes":
       template = emailOwnerClientRequestedChanges({
+        projectTitle,
+        revisionTitle: revisionTitle ?? "Revision",
+        clientName,
+        feedback: feedback ?? "(no details provided)",
+        reviewUrl: portalUrl,
+      });
+      break;
+    case "client_commented":
+      template = emailOwnerClientCommented({
         projectTitle,
         revisionTitle: revisionTitle ?? "Revision",
         clientName,

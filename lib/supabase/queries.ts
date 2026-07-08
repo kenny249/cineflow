@@ -976,9 +976,11 @@ export async function createReviewToken(payload: {
   client_name: string;
   client_email: string;
 }): Promise<ReviewToken> {
+  // The creator sends the invite immediately, so seed both lists from the email.
+  const emails = payload.client_email ? [payload.client_email] : [];
   const { data, error } = await db()
     .from('review_tokens')
-    .insert(payload)
+    .insert({ ...payload, client_emails: emails, invited_emails: emails })
     .select()
     .single();
   if (error) throw error;
@@ -1006,20 +1008,63 @@ export async function revokeReviewToken(id: string): Promise<void> {
   if (error) throw error;
 }
 
-// Edit the client name/email on an existing portal in place — access is by token,
-// not email, so this is non-destructive (same link keeps working).
+// Edit the client name / recipient list on an existing portal in place — access
+// is by token, not email, so this is non-destructive (same link keeps working).
 export async function updateReviewToken(
   id: string,
-  updates: { client_name?: string; client_email?: string }
+  updates: { client_name?: string; client_email?: string; client_emails?: string[]; invited_emails?: string[] }
 ): Promise<ReviewToken> {
+  const patch: Record<string, unknown> = { ...updates };
+  // Keep the single primary email in sync with the list for anything that reads it.
+  if (updates.client_emails) patch.client_email = updates.client_emails[0] ?? '';
   const { data, error } = await db()
     .from('review_tokens')
-    .update(updates)
+    .update(patch)
     .eq('id', id)
     .select()
     .single();
   if (error) throw error;
   return data as ReviewToken;
+}
+
+// Kill the current link and issue a fresh one for the same project/client. Used
+// as the "remove access" lever (whoever had the old link is locked out). Invite
+// tracking resets so the new link can be re-sent.
+export async function regenerateReviewToken(old: ReviewToken): Promise<ReviewToken> {
+  const client = db();
+  await client.from('review_tokens').update({ is_active: false }).eq('id', old.id);
+  const { data, error } = await client
+    .from('review_tokens')
+    .insert({
+      project_id: old.project_id,
+      client_name: old.client_name,
+      client_email: old.client_email,
+      client_emails: old.client_emails ?? (old.client_email ? [old.client_email] : []),
+      invited_emails: [],
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ReviewToken;
+}
+
+// Cuts where a client has requested changes and the team owes a new revision.
+// Scoped to the user's own (RLS-visible) projects.
+export async function getRevisionsNeedingAttention(): Promise<(Revision & { project?: Pick<Project, 'id' | 'title'> })[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data: projs } = await client.from('projects').select('id');
+  const ids = (projs ?? []).map((p) => p.id);
+  if (ids.length === 0) return [];
+  const { data, error } = await client
+    .from('revisions')
+    .select('*, project:projects(id, title)')
+    .in('project_id', ids)
+    .eq('status', 'revisions_requested')
+    .order('updated_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as (Revision & { project?: Pick<Project, 'id' | 'title'> })[];
 }
 
 // All active client portals across the current user's projects (for the Clients hub).
