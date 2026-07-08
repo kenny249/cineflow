@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // GET /api/review/[token]/deliverables
 // Returns the project_deliverables for a given review token.
-// No auth required — access is implicitly gated by possession of a valid active token.
+// Public, token-gated: runs with the service role but only reads rows scoped to
+// the validated token's project.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   // Validate the token first
   const { data: tokenRow, error: tokenError } = await supabase

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isRateLimited, getClientIp } from "@/lib/rate-limit";
+
+// This is a public, token-gated endpoint. It runs with the service role and
+// therefore MUST validate the token first and only ever touch rows scoped to
+// that token's project — never trust client-supplied ids beyond that scope.
 
 // GET  /api/review/[token]  → return portal data for the client page
 // POST /api/review/[token]  → submit a client comment on a revision
@@ -17,7 +21,7 @@ export async function GET(
   }
 
   const { token } = await params;
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data: tokenRow, error: tokenError } = await supabase
     .from("review_tokens")
@@ -83,7 +87,7 @@ export async function POST(
   }
 
   const { token } = await params;
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data: tokenRow, error: tokenError } = await supabase
     .from("review_tokens")
@@ -175,7 +179,7 @@ export async function PATCH(
   }
 
   const { token } = await params;
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   // Validate token
   const { data: tokenRow, error: tokenError } = await supabase

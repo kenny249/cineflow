@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import ReviewPortalClient from "./ReviewPortalClient";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,10 @@ export async function generateMetadata({
   const { token } = await params;
 
   try {
-    const supabase = await createClient();
+    // Token-gated public page: read via the service role (RLS no longer exposes
+    // review_tokens to anon), scoped to this specific token only.
+    const supabase = createAdminClient();
 
-    // Look up token → project name (public RLS allows this without auth)
     const { data: tokenRow } = await supabase
       .from("review_tokens")
       .select("project_id, client_name")

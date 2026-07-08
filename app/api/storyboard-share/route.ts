@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +48,8 @@ export async function GET(req: NextRequest) {
   if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 });
 
   try {
-    const supabase = await createClient();
+    // Public token-gated read via service role (RLS no longer exposes shares to anon).
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("storyboard_shares")
       .select("*")
