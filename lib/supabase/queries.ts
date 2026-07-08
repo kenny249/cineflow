@@ -1006,6 +1006,44 @@ export async function revokeReviewToken(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// Edit the client name/email on an existing portal in place — access is by token,
+// not email, so this is non-destructive (same link keeps working).
+export async function updateReviewToken(
+  id: string,
+  updates: { client_name?: string; client_email?: string }
+): Promise<ReviewToken> {
+  const { data, error } = await db()
+    .from('review_tokens')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ReviewToken;
+}
+
+// All active client portals across the current user's projects (for the Clients hub).
+// NOTE: review_tokens has a broad "anyone can read active tokens" RLS policy (needed
+// for the public /review page), so we MUST scope this to the user's own projects here
+// to avoid exposing other users' portals and client emails.
+export async function getMyReviewTokens(): Promise<(ReviewToken & { project?: Pick<Project, 'id' | 'title' | 'client_name'> })[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  // Projects the user can see (RLS-scoped: their own + workspace + collaborations).
+  const { data: projs } = await client.from('projects').select('id');
+  const ids = (projs ?? []).map((p) => p.id);
+  if (ids.length === 0) return [];
+  const { data, error } = await client
+    .from('review_tokens')
+    .select('*, project:projects(id, title, client_name)')
+    .eq('is_active', true)
+    .in('project_id', ids)
+    .order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as (ReviewToken & { project?: Pick<Project, 'id' | 'title' | 'client_name'> })[];
+}
+
 // ─── Activity Log ─────────────────────────────────────────────────────────────
 
 export async function getActivityLog(limit = 20): Promise<ActivityItem[]> {
