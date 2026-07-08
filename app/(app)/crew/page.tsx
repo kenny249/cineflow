@@ -682,10 +682,10 @@ export default function CrewPage() {
               email: row.email || undefined,
               phone: row.phone || undefined,
               city: row.city || undefined,
-              country: "",
+              country: "US",
               skills: [],
               gear: [],
-              rating: 0,
+              rating: undefined,
               availability: "available" as CrewAvailability,
               is_public: false,
             }));
