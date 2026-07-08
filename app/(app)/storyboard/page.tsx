@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot, Camera, Check, ChevronRight, Clapperboard, Clock, Copy, Film,
   FileDown, GripVertical, ImageIcon, Layers, Link2, Loader2, MessageSquare, Pencil, Plus,
-  Send, Share2, Sparkles, Trash2, Upload, X, ZoomIn,
+  RotateCcw, Send, Share2, Sparkles, Trash2, Upload, X, ZoomIn,
 } from "lucide-react";
 import { StoryboardExportModal } from "@/components/storyboard/StoryboardExportModal";
 import { toast } from "sonner";
@@ -497,11 +497,49 @@ export default function StoryboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: updatedMessages.map((m) => ({ role: m.role, content: m.content })),
-          system: `You are a creative director AI assistant inside CineFlow. The current project is "${selectedProject?.title ?? "Untitled"}". There are currently ${frames.length} storyboard frames. Help the user brainstorm ideas, describe shots, rewrite descriptions, suggest camera techniques, and build compelling visual stories. Keep responses concise and cinematically focused.`,
+          system: `You are a creative director AI assistant inside CineFlow. The current project is "${selectedProject?.title ?? "Untitled"}". There are currently ${frames.length} storyboard frames.
+
+When the user asks you to generate, create, or add frames/shots/scenes to the storyboard, respond ONLY with a valid JSON array — no text before or after — using these fields: title, description, shot_type, camera_angle, shot_duration, mood, notes. Generate 3-6 frames.
+
+For all other requests (brainstorming, feedback, camera techniques, questions), respond naturally in plain text.`,
         }),
       });
       const { text, error } = await res.json();
       if (error) throw new Error(error);
+
+      // Detect frame JSON in response and materialize frames
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        try {
+          const generated: Partial<StoryboardFrame>[] = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(generated) && generated.length > 0 && generated[0].title) {
+            const created: StoryboardFrame[] = [];
+            for (let i = 0; i < generated.length; i++) {
+              const g = generated[i];
+              const frame = await createStoryboardFrame({
+                project_id: projectId,
+                frame_number: frames.length + i + 1,
+                title: g.title ?? `Frame ${frames.length + i + 1}`,
+                description: g.description,
+                shot_type: g.shot_type,
+                camera_angle: g.camera_angle,
+                shot_duration: g.shot_duration ?? "00:00:05",
+                mood: g.mood,
+                notes: g.notes,
+              });
+              created.push(frame);
+            }
+            setFrames((prev) => [...prev, ...created]);
+            setChatMessages((prev) => [...prev, {
+              role: "assistant",
+              content: `Added ${created.length} frame${created.length !== 1 ? "s" : ""} to your storyboard.`,
+            }]);
+            toast.success(`${created.length} frames generated`);
+            return;
+          }
+        } catch { /* not valid frame JSON — fall through to text response */ }
+      }
+
       setChatMessages((prev) => [...prev, { role: "assistant", content: text }]);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Claude error");
@@ -780,12 +818,23 @@ export default function StoryboardPage() {
                 <p className="text-[10px] text-muted-foreground">Claude</p>
               </div>
             </div>
-            <button
-              onClick={() => setAiOpen(false)}
-              className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              {chatMessages.length > 0 && (
+                <button
+                  onClick={() => setChatMessages([])}
+                  title="Start over"
+                  className="rounded-lg p-1 text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button
+                onClick={() => setAiOpen(false)}
+                className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Quick actions */}
