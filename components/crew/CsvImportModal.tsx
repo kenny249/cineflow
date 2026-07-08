@@ -54,30 +54,94 @@ function getField(row: Record<string, string>, ...keys: string[]): string {
 // ── Role detection ────────────────────────────────────────────────────────────
 
 const ROLE_MAP: [string[], string][] = [
+  // ── Camera Department ─────────────────────────────────────────────────────
   [["director of photography", "dop", "cinematograph", "dp,", " dp ", "(dp)"], "Director of Photography (DP)"],
-  [["1st ac", "focus puller", "first ac"], "1st AC / Focus Puller"],
-  [["2nd ac", "second ac"], "2nd AC"],
-  [["steadicam"], "Steadicam Operator"],
-  [["drone", "aerial operator", "uav pilot", "fpv"], "Drone / Aerial Operator"],
-  [["camera operator", "camera op", "cam op"], "Camera Operator"],
-  [["colorist", "colour grading", "color grading", "davinci"], "Colorist"],
-  [["sound mixer", "sound recordist", "audio mixer", "production sound", "boom"], "Sound Mixer / Recordist"],
-  [["sound designer", "audio designer"], "Sound Designer"],
-  [["composer", "film score", "music composer"], "Composer"],
-  [["gaffer", "chief lighting", "lighting tech"], "Gaffer"],
-  [["key grip", "best boy grip"], "Key Grip"],
-  [["production designer", "art department head"], "Production Designer"],
+  [["1st ac", "first ac", "first assistant camera", "1st assistant camera", "focus puller"], "1st AC / Focus Puller"],
+  [["2nd ac", "second ac", "second assistant camera", "2nd assistant camera", "clapper loader", "loader,"], "2nd AC"],
+  [["3rd ac", "third ac", "camera trainee", "camera intern", "camera loader"], "3rd AC / Camera Trainee"],
+  [["dit,", " dit ", "(dit)", "digital imaging tech", "data wrangler", "media wrangler"], "DIT / Data Wrangler"],
+  [["steadicam", "steadi-cam", "steadi cam"], "Steadicam Operator"],
+  [["drone operator", "drone pilot", "aerial operator", "uav pilot", "uas pilot", "fpv pilot", "fpv operator", "unmanned aerial", "remote pilot", "faa part 107"], "Drone / Aerial Operator"],
+  [["camera operator", "camera op", "cam op", "b camera", "b-camera operator"], "Camera Operator"],
+  [["dolly grip"], "Dolly Grip"],
+
+  // ── Post Production ───────────────────────────────────────────────────────
+  [["colorist", "colourist", "colour grading", "color grading", "davinci", "di operator", "conform editor", "online editor"], "Colorist"],
+  [["vfx supervisor", "visual effects supervisor", "vfx lead"], "VFX Supervisor"],
+  [["compositor", "compositing", "nuke artist", "comp artist"], "Compositor"],
+  [["3d artist", "3d generalist", "cgi artist", "cgi generalist", "houdini artist", "maya artist", "cinema 4d artist"], "3D / CGI Artist"],
+  [["character animator", "2d animator", "3d animator", "animation artist", "character animation"], "Animator"],
+  [["motion graphics", "mograph", "motion designer", "motion artist"], "Motion Graphics Designer"],
+  [["vfx", "visual effects", "fx artist"], "VFX Artist"],
+
+  // ── Sound Department ──────────────────────────────────────────────────────
+  [["re-recording mixer", "rerecording mixer", "dubbing mixer", "final mix", "dub mixer"], "Re-recording Mixer"],
+  [["sound mixer", "sound recordist", "audio mixer", "production sound", "location sound"], "Sound Mixer / Recordist"],
+  [["boom operator", "boom op,", " boom op ", "(boom op)", "boom person", "boom swinger"], "Boom Operator"],
+  [["foley artist", "foley mixer", "foley,", " adr ", "adr voice", "adr director", "dialogue editor", "sound editor"], "Sound Editor / Foley"],
+  [["sound designer", "audio designer", "audio director", "sound director"], "Sound Designer"],
+  [["music supervisor", "music coordinator", "music placement", "sync licensing", "sync license", "music licens", "music clearance"], "Music Supervisor"],
+  [["composer", "film score", "music composer", "original score", "film composer", "tv composer"], "Composer"],
+
+  // ── Lighting & Grip ───────────────────────────────────────────────────────
+  [["rigging gaffer", "rig gaffer", "rigging electric"], "Rigging Gaffer"],
+  [["best boy electric", "best boy elec", "bbe,", " bbe ", "(bbe)"], "Best Boy Electric"],
+  [["gaffer", "chief lighting", "chief electrician", "head electrician", "lighting director"], "Gaffer"],
+  [["rigging grip", "rig grip"], "Rigging Grip"],
+  [["best boy grip", "bbg,", " bbg ", "(bbg)"], "Best Boy Grip"],
+  [["key grip"], "Key Grip"],
+
+  // ── Art Department ────────────────────────────────────────────────────────
+  [["production designer", "art department head", "head of art dept", "head of art department"], "Production Designer"],
   [["art director"], "Art Director"],
-  [["makeup", "make-up", "mua", "hair and makeup"], "Makeup / Hair"],
+  [["set decorator", "set decoration", "lead set dresser", "set dresser", "lead dresser"], "Set Decorator"],
+  [["prop master", "props master", "property master", "property dept", "props dept", "prop stylist", "set props"], "Prop Master"],
+  [["scenic artist", "scenic painter", "scenic designer", "set builder", "construction coordinator"], "Scenic / Set Construction"],
+
+  // ── Makeup / Hair / Wardrobe ──────────────────────────────────────────────
+  [["sfx makeup", "prosthetic makeup", "prosthetics artist", "special effects makeup", "special makeup effects", "creature fx", "practical fx"], "SFX / Prosthetics Makeup"],
+  [["makeup artist", "make-up artist", "mua,", " mua ", "(mua)", "hair and makeup", "hair & makeup", "hair/makeup", "muah,", " muah ", "key makeup", "head of makeup"], "Makeup / Hair"],
+  [["costume designer", "wardrobe designer", "head of wardrobe", "wardrobe supervisor", "costume supervisor", "costumer,", " costumer "], "Costume Designer / Wardrobe"],
+  [["wardrobe stylist", "fashion stylist", "clothing stylist", "on-set stylist", "stylist,", "(stylist)"], "Stylist"],
+
+  // ── AD & Production ───────────────────────────────────────────────────────
+  [["1st ad,", " 1st ad ", "(1ad)", "first assistant director", " first ad,", " first ad ", "1st a.d."], "1st AD"],
+  [["2nd ad,", " 2nd ad ", "(2ad)", "second assistant director", " second ad,", " second ad ", "2nd a.d."], "2nd AD"],
+  [["3rd ad,", " 3rd ad ", "third assistant director", "floor runner,", " floor runner ", "set pa,", " set pa "], "3rd AD / Set PA"],
+  [["unit production manager", " upm,", " upm ", "(upm)"], "Unit Production Manager"],
+  [["production coordinator", "prod coordinator", "prod coord,", " prod coord "], "Production Coordinator"],
+  [["script supervisor", "continuity supervisor", "script continuity", "scripty,", " scripty "], "Script Supervisor"],
+  [["location manager", "location scout", "locations manager", "locations dept", "locations supervisor"], "Location Manager / Scout"],
   [["line producer"], "Line Producer"],
-  [["script supervisor", "continuity"], "Script Supervisor"],
-  [["motion graphics", "mograph", "motion designer"], "Motion Graphics Designer"],
-  [["vfx", "visual effects", "cgi artist"], "VFX Artist"],
+
+  // ── Casting & Talent ──────────────────────────────────────────────────────
+  [["casting director", "casting associate", "casting assistant", "casting coordinator", "casting dept"], "Casting Director"],
+  [["talent agent", "talent manager", "talent agency", "talent management", "talent represent", "literary agent", "booking agent", "entertainment agent", "theatrical agent", "commercial agent"], "Talent Agent / Manager"],
+  [["stunt coordinator", "stunt performer", "stunt double", "fight coordinator", "fight choreograph", "stuntman", "stuntwoman", "stunt rigger"], "Stunt Coordinator"],
+  [["dialogue coach", "acting coach", "vocal coach", "dialect coach", "performance coach", "on-set coach"], "Acting / Dialogue Coach"],
+  [["voice actor", "voice over actor", "voiceover actor", "vo actor", "voice talent", "voice over artist", "voiceover artist"], "Voice Actor"],
+  [["actor,", " actor ", "(actor)", "actress", "sag-aftra", "sag aftra", "aftra actor", "film actor", "tv actor", "commercial actor", "character actor", "screen actor"], "Actor / Performer"],
+  [["model/actor", "actor/model", "on-camera talent", "commercial talent", "fit model", "commercial model", "print model", "brand talent"], "Model / Talent"],
+
+  // ── Writing ───────────────────────────────────────────────────────────────
+  [["showrunner"], "Showrunner"],
+  [["screenwriter", "screenplay writer", "script writer", "script doctor", "story editor", "staff writer", "tv writer", "head writer", "writer/director"], "Screenwriter"],
+
+  // ── Distribution / PR ─────────────────────────────────────────────────────
+  [["publicist", "entertainment pr", "film pr", "film publicist", "talent publicist"], "Publicist / PR"],
+  [["film distributor", "distribution executive", "sales agent", "film sales", "foreign sales", "acquisitions exec"], "Film Distributor"],
+
+  // ── Photography ───────────────────────────────────────────────────────────
+  [["unit photographer", "set photographer", "still photographer", "bts photographer", "epk photographer", "behind the scenes photographer"], "Unit / Set Photographer"],
   [["photographer", "photography"], "Photographer"],
-  [["production assistant", " pa,", "(pa)"], "Production Assistant"],
-  [["editor", "editing", "post production"], "Editor"],
-  [["producer", "executive producer"], "Producer"],
-  [["director"], "Director"], // must come last — catches anything with "director" not already matched
+
+  // ── General Production (catch-alls — order matters) ───────────────────────
+  [["production assistant", " pa,", " (pa)", "on-set pa", "onset pa", "office pa,"], "Production Assistant"],
+  [["film editor", "video editor", "avid editor", "premiere editor", "final cut editor", "offline editor", "post production editor"], "Editor"],
+  [["executive producer", "exec producer", "co-producer", "co producer", "associate producer", "supervising producer", "co-exec producer"], "Executive / Co-Producer"],
+  [["producer"], "Producer"],
+  [["editor", "editing,", " editing "], "Editor"],
+  [["director"], "Director"], // catch-all — must be last
 ];
 
 function detectRole(title: string, company: string): string | null {
@@ -91,12 +155,90 @@ function detectRole(title: string, company: string): string | null {
 // ── Film keyword detection ────────────────────────────────────────────────────
 
 const FILM_KEYWORDS = [
-  "film", "video", "cinema", "production", "studio", "creative media",
-  "motion", "post prod", "edit", "sound", "audio", "broadcast",
-  "documentary", "commercial", "advertising", "content creat",
-  "dp ", "(dp)", "director", "editor", "colorist", "gaffer", "grip",
-  "camera", "cinemat", "vfx", "animation", "reel", "footage",
-  "photographer", "photo", "visual effects", "composit",
+  // Core film & video
+  "film", "films", "cinema", "cinematic", "movie", "movies",
+  "motion picture", "feature film", "short film",
+  "videograph", // videographer / videography
+  "footage", "reel", "showreel", "demo reel",
+
+  // Content types
+  "documentary", "docuseries", "music video", "narrative",
+  "commercial", "advertising",
+  "broadcast", "broadcasting",
+  "streaming",
+  "content creat", "youtube", "youtuber", "podcast", "podcaster",
+  "influencer", "vlogger",
+  "bts", "epk", "behind the scenes",
+  "on-set", "on set",
+
+  // Production companies
+  "production", "productions",
+  "studio", "studios",
+  "entertainment", "pictures", "media", "creative media",
+
+  // Camera & DP
+  "cinemat", "camera",
+  "dp ", "dp,", "(dp)", " dop",
+  "director of photography",
+  "steadicam", "drone",
+
+  // Camera dept
+  "focus puller", "1st ac", "2nd ac", "clapper",
+  " dit ", "dit,", "(dit)", "digital imaging tech", "data wrangler",
+
+  // Post production
+  "post prod", "post-prod",
+  "edit", // editor / editing
+  "colorist", "colourist", "colour grad", "color grad", "davinci",
+  "vfx", "visual effects", "composit", "compositor",
+  "animation", "animator",
+  "motion graphic", "mograph",
+  "3d artist", "cgi",
+
+  // Sound
+  "sound", "audio",
+  "boom", "foley", "adr", "dubbing",
+  "sound design", "sound mix", "re-recording",
+
+  // Music
+  "composer", "film score", "music supervisor",
+
+  // Lighting & grip
+  "gaffer", "grip",
+  "best boy", "dolly", "rigging electric", "rigging grip",
+
+  // Art dept
+  "production designer", "art director",
+  "set decor", "set dress", "prop master", "props dept",
+  "wardrobe", "costume",
+  "prosthetic", "sfx makeup",
+
+  // Makeup & hair
+  "makeup", "make-up", " mua", "(mua)",
+
+  // AD & production
+  "director", // art director, assistant director, director
+  "assistant director", " 1st ad", " 2nd ad", " 3rd ad",
+  "script supervis", "script coord", "continuity",
+  "location manager", "location scout",
+  "production coord", "unit production manager", " upm",
+  "producer", "showrunner",
+
+  // Casting & talent
+  "actor", "actress", "sag-aftra", "sag aftra", " sag ", "aftra",
+  "stunt", "casting",
+  "talent agency", "talent management", "talent represent",
+  "on-camera", "voice actor", "voice over",
+  "performer",
+
+  // Writing
+  "screenwriter", "screenplay", "script writer",
+
+  // Photography
+  "photographer", "photography", "photo",
+
+  // Distribution / PR
+  "distributor", "distribution", "publicist", "film festival",
 ];
 
 function isFilmRelated(title: string, company: string): boolean {
