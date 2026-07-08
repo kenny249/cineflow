@@ -70,9 +70,15 @@ export async function createProject(project: Omit<Project, 'id' | 'created_at' |
   }
 
   logActivity({ project_id: data.id, type: 'project_created', description: 'Created project' }).catch(() => {});
-  // Fire-and-forget notification
+  // Fire-and-forget: register the creator as the project owner + send a notification.
   db().auth.getUser().then(({ data: { user } }) => {
-    if (user) createNotification({ user_id: user.id, type: 'project_created', title: `Project "${data.title}" created`, href: `/projects/${data.id}` }).catch(() => {});
+    if (!user) return;
+    // Owner membership row — many RLS policies key off project_members; without this,
+    // any future membership-based feature would silently lock out the project owner.
+    db().from('project_members')
+      .upsert({ project_id: data.id, user_id: user.id, role: 'owner' }, { onConflict: 'project_id,user_id' })
+      .then(() => {}, () => {});
+    createNotification({ user_id: user.id, type: 'project_created', title: `Project "${data.title}" created`, href: `/projects/${data.id}` }).catch(() => {});
   });
   return data as Project;
 }
