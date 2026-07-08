@@ -4,14 +4,22 @@ import { useEffect, useState, useRef } from "react";
 import { Plus, Trash2, DollarSign, Edit3, Check, X, Receipt, AlertCircle, Clock, CheckCircle2, FileText, Send, ChevronDown, ChevronUp, ShoppingCart, Download, ExternalLink, FileSignature, Paperclip } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { getBudgetLines, createBudgetLine, updateBudgetLine, deleteBudgetLine, getInvoicesByProject, createInvoice, updateInvoice, deleteInvoice, ensureProjectOwner, getProjectExpenses, createProjectExpense, updateProjectExpense, deleteProjectExpense, type ProjectExpense } from "@/lib/supabase/queries";
-import type { BudgetLine, Invoice, InvoiceStatus, Contract, ContractStatus } from "@/types";
+import { getBudgetLines, createBudgetLine, updateBudgetLine, deleteBudgetLine, getInvoicesByProject, createInvoice, updateInvoice, deleteInvoice, ensureProjectOwner, getProjectExpenses, createProjectExpense, updateProjectExpense, deleteProjectExpense, getQuotesByProject, getProfile, type ProjectExpense } from "@/lib/supabase/queries";
+import type { BudgetLine, Invoice, InvoiceStatus, Contract, ContractStatus, Project, Profile, Quote } from "@/types";
 import { toast } from "sonner";
 import { downloadCSV, printTable } from "@/lib/export";
+import QuotesTab from "@/components/quotes/QuotesTab";
+
+type FinSection = "budget" | "invoices" | "expenses" | "contracts" | "quotes";
 
 interface FinanceTabProps {
   projectId: string;
   isAdmin: boolean;
+  project?: Project;
+  /** Sub-section to focus (e.g. "quotes" when arriving from a Quote control). */
+  focusSection?: FinSection;
+  /** Bumped by the parent each time a focus is requested, so re-clicks re-focus. */
+  focusNonce?: number;
 }
 
 const CATEGORIES = ["Pre-Production", "Crew", "Cast", "Equipment", "Location", "Travel & Lodging", "Catering", "Post-Production", "Music & SFX", "Marketing", "Insurance", "Miscellaneous"];
@@ -65,12 +73,19 @@ type Expense = ProjectExpense;
 const EMPTY_EXPENSE: Partial<Expense> = { description: "", amount: 0, category: "Miscellaneous", dept: "", payment_method: "card", purchased_by: "", date: new Date().toISOString().split("T")[0], reimbursed: false, flagged: false, receipt_note: "" };
 const EXPENSE_DEPTS = ["Director", "Camera", "Lighting", "Sound", "Art", "Wardrobe", "Post-Production", "Production", "Travel", "Catering", "Other"];
 
-export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
+export function FinanceTab({ projectId, isAdmin, project, focusSection, focusNonce }: FinanceTabProps) {
   const [lines, setLines] = useState<BudgetLine[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<"budget" | "invoices" | "expenses" | "contracts">("budget");
+  const [activeSection, setActiveSection] = useState<FinSection>("budget");
+
+  // Focus a sub-section when the parent requests it (Quote controls → "quotes").
+  useEffect(() => {
+    if (focusSection) setActiveSection(focusSection);
+  }, [focusSection, focusNonce]);
 
   // Expenses state (DB-backed)
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -169,6 +184,10 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
       getInvoicesByProject(projectId).catch(() => [] as Invoice[]),
       supabase.from("contracts").select("*").eq("project_id", projectId).order("created_at", { ascending: false }).then(({ data, error }) => (!error && data ? data as Contract[] : [] as Contract[])),
     ]).then(([bl, inv, ctrs]) => { setLines(bl); setInvoices(inv); setContracts(ctrs); }).finally(() => setLoading(false));
+
+    // Quotes (client-facing proposals) + profile branding for the embedded QuotesTab.
+    getQuotesByProject(projectId).then(setQuotes).catch(() => {});
+    getProfile().then(setProfile).catch(() => {});
 
     // Load expenses, migrating any legacy localStorage records into the DB once.
     (async () => {
@@ -304,6 +323,7 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
         {/* Section tabs */}
         <div className="flex gap-1 border-b border-border">
           {[
+            { key: "quotes",    label: `Quotes (${quotes.length})` },
             { key: "budget",    label: `Budget (${lines.length})` },
             { key: "invoices",  label: `Invoices (${invoices.length})` },
             { key: "expenses",  label: `Expenses (${expenses.length})` },
@@ -315,6 +335,17 @@ export function FinanceTab({ projectId, isAdmin }: FinanceTabProps) {
           ))}
         </div>
       </div>
+
+      {/* ── Quotes section (client-facing proposals for this project) ── */}
+      {activeSection === "quotes" && (
+        <QuotesTab
+          quotes={quotes}
+          projects={project ? [project] : []}
+          profile={profile}
+          onQuotesChange={setQuotes}
+          defaultProjectId={projectId}
+        />
+      )}
 
       {/* ── Budget section ── */}
       {activeSection === "budget" && (

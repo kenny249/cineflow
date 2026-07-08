@@ -225,6 +225,15 @@ export default function ProjectDetailTabs({
   const [activeTab, setActiveTab] = useState(initialTab);
   const PRODUCTION_TABS = ["shot-list", "scripts", "docs", "crew", "drone", "equipment"];
   const isAdmin = userRole === "owner" || userRole === "admin";
+
+  // Finance sub-section focus — lets the Quote controls open Finance → Quotes in-context.
+  const [financeSection, setFinanceSection] = useState<"budget" | "invoices" | "expenses" | "contracts" | "quotes">("budget");
+  const [financeNonce, setFinanceNonce] = useState(0);
+  const openFinanceSection = (section: "budget" | "invoices" | "expenses" | "contracts" | "quotes") => {
+    setFinanceSection(section);
+    setFinanceNonce((n) => n + 1);
+    setActiveTab("finance");
+  };
   const isClient = userRole === "client";
   const canEdit = !isClient;
   const [members, setMembers] = useState<ProjectMember[]>(initialMembers);
@@ -1521,7 +1530,7 @@ export default function ProjectDetailTabs({
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {isAdmin && (
-              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setActiveTab("finance")}>
+              <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => openFinanceSection("invoices")}>
                 <span className="hidden sm:inline">Invoice</span>
                 <span className="sm:hidden">$</span>
               </Button>
@@ -1799,7 +1808,7 @@ export default function ProjectDetailTabs({
             id: "quote",
             label: "Quote",
             done: hasQuote,
-            onClick: () => router.push("/finance?tab=quotes"),
+            onClick: isAdmin ? () => openFinanceSection("quotes") : () => {},
           },
           {
             id: "pre-prod",
@@ -1901,7 +1910,7 @@ export default function ProjectDetailTabs({
                   { label: "Storyboard", done: storyboardFrames.length > 0, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("storyboard"); } },
                   { label: "Shot List", done: (shotList?.items?.length ?? 0) > 0, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("shots"); } },
                   // Finance tab is admin-only — non-admins see Quote status but can't navigate there
-                  ...(isAdmin ? [{ label: "Quote", done: !!hasQuote, onClick: () => setActiveTab("finance") }] : [{ label: "Quote", done: !!hasQuote, onClick: undefined as (() => void) | undefined }]),
+                  ...(isAdmin ? [{ label: "Quote", done: !!hasQuote, onClick: () => openFinanceSection("quotes") }] : [{ label: "Quote", done: !!hasQuote, onClick: undefined as (() => void) | undefined }]),
                   { label: "Call Sheet", done: hasCallSheet, onClick: () => { setActiveTab("shot-list"); setShotListSubMode("shots"); setShowShootDays(true); } },
                 ];
                 const doneCount = statusItems.filter((s) => s.done).length;
@@ -2870,7 +2879,7 @@ export default function ProjectDetailTabs({
             {/* ── Finance (admin only) ── */}
             {isAdmin && (
               <TabsContent value="finance" className="m-0">
-                <FinanceTab projectId={project.id} isAdmin={isAdmin} />
+                <FinanceTab projectId={project.id} isAdmin={isAdmin} project={project} focusSection={financeSection} focusNonce={financeNonce} />
               </TabsContent>
             )}
 

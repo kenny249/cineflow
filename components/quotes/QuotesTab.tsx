@@ -337,9 +337,11 @@ interface Props {
   projects: Project[];
   profile: Profile | null;
   onQuotesChange: (quotes: Quote[]) => void;
+  /** When embedded in a project's Finance tab, pre-links new quotes to that project. */
+  defaultProjectId?: string;
 }
 
-export default function QuotesTab({ quotes, projects, profile, onQuotesChange }: Props) {
+export default function QuotesTab({ quotes, projects, profile, onQuotesChange, defaultProjectId }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
 
@@ -489,7 +491,7 @@ export default function QuotesTab({ quotes, projects, profile, onQuotesChange }:
         >
           <Plus className="h-4 w-4" /> New Quote
         </button>
-        <QuoteFormModal open={showForm} onClose={() => setShowForm(false)} onSave={handleSave} projects={projects} profile={profile} quotes={quotes} />
+        <QuoteFormModal open={showForm} onClose={() => setShowForm(false)} onSave={handleSave} initial={defaultProjectId ? { project_id: defaultProjectId } : undefined} projects={projects} profile={profile} quotes={quotes} />
       </div>
     );
   }
@@ -550,7 +552,7 @@ export default function QuotesTab({ quotes, projects, profile, onQuotesChange }:
         open={showForm}
         onClose={() => { setShowForm(false); setEditingQuote(null); }}
         onSave={handleSave}
-        initial={editingQuote ? formStateFromQuote(editingQuote) : undefined}
+        initial={editingQuote ? formStateFromQuote(editingQuote) : (defaultProjectId ? { project_id: defaultProjectId } : undefined)}
         projects={projects}
         profile={profile}
         quotes={quotes}

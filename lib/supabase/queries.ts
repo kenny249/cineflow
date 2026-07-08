@@ -1764,6 +1764,20 @@ export async function getQuotes(): Promise<Quote[]> {
   return (data ?? []) as Quote[];
 }
 
+export async function getQuotesByProject(projectId: string): Promise<Quote[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('quotes')
+    .select('*')
+    .eq('created_by', user.id)
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as Quote[];
+}
+
 export async function getQuoteByToken(token: string): Promise<Quote | null> {
   const { data, error } = await db()
     .from('quotes')
