@@ -23,11 +23,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
-import { getTasks, createTask as dbCreateTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask, reorderTasks, createEditSession, type DbTask } from "@/lib/supabase/queries";
+import { getTasks, createTask as dbCreateTask, updateTask as dbUpdateTask, deleteTask as dbDeleteTask, reorderTasks, createEditSession, getProjectTasksAssignedToMe, type DbTask } from "@/lib/supabase/queries";
 import type { EditSessionCategory } from "@/types";
 import { CATEGORY_CONFIG } from "@/components/editor-tools/SessionLog";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import type { ProjectTask, Project, TaskPriority } from "@/types";
 
 type Task = DbTask;
@@ -426,7 +425,7 @@ function HourglassSVG({ progress }: { progress: number }) {
 }
 
 export default function TasksPage() {
-  const [activeTab, setActiveTab] = useState<"daily" | "projects">("daily");
+  const [activeTab, setActiveTab] = useState<"daily" | "assigned">("daily");
   const [projectTasks, setProjectTasks] = useState<(ProjectTask & { project?: Pick<Project, "id" | "title" | "client_name" | "status"> })[]>([]);
   const [loadingPT, setLoadingPT] = useState(false);
 
@@ -467,18 +466,14 @@ export default function TasksPage() {
     setDailyQuote(getDailyQuote(format(new Date(), "yyyy-MM-dd")));
   }, []);
 
-  // Load project tasks when tab becomes active
+  // Load tasks assigned to me when the tab becomes active
   useEffect(() => {
-    if (activeTab !== "projects") return;
+    if (activeTab !== "assigned") return;
     setLoadingPT(true);
-    const supabase = createClient();
-    Promise.all([
-      supabase.from("project_tasks").select("*").order("created_at", { ascending: false }),
-      supabase.from("projects").select("id, title, client_name, status"),
-    ]).then(([{ data: pts }, { data: projs }]) => {
-      const projMap = new Map((projs ?? []).map((p: Pick<Project, "id" | "title" | "client_name" | "status">) => [p.id, p]));
-      setProjectTasks((pts ?? []).map((t: ProjectTask) => ({ ...t, project: projMap.get(t.project_id ?? "") })));
-    }).catch(() => {}).finally(() => setLoadingPT(false));
+    getProjectTasksAssignedToMe()
+      .then((pts) => setProjectTasks(pts as typeof projectTasks))
+      .catch(() => {})
+      .finally(() => setLoadingPT(false));
   }, [activeTab]);
 
   useEffect(() => {
@@ -750,10 +745,10 @@ export default function TasksPage() {
                 <CalendarDays className="h-3 w-3" /> Daily
               </button>
               <button
-                onClick={() => setActiveTab("projects")}
-                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeTab === "projects" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                onClick={() => setActiveTab("assigned")}
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${activeTab === "assigned" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
-                <FolderKanban className="h-3 w-3" /> Projects
+                <FolderKanban className="h-3 w-3" /> Assigned to me
               </button>
             </div>
             <AnimatePresence>
@@ -915,8 +910,8 @@ export default function TasksPage() {
           )}
         </div>}
 
-        {/* Projects tab */}
-        {activeTab === "projects" && (
+        {/* Assigned to me tab */}
+        {activeTab === "assigned" && (
           <div className="flex-1 overflow-y-auto px-5 py-5">
             {loadingPT ? (
               <div className="flex items-center justify-center py-20">
@@ -927,13 +922,13 @@ export default function TasksPage() {
                 <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border">
                   <FolderKanban className="h-7 w-7 text-muted-foreground/25" />
                 </div>
-                <p className="font-semibold text-foreground">No project tasks yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">Open a project and add tasks to see them here.</p>
+                <p className="font-semibold text-foreground">Nothing assigned to you</p>
+                <p className="mt-1 text-xs text-muted-foreground">Tasks assigned to you on the team board show up here.</p>
                 <Link
-                  href="/projects"
+                  href="/project-tasks"
                   className="mt-4 flex items-center gap-1.5 rounded-lg border border-[#d4a853]/20 bg-[#d4a853]/10 px-4 py-2 text-sm font-medium text-[#d4a853] hover:bg-[#d4a853]/15 transition-all"
                 >
-                  <ExternalLink className="h-3.5 w-3.5" /> Go to Projects
+                  <ExternalLink className="h-3.5 w-3.5" /> Open team board
                 </Link>
               </div>
             ) : (() => {
@@ -951,19 +946,20 @@ export default function TasksPage() {
                       <div key={pid}>
                         <div className="mb-2 flex items-center gap-2">
                           <Link
-                            href={proj ? `/projects/${proj.id}` : "/projects"}
+                            href={proj ? `/projects/${proj.id}` : "/project-tasks"}
                             className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-[#d4a853] transition-colors"
                           >
-                            {proj?.title ?? "Unknown Project"}
+                            {proj?.title ?? "General"}
                             <ExternalLink className="h-2.5 w-2.5" />
                           </Link>
                           <span className="text-[10px] text-muted-foreground/50">{tasks.length} task{tasks.length !== 1 ? "s" : ""}</span>
                         </div>
                         <div className="space-y-1.5">
                           {tasks.map((task) => (
-                            <div
+                            <Link
                               key={task.id}
-                              className="flex items-center gap-3 rounded-xl border border-border bg-card/75 px-4 py-3"
+                              href={task.project_id ? `/projects/${task.project_id}` : "/project-tasks"}
+                              className="flex items-center gap-3 rounded-xl border border-border bg-card/75 px-4 py-3 hover:border-[#d4a853]/30 hover:bg-accent/30 transition-colors"
                             >
                               {task.status === "done" ? (
                                 <CheckCircle2 className="h-4 w-4 shrink-0 text-[#d4a853]" />
@@ -982,7 +978,7 @@ export default function TasksPage() {
                                 className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG]?.dot ?? "bg-muted"}`}
                                 title={task.priority}
                               />
-                            </div>
+                            </Link>
                           ))}
                         </div>
                       </div>

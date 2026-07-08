@@ -616,6 +616,7 @@ export interface ProjectTask {
   status: ProjectTaskStatus;
   due_date?: string;
   assignee_name?: string;
+  assignee_id?: string | null;
   created_at: string;
   updated_at?: string;
 }

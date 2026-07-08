@@ -1,5 +1,5 @@
 import { createClient } from './client';
-import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem, Quote, QuoteStatus, ProjectEquipment } from '@/types';
+import type { Project, ProjectNote, ShotList, ShotListItem, CalendarEvent, CalendarEventType, Profile, TeamMember, TeamTopic, TeamMessage, ProjectFile, ProjectFileTab, CrewContact, ProjectLocation, BudgetLine, Invoice, InvoiceStatus, Revision, RevisionComment, ReviewToken, StoryboardFrame, ActivityItem, ActivityType, VideoDeliverable, ClientPortal, Retainer, RetainerMonth, RetainerDeliverable, RetainerTemplateItem, Quote, QuoteStatus, ProjectEquipment, ProjectTask } from '@/types';
 
 // Lazy getter — avoids module-level instantiation during Next.js build-time
 // static analysis, which runs before env vars are injected.
@@ -1239,6 +1239,22 @@ export async function reorderTasks(orderedIds: string[]): Promise<void> {
       client.from('tasks').update({ sort_order: index }).eq('id', id)
     )
   );
+}
+
+// Project tasks assigned to the current user (across all projects). RLS limits
+// this to tasks the user is allowed to see (their workspace + collaborations).
+export async function getProjectTasksAssignedToMe(): Promise<ProjectTask[]> {
+  const client = db();
+  const { data: { user } } = await client.auth.getUser();
+  if (!user) return [];
+  const { data, error } = await client
+    .from('project_tasks')
+    .select('*, project:projects(id, title)')
+    .eq('assignee_id', user.id)
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false });
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []) as ProjectTask[];
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

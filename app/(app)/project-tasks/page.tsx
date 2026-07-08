@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { getProjects, getTeamMembers, createNotification } from "@/lib/supabase/queries";
+import { getProjects, getTeamMembers, createNotification, getProfile } from "@/lib/supabase/queries";
 import { KanbanBoard } from "./KanbanBoard";
 import type { Project, ProjectTask, ProjectTaskType, TaskPriority, ProjectTaskStatus, TeamMember } from "@/types";
 import { formatDate } from "@/lib/utils";
@@ -51,6 +51,7 @@ export default function ProjectTasksPage() {
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [me, setMe] = useState<{ id: string; name: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewMode>("board");
 
@@ -73,7 +74,8 @@ export default function ProjectTasksPage() {
   const [fPriority, setFPriority] = useState<TaskPriority>("medium");
   const [fStatus, setFStatus] = useState<ProjectTaskStatus>("todo");
   const [fDueDate, setFDueDate] = useState("");
-  const [fAssignee, setFAssignee] = useState("");
+  const [fAssignee, setFAssignee] = useState("");     // display name
+  const [fAssigneeId, setFAssigneeId] = useState(""); // linked user id (empty = none/unlinked)
 
   // Persist view preference
   useEffect(() => {
@@ -90,14 +92,17 @@ export default function ProjectTasksPage() {
     async function load() {
       setLoading(true);
       try {
-        const [projs, members, { data: { user } }] = await Promise.all([
+        const [projs, members, profile, { data: { user } }] = await Promise.all([
           getProjects(),
           getTeamMembers(),
+          getProfile(),
           supabase.auth.getUser(),
         ]);
         setProjects(projs || []);
         setTeamMembers(members);
         if (!user) return;
+        const meName = profile?.full_name?.trim() || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || user.email || "Me";
+        setMe({ id: user.id, name: meName });
         const { data } = await supabase
           .from("project_tasks")
           .select("*, project:projects(id, title)")
@@ -124,7 +129,7 @@ export default function ProjectTasksPage() {
     setEditingTask(null);
     setDefaultStatus(status);
     setFTitle(""); setFDescription(""); setFProject(""); setFType("general");
-    setFPriority("medium"); setFStatus(status); setFDueDate(""); setFAssignee("");
+    setFPriority("medium"); setFStatus(status); setFDueDate(""); setFAssignee(""); setFAssigneeId("");
     setDialogOpen(true);
   }
 
@@ -138,6 +143,7 @@ export default function ProjectTasksPage() {
     setFStatus(task.status);
     setFDueDate(task.due_date || "");
     setFAssignee(task.assignee_name || "");
+    setFAssigneeId(task.assignee_id || "");
     setDialogOpen(true);
   }
 
@@ -157,8 +163,14 @@ export default function ProjectTasksPage() {
         status: fStatus,
         due_date: fDueDate || null,
         assignee_name: fAssignee.trim() || null,
+        assignee_id: fAssigneeId || null,
         updated_at: new Date().toISOString(),
       };
+
+      // Notify the assignee when they're a real user, newly assigned, and not the actor.
+      const previousAssigneeId = editingTask?.assignee_id || "";
+      const shouldNotifyAssignee =
+        !!fAssigneeId && fAssigneeId !== user.id && fAssigneeId !== previousAssigneeId;
 
       if (editingTask) {
         const { data, error } = await supabase
@@ -179,15 +191,15 @@ export default function ProjectTasksPage() {
         if (error) throw error;
         setTasks((prev) => [data as ProjectTask, ...prev]);
         toast.success("Task created");
-        if (fAssignee.trim()) {
-          createNotification({
-            user_id: user.id,
-            type: "task_assigned",
-            title: `Task assigned to ${fAssignee.trim()}`,
-            description: fTitle.trim(),
-            href: "/project-tasks",
-          });
-        }
+      }
+      if (shouldNotifyAssignee) {
+        createNotification({
+          user_id: fAssigneeId,
+          type: "task_assigned",
+          title: `${fAssignee.trim() || "A task"} — assigned to you`,
+          description: fTitle.trim(),
+          href: "/tasks",
+        });
       }
       setDialogOpen(false);
     } catch {
@@ -195,7 +207,7 @@ export default function ProjectTasksPage() {
     } finally {
       setSaving(false);
     }
-  }, [fTitle, fDescription, fProject, fType, fPriority, fStatus, fDueDate, fAssignee, editingTask]);
+  }, [fTitle, fDescription, fProject, fType, fPriority, fStatus, fDueDate, fAssignee, fAssigneeId, editingTask]);
 
   const handleStatusCycle = useCallback(async (task: ProjectTask) => {
     const next: Record<ProjectTaskStatus, ProjectTaskStatus> = {
@@ -514,22 +526,34 @@ export default function ProjectTasksPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Assignee</Label>
-                {teamMembers.length > 0 ? (
-                  <select
-                    value={fAssignee}
-                    onChange={(e) => setFAssignee(e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
-                  >
-                    <option value="">Unassigned</option>
-                    {teamMembers.map((m) => (
-                      <option key={m.id} value={m.name ?? m.email}>
-                        {m.name ?? m.email}{m.status === "pending" ? " (pending)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <Input value={fAssignee} onChange={(e) => setFAssignee(e.target.value)} placeholder="Name or team member" />
-                )}
+                <select
+                  value={fAssigneeId ? `id:${fAssigneeId}` : (fAssignee ? `name:${fAssignee}` : "")}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v.startsWith("id:")) {
+                      const uid = v.slice(3);
+                      setFAssigneeId(uid);
+                      const m = teamMembers.find((tm) => tm.user_id === uid);
+                      setFAssignee(uid === me?.id ? me.name : (m?.name ?? m?.email ?? ""));
+                    } else if (v.startsWith("name:")) {
+                      setFAssigneeId("");
+                      setFAssignee(v.slice(5));
+                    } else {
+                      setFAssigneeId(""); setFAssignee("");
+                    }
+                  }}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-[#d4a853]/50 focus:outline-none focus:ring-1 focus:ring-[#d4a853]/30"
+                >
+                  <option value="">Unassigned</option>
+                  {/* Assigning to a real account (Me, or a linked teammate) enables the
+                      task to show in their "Assigned to me". Name-only invites are labels. */}
+                  {me && <option value={`id:${me.id}`}>Me ({me.name})</option>}
+                  {teamMembers.filter((m) => m.user_id !== me?.id).map((m) => (
+                    <option key={m.id} value={m.user_id ? `id:${m.user_id}` : `name:${m.name ?? m.email}`}>
+                      {m.name ?? m.email}{m.status === "pending" ? " (pending)" : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

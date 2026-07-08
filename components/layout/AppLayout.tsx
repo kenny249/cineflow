@@ -28,7 +28,7 @@ type MobileNavItem = { label: string; href: string; icon: LucideIcon };
 const MOBILE_SOLO_PRIMARY: MobileNavItem[] = [
   { label: "Dashboard", href: "/dashboard",  icon: LayoutDashboard },
   { label: "Projects",  href: "/projects",   icon: FolderKanban },
-  { label: "To Do",     href: "/tasks",      icon: CheckSquare },
+  { label: "My Tasks",  href: "/tasks",      icon: CheckSquare },
   { label: "Calendar",  href: "/calendar",   icon: Calendar },
 ];
 const MOBILE_SOLO_MORE: MobileNavItem[] = [
@@ -50,10 +50,10 @@ const MOBILE_STUDIO_PRIMARY: MobileNavItem[] = [
   { label: "Dashboard", href: "/dashboard",  icon: LayoutDashboard },
   { label: "Projects",  href: "/projects",   icon: FolderKanban },
   { label: "Calendar",  href: "/calendar",   icon: Calendar },
-  { label: "Tasks",     href: "/project-tasks", icon: ClipboardList },
+  { label: "Project Tasks", href: "/project-tasks", icon: ClipboardList },
 ];
 const MOBILE_STUDIO_MORE: MobileNavItem[] = [
-  { label: "To Do",         href: "/tasks",         icon: CheckSquare },
+  { label: "My Tasks",      href: "/tasks",         icon: CheckSquare },
   { label: "Retainers",     href: "/retainers",     icon: Repeat2 },
   { label: "Storyboard",    href: "/storyboard",    icon: Clapperboard },
   { label: "Shot Lists",    href: "/shot-lists",    icon: Camera },
