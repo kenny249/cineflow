@@ -18,11 +18,26 @@ const PUBLIC_PREFIXES = [
   "/privacy",
   "/terms",
   "/update-password",
+  "/share",
+  "/maintenance",
+  // Public / token-gated API routes — these are hit by unauthenticated clients
+  // (review portals, share links, public forms, quote & contract signing, etc.).
+  // Each handler enforces its own token/auth, so the middleware must let them through.
   "/api/auth",
   "/api/demo",
-  "/share",
   "/api/share",
-  "/maintenance",
+  "/api/review",
+  "/api/studio-branding",
+  "/api/notify",
+  "/api/storyboard-share",
+  "/api/client",
+  "/api/forms",
+  "/api/retainer-portal",
+  "/api/quotes/view",
+  "/api/quotes/accept",
+  "/api/contracts/sign",
+  "/api/contracts/certificate",
+  "/api/invoices/confirm-payment",
 ];
 
 function isPublic(pathname: string): boolean {
@@ -156,6 +171,11 @@ export async function proxy(request: NextRequest) {
 
   // 3. Auth redirect
   if (!user && !isPublic(pathname)) {
+    // Never redirect API routes to the HTML login page — a client-side fetch would
+    // then try to JSON.parse the login page and blow up. Return a JSON 401 instead.
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
