@@ -1533,6 +1533,7 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
   const [savedSheetId, setSavedSheetId] = useState<string | null>(initialSheetId ?? null);
   const [savedShareToken, setSavedShareToken] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [existingSheets, setExistingSheets] = useState<SavedCallSheet[]>([]);
@@ -1626,9 +1627,11 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [sheet, crew, locations, formData, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function autoSave(immediate: boolean, overrideSheet?: GeneratedSheet) {
+  // Returns the share token on success, or null on failure (so callers like the
+  // Share button can force a save and react if it didn't persist).
+  async function autoSave(immediate: boolean, overrideSheet?: GeneratedSheet): Promise<string | null> {
     const currentSheet = overrideSheet ?? sheet;
-    if (!currentSheet) return;
+    if (!currentSheet) return null;
     if (saveTimerRef.current && !immediate) clearTimeout(saveTimerRef.current);
     setSaving(true);
     const shootDate = formData.shootDate || null;
@@ -1638,26 +1641,34 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
     const title = dateLabel ? `Call Sheet — ${dateLabel}` : "Call Sheet";
     const payload = { title, shoot_date: shootDate, data: { sheet: currentSheet, crew, locations, formData } };
     try {
+      let token = savedShareToken;
       if (savedSheetId) {
         const res = await fetch(`/api/call-sheets/${savedSheetId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+        if (!res.ok) throw new Error("save failed");
         const updated = await res.json();
-        if (updated.share_token && !savedShareToken) setSavedShareToken(updated.share_token);
+        if (updated.share_token) { token = updated.share_token; if (!savedShareToken) setSavedShareToken(updated.share_token); }
       } else {
         const res = await fetch("/api/call-sheets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ project_id: project.id, ...payload }),
         });
+        if (!res.ok) throw new Error("save failed");
         const created = await res.json();
         if (created.id) setSavedSheetId(created.id);
-        if (created.share_token) setSavedShareToken(created.share_token);
+        if (created.share_token) { token = created.share_token; setSavedShareToken(created.share_token); }
       }
       setSavedAt(new Date());
-    } catch { /* silent — PDF still works */ }
+      setSaveFailed(false);
+      return token;
+    } catch {
+      setSaveFailed(true);
+      return null;
+    }
     finally { setSaving(false); }
   }
 
@@ -1774,17 +1785,29 @@ export function CallSheetGenerator({ project, onClose, initialSheetId, onSheetId
               </span>
             )}
             {step === 5 && (
-              <span className="ml-2 hidden sm:block text-[10px] text-muted-foreground/60">
-                {saving ? "Saving…" : savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
-              </span>
+              saveFailed ? (
+                <span className="ml-2 text-[10px] font-medium text-red-400">Not saved — retry</span>
+              ) : (
+                <span className="ml-2 hidden sm:block text-[10px] text-muted-foreground/60">
+                  {saving ? "Saving…" : savedAt ? `Saved ${savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}
+                </span>
+              )
             )}
           </div>
           <div className="flex items-center gap-2">
             {step === 5 && (
               <button
                 onClick={async () => {
-                  if (!savedShareToken) { toast.error("Save the sheet first — it will auto-save after a moment"); return; }
-                  const url = `${window.location.origin}/call-sheet/${savedShareToken}`;
+                  // Force a save if we don't yet have a share link (e.g. auto-save
+                  // hasn't fired or failed on a flaky mobile connection).
+                  let token = savedShareToken;
+                  if (!token) {
+                    toast.loading("Saving…", { id: "cs-share" });
+                    token = await autoSave(true);
+                    toast.dismiss("cs-share");
+                    if (!token) { toast.error("Couldn't save — check your connection and try again"); return; }
+                  }
+                  const url = `${window.location.origin}/call-sheet/${token}`;
                   await navigator.clipboard.writeText(url);
                   setShareCopied(true);
                   toast.success("Crew link copied to clipboard");
