@@ -688,13 +688,13 @@ export default function FinancePage() {
           </div>
         </div>
 
-        {/* Stat cards */}
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 sm:gap-3">
+        {/* Stat cards — Sales Tax only appears once you've actually charged tax */}
+        <div className={`mt-4 grid grid-cols-2 gap-2 ${stats.taxCollected > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"} sm:gap-3`}>
           {[
             { label: `Revenue`,      value: fmt(stats.revenue),     icon: DollarSign,   color: "text-emerald-400", sub: `${periodLabel} · invoices + retainers` },
             { label: `Expenses`,     value: fmt(stats.expenses),    icon: TrendingDown, color: "text-red-400",     sub: `${periodLabel} · budget + logged` },
             { label: "Net Profit",   value: fmt(stats.profit),      icon: stats.profit >= 0 ? TrendingUp : TrendingDown, color: stats.profit >= 0 ? "text-emerald-400" : "text-red-400", sub: "Revenue − Expenses" },
-            { label: "Sales Tax",    value: fmt(stats.taxCollected),icon: FileText,     color: "text-blue-400",    sub: "Collected (est.)" },
+            ...(stats.taxCollected > 0 ? [{ label: "Sales Tax", value: fmt(stats.taxCollected), icon: FileText, color: "text-blue-400", sub: "Collected (est.)" }] : []),
             { label: "Outstanding",  value: fmt(stats.outstanding), icon: Clock,        color: "text-amber-400",   sub: "Awaiting payment" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-border bg-card p-3">
