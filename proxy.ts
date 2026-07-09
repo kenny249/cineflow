@@ -26,6 +26,7 @@ const PUBLIC_PREFIXES = [
   "/api/auth",
   "/api/demo",
   "/api/share",
+  "/api/beacon",
   "/api/review",
   "/api/studio-branding",
   "/api/notify",

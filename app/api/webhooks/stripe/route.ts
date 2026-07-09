@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "node:crypto";
 import { getPaymentCredentials } from "@/lib/payment-credentials";
+import { logIssue } from "@/lib/log-issue";
 
 // Stripe webhook endpoint — handles payment confirmation automatically.
 //
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
   // Find invoice by payment_link URL (Stripe payment_link ID is embedded in the URL)
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("id, status, amount, created_by, payment_link")
+    .select("id, invoice_number, status, amount, created_by, payment_link")
     .ilike("payment_link", `%${paymentLinkId}%`)
     .single();
 
@@ -108,12 +109,22 @@ export async function POST(req: NextRequest) {
 
   if (!webhookSecret || !signature) {
     console.warn("[webhook/stripe] missing webhook secret or signature for invoice:", invoice.id);
+    logIssue({
+      kind: "payment_error",
+      message: `Stripe payment couldn't be confirmed — webhook secret not configured`,
+      context: { invoice: invoice.invoice_number, owner: invoice.created_by, reason: "missing_webhook_secret" },
+    });
     return NextResponse.json({ error: "Webhook secret not configured" }, { status: 400 });
   }
 
   const valid = await verifyStripeSignature(rawBody, signature, webhookSecret);
   if (!valid) {
     console.warn("[webhook/stripe] signature verification failed for invoice:", invoice.id);
+    logIssue({
+      kind: "payment_error",
+      message: `Stripe payment webhook signature verification failed`,
+      context: { invoice: invoice.invoice_number, owner: invoice.created_by, reason: "signature_mismatch" },
+    });
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 

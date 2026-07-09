@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
 import type { Invoice, PaymentSettings } from "@/types";
 import { getPaymentCredentials } from "@/lib/payment-credentials";
+import { logIssue } from "@/lib/log-issue";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
@@ -341,6 +342,11 @@ export async function POST(req: NextRequest) {
         await supabase.from("invoices").update({ status: "draft", updated_at: new Date().toISOString() }).eq("id", invoiceId);
       }
       console.error("[invoices/send] Resend error:", emailError.message);
+      logIssue({
+        kind: "email_failed",
+        message: `Invoice email failed to send to ${inv.client_email}`,
+        context: { invoice: inv.invoice_number, client_email: inv.client_email, owner: user.id, detail: emailError.message },
+      });
       return NextResponse.json({ error: "Failed to send invoice email. Please try again." }, { status: 400 });
     }
 

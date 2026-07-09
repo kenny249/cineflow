@@ -345,8 +345,10 @@ export default function ReviewPortalClient({ token }: { token: string }) {
   const [changesTarget, setChangesTarget] = useState<Revision | null>(null);
 
   useEffect(() => {
+    let hadStatus: number | undefined;
     fetch(`/api/review/${token}`)
       .then(async (res) => {
+        hadStatus = res.status;
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.error ?? "Invalid link");
@@ -364,7 +366,15 @@ export default function ReviewPortalClient({ token }: { token: string }) {
           .then((rows: Deliverable[]) => setDeliverables(rows))
           .catch(() => {});
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => {
+        setError(e.message);
+        // Tell the admin Issues panel a client just hit a broken review link.
+        fetch("/api/beacon", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ref: "review", page: `/review/${token}`, token, status: hadStatus, message: String(e?.message ?? "load failed") }),
+        }).catch(() => {});
+      })
       .finally(() => setLoading(false));
   }, [token]);
 
