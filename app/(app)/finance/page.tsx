@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { toast } from "sonner";
 import {
@@ -300,6 +300,13 @@ export default function FinancePage() {
       return { month: `${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`, revenue, expenses };
     });
   }, [invoices, budgetsByProject]);
+
+  // 12-month totals for the KPI header above the chart.
+  const chartTotals = useMemo(() => {
+    const revenue = chartData.reduce((s, d) => s + d.revenue, 0);
+    const expenses = chartData.reduce((s, d) => s + d.expenses, 0);
+    return { revenue, expenses, net: revenue - expenses };
+  }, [chartData]);
 
   const projectSummaries = useMemo(() =>
     projects.map((p) => {
@@ -594,22 +601,45 @@ export default function FinancePage() {
               <div className="space-y-6">
                 <div className="rounded-xl border border-border bg-card p-4">
                   <h3 className="mb-4 font-display text-sm font-semibold text-foreground">Revenue vs Expenses — Last 12 Months</h3>
+
+                  {/* KPI header — informative even when the chart is quiet */}
+                  <div className="mb-5 grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Revenue", value: chartTotals.revenue, color: "text-[#d4a853]" },
+                      { label: "Expenses", value: chartTotals.expenses, color: "text-red-400" },
+                      { label: "Net Profit", value: chartTotals.net, color: chartTotals.net >= 0 ? "text-emerald-400" : "text-red-400" },
+                    ].map((k) => (
+                      <div key={k.label} className="rounded-lg border border-border/60 bg-background/40 px-3 py-2.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">{k.label}</p>
+                        <p className={`mt-1 font-display text-lg font-bold tabular-nums ${k.color}`}>
+                          {k.label === "Net Profit" && k.value > 0 ? "+" : ""}{fmt(k.value)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
                   {chartData.every((d) => d.revenue === 0 && d.expenses === 0) ? (
                     <div className="flex h-40 flex-col items-center justify-center gap-2 text-center">
                       <Layers className="h-8 w-8 text-muted-foreground/20" />
                       <p className="text-sm text-muted-foreground">No data yet — add invoices and budget lines to see trends.</p>
                     </div>
                   ) : (
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={chartData} barCategoryGap="30%" barGap={4}>
+                    <ResponsiveContainer width="100%" height={240}>
+                      <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: -6, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#d4a853" stopOpacity={0.35} />
+                            <stop offset="95%" stopColor="#d4a853" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(0 0% 13%)" vertical={false} />
-                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: "hsl(0 0% 46%)" }} axisLine={false} tickLine={false} />
-                        <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10, fill: "hsl(0 0% 46%)" }} axisLine={false} tickLine={false} />
-                        <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(0 0% 100% / 0.03)" }} />
+                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: "hsl(0 0% 46%)" }} axisLine={false} tickLine={false} minTickGap={16} />
+                        <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10, fill: "hsl(0 0% 46%)" }} axisLine={false} tickLine={false} width={48} />
+                        <Tooltip content={<ChartTooltip />} cursor={{ stroke: "hsl(0 0% 100% / 0.12)", strokeWidth: 1 }} />
                         <Legend wrapperStyle={{ fontSize: 11, color: "hsl(0 0% 60%)" }} />
-                        <Bar dataKey="revenue" name="Revenue" fill="#d4a853" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="expenses" name="Expenses" fill="hsl(0 62% 40% / 0.7)" radius={[4, 4, 0, 0]} />
-                      </BarChart>
+                        <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#d4a853" strokeWidth={2.5} fill="url(#revenueFill)" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                        <Line type="monotone" dataKey="expenses" name="Expenses" stroke="hsl(0 62% 55%)" strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                      </ComposedChart>
                     </ResponsiveContainer>
                   )}
                 </div>
