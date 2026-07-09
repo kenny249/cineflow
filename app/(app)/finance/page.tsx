@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   DollarSign, TrendingUp, TrendingDown, Plus, Trash2, Edit3,
   Check, X, ChevronDown, ChevronUp, ExternalLink, Receipt, Layers,
-  AlertCircle, Clock, CheckCircle2, FileText, Send, Eye, GripVertical,
+  AlertCircle, Clock, CheckCircle2, FileText, Send, Eye, GripVertical, Download,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -16,10 +16,12 @@ import { toast } from "sonner";
 import {
   getInvoices, createInvoice, updateInvoice, deleteInvoice,
   getBudgetLines, getProjects, getProfile, createNotification,
-  getQuotes,
+  getQuotes, getAllProjectExpenses, getPaidRetainerRevenue,
+  type FinanceExpense, type RetainerRevenue,
 } from "@/lib/supabase/queries";
 import { InvoiceDocument } from "@/components/finance/InvoiceDocument";
 import QuotesTab from "@/components/quotes/QuotesTab";
+import { downloadCSV } from "@/lib/export";
 import type {
   Invoice, InvoiceStatus, BudgetLine, Project, Profile,
   PaymentTerms, PaymentInstallment, Quote,
@@ -219,8 +221,12 @@ export default function FinancePage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [budgetsByProject, setBudgetsByProject] = useState<Record<string, BudgetLine[]>>({});
+  const [expenses, setExpenses] = useState<FinanceExpense[]>([]);
+  const [retainerRevenue, setRetainerRevenue] = useState<RetainerRevenue[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  // Period filter for the KPI tiles + breakdowns (the chart stays rolling 12mo).
+  const [period, setPeriod] = useState<"this_year" | "last_year" | "all">("this_year");
 
   // Role gate — members cannot access Finance
   useEffect(() => {
@@ -254,14 +260,18 @@ export default function FinancePage() {
     let alive = true;
     async function load() {
       try {
-        const [allProjects, allInvoices, prof, allQuotes] = await Promise.all([
+        const [allProjects, allInvoices, prof, allQuotes, allExpenses, retRev] = await Promise.all([
           getProjects(), getInvoices(), getProfile(), getQuotes(),
+          getAllProjectExpenses().catch(() => [] as FinanceExpense[]),
+          getPaidRetainerRevenue().catch(() => [] as RetainerRevenue[]),
         ]);
         if (!alive) return;
         setProjects(allProjects);
         setInvoices(allInvoices);
         setProfile(prof);
         setQuotes(allQuotes);
+        setExpenses(allExpenses);
+        setRetainerRevenue(retRev);
         const budgetResults = await Promise.all(
           allProjects.map((p) => getBudgetLines(p.id).catch(() => [] as BudgetLine[]))
         );
@@ -277,14 +287,90 @@ export default function FinancePage() {
     return () => { alive = false; };
   }, []);
 
+  // project_id → client_name, so logged expenses can be attributed to a client.
+  const clientByProject = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const p of projects) m[p.id] = p.client_name?.trim() || "Unassigned";
+    return m;
+  }, [projects]);
+
+  // Does a YYYY-MM(-DD) date string fall within the selected period?
+  const inPeriod = useMemo(() => {
+    const yr = new Date().getFullYear();
+    return (dateStr: string | null | undefined): boolean => {
+      if (period === "all") return true;
+      if (!dateStr) return false;
+      const y = Number(dateStr.slice(0, 4));
+      return period === "this_year" ? y === yr : y === yr - 1;
+    };
+  }, [period]);
+
+  const periodLabel = period === "this_year" ? "This year" : period === "last_year" ? "Last year" : "All time";
+
   const stats = useMemo(() => {
-    const revenue = invoices.filter((i) => i.status === "paid").reduce((s, i) => s + i.amount, 0);
+    const invoiceRevenue = invoices
+      .filter((i) => i.status === "paid" && inPeriod(i.paid_date ?? i.invoice_date))
+      .reduce((s, i) => s + i.amount, 0);
+    const retRevenue = retainerRevenue
+      .filter((r) => inPeriod(r.month_key))
+      .reduce((s, r) => s + r.amount, 0);
+    const revenue = invoiceRevenue + retRevenue;
+
     const outstanding = invoices
       .filter((i) => ["sent", "partial", "overdue"].includes(i.status))
       .reduce((s, i) => s + (i.amount - i.amount_paid), 0);
-    const expenses = Object.values(budgetsByProject).flat().reduce((s, l) => s + (l.actual ?? 0), 0);
-    return { revenue, outstanding, expenses, profit: revenue - expenses };
-  }, [invoices, budgetsByProject]);
+
+    // Expenses = budget actuals + logged out-of-pocket/vendor expenses.
+    const budgetExpenses = Object.values(budgetsByProject).flat()
+      .filter((l) => inPeriod(l.created_at))
+      .reduce((s, l) => s + (l.actual ?? 0), 0);
+    const loggedExpenses = expenses
+      .filter((e) => inPeriod(e.expense_date))
+      .reduce((s, e) => s + e.amount, 0);
+    const totalExpenses = budgetExpenses + loggedExpenses;
+
+    // Estimated sales tax collected (invoice amounts are tax-inclusive).
+    const taxCollected = invoices
+      .filter((i) => i.status === "paid" && (i.tax_rate ?? 0) > 0 && inPeriod(i.paid_date ?? i.invoice_date))
+      .reduce((s, i) => { const r = (i.tax_rate ?? 0) / 100; return s + (i.amount - i.amount / (1 + r)); }, 0);
+
+    return { revenue, outstanding, expenses: totalExpenses, profit: revenue - totalExpenses, taxCollected };
+  }, [invoices, budgetsByProject, expenses, retainerRevenue, inPeriod]);
+
+  // Top clients by revenue (paid invoices + paid retainers) for the period.
+  const clientRevenue = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const i of invoices) {
+      if (i.status === "paid" && inPeriod(i.paid_date ?? i.invoice_date)) {
+        const c = i.client_name?.trim() || "Unassigned";
+        m[c] = (m[c] ?? 0) + i.amount;
+      }
+    }
+    for (const r of retainerRevenue) {
+      if (inPeriod(r.month_key)) {
+        const c = r.client_name?.trim() || "Unassigned";
+        m[c] = (m[c] ?? 0) + r.amount;
+      }
+    }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [invoices, retainerRevenue, inPeriod]);
+
+  // Expense breakdown by category (budget actuals + logged expenses) for the period.
+  const expenseByCategory = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const l of Object.values(budgetsByProject).flat()) {
+      if ((l.actual ?? 0) > 0 && inPeriod(l.created_at)) {
+        const c = l.category?.trim() || "Uncategorized";
+        m[c] = (m[c] ?? 0) + (l.actual ?? 0);
+      }
+    }
+    for (const e of expenses) {
+      if (e.amount > 0 && inPeriod(e.expense_date)) {
+        m[e.category] = (m[e.category] ?? 0) + e.amount;
+      }
+    }
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [budgetsByProject, expenses, inPeriod]);
 
   const chartData = useMemo(() => {
     const now = new Date();
@@ -293,13 +379,15 @@ export default function FinancePage() {
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const revenue = invoices
         .filter((inv) => inv.status === "paid" && inv.paid_date?.startsWith(key))
-        .reduce((s, inv) => s + inv.amount, 0);
-      const expenses = Object.values(budgetsByProject).flat()
+        .reduce((s, inv) => s + inv.amount, 0)
+        + retainerRevenue.filter((r) => r.month_key === key).reduce((s, r) => s + r.amount, 0);
+      const expensesTotal = Object.values(budgetsByProject).flat()
         .filter((l) => l.created_at?.startsWith(key))
-        .reduce((s, l) => s + (l.actual ?? 0), 0);
-      return { month: `${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`, revenue, expenses };
+        .reduce((s, l) => s + (l.actual ?? 0), 0)
+        + expenses.filter((e) => e.expense_date?.startsWith(key)).reduce((s, e) => s + e.amount, 0);
+      return { month: `${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`, revenue, expenses: expensesTotal };
     });
-  }, [invoices, budgetsByProject]);
+  }, [invoices, budgetsByProject, expenses, retainerRevenue]);
 
   // 12-month totals for the KPI header above the chart.
   const chartTotals = useMemo(() => {
@@ -307,6 +395,22 @@ export default function FinancePage() {
     const expenses = chartData.reduce((s, d) => s + d.expenses, 0);
     return { revenue, expenses, net: revenue - expenses };
   }, [chartData]);
+
+  // Accountant export — one CSV each for revenue (paid invoices) and expenses.
+  function exportFinancials() {
+    const rev = invoices.filter((i) => i.status === "paid").map((i) => [
+      i.paid_date ?? i.invoice_date ?? "", i.invoice_number ?? "", i.client_name ?? "",
+      i.description ?? "", i.amount, i.tax_rate ?? 0,
+    ]);
+    for (const r of retainerRevenue) rev.push([`${r.month_key}-01`, "RETAINER", r.client_name, "Retainer", r.amount, 0]);
+    downloadCSV("cineflow-revenue.csv", ["Date", "Invoice #", "Client", "Description", "Amount", "Tax %"], rev);
+    const exp: (string | number)[][] = [];
+    for (const [pid, lines] of Object.entries(budgetsByProject))
+      for (const l of lines) if ((l.actual ?? 0) > 0) exp.push([l.created_at?.slice(0, 10) ?? "", clientByProject[pid] ?? "", "Budget", l.category ?? "", l.description ?? "", l.actual ?? 0]);
+    for (const e of expenses) exp.push([e.expense_date ?? "", clientByProject[e.project_id ?? ""] ?? "", "Expense", e.category, "", e.amount]);
+    downloadCSV("cineflow-expenses.csv", ["Date", "Client", "Source", "Category", "Description", "Amount"], exp);
+    toast.success("Exported revenue + expenses CSVs");
+  }
 
   const projectSummaries = useMemo(() =>
     projects.map((p) => {
@@ -541,25 +645,47 @@ export default function FinancePage() {
     <div className="flex h-full flex-col overflow-hidden">
       {/* Topbar */}
       <div className="shrink-0 border-b border-border bg-card/50 px-4 py-4 sm:px-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="font-display text-lg font-bold text-foreground">Finance</h1>
             <p className="mt-0.5 text-xs text-muted-foreground">Revenue, expenses &amp; invoices across all projects</p>
           </div>
-          <button
-            onClick={openNewForm}
-            className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" /> New Invoice
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <select
+                value={period}
+                onChange={(e) => setPeriod(e.target.value as typeof period)}
+                className="appearance-none rounded-lg border border-border bg-input py-1.5 pl-3 pr-8 text-xs text-foreground focus:border-[#d4a853]/50 focus:outline-none"
+              >
+                <option value="this_year">This year</option>
+                <option value="last_year">Last year</option>
+                <option value="all">All time</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            </div>
+            <button
+              onClick={exportFinancials}
+              title="Export revenue + expenses as CSV for your accountant"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
+            >
+              <Download className="h-3.5 w-3.5" /> Export
+            </button>
+            <button
+              onClick={openNewForm}
+              className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#c49843] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" /> New Invoice
+            </button>
+          </div>
         </div>
 
         {/* Stat cards */}
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 sm:gap-3">
           {[
-            { label: "YTD Revenue",  value: fmt(stats.revenue),     icon: DollarSign,   color: "text-emerald-400", sub: "Paid invoices" },
-            { label: "YTD Expenses", value: fmt(stats.expenses),    icon: TrendingDown, color: "text-red-400",     sub: "Actual spend" },
+            { label: `Revenue`,      value: fmt(stats.revenue),     icon: DollarSign,   color: "text-emerald-400", sub: `${periodLabel} · invoices + retainers` },
+            { label: `Expenses`,     value: fmt(stats.expenses),    icon: TrendingDown, color: "text-red-400",     sub: `${periodLabel} · budget + logged` },
             { label: "Net Profit",   value: fmt(stats.profit),      icon: stats.profit >= 0 ? TrendingUp : TrendingDown, color: stats.profit >= 0 ? "text-emerald-400" : "text-red-400", sub: "Revenue − Expenses" },
+            { label: "Sales Tax",    value: fmt(stats.taxCollected),icon: FileText,     color: "text-blue-400",    sub: "Collected (est.)" },
             { label: "Outstanding",  value: fmt(stats.outstanding), icon: Clock,        color: "text-amber-400",   sub: "Awaiting payment" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-border bg-card p-3">
@@ -643,6 +769,55 @@ export default function FinancePage() {
                     </ResponsiveContainer>
                   )}
                 </div>
+
+                {/* Top clients + where money goes */}
+                {(clientRevenue.length > 0 || expenseByCategory.length > 0) && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-xl border border-border bg-card p-4">
+                      <h3 className="mb-3 font-display text-sm font-semibold text-foreground">Top clients <span className="font-normal text-muted-foreground/60">· {periodLabel}</span></h3>
+                      {clientRevenue.length === 0 ? (
+                        <p className="py-6 text-center text-xs text-muted-foreground">No revenue yet this period.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {clientRevenue.map(([name, amount]) => {
+                            const pct = Math.round((amount / clientRevenue[0][1]) * 100);
+                            return (
+                              <div key={name}>
+                                <div className="mb-1 flex items-center justify-between text-xs">
+                                  <span className="truncate text-foreground">{name}</span>
+                                  <span className="ml-2 shrink-0 font-medium text-[#d4a853] tabular-nums">{fmt(amount)}</span>
+                                </div>
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/40"><div className="h-full rounded-full bg-[#d4a853]" style={{ width: `${pct}%` }} /></div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div className="rounded-xl border border-border bg-card p-4">
+                      <h3 className="mb-3 font-display text-sm font-semibold text-foreground">Where money goes <span className="font-normal text-muted-foreground/60">· {periodLabel}</span></h3>
+                      {expenseByCategory.length === 0 ? (
+                        <p className="py-6 text-center text-xs text-muted-foreground">No expenses logged this period.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {expenseByCategory.map(([cat, amount]) => {
+                            const pct = Math.round((amount / expenseByCategory[0][1]) * 100);
+                            return (
+                              <div key={cat}>
+                                <div className="mb-1 flex items-center justify-between text-xs">
+                                  <span className="truncate text-foreground">{cat}</span>
+                                  <span className="ml-2 shrink-0 font-medium text-red-400 tabular-nums">{fmt(amount)}</span>
+                                </div>
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/40"><div className="h-full rounded-full bg-red-400/70" style={{ width: `${pct}%` }} /></div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <h3 className="font-display text-sm font-semibold text-foreground">Recent Invoices</h3>

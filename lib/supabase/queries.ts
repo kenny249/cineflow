@@ -756,6 +756,23 @@ export async function getProjectExpenses(projectId: string): Promise<ProjectExpe
   return (data ?? []).map(mapExpenseRow);
 }
 
+// All logged expenses across the current user's projects — for the Finance
+// rollups (totals, monthly trend, category & client breakdowns).
+export interface FinanceExpense { project_id: string | null; amount: number; category: string; expense_date: string | null }
+export async function getAllProjectExpenses(): Promise<FinanceExpense[]> {
+  const client = db();
+  const { data, error } = await client
+    .from('project_expenses')
+    .select('project_id, amount, category, expense_date');
+  if (error) { if (isMissingTableError(error)) return []; throw error; }
+  return (data ?? []).map((r: { project_id: string | null; amount: number | null; category: string | null; expense_date: string | null }) => ({
+    project_id: r.project_id,
+    amount: Number(r.amount) || 0,
+    category: r.category || "Uncategorized",
+    expense_date: r.expense_date,
+  }));
+}
+
 export async function createProjectExpense(projectId: string, e: Omit<ProjectExpense, 'id'>): Promise<ProjectExpense> {
   const { data: { user } } = await db().auth.getUser();
   const { data, error } = await db().from('project_expenses').insert({ ...expensePayload(projectId, e), created_by: user?.id ?? null }).select().single();
@@ -1709,6 +1726,23 @@ export async function getRetainerMonths(retainerId: string): Promise<RetainerMon
     .order('month_year', { ascending: false });
   if (error) { if (isMissingTableError(error)) return []; throw error; }
   return (data ?? []) as RetainerMonth[];
+}
+
+// Paid retainer revenue across all retainers — for Finance rollups. month_key is
+// YYYY-MM; amount is the retainer's monthly rate for each month marked paid.
+export interface RetainerRevenue { client_name: string; month_key: string; amount: number }
+export async function getPaidRetainerRevenue(): Promise<RetainerRevenue[]> {
+  const retainers = await getRetainers();
+  const out: RetainerRevenue[] = [];
+  await Promise.all(retainers.map(async (r) => {
+    const months = await getRetainerMonths(r.id).catch(() => [] as RetainerMonth[]);
+    for (const m of months) {
+      if (m.paid && /^\d{4}-\d{2}/.test(m.month_year)) {
+        out.push({ client_name: r.client_name, month_key: m.month_year.slice(0, 7), amount: r.monthly_rate ?? 0 });
+      }
+    }
+  }));
+  return out;
 }
 
 export async function createRetainerMonth(payload: {
