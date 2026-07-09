@@ -60,7 +60,13 @@ export default function ShotListsPage() {
       try {
         const data = await getProjects();
         setProjects(data || []);
-        if (data?.length) setProjectId(data[0].id);
+        if (!data?.length) return;
+        // Honor a ?project= deep-link (launched from a project's Shot List tab);
+        // otherwise default to the most recent project.
+        const params = new URLSearchParams(window.location.search);
+        const deepLinked = params.get("project");
+        const match = deepLinked && data.find((p) => p.id === deepLinked);
+        setProjectId(match ? deepLinked! : data[0].id);
       } catch {
         toast.error("Failed to load projects");
       } finally {

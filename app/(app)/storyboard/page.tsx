@@ -338,12 +338,18 @@ export default function StoryboardPage() {
 
   const selectedProject = projects.find((p) => p.id === projectId);
 
-  // Load projects
+  // Load projects. Honor a ?project= deep-link (launched from a project's
+  // Storyboard tab); otherwise default to the most recent project so the
+  // sidebar entry drops you back into what you were last working on.
   useEffect(() => {
     getProjects()
       .then((data) => {
         setProjects(data || []);
-        if (data?.length) setProjectId(data[0].id);
+        if (!data?.length) return;
+        const params = new URLSearchParams(window.location.search);
+        const deepLinked = params.get("project");
+        const match = deepLinked && data.find((p) => p.id === deepLinked);
+        setProjectId(match ? deepLinked! : data[0].id);
       })
       .catch(() => toast.error("Failed to load projects"))
       .finally(() => setLoading(false));

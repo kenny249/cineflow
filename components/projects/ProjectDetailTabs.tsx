@@ -2469,8 +2469,15 @@ export default function ProjectDetailTabs({
 
               {shotListSubMode === "storyboard" ? (
                 <div>
-                  <div className="mb-4 flex items-center justify-between">
-                    <h3 className="font-display text-sm font-semibold text-foreground">Storyboard</h3>
+                  <div className="mb-4 flex items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-display text-sm font-semibold text-foreground">Storyboard</h3>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {storyboardFrames.length > 0
+                          ? `${storyboardFrames.length} frame${storyboardFrames.length !== 1 ? "s" : ""} · open the workspace to build, edit & generate with AI`
+                          : "Build your scene ideas in the full-screen workspace"}
+                      </p>
+                    </div>
                     <div className="flex items-center gap-2">
                       {storyboardFrames.length > 0 && canEdit && (
                         <Button
@@ -2487,49 +2494,52 @@ export default function ProjectDetailTabs({
                           )}
                         </Button>
                       )}
-                      <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowFrameDialog(true)}>+ Add Frame</Button>
+                      <Link
+                        href={`/storyboard?project=${project.id}`}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 text-xs font-semibold text-black transition-colors hover:bg-[#e0b55e]"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Open Storyboard
+                      </Link>
                     </div>
                   </div>
                   {storyboardFrames.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16">
-                      <p className="font-display font-semibold">No storyboard frames yet</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Build your scene ideas with visual beats and production notes.</p>
-                    </div>
+                    <Link
+                      href={`/storyboard?project=${project.id}`}
+                      className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center transition-colors hover:border-[#d4a853]/40"
+                    >
+                      <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                      <p className="mt-3 font-display font-semibold">No storyboard frames yet</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Add frames, upload images, and generate with AI in the full-screen workspace.</p>
+                      <span className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-2 text-sm font-bold text-black">
+                        <ExternalLink className="h-4 w-4" /> Open Storyboard
+                      </span>
+                    </Link>
                   ) : (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {storyboardFrames.map((frame) => (
-                        <div key={frame.id} className="group overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-[#d4a853]/40 hover:shadow-md">
-                          <div className="relative aspect-video overflow-hidden bg-muted">
-                            {frame.image_url ? (
-                              <Image src={frame.image_url} alt={frame.title || `Frame ${frame.frame_number}`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 25vw" unoptimized />
-                            ) : (
-                              <div className="flex h-full items-center justify-center"><div className="flex flex-col items-center gap-1 text-muted-foreground/40"><ImageIcon className="h-8 w-8" /><span className="text-[10px]">No image</span></div></div>
-                            )}
-                            <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-mono text-white/80 backdrop-blur-sm">{String(frame.frame_number).padStart(2, "0")}</div>
-                            {frame.shot_duration && <div className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">{frame.shot_duration}</div>}
-                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
-                              <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors">
-                                {uploadingFrameId === frame.id ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Upload className="h-3.5 w-3.5" />}
-                                {uploadingFrameId === frame.id ? "Uploading…" : "Upload image"}
-                                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFrameImageUpload(frame.id, e.target.files[0])} />
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => { setEditingFrame(frame); setEditFrameForm({ title: frame.title, description: frame.description, camera_angle: frame.camera_angle, shot_duration: frame.shot_duration, mood: frame.mood, notes: frame.notes }); }} className="flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-[#d4a853]/80 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors"><Pencil className="h-3.5 w-3.5" /> Edit</button>
-                                <button onClick={() => { if (confirm("Delete this frame?")) handleDeleteFrame(frame.id); }} disabled={deletingFrameId === frame.id} className="flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors disabled:opacity-50">{deletingFrameId === frame.id ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Trash2 className="h-3.5 w-3.5" />}Delete</button>
+                    <Link href={`/storyboard?project=${project.id}`} className="group/sb block">
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {storyboardFrames.map((frame) => (
+                          <div key={frame.id} className="overflow-hidden rounded-xl border border-border bg-card transition-all group-hover/sb:border-[#d4a853]/20">
+                            <div className="relative aspect-video overflow-hidden bg-muted">
+                              {frame.image_url ? (
+                                <Image src={frame.image_url} alt={frame.title || `Frame ${frame.frame_number}`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 25vw" unoptimized />
+                              ) : (
+                                <div className="flex h-full items-center justify-center"><div className="flex flex-col items-center gap-1 text-muted-foreground/40"><ImageIcon className="h-8 w-8" /><span className="text-[10px]">No image</span></div></div>
+                              )}
+                              <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-mono text-white/80 backdrop-blur-sm">{String(frame.frame_number).padStart(2, "0")}</div>
+                              {frame.shot_duration && <div className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">{frame.shot_duration}</div>}
+                            </div>
+                            <div className="p-3">
+                              {frame.title && <p className="text-xs font-semibold text-foreground mb-1">{frame.title}</p>}
+                              {frame.description && <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{frame.description}</p>}
+                              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                                {frame.camera_angle && <p className="text-[10px] text-muted-foreground">{frame.camera_angle}</p>}
+                                {frame.mood && <p className="text-[10px] text-[#d4a853]/70 italic">{frame.mood}</p>}
                               </div>
                             </div>
                           </div>
-                          <div className="p-3">
-                            {frame.title && <p className="text-xs font-semibold text-foreground mb-1">{frame.title}</p>}
-                            {frame.description && <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{frame.description}</p>}
-                            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
-                              {frame.camera_angle && <p className="text-[10px] text-muted-foreground">{frame.camera_angle}</p>}
-                              {frame.mood && <p className="text-[10px] text-[#d4a853]/70 italic">{frame.mood}</p>}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    </Link>
                   )}
                 </div>
               ) : (
@@ -2556,9 +2566,17 @@ export default function ProjectDetailTabs({
                       <Download className="h-3.5 w-3.5" />CSV
                     </Button>
                   )}
+                  {/* Quick-add stays here for in-project/field use; the full-screen
+                      workspace (categories, per-shot images, drone linking) is one click away. */}
                   <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowShotDialog(true)}>
                     + Add Shot
                   </Button>
+                  <Link
+                    href={`/shot-lists?project=${project.id}`}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-muted-foreground transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Open workspace
+                  </Link>
                 </div>
               </div>
 
