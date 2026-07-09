@@ -109,25 +109,36 @@ export async function GET() {
   const appPages = countFiles(path.join(root, "app"), "page.tsx") +
                    countFiles(path.join(root, "app"), "page.ts");
 
-  // Estimated hours: AI-assisted development runs ~300 effective lines/hour
-  const estimatedHours = Math.round(totalEffectiveLines / 300);
-
-  // Git data — only available in local dev, not on Vercel (no .git directory at runtime)
+  // Git-derived stats are baked at build time (scripts/generate-code-stats.mjs)
+  // because Vercel strips .git from the runtime filesystem. Read that snapshot;
+  // fall back to live git in local dev if the file is missing.
+  let linesChanged = 0;
   let commitCount = 0;
-  let projectAgeDays = 0;
-  let projectStartDate = "";
-  if (!process.env.VERCEL) {
+  let firstCommitIso = "";
+  try {
+    const raw = fs.readFileSync(path.join(root, "lib", "code-stats-git.json"), "utf8");
+    const g = JSON.parse(raw);
+    linesChanged = g.linesChanged ?? 0;
+    commitCount = g.commitCount ?? 0;
+    firstCommitIso = g.firstCommitDate ?? "";
+  } catch { /* not generated */ }
+
+  if (!commitCount && !process.env.VERCEL) {
     try {
       const { execSync } = await import("child_process");
-      const output = execSync("git rev-list --count HEAD", { cwd: root, timeout: 3000 }).toString().trim();
-      commitCount = parseInt(output) || 0;
-      const firstCommit = execSync("git log --reverse --format=%ci HEAD | head -1", { cwd: root, timeout: 3000 }).toString().trim();
-      if (firstCommit) {
-        const start = new Date(firstCommit);
-        projectAgeDays = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
-        projectStartDate = start.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      }
+      commitCount = parseInt(execSync("git rev-list --count HEAD", { cwd: root, timeout: 3000 }).toString().trim()) || 0;
+      firstCommitIso = execSync("git log --reverse --format=%ci HEAD | head -1", { cwd: root, timeout: 3000 }).toString().trim();
     } catch { /* git not available */ }
+  }
+
+  let projectAgeDays = 0;
+  let projectStartDate = "";
+  if (firstCommitIso) {
+    const start = new Date(firstCommitIso);
+    if (!isNaN(start.getTime())) {
+      projectAgeDays = Math.floor((Date.now() - start.getTime()) / (1000 * 60 * 60 * 24));
+      projectStartDate = start.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    }
   }
 
   return NextResponse.json({
@@ -140,7 +151,7 @@ export async function GET() {
     components,
     migrations,
     appPages,
-    estimatedHours,
+    linesChanged,
     projectAgeDays,
     projectStartDate,
     commitCount,

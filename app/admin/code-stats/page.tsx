@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Code2, FileCode2, GitBranch, Clock, Database, LayoutTemplate, Globe, Layers } from "lucide-react";
+import { Loader2, Code2, FileCode2, GitBranch, Database, LayoutTemplate, Globe, Layers } from "lucide-react";
 
 interface Stats {
   totalFiles: number;
@@ -13,7 +13,7 @@ interface Stats {
   components: number;
   migrations: number;
   appPages: number;
-  estimatedHours: number;
+  linesChanged: number;
   projectAgeDays: number;
   projectStartDate: string;
   commitCount: number;
@@ -95,10 +95,10 @@ export default function CodeStatsPage() {
           sub={`${stats.totalEffectiveLines.toLocaleString()} effective (${blankPct}% blank/comments)`}
         />
         <StatCard
-          icon={<Clock className="h-4 w-4" />}
-          label="Est. active hours"
-          value={stats.estimatedHours}
-          sub="effective LOC ÷ 300 (AI-assisted pace)"
+          icon={<Code2 className="h-4 w-4" />}
+          label="Lines changed"
+          value={stats.linesChanged || stats.totalLines}
+          sub={stats.linesChanged ? "added + deleted across all commits" : "total lines (git history unavailable)"}
         />
         <StatCard
           icon={<GitBranch className="h-4 w-4" />}
@@ -203,10 +203,13 @@ export default function CodeStatsPage() {
             · <span className="text-zinc-300 font-medium">{stats.totalEffectiveLines.toLocaleString()} effective lines</span> of
             code ({stats.totalLines.toLocaleString()} total including blank lines &amp; comments)
           </li>
-          <li>
-            · Roughly <span className="text-zinc-300 font-medium">{stats.estimatedHours} active hours</span> of development
-            — estimated at AI-assisted pace (~300 effective LOC/hr with Claude Code)
-          </li>
+          {stats.linesChanged > 0 && (
+            <li>
+              · <span className="text-zinc-300 font-medium">{stats.linesChanged.toLocaleString()} lines changed</span> across all
+              commits (every addition + deletion) — {(stats.linesChanged / Math.max(1, stats.totalLines)).toFixed(1)}× the surviving
+              tree, reflecting the real churn of AI-assisted iteration
+            </li>
+          )}
           {stats.commitCount > 0 && (
             <li>
               · <span className="text-zinc-300 font-medium">{stats.commitCount} commits</span>
