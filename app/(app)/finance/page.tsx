@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   DollarSign, TrendingUp, TrendingDown, Plus, Trash2, Edit3,
   Check, X, ChevronDown, ChevronUp, ExternalLink, Receipt, Layers,
-  AlertCircle, Clock, CheckCircle2, FileText, Send, Eye, GripVertical, Download,
+  AlertCircle, Clock, CheckCircle2, FileText, Send, Eye, GripVertical, Download, Upload,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -22,6 +22,7 @@ import {
 import { InvoiceDocument } from "@/components/finance/InvoiceDocument";
 import QuotesTab from "@/components/quotes/QuotesTab";
 import { downloadCSV } from "@/lib/export";
+import { FinanceImportModal } from "@/components/finance/FinanceImportModal";
 import type {
   Invoice, InvoiceStatus, BudgetLine, Project, Profile,
   PaymentTerms, PaymentInstallment, Quote,
@@ -255,6 +256,7 @@ export default function FinancePage() {
   }, []);
   const [invoiceDisplayCount, setInvoiceDisplayCount] = useState(15);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [showImport, setShowImport] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -663,6 +665,13 @@ export default function FinancePage() {
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             </div>
+            <button
+              onClick={() => setShowImport(true)}
+              title="Import invoices from another tool (QuickBooks, HoneyBook, Wave…)"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
+            >
+              <Upload className="h-3.5 w-3.5" /> Import
+            </button>
             <button
               onClick={exportFinancials}
               title="Export revenue + expenses as CSV for your accountant"
@@ -1495,6 +1504,16 @@ export default function FinancePage() {
         input[type="number"].fin-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type="number"].fin-input { -moz-appearance: textfield; }
       `}</style>
+
+      {showImport && (
+        <FinanceImportModal
+          onClose={() => setShowImport(false)}
+          onImported={async () => {
+            setShowImport(false);
+            try { setInvoices(await getInvoices()); } catch { /* ignore */ }
+          }}
+        />
+      )}
     </div>
   );
 }
