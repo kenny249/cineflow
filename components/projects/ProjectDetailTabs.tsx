@@ -17,13 +17,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp, Plus, RotateCcw, Paperclip } from "lucide-react";
+import { ArrowLeft, ArrowRight, Archive, Calendar, Edit3, MoreHorizontal, CheckCircle2, Circle, Check, MessageSquare, Upload, Pin, Clock, User, Users, Film, ListChecks, LayoutTemplate, Play, Pause, Volume2, VolumeX, Maximize, Download, X, Save, ScrollText, Link2, RefreshCw, Copy, Send, Trash2, ExternalLink, Package, Pencil, ImageIcon, Tag, ChevronDown, CalendarDays, FileText, Camera, FileUp, Plus, RotateCcw } from "lucide-react";
 import { CallSheetGenerator } from "@/components/call-sheet/CallSheetGenerator";
 import { useCompletionBurst, BurstRenderer } from "@/components/shared/CompletionBurst";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { Project, ProjectMember, ProjectNote, Revision, RevisionStatus, ShotList, StoryboardFrame, ShotListItem, ProjectRole, ReviewToken, PortalDeliverable } from "@/types";
-import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, updateStoryboardFrame, deleteStoryboardFrame, createStoryboardFrame, getProjectDeliverables, createProjectDeliverable, updateProjectDeliverable, deleteProjectDeliverable, createProjectTemplate, softDeleteProject } from "@/lib/supabase/queries";
+import { updateProject, updateShotListItem, createProjectNote, deleteProjectNote, updateProjectNote, createReviewToken, getProjectReviewToken, revokeReviewToken, createShotList, createShotListItem, getProjectDeliverables, createProjectDeliverable, updateProjectDeliverable, deleteProjectDeliverable, createProjectTemplate, softDeleteProject } from "@/lib/supabase/queries";
 import type { ProjectDeliverable } from "@/lib/supabase/queries";
 import { CrewTab } from "@/components/projects/tabs/CrewTab";
 import { LocationsTab } from "@/components/projects/tabs/LocationsTab";
@@ -753,68 +753,6 @@ export default function ProjectDetailTabs({
   const [noteCommentDrafts, setNoteCommentDrafts] = useState<Record<string, string>>({});
   const [expandedNoteComments, setExpandedNoteComments] = useState<Set<string>>(new Set());
 
-  // ── Storyboard image upload ──
-  const [uploadingFrameId, setUploadingFrameId] = useState<string | null>(null);
-  // ── Storyboard PDF upload ──
-  const [storyboardPdfUrl, setStoryboardPdfUrl] = useState(project.storyboard_pdf_url ?? null);
-  const [storyboardPdfName, setStoryboardPdfName] = useState(project.storyboard_pdf_name ?? null);
-  const [uploadingStoryboardPdf, setUploadingStoryboardPdf] = useState(false);
-  const storyboardPdfInputRef = useRef<HTMLInputElement | null>(null);
-
-  // ── Storyboard edit / delete ──
-  const [editingFrame, setEditingFrame] = useState<StoryboardFrame | null>(null);
-  const [editFrameForm, setEditFrameForm] = useState<Partial<StoryboardFrame>>({});
-  const [savingEditFrame, setSavingEditFrame] = useState(false);
-  const [deletingFrameId, setDeletingFrameId] = useState<string | null>(null);
-
-  async function saveEditFrame() {
-    if (!editingFrame) return;
-    setSavingEditFrame(true);
-    try {
-      const updates: Partial<StoryboardFrame> = {
-        title: editFrameForm.title ?? "",
-        description: editFrameForm.description ?? "",
-        camera_angle: editFrameForm.camera_angle ?? "",
-        shot_duration: editFrameForm.shot_duration ?? "",
-        mood: editFrameForm.mood ?? "",
-        notes: editFrameForm.notes ?? "",
-      };
-      // Only call DB if it's a real persisted frame
-      if (!editingFrame.id.startsWith("sb_")) {
-        await updateStoryboardFrame(editingFrame.id, updates);
-      }
-      setStoryboardFrames((prev) => prev.map((f) => f.id === editingFrame.id ? { ...f, ...updates } : f));
-      setEditingFrame(null);
-      toast.success("Frame updated.");
-    } catch {
-      toast.error("Failed to save frame.");
-    } finally {
-      setSavingEditFrame(false);
-    }
-  }
-
-  async function handleDeleteFrame(frameId: string) {
-    setDeletingFrameId(frameId);
-    try {
-      if (!frameId.startsWith("sb_")) {
-        await deleteStoryboardFrame(frameId);
-      }
-      setStoryboardFrames((prev) => prev.filter((f) => f.id !== frameId));
-      toast.success("Frame deleted.");
-    } catch {
-      toast.error("Failed to delete frame.");
-    } finally {
-      setDeletingFrameId(null);
-    }
-  }
-
-  const [showFrameDialog, setShowFrameDialog] = useState(false);
-  const [newFrameTitle, setNewFrameTitle] = useState("");
-  const [newFrameDescription, setNewFrameDescription] = useState("");
-  const [newFrameCameraAngle, setNewFrameCameraAngle] = useState("");
-  const [newFrameDuration, setNewFrameDuration] = useState("00:00:05");
-  const [newFrameMood, setNewFrameMood] = useState("");
-
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [newRevisionTitle, setNewRevisionTitle] = useState("");
   const [newRevisionFile, setNewRevisionFile] = useState<File | null>(null);
@@ -1039,102 +977,6 @@ export default function ProjectDetailTabs({
       toast.error("Failed to save shot.");
     } finally {
       setAddingShotToDb(false);
-    }
-  };
-
-  const [addingFrame, setAddingFrame] = useState(false);
-
-  const handleAddFrame = async () => {
-    if (!newFrameTitle.trim() || !newFrameDescription.trim()) {
-      toast.error("Please add a title and description for the frame.");
-      return;
-    }
-
-    setAddingFrame(true);
-    try {
-      const created = await createStoryboardFrame({
-        project_id: project.id,
-        frame_number: storyboardFrames.length + 1,
-        title: newFrameTitle.trim(),
-        description: newFrameDescription.trim(),
-        shot_duration: newFrameDuration.trim() || "00:00:05",
-        camera_angle: newFrameCameraAngle.trim() || undefined,
-        mood: newFrameMood.trim() || undefined,
-      });
-      setStoryboardFrames((prev) => [...prev, created]);
-      toast.success("Storyboard frame created.");
-    } catch {
-      // Fallback: add locally with temp ID so the UI isn't broken
-      const fallback: StoryboardFrame = {
-        id: `sb_${Math.random().toString(36).slice(2)}`,
-        project_id: project.id,
-        frame_number: storyboardFrames.length + 1,
-        title: newFrameTitle.trim(),
-        description: newFrameDescription.trim(),
-        shot_duration: newFrameDuration.trim() || "00:00:05",
-        camera_angle: newFrameCameraAngle.trim() || undefined,
-        mood: newFrameMood.trim() || undefined,
-        created_at: new Date().toISOString(),
-      };
-      setStoryboardFrames((prev) => [...prev, fallback]);
-      toast.success("Frame added locally.");
-    } finally {
-      setAddingFrame(false);
-      setShowFrameDialog(false);
-      setNewFrameTitle("");
-      setNewFrameDescription("");
-      setNewFrameCameraAngle("");
-      setNewFrameDuration("00:00:05");
-      setNewFrameMood("");
-    }
-  };
-
-  // ── Storyboard image upload ──
-  const handleFrameImageUpload = async (frameId: string, file: File) => {
-    if (!file.type.startsWith("image/")) { toast.error("Please upload an image."); return; }
-    setUploadingFrameId(frameId);
-    try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `${project.id}/storyboard/${frameId}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("project-files")
-        .upload(path, file, { upsert: true, contentType: file.type });
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
-      await updateStoryboardFrame(frameId, { image_url: publicUrl });
-      setStoryboardFrames((prev) => prev.map((f) => f.id === frameId ? { ...f, image_url: publicUrl } : f));
-      toast.success("Frame image updated.");
-    } catch {
-      const localUrl = URL.createObjectURL(file);
-      setStoryboardFrames((prev) => prev.map((f) => f.id === frameId ? { ...f, image_url: localUrl } : f));
-      toast.success("Image applied locally.");
-    } finally {
-      setUploadingFrameId(null);
-    }
-  };
-
-  // ── Storyboard PDF upload ──
-  const handleStoryboardPdfUpload = async (file: File) => {
-    if (file.type !== "application/pdf") { toast.error("Please upload a PDF file."); return; }
-    setUploadingStoryboardPdf(true);
-    try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const path = `${project.id}/storyboard/storyboard-${Date.now()}.pdf`;
-      const { error: uploadError } = await supabase.storage.from("project-files").upload(path, file, { upsert: true, contentType: "application/pdf" });
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from("project-files").getPublicUrl(path);
-      await updateProject(project.id, { storyboard_pdf_url: publicUrl, storyboard_pdf_name: file.name });
-      setStoryboardPdfUrl(publicUrl);
-      setStoryboardPdfName(file.name);
-      toast.success("Storyboard PDF uploaded");
-    } catch {
-      toast.error("Failed to upload storyboard PDF");
-    } finally {
-      setUploadingStoryboardPdf(false);
-      if (storyboardPdfInputRef.current) storyboardPdfInputRef.current.value = "";
     }
   };
 
@@ -2682,118 +2524,6 @@ export default function ProjectDetailTabs({
               )}
             </TabsContent>
 
-            {/* ── Storyboard (hidden standalone — content merged into Shot List sub-mode) ── */}
-            <TabsContent value="storyboard" className="m-0 p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="font-display text-sm font-semibold text-foreground">Storyboard</h3>
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={storyboardPdfInputRef}
-                    type="file"
-                    accept="application/pdf"
-                    className="hidden"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleStoryboardPdfUpload(f); }}
-                  />
-                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => storyboardPdfInputRef.current?.click()} disabled={uploadingStoryboardPdf}>
-                    {uploadingStoryboardPdf ? "Uploading…" : <><Paperclip className="h-3 w-3" /> Upload PDF</>}
-                  </Button>
-                  <Button variant="gold" size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setShowFrameDialog(true)}>
-                    + Add Frame
-                  </Button>
-                </div>
-              </div>
-
-              {storyboardPdfUrl && (
-                <div className="mb-4 flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-                  <FileText className="h-4 w-4 shrink-0 text-[#d4a853]" />
-                  <span className="flex-1 truncate text-sm text-foreground">{storyboardPdfName ?? "Storyboard PDF"}</span>
-                  <a href={storyboardPdfUrl} target="_blank" rel="noopener noreferrer">
-                    <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
-                      <ExternalLink className="h-3 w-3" /> View
-                    </Button>
-                  </a>
-                  <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs text-destructive hover:text-destructive" onClick={async () => {
-                    await updateProject(project.id, { storyboard_pdf_url: undefined, storyboard_pdf_name: undefined });
-                    setStoryboardPdfUrl(null);
-                    setStoryboardPdfName(null);
-                    toast.success("Storyboard PDF removed");
-                  }}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
-
-              {storyboardFrames.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <p className="font-display font-semibold">No storyboard frames yet</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Add frames below or upload your full storyboard PDF above.</p>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {storyboardFrames.map((frame) => (
-                    <div key={frame.id} className="group overflow-hidden rounded-xl border border-border bg-card transition-all hover:border-[#d4a853]/40 hover:shadow-md">
-                      {/* Image area */}
-                      <div className="relative aspect-video overflow-hidden bg-muted">
-                        {frame.image_url ? (
-                          <Image src={frame.image_url} alt={frame.title || `Frame ${frame.frame_number}`} fill className="object-cover" sizes="(max-width: 768px) 100vw, 25vw" unoptimized />
-                        ) : (
-                          <div className="flex h-full items-center justify-center">
-                            <div className="flex flex-col items-center gap-1 text-muted-foreground/40">
-                              <ImageIcon className="h-8 w-8" />
-                              <span className="text-[10px]">No image</span>
-                            </div>
-                          </div>
-                        )}
-                        {/* Frame number badge */}
-                        <div className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-mono text-white/80 backdrop-blur-sm">{String(frame.frame_number).padStart(2, "0")}</div>
-                        {/* Duration badge */}
-                        {frame.shot_duration && <div className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">{frame.shot_duration}</div>}
-                        {/* Hover action overlay */}
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
-                          {/* Upload image */}
-                          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors">
-                            {uploadingFrameId === frame.id
-                              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                              : <Upload className="h-3.5 w-3.5" />
-                            }
-                            {uploadingFrameId === frame.id ? "Uploading…" : "Upload image"}
-                            <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFrameImageUpload(frame.id, e.target.files[0])} />
-                          </label>
-                          {/* Edit + Delete row */}
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => { setEditingFrame(frame); setEditFrameForm({ title: frame.title, description: frame.description, camera_angle: frame.camera_angle, shot_duration: frame.shot_duration, mood: frame.mood, notes: frame.notes }); }}
-                              className="flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-[#d4a853]/80 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors"
-                            >
-                              <Pencil className="h-3.5 w-3.5" /> Edit
-                            </button>
-                            <button
-                              onClick={() => { if (confirm("Delete this frame?")) handleDeleteFrame(frame.id); }}
-                              disabled={deletingFrameId === frame.id}
-                              className="flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-red-500/80 border border-white/20 px-3 py-1.5 text-[11px] font-medium text-white transition-colors disabled:opacity-50"
-                            >
-                              {deletingFrameId === frame.id ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Trash2 className="h-3.5 w-3.5" />}
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                      {/* Card info */}
-                      <div className="p-3">
-                        {frame.title && <p className="text-xs font-semibold text-foreground mb-1">{frame.title}</p>}
-                        {frame.description && <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2">{frame.description}</p>}
-                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
-                          {frame.camera_angle && <p className="text-[10px] text-muted-foreground">{frame.camera_angle}</p>}
-                          {frame.mood && <p className="text-[10px] text-[#d4a853]/70 italic">{frame.mood}</p>}
-                        </div>
-                        {frame.notes && <p className="mt-1 text-[10px] text-muted-foreground/60 line-clamp-1 italic">{frame.notes}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
             {/* ── Tasks ── */}
             <TabsContent value="tasks" className="m-0">
               <ProjectTasksTab projectId={project.id} canEdit={canEdit} />
@@ -3529,92 +3259,6 @@ export default function ProjectDetailTabs({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={showFrameDialog} onOpenChange={setShowFrameDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add storyboard frame</DialogTitle>
-            <DialogDescription>Add a new visual frame to the project storyboard.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="frame-title">Title *</Label>
-              <Input id="frame-title" value={newFrameTitle} onChange={(e) => setNewFrameTitle(e.target.value)} placeholder="e.g. Hero walks into light" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="frame-description">Description *</Label>
-              <Textarea id="frame-description" value={newFrameDescription} onChange={(e) => setNewFrameDescription(e.target.value)} rows={3} placeholder="Describe what happens in this frame." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="frame-camera">Camera Angle</Label>
-                <Input id="frame-camera" value={newFrameCameraAngle} onChange={(e) => setNewFrameCameraAngle(e.target.value)} placeholder="e.g. Wide / Eye level" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="frame-duration">Shot Duration</Label>
-                <Input id="frame-duration" value={newFrameDuration} onChange={(e) => setNewFrameDuration(e.target.value)} placeholder="00:00:05" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="frame-mood">Mood / Feel</Label>
-              <Input id="frame-mood" value={newFrameMood} onChange={(e) => setNewFrameMood(e.target.value)} placeholder="e.g. Tense, joyful, cinematic…" />
-            </div>
-          </div>
-          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowFrameDialog(false)}>Cancel</Button>
-            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={handleAddFrame} disabled={addingFrame}>
-              {addingFrame ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black mr-1.5" /> : null}
-              Add frame
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Edit Frame dialog ── */}
-      <Dialog open={!!editingFrame} onOpenChange={(open) => { if (!open) setEditingFrame(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit frame</DialogTitle>
-            <DialogDescription>Update this storyboard frame&apos;s details.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input value={editFrameForm.title ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, title: e.target.value }))} placeholder="Frame title" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea value={editFrameForm.description ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, description: e.target.value }))} rows={3} placeholder="Describe the shot." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Camera Angle</Label>
-                <Input value={editFrameForm.camera_angle ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, camera_angle: e.target.value }))} placeholder="e.g. Wide / Eye level" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Shot Duration</Label>
-                <Input value={editFrameForm.shot_duration ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, shot_duration: e.target.value }))} placeholder="00:00:05" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Mood / Feel</Label>
-              <Input value={editFrameForm.mood ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, mood: e.target.value }))} placeholder="e.g. Tense, cinematic…" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Production Notes</Label>
-              <Textarea value={editFrameForm.notes ?? ""} onChange={(e) => setEditFrameForm((f) => ({ ...f, notes: e.target.value }))} rows={2} placeholder="Any additional notes for this frame." />
-            </div>
-          </div>
-          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setEditingFrame(null)}>Cancel</Button>
-            <Button variant="gold" size="sm" className="w-full sm:w-auto" onClick={saveEditFrame} disabled={savingEditFrame}>
-              {savingEditFrame ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black mr-1.5" /> : null}
-              Save changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={showRevisionDialog} onOpenChange={setShowRevisionDialog}>
         <DialogContent>
           <DialogHeader>
