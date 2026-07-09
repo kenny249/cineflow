@@ -235,6 +235,40 @@ export default function ProjectTasksPage() {
     }
   }, [tasks]);
 
+  // Inline reassign from the list — "pass a task along" without opening the editor.
+  // rawValue matches the dialog's scheme: "id:<uid>" (real account), "name:<x>"
+  // (unlinked invite), or "" (unassigned).
+  const reassignTask = useCallback(async (task: ProjectTask, rawValue: string) => {
+    let assignee_id: string | null = null;
+    let assignee_name: string | null = null;
+    if (rawValue.startsWith("id:")) {
+      assignee_id = rawValue.slice(3);
+      assignee_name = assignee_id === me?.id ? (me?.name ?? "") : (teamMembers.find((m) => m.user_id === assignee_id)?.name ?? teamMembers.find((m) => m.user_id === assignee_id)?.email ?? "");
+    } else if (rawValue.startsWith("name:")) {
+      assignee_name = rawValue.slice(5);
+    }
+    const prev = { assignee_id: task.assignee_id, assignee_name: task.assignee_name };
+    setTasks((cur) => cur.map((t) => t.id === task.id ? { ...t, assignee_id, assignee_name: assignee_name ?? undefined } : t));
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("project_tasks").update({ assignee_id, assignee_name, updated_at: new Date().toISOString() }).eq("id", task.id);
+      // Notify the new assignee if it's a real account, changed, and not the actor.
+      if (assignee_id && assignee_id !== user?.id && assignee_id !== prev.assignee_id) {
+        createNotification({
+          user_id: assignee_id,
+          type: "task_assigned",
+          title: `${assignee_name || "A task"} — assigned to you`,
+          description: task.title,
+          href: "/tasks",
+        });
+      }
+      toast.success(assignee_name ? `Assigned to ${assignee_name}` : "Unassigned");
+    } catch {
+      setTasks((cur) => cur.map((t) => t.id === task.id ? { ...t, ...prev } : t));
+      toast.error("Failed to reassign");
+    }
+  }, [me, teamMembers]);
+
   const handleDelete = useCallback(async (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     try {
@@ -380,8 +414,8 @@ export default function ProjectTasksPage() {
           ) : (
             <div className="overflow-x-auto rounded-xl border border-border">
               <div className="min-w-[620px]">
-                <div className="grid grid-cols-[1.5rem_1fr_120px_80px_90px_100px_auto] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
-                  {["", "Task", "Project", "Type", "Priority", "Due Date", ""].map((h, i) => (
+                <div className="grid grid-cols-[1.5rem_1fr_120px_140px_80px_90px_100px_auto] items-center gap-3 border-b border-border bg-muted/50 px-4 py-2">
+                  {["", "Task", "Project", "Assignee", "Type", "Priority", "Due Date", ""].map((h, i) => (
                     <div key={i} className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{h}</div>
                   ))}
                 </div>
@@ -393,7 +427,7 @@ export default function ProjectTasksPage() {
                     <div
                       key={task.id}
                       className={cn(
-                        "grid grid-cols-[1.5rem_1fr_120px_80px_90px_100px_auto] items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0",
+                        "grid grid-cols-[1.5rem_1fr_120px_140px_80px_90px_100px_auto] items-center gap-3 border-b border-border px-4 py-3 transition-colors last:border-0",
                         task.status === "done" ? "bg-muted/20" : "bg-card hover:bg-accent/30"
                       )}
                     >
@@ -411,13 +445,30 @@ export default function ProjectTasksPage() {
                         {task.description && (
                           <p className="truncate text-[11px] text-muted-foreground mt-0.5">{task.description}</p>
                         )}
-                        {task.assignee_name && (
-                          <p className="text-[10px] text-muted-foreground/60 mt-0.5">→ {task.assignee_name}</p>
-                        )}
                       </div>
                       <span className="truncate text-xs text-muted-foreground">
                         {(task.project as { title?: string } | null)?.title || "—"}
                       </span>
+                      {/* Inline assignee — reassign / pass a task along without opening the editor */}
+                      <select
+                        value={task.assignee_id ? `id:${task.assignee_id}` : (task.assignee_name ? `name:${task.assignee_name}` : "")}
+                        onChange={(e) => reassignTask(task, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Assign / reassign"
+                        className="w-full truncate rounded-md border border-transparent bg-transparent px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground focus:border-[#d4a853]/50 focus:outline-none"
+                      >
+                        <option value="">Unassigned</option>
+                        {me && <option value={`id:${me.id}`}>Me ({me.name})</option>}
+                        {/* Keep the current name-only assignee selectable if it isn't a linked account */}
+                        {task.assignee_name && !task.assignee_id && !teamMembers.some((m) => (m.name ?? m.email) === task.assignee_name) && (
+                          <option value={`name:${task.assignee_name}`}>{task.assignee_name}</option>
+                        )}
+                        {teamMembers.filter((m) => m.user_id !== me?.id).map((m) => (
+                          <option key={m.id} value={m.user_id ? `id:${m.user_id}` : `name:${m.name ?? m.email}`}>
+                            {m.name ?? m.email}{m.status === "pending" ? " (pending)" : ""}
+                          </option>
+                        ))}
+                      </select>
                       <span className="text-xs text-muted-foreground">{TYPE_LABELS[task.type]}</span>
                       <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold", pri.bg, pri.color)}>
                         {pri.label}
