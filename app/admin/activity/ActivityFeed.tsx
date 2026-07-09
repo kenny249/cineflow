@@ -1,23 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { UserPlus, FolderOpen, FileText, PenLine, Wifi, WifiOff } from "lucide-react";
+import { UserPlus, FolderOpen, FileText, PenLine, Wifi, WifiOff, Link2, Eye, Film, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ActivityEvent = {
   id: string;
-  type: "signup" | "project" | "invoice" | "contract" | "plan_change";
+  type: "signup" | "project" | "invoice" | "contract" | "plan_change" | "portal" | "revision" | "review" | "comment";
   label: string;
   detail?: string;
   ts: string;
 };
 
 const TYPE_ICONS = {
-  signup:      { icon: UserPlus,   color: "text-emerald-400", bg: "bg-emerald-400/10" },
-  project:     { icon: FolderOpen, color: "text-blue-400",    bg: "bg-blue-400/10" },
-  invoice:     { icon: FileText,   color: "text-[#d4a853]",   bg: "bg-[#d4a853]/10" },
-  contract:    { icon: PenLine,    color: "text-purple-400",  bg: "bg-purple-400/10" },
-  plan_change: { icon: UserPlus,   color: "text-zinc-400",    bg: "bg-zinc-400/10" },
+  signup:      { icon: UserPlus,      color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  project:     { icon: FolderOpen,    color: "text-blue-400",    bg: "bg-blue-400/10" },
+  invoice:     { icon: FileText,      color: "text-[#d4a853]",   bg: "bg-[#d4a853]/10" },
+  contract:    { icon: PenLine,       color: "text-purple-400",  bg: "bg-purple-400/10" },
+  plan_change: { icon: UserPlus,      color: "text-zinc-400",    bg: "bg-zinc-400/10" },
+  portal:      { icon: Eye,           color: "text-cyan-400",    bg: "bg-cyan-400/10" },
+  revision:    { icon: Film,          color: "text-blue-400",    bg: "bg-blue-400/10" },
+  review:      { icon: Link2,         color: "text-emerald-400", bg: "bg-emerald-400/10" },
+  comment:     { icon: MessageSquare, color: "text-amber-400",   bg: "bg-amber-400/10" },
 };
 
 function timeAgo(iso: string) {
