@@ -50,7 +50,46 @@ import { getProjects, getActivityLog, getCalendarEvents, getRetainers, getInvoic
 import { createClient } from "@/lib/supabase/client";
 import type { Project, ActivityItem, CalendarEvent, Retainer, Invoice } from "@/types";
 import { isSoloPlan } from "@/types";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+/**
+ * Editorial section header — a quiet, uppercase label instead of a gold marker bar.
+ * Keeps the gold rationed to the hero + primary CTA.
+ */
+function SectionHeader({
+  title,
+  count,
+  href,
+  linkLabel = "View all",
+}: {
+  title: string;
+  count?: number;
+  href?: string;
+  linkLabel?: string;
+}) {
+  return (
+    <div className="mb-3 flex items-center justify-between">
+      <h2 className="flex items-baseline gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+        {title}
+        {count !== undefined && (
+          <span className="font-mono text-[0.7rem] font-normal tabular-nums text-muted-foreground/45">
+            {count}
+          </span>
+        )}
+      </h2>
+      {href && (
+        <Link
+          href={href}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
+        >
+          {linkLabel}
+          <ArrowUpRight className="h-3 w-3" />
+        </Link>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -231,14 +270,14 @@ export default function DashboardPage() {
 
   const stats = solo
     ? [
-        { label: "Active Jobs",       value: inFlightCount,                                            icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10",  href: "/projects" },
-        { label: "Shoots This Week",  value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10",   href: "/calendar" },
+        { label: "Active Jobs",       value: inFlightCount,                                            icon: TrendingUp,  color: "text-foreground", bg: "bg-white/[0.06]",  href: "/projects" },
+        { label: "Shoots This Week",  value: thisWeekEvents,                                           icon: Camera,      color: "text-sky-400",    bg: "bg-sky-400/10",    href: "/calendar" },
         { label: "Awaiting Feedback", value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10",  href: "/projects" },
         { label: "Delivered",         value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10", href: "/projects" },
       ]
     : [
-        { label: "Active",        value: inFlightCount,                                            icon: TrendingUp,  color: "text-[#d4a853]",  bg: "bg-[#d4a853]/10",  href: "/projects" },
-        { label: "This Week",     value: thisWeekEvents,                                           icon: Camera,      color: "text-blue-400",   bg: "bg-blue-400/10",   href: "/calendar" },
+        { label: "Active",        value: inFlightCount,                                            icon: TrendingUp,  color: "text-foreground", bg: "bg-white/[0.06]",  href: "/projects" },
+        { label: "This Week",     value: thisWeekEvents,                                           icon: Camera,      color: "text-sky-400",    bg: "bg-sky-400/10",    href: "/calendar" },
         { label: "Pending review",value: projects.filter(p => p.status === "review").length,       icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10",  href: "/projects" },
         { label: "Delivered",     value: projects.filter(p => p.status === "delivered").length,    icon: CheckCircle2,color: "text-emerald-400",bg: "bg-emerald-400/10", href: "/projects" },
       ];
@@ -293,92 +332,110 @@ export default function DashboardPage() {
         <DashboardParticles />
         <div className="relative flex-1 space-y-6 p-6">
 
-          {/* ── Welcome header ── */}
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="mb-0.5 text-[0.65rem] font-bold uppercase tracking-[0.3em] text-[#d4a853]">
-                {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-              </p>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                  {greeting},{" "}
-                  {displayName === null ? (
-                    <span className="shimmer-gold inline-block h-[0.9em] w-36 translate-y-[0.05em] rounded-full align-middle" />
-                  ) : (
-                    <span className="animate-fade-in-name">{displayName}</span>
-                  )}
-                </h1>
-                {(plan === "lifetime" || planStatus === "founding") ? (
-                  <span className="group relative inline-flex cursor-default select-none items-center gap-1.5 overflow-hidden rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-[0.2em]"
-                    style={{
-                      background: "linear-gradient(135deg, #1c1a0f 0%, #0e0d08 55%, #1a180e 100%)",
-                      boxShadow: "0 0 0 1px rgba(212,168,83,0.45), inset 0 1px 0 rgba(212,168,83,0.15)",
-                    }}
-                  >
-                    <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#d4a853]/20 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full" />
-                    <Sparkles className="relative h-2.5 w-2.5 text-[#d4a853]" />
-                    <span
-                      className="relative"
+          {/* ── Hero header ── */}
+          <div className="relative">
+            <div className="letterbox-bar mb-6" />
+            <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-5">
+              <div className="min-w-0">
+                {/* Kicker — date + plan, deliberately quiet so the greeting leads */}
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <p className="text-[0.65rem] font-semibold uppercase tracking-[0.32em] text-muted-foreground">
+                    {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+                  </p>
+                  <span className="h-3 w-px bg-border" />
+                  {(plan === "lifetime" || planStatus === "founding") ? (
+                    <span className="group relative inline-flex cursor-default select-none items-center gap-1.5 overflow-hidden rounded-full px-3 py-0.5 text-[9px] font-black uppercase tracking-[0.2em]"
                       style={{
-                        background: "linear-gradient(90deg, #a0720a, #f0c84a, #d4a853, #f5d98e, #b8860b)",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                        backgroundClip: "text",
+                        background: "linear-gradient(135deg, #1c1a0f 0%, #0e0d08 55%, #1a180e 100%)",
+                        boxShadow: "0 0 0 1px rgba(212,168,83,0.45), inset 0 1px 0 rgba(212,168,83,0.15)",
                       }}
                     >
-                      Founding Member
+                      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[#d4a853]/20 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full" />
+                      <Sparkles className="relative h-2.5 w-2.5 text-[#d4a853]" />
+                      <span
+                        className="relative"
+                        style={{
+                          background: "linear-gradient(90deg, #a0720a, #f0c84a, #d4a853, #f5d98e, #b8860b)",
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          backgroundClip: "text",
+                        }}
+                      >
+                        Founding Member
+                      </span>
                     </span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-[#d4a853]/25 bg-[#d4a853]/10 px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-[#d4a853] uppercase">
-                    <Sparkles className="h-2.5 w-2.5" />
-                    {plan === "solo" || plan === "solo_beta" ? "Solo" :
-                     plan === "agency" ? "Agency" :
-                     plan === "enterprise" ? "Enterprise" :
-                     planStatus === "trialing" ? "Free Trial" :
-                     "Studio"}
-                  </span>
-                )}
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary px-2 py-0.5 text-[9px] font-bold tracking-[0.2em] text-muted-foreground uppercase">
+                      <Sparkles className="h-2.5 w-2.5" />
+                      {plan === "solo" || plan === "solo_beta" ? "Solo" :
+                       plan === "agency" ? "Agency" :
+                       plan === "enterprise" ? "Enterprise" :
+                       planStatus === "trialing" ? "Free Trial" :
+                       "Studio"}
+                    </span>
+                  )}
+                </div>
+                {/* Greeting — the one place typography is allowed to shout */}
+                <h1 className="font-display text-[1.9rem] font-bold leading-[1.03] tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem]">
+                  {greeting},{" "}
+                  {displayName === null ? (
+                    <span className="shimmer-gold inline-block h-[0.8em] w-48 translate-y-[0.03em] rounded-lg align-middle sm:w-64" />
+                  ) : (
+                    <span className="animate-fade-in-name text-gradient-gold">{displayName}</span>
+                  )}
+                </h1>
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+                  {getDailyCompliment()}
+                </p>
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground italic">
-                {getDailyCompliment()}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 rounded-lg border border-red-500/25 bg-red-500/8 px-3 py-1.5 text-xs font-medium text-red-400 transition-all hover:border-red-500/40 hover:bg-red-500/12 sm:px-4 sm:py-2 sm:text-sm"
-              >
-                <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">Logout</span>
-              </button>
-              <button
-                onClick={() => setModalOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-[#d4a853]/25 bg-[#d4a853]/8 px-3 py-1.5 text-xs font-medium text-[#d4a853] transition-all hover:border-[#d4a853]/40 hover:bg-[#d4a853]/12 sm:px-4 sm:py-2 sm:text-sm"
-              >
-                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span>{solo ? "New Job" : "New Project"}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 rounded-lg border border-border bg-transparent px-3 py-2 text-xs font-medium text-muted-foreground transition-all hover:border-red-500/30 hover:text-red-400 sm:text-sm"
+                >
+                  <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
+                <button
+                  onClick={() => setModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-4 py-2 text-xs font-semibold text-black shadow-[0_2px_20px_-6px_rgba(212,168,83,0.55)] transition-all hover:bg-[#e0b866] hover:shadow-[0_4px_28px_-6px_rgba(212,168,83,0.7)] active:scale-[0.98] sm:text-sm"
+                >
+                  <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span>{solo ? "New Job" : "New Project"}</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* ── Stat pills ── */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {stats.map((stat) => (
-              <Link
-                key={stat.label}
-                href={stat.href}
-                className="group flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#d4a853]/20 hover:shadow-[0_8px_32px_rgba(0,0,0,0.3)] active:scale-[0.98]"
-              >
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${stat.bg} transition-all duration-200 group-hover:shadow-[0_0_14px_rgba(212,168,83,0.2)]`}>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-                <div>
-                  <div className="font-display text-xl font-bold text-foreground">{stat.value}</div>
-                  <div className="text-[10px] text-muted-foreground">{stat.label}</div>
-                </div>
-              </Link>
-            ))}
+          {/* ── Stat rail — a single elevated surface, numbers as the hero ── */}
+          <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[inset_0_1px_0_0_rgba(255,255,255,0.03),0_16px_40px_-24px_rgba(0,0,0,0.7)]">
+            <div className="grid grid-cols-2 sm:grid-cols-4">
+              {stats.map((stat, i) => (
+                <Link
+                  key={stat.label}
+                  href={stat.href}
+                  className={cn(
+                    "group relative flex flex-col justify-between gap-6 border-border/60 p-4 transition-colors hover:bg-white/[0.02] sm:p-5",
+                    ["border-b border-r sm:border-b-0", "border-b sm:border-b-0 sm:border-r", "border-r", ""][i]
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", stat.bg)}>
+                      <stat.icon className={cn("h-4 w-4", stat.color)} />
+                    </div>
+                    <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground/60" />
+                  </div>
+                  <div>
+                    <div className="font-display text-[2rem] font-bold leading-none tabular-nums text-foreground">
+                      {stat.value}
+                    </div>
+                    <div className="mt-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                      {stat.label}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
 
           {/* ── Main grid ── */}
@@ -389,22 +446,11 @@ export default function DashboardPage() {
 
               {/* Active Projects */}
               <section>
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                    {solo ? "Current Jobs" : "Current Projects"}
-                    <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
-                      {activeProjects.length}
-                    </span>
-                  </h2>
-                  <Link
-                    href="/projects"
-                    className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    View all
-                    <ArrowUpRight className="h-3 w-3" />
-                  </Link>
-                </div>
+                <SectionHeader
+                  title={solo ? "Current Jobs" : "Current Projects"}
+                  count={activeProjects.length}
+                  href="/projects"
+                />
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {activeProjects.length === 0 && !loading ? (
@@ -437,12 +483,12 @@ export default function DashboardPage() {
                   {/* Add project card */}
                   <button
                     onClick={() => setModalOpen(true)}
-                    className="group flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-transparent transition-all hover:border-[#d4a853]/30 hover:bg-[#d4a853]/[0.02]"
+                    className="group flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-transparent transition-all hover:border-border/90 hover:bg-white/[0.015]"
                   >
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-border transition-colors group-hover:border-[#d4a853]/40">
-                      <Plus className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-[#d4a853]" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-border transition-colors group-hover:border-muted-foreground/50">
+                      <Plus className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
                     </div>
-                    <span className="text-xs text-muted-foreground transition-colors group-hover:text-[#d4a853]">
+                    <span className="text-xs text-muted-foreground transition-colors group-hover:text-foreground">
                       New project
                     </span>
                   </button>
@@ -453,20 +499,8 @@ export default function DashboardPage() {
 
               {/* Schedule */}
               <section>
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                    Schedule
-                  </h2>
-                  <Link
-                    href="/calendar"
-                    className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    Full calendar
-                    <ArrowUpRight className="h-3 w-3" />
-                  </Link>
-                </div>
-                <div className="rounded-xl border border-border bg-card">
+                <SectionHeader title="Schedule" href="/calendar" linkLabel="Full calendar" />
+                <div className="rounded-xl border border-border/60 bg-card/40">
                   <UpcomingShoots events={calendarEvents} />
                 </div>
               </section>
@@ -489,10 +523,7 @@ export default function DashboardPage() {
 
               {/* Quick Actions */}
               <section>
-                <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                  <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                  Quick Actions
-                </h2>
+                <SectionHeader title="Quick Actions" />
                 <QuickActions
                   savedKeys={savedQuickActions}
                   onNewProject={() => setModalOpen(true)}
@@ -501,16 +532,8 @@ export default function DashboardPage() {
 
               {/* Revenue Pipeline */}
               <section>
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                    Revenue Pipeline
-                  </h2>
-                  <Link href="/finance" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
-                    Finance <ArrowUpRight className="h-3 w-3" />
-                  </Link>
-                </div>
-                <div className="rounded-xl border border-border bg-card overflow-hidden">
+                <SectionHeader title="Revenue Pipeline" href="/finance" linkLabel="Finance" />
+                <div className="overflow-hidden rounded-xl border border-border/60 bg-card/40">
                   {[
                     {
                       label: "Quotes",
@@ -541,16 +564,16 @@ export default function DashboardPage() {
                     <Link
                       key={step.label}
                       href={step.href}
-                      className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 border-b border-border last:border-0"
+                      className="group flex items-center gap-3 border-b border-border/50 px-4 py-3 transition-colors last:border-0 hover:bg-white/[0.02]"
                     >
-                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold transition-colors ${step.warn ? "bg-amber-500/15 text-amber-400" : step.active ? "bg-[#d4a853]/15 text-[#d4a853]" : "bg-muted/30 text-muted-foreground/40"}`}>
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold transition-colors ${step.warn ? "bg-amber-500/15 text-amber-400" : step.active ? "bg-white/[0.07] text-foreground" : "bg-muted/30 text-muted-foreground/40"}`}>
                         {i + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-foreground group-hover:text-[#d4a853] transition-colors">{step.label}</p>
-                        <p className={`text-[10px] ${step.warn ? "text-amber-400/80" : step.active ? "text-[#d4a853]/70" : "text-muted-foreground/50"}`}>{step.sub}</p>
+                        <p className="text-xs font-medium text-foreground transition-colors">{step.label}</p>
+                        <p className={`text-[10px] ${step.warn ? "text-amber-400/80" : step.active ? "text-muted-foreground" : "text-muted-foreground/50"}`}>{step.sub}</p>
                       </div>
-                      <ArrowUpRight className="h-3 w-3 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
+                      <ArrowUpRight className="h-3 w-3 text-muted-foreground/30 transition-colors group-hover:text-muted-foreground" />
                     </Link>
                   ))}
                 </div>
@@ -562,31 +585,19 @@ export default function DashboardPage() {
               {/* Retainers widget */}
               {retainers.length > 0 && (
                 <section>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                      <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                      Retainers
-                    </h2>
-                    <Link
-                      href="/retainers"
-                      className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      View all
-                      <ArrowUpRight className="h-3 w-3" />
-                    </Link>
-                  </div>
-                  <div className="rounded-xl border border-border bg-card divide-y divide-border">
+                  <SectionHeader title="Retainers" href="/retainers" />
+                  <div className="divide-y divide-border/50 overflow-hidden rounded-xl border border-border/60 bg-card/40">
                     {retainers.filter((r) => r.is_active).slice(0, 4).map((r) => (
                       <Link
                         key={r.id}
                         href={`/retainers/${r.id}`}
-                        className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 first:rounded-t-xl last:rounded-b-xl"
+                        className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.02]"
                       >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#d4a853]/10">
-                          <Repeat2 className="h-3.5 w-3.5 text-[#d4a853]" />
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
+                          <Repeat2 className="h-3.5 w-3.5 text-emerald-400" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium text-foreground group-hover:text-[#d4a853] transition-colors">
+                          <p className="truncate text-xs font-medium text-foreground transition-colors group-hover:text-foreground">
                             {r.client_name}
                           </p>
                           {r.monthly_rate != null && (
@@ -595,7 +606,7 @@ export default function DashboardPage() {
                             </p>
                           )}
                         </div>
-                        <ArrowUpRight className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                        <ArrowUpRight className="h-3 w-3 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
                       </Link>
                     ))}
                   </div>
@@ -605,31 +616,23 @@ export default function DashboardPage() {
               {/* Finance widget */}
               {invoices.length > 0 && (
                 <section>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                      <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                      Finance
-                    </h2>
-                    <Link href="/finance" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
-                      View all <ArrowUpRight className="h-3 w-3" />
-                    </Link>
-                  </div>
+                  <SectionHeader title="Finance" href="/finance" />
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-xl border border-border bg-card p-3">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="rounded-xl border border-border/60 bg-card p-3.5">
+                      <div className="mb-1.5 flex items-center gap-2">
                         <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
-                        <span className="text-[10px] text-muted-foreground">This month</span>
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">This month</span>
                       </div>
-                      <p className="font-display text-lg font-bold text-foreground">
+                      <p className="font-display text-xl font-bold tabular-nums text-foreground">
                         ${thisMonthInvoiced.toLocaleString()}
                       </p>
                     </div>
-                    <div className="rounded-xl border border-border bg-card p-3">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="rounded-xl border border-border/60 bg-card p-3.5">
+                      <div className="mb-1.5 flex items-center gap-2">
                         <Clock className="h-3.5 w-3.5 text-amber-400" />
-                        <span className="text-[10px] text-muted-foreground">Outstanding</span>
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Outstanding</span>
                       </div>
-                      <p className="font-display text-lg font-bold text-foreground">
+                      <p className="font-display text-xl font-bold tabular-nums text-foreground">
                         ${outstanding.toLocaleString()}
                       </p>
                     </div>
@@ -640,29 +643,21 @@ export default function DashboardPage() {
               {/* Review queue widget */}
               {reviewProjects.length > 0 && (
                 <section>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                      <span className="h-3 w-0.5 rounded-full bg-amber-400" />
-                      Awaiting Feedback
-                    </h2>
-                    <Link href="/projects" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
-                      View all <ArrowUpRight className="h-3 w-3" />
-                    </Link>
-                  </div>
-                  <div className="rounded-xl border border-border bg-card divide-y divide-border">
+                  <SectionHeader title="Awaiting Feedback" count={reviewProjects.length} href="/projects" />
+                  <div className="divide-y divide-border/50 overflow-hidden rounded-xl border border-amber-500/15 bg-amber-500/[0.02]">
                     {reviewProjects.slice(0, 4).map((p) => (
                       <Link
                         key={p.id}
                         href={`/projects/${p.id}`}
-                        className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30 first:rounded-t-xl last:rounded-b-xl"
+                        className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/[0.02]"
                       >
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-400/10">
                           <MessageSquare className="h-3.5 w-3.5 text-amber-400" />
                         </div>
-                        <p className="min-w-0 flex-1 truncate text-xs font-medium text-foreground group-hover:text-[#d4a853] transition-colors">
+                        <p className="min-w-0 flex-1 truncate text-xs font-medium text-foreground transition-colors group-hover:text-foreground">
                           {p.title}
                         </p>
-                        <ArrowUpRight className="h-3 w-3 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+                        <ArrowUpRight className="h-3 w-3 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-muted-foreground" />
                       </Link>
                     ))}
                   </div>
@@ -672,11 +667,8 @@ export default function DashboardPage() {
               {/* Activity feed — studio only */}
               {!solo && (
                 <section>
-                  <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                    Recent Activity
-                  </h2>
-                  <div className="rounded-xl border border-border bg-card p-4">
+                  <SectionHeader title="Recent Activity" />
+                  <div className="rounded-xl border border-border/60 bg-card/40 p-4">
                     {activity.length === 0 ? (
                       <p className="py-4 text-center text-xs text-muted-foreground">No activity yet — create a project or upload a revision to get started.</p>
                     ) : (
@@ -699,22 +691,19 @@ export default function DashboardPage() {
               {/* Today's shoots — solo only */}
               {solo && (
                 <section>
-                  <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
-                    Today
-                  </h2>
-                  <div className="rounded-xl border border-border bg-card p-4">
+                  <SectionHeader title="Today" />
+                  <div className="rounded-xl border border-border/60 bg-card/40 p-4">
                     {todayEvents.length === 0 ? (
                       <div className="py-4 text-center">
                         <p className="text-xs text-muted-foreground">Nothing scheduled today.</p>
-                        <Link href="/calendar" className="mt-2 inline-flex items-center gap-1 text-[11px] text-[#d4a853] hover:underline">
+                        <Link href="/calendar" className="mt-2 inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
                           Add a shoot <ArrowUpRight className="h-3 w-3" />
                         </Link>
                       </div>
                     ) : (
                       <div className="space-y-2">
                         {todayEvents.map((e) => (
-                          <div key={e.id} className="flex items-center gap-3 rounded-lg border border-border bg-card/50 px-3 py-2.5">
+                          <div key={e.id} className="flex items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2.5">
                             <div className="h-2 w-2 shrink-0 rounded-full bg-[#d4a853]" />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-xs font-medium text-foreground">{e.title}</p>

@@ -140,11 +140,10 @@ export function ClientActivityWidget() {
         onClick={toggleCollapse}
         className="mb-3 flex w-full items-center justify-between group"
       >
-        <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-          <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+        <h2 className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
           Client Activity
           {unread > 0 && (
-            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[#d4a853] text-[9px] font-bold text-black">
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#d4a853] px-1 text-[9px] font-bold text-black">
               {unread}
             </span>
           )}
@@ -182,7 +181,7 @@ export function ClientActivityWidget() {
       )}
 
       {!collapsed && events.length > 0 && (
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-border/60 bg-card/40">
           {loading ? (
             <div className="flex items-center justify-center py-6">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#d4a853]/30 border-t-[#d4a853]" />
