@@ -390,10 +390,9 @@ export default function DashboardPage() {
               {/* Active Projects */}
               <section>
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                  <h2 className="flex items-baseline gap-2 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                     {solo ? "Current Jobs" : "Current Projects"}
-                    <span className="ml-1 font-mono text-xs font-normal text-muted-foreground">
+                    <span className="font-mono text-[0.7rem] font-normal tabular-nums text-muted-foreground/45">
                       {activeProjects.length}
                     </span>
                   </h2>
@@ -454,8 +453,7 @@ export default function DashboardPage() {
               {/* Schedule */}
               <section>
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                  <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                     Schedule
                   </h2>
                   <Link
@@ -489,8 +487,7 @@ export default function DashboardPage() {
 
               {/* Quick Actions */}
               <section>
-                <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                  <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                <h2 className="mb-3 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                   Quick Actions
                 </h2>
                 <QuickActions
@@ -502,8 +499,7 @@ export default function DashboardPage() {
               {/* Revenue Pipeline */}
               <section>
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                  <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                     Revenue Pipeline
                   </h2>
                   <Link href="/finance" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
@@ -563,8 +559,7 @@ export default function DashboardPage() {
               {retainers.length > 0 && (
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                      <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                    <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                       Retainers
                     </h2>
                     <Link
@@ -606,8 +601,7 @@ export default function DashboardPage() {
               {invoices.length > 0 && (
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                      <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                    <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                       Finance
                     </h2>
                     <Link href="/finance" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
@@ -641,8 +635,7 @@ export default function DashboardPage() {
               {reviewProjects.length > 0 && (
                 <section>
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                      <span className="h-3 w-0.5 rounded-full bg-amber-400" />
+                    <h2 className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                       Awaiting Feedback
                     </h2>
                     <Link href="/projects" className="flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
@@ -672,8 +665,7 @@ export default function DashboardPage() {
               {/* Activity feed — studio only */}
               {!solo && (
                 <section>
-                  <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                  <h2 className="mb-3 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                     Recent Activity
                   </h2>
                   <div className="rounded-xl border border-border bg-card p-4">
@@ -699,8 +691,7 @@ export default function DashboardPage() {
               {/* Today's shoots — solo only */}
               {solo && (
                 <section>
-                  <h2 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold text-foreground">
-                    <span className="h-3 w-0.5 rounded-full bg-[#d4a853]" />
+                  <h2 className="mb-3 text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
                     Today
                   </h2>
                   <div className="rounded-xl border border-border bg-card p-4">
