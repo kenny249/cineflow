@@ -545,7 +545,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
 
               {!liveAudio && (
                 <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
-                  Reopened from your library — the original audio isn&apos;t kept after transcribing, so exact timestamps and clip export aren&apos;t available here. Transcribe fresh to get both.
+                  The original audio isn&apos;t in this tab right now — either this was reopened from your library, or the page was refreshed since you last transcribed it. Exact timestamps and clip export need the live audio, so transcribe this file again without refreshing in between to get both.
                 </p>
               )}
 
