@@ -12,20 +12,26 @@ import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
 import { getProjects, saveProjectTranscript } from "@/lib/supabase/queries";
 import type { ProjectTranscriptWithProject } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
+import type { WhisperWord } from "@/lib/transcript-align";
 
-const ACCEPTED_EXT = [".mp3", ".mp4", ".m4a", ".wav", ".ogg", ".flac", ".aac", ".webm"];
+const ACCEPTED_EXT = [".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aac"];
 const MAX_MB = 25; // OpenAI Whisper hard limit
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 const LS_KEY = "cineflow_transcriber_state";
 
 type DoneState = { filename: string; fileSize: number; text: string; duration: number | null };
 
+// The real audio bytes + word timestamps only ever exist for a fresh, live
+// transcription in this browser tab — never restored from localStorage or a
+// saved transcript, since the original audio isn't kept past the session.
+type LiveAudio = { file: File; words: WhisperWord[] };
+
 type State =
   | { phase: "idle" }
   | { phase: "needs_compression"; file: File }
   | { phase: "compressing"; file: File; progress: number; label: string }
   | { phase: "uploading"; file: File; progress: number; label: string }
-  | { phase: "done"; file: File; text: string; duration: number | null }
+  | { phase: "done"; file: File; text: string; duration: number | null; liveAudio: LiveAudio | null }
   | { phase: "error"; message: string };
 
 type MobileTab = "transcript" | "ai";
@@ -65,7 +71,7 @@ export function AudioTranscriber() {
       if (saved.text) {
         const fakeFile = new File([], saved.filename, { type: "audio/mpeg" });
         Object.defineProperty(fakeFile, "size", { value: saved.fileSize });
-        setState({ phase: "done", file: fakeFile, text: saved.text, duration: saved.duration });
+        setState({ phase: "done", file: fakeFile, text: saved.text, duration: saved.duration, liveAudio: null });
       }
     } catch {}
   }, []);
@@ -130,7 +136,8 @@ export function AudioTranscriber() {
 
       const data = await res.json();
       const done: DoneState = { filename: file.name, fileSize: file.size, text: data.text ?? "", duration: data.duration ?? null };
-      setState({ phase: "done", file, text: done.text, duration: done.duration });
+      const words: WhisperWord[] = Array.isArray(data.words) ? data.words : [];
+      setState({ phase: "done", file, text: done.text, duration: done.duration, liveAudio: { file, words } });
       try { localStorage.setItem(LS_KEY, JSON.stringify(done)); } catch {}
     } catch (e: any) {
       setState({ phase: "error", message: e.message ?? "Something went wrong. Try again." });
@@ -263,7 +270,7 @@ export function AudioTranscriber() {
 
   function loadTranscript(t: ProjectTranscriptWithProject) {
     const fakeFile = new File([], t.filename, { type: "audio/mpeg" });
-    setState({ phase: "done", file: fakeFile, text: t.transcript, duration: t.duration_secs ?? null });
+    setState({ phase: "done", file: fakeFile, text: t.transcript, duration: t.duration_secs ?? null, liveAudio: null });
     setSavedToProject(t.project_title ?? "Personal");
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
@@ -579,7 +586,7 @@ export function AudioTranscriber() {
           "w-[400px] xl:w-[440px] shrink-0 overflow-y-auto custom-scrollbar",
           mobileTab !== "ai" && "hidden md:block"
         )}>
-          <AIContentPanel transcript={state.text} filename={state.file.name} />
+          <AIContentPanel transcript={state.text} filename={state.file.name} liveAudio={state.liveAudio} />
         </div>
       </div>
 

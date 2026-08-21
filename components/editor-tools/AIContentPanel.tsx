@@ -3,11 +3,19 @@
 import { useRef, useState } from "react";
 import {
   Sparkles, Loader2, Copy, CheckCheck, ChevronDown, ChevronUp, Save,
-  Download, ArrowRight, FileText, Users,
+  Download, ArrowRight, FileText, Users, Scissors,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { CutListSave } from "@/lib/supabase/queries";
+import { findQuoteTimestamp, type WhisperWord } from "@/lib/transcript-align";
+
+function fmtTime(secs: number): string {
+  const s = Math.max(0, Math.round(secs));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, "0")}`;
+}
 
 // ── Format definitions ────────────────────────────────────────────────────────
 
@@ -109,12 +117,13 @@ function takeawaysText(d: KeyTakeawaysData): string {
 interface Props {
   transcript: string;
   filename: string;
+  liveAudio?: { file: File; words: WhisperWord[] } | null;
   onSaveCutList?: (cutList: CutListSave) => Promise<void>;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
+export function AIContentPanel({ transcript, filename, liveAudio, onSaveCutList }: Props) {
   const [format, setFormat] = useState<string>("reel_30");
   const [vibes, setVibes] = useState<string[]>([]);
   const [context, setContext] = useState("");
@@ -124,6 +133,8 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
   const [saved, setSaved] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [expandedCuts, setExpandedCuts] = useState<Record<number, boolean>>({});
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const { copiedKey, copy } = useCopyText();
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -157,7 +168,18 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
       const json = await res.json();
 
       if (json.type === "cut_list") {
-        setOutput({ kind: "cut_list", data: { ...json.cutList, brief: context, saved_at: new Date().toISOString() } });
+        const words = liveAudio?.words ?? [];
+        const cuts = (json.cutList.cuts ?? []).map((c: CutListSave["cuts"][number]) => {
+          if (words.length === 0) return c;
+          const match = findQuoteTimestamp(c.quote, words);
+          return match
+            ? { ...c, real_start_sec: match.start, real_end_sec: match.end }
+            : c;
+        });
+        setOutput({
+          kind: "cut_list",
+          data: { ...json.cutList, cuts, brief: context, saved_at: new Date().toISOString() },
+        });
       } else if (json.type === "meeting_summary") {
         setOutput({ kind: "meeting_summary", data: json.summary });
       } else if (json.type === "key_takeaways") {
@@ -183,6 +205,51 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
       toast.error("Failed to save");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function exportCuts() {
+    if (!output || output.kind !== "cut_list" || !liveAudio) return;
+    const resolvable = output.data.cuts
+      .map((c, i) => ({ c, i }))
+      .filter((x) => x.c.real_start_sec != null && x.c.real_end_sec != null);
+
+    if (resolvable.length === 0) {
+      toast.error("None of these soundbites could be matched to an exact timestamp.");
+      return;
+    }
+
+    setExporting(true);
+    setExportProgress(0);
+    try {
+      const { exportCutsZip } = await import("@/lib/audio-export");
+      const cuts = resolvable.map(({ c, i }) => ({
+        index: i + 1,
+        label: c.label,
+        start: c.real_start_sec as number,
+        end: c.real_end_sec as number,
+      }));
+      const { blob, includedCount } = await exportCutsZip(liveAudio.file, cuts, 0.15, setExportProgress);
+
+      const url = URL.createObjectURL(blob);
+      const baseName = filename.replace(/\.[^.]+$/, "");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${baseName}-soundbites.zip`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      const skipped = output.data.cuts.length - includedCount;
+      toast.success(
+        skipped > 0
+          ? `Exported ${includedCount} soundbites — ${skipped} couldn't be matched to an exact timestamp.`
+          : `Exported ${includedCount} soundbites`
+      );
+    } catch (e: any) {
+      toast.error(e?.message ?? "Export failed. Try again.");
+    } finally {
+      setExporting(false);
+      setExportProgress(0);
     }
   }
 
@@ -369,6 +436,20 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
                   <p className="text-xs text-muted-foreground">Est. {output.data.total_duration}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {liveAudio && (
+                    <button
+                      onClick={exportCuts}
+                      disabled={exporting}
+                      title="Cut and download these soundbites as real audio files"
+                      className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 disabled:opacity-60 transition-colors"
+                    >
+                      {exporting ? (
+                        <><Loader2 className="h-3 w-3 animate-spin" /> {exportProgress}%</>
+                      ) : (
+                        <><Scissors className="h-3 w-3" /> Export Cuts</>
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={() => copy(
                       output.data.cuts.map((c) => `[${c.label}] "${c.quote}"${c.speaker ? ` — ${c.speaker}` : ""}\n${c.note}`).join("\n\n"),
@@ -405,11 +486,21 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
                 </div>
               </div>
 
+              {!liveAudio && (
+                <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
+                  Reopened from your library — the original audio isn&apos;t kept after transcribing, so exact timestamps and clip export aren&apos;t available here. Transcribe fresh to get both.
+                </p>
+              )}
+
               <div className="space-y-2 px-5 pb-5">
                 {output.data.cuts.map((cut, i) => {
                   const isExpanded = expandedCuts[i] ?? true;
                   const borderColor = LABEL_LEFT_BORDER[cut.label] ?? "border-l-zinc-600";
                   const badgeColor = LABEL_COLORS[cut.label] ?? "bg-zinc-500/15 text-zinc-400 border-zinc-500/25";
+                  const hasRealTime = cut.real_start_sec != null && cut.real_end_sec != null;
+                  const timeLabel = hasRealTime
+                    ? `${fmtTime(cut.real_start_sec as number)}–${fmtTime(cut.real_end_sec as number)}`
+                    : null;
                   return (
                     <div key={i} className={cn("rounded-xl border border-border border-l-2 bg-white/[0.02] overflow-hidden", borderColor)}>
                       <button
@@ -419,7 +510,15 @@ export function AIContentPanel({ transcript, filename, onSaveCutList }: Props) {
                         <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide", badgeColor)}>
                           {cut.label}
                         </span>
-                        <span className="text-[10px] text-muted-foreground/60 shrink-0">{cut.timecode_hint}</span>
+                        {timeLabel ? (
+                          <span className="text-[10px] text-muted-foreground/60 shrink-0" title="Real position in the source audio">
+                            {timeLabel}
+                          </span>
+                        ) : liveAudio ? (
+                          <span className="text-[10px] text-muted-foreground/30 shrink-0" title="Couldn't be matched to an exact timestamp">
+                            —
+                          </span>
+                        ) : null}
                         <span className="flex-1 truncate text-xs text-foreground/80">&ldquo;{cut.quote}&rdquo;</span>
                         {isExpanded ? <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground/40" /> : <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/40" />}
                       </button>

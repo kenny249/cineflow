@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
   whisperForm.append("file", file);
   whisperForm.append("model", "whisper-1");
   whisperForm.append("response_format", "verbose_json");
+  whisperForm.append("timestamp_granularities[]", "word");
 
   const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
@@ -69,5 +70,10 @@ export async function POST(req: NextRequest) {
   }
 
   const data = await res.json();
-  return NextResponse.json({ text: data.text, duration: data.duration ?? null });
+  // Real per-word timestamps from the source audio — used to ground AI-picked
+  // soundbites in exact cut points instead of the model's guessed edit timeline.
+  const words = Array.isArray(data.words)
+    ? data.words.map((w: any) => ({ word: String(w.word ?? ""), start: Number(w.start ?? 0), end: Number(w.end ?? 0) }))
+    : [];
+  return NextResponse.json({ text: data.text, duration: data.duration ?? null, words });
 }

@@ -2215,7 +2215,18 @@ export type ProjectTranscript = {
 export type CutListSave = {
   format: string;
   total_duration: string;
-  cuts: { label: string; timecode_hint: string; quote: string; speaker: string | null; note: string }[];
+  cuts: {
+    label: string;
+    timecode_hint: string;
+    quote: string;
+    speaker: string | null;
+    note: string;
+    // Real position in the source audio, resolved from Whisper's word timestamps.
+    // Absent when the quote couldn't be confidently matched, or when this cut
+    // list predates the timestamp-matching feature.
+    real_start_sec?: number | null;
+    real_end_sec?: number | null;
+  }[];
   caption_suggestions: string[];
   hook_options: string[];
   editor_notes: string;

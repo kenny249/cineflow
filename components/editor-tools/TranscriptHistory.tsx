@@ -53,6 +53,14 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function fmtTime(startSecs: number, endSecs: number) {
+  const fmt = (secs: number) => {
+    const s = Math.max(0, Math.round(secs));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  return `${fmt(startSecs)}–${fmt(endSecs)}`;
+}
+
 function SavedCutListCard({ cl }: { cl: CutListSave }) {
   const [open, setOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -97,6 +105,8 @@ function SavedCutListCard({ cl }: { cl: CutListSave }) {
               const isExpanded = expandedCuts[i] ?? true;
               const borderColor = LABEL_LEFT_BORDER[cut.label] ?? "border-l-zinc-600";
               const badgeColor = LABEL_COLORS[cut.label] ?? "bg-zinc-500/15 text-zinc-400 border-zinc-500/25";
+              const hasRealTime = cut.real_start_sec != null && cut.real_end_sec != null;
+              const timeLabel = hasRealTime ? fmtTime(cut.real_start_sec as number, cut.real_end_sec as number) : null;
               return (
                 <div key={i} className={cn("rounded-xl border border-border border-l-2 bg-white/[0.02] overflow-hidden", borderColor)}>
                   <button
@@ -106,7 +116,11 @@ function SavedCutListCard({ cl }: { cl: CutListSave }) {
                     <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide", badgeColor)}>
                       {cut.label}
                     </span>
-                    <span className="text-[10px] text-muted-foreground/60 shrink-0">{cut.timecode_hint}</span>
+                    {timeLabel && (
+                      <span className="text-[10px] text-muted-foreground/60 shrink-0" title="Real position in the source audio">
+                        {timeLabel}
+                      </span>
+                    )}
                     <span className="flex-1 truncate text-xs text-foreground/80">&ldquo;{cut.quote}&rdquo;</span>
                     {isExpanded ? <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground/40" /> : <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground/40" />}
                   </button>
