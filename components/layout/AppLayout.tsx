@@ -118,7 +118,11 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
             sessionStorage.setItem("cf_plan_status", data.plan_status);
           }
           if (data?.trial_ends_at) setTrialEndsAt(data.trial_ends_at);
-          setProfileLoaded(true);
+          // Only mark the profile "loaded" — and eligible for the trial-expired gate —
+          // once we've actually confirmed a real plan. A failed or empty fetch must
+          // never be read as "no active access," or a transient glitch locks a paying
+          // user out of their own account.
+          if (data) setProfileLoaded(true);
           if (data?.first_name || data?.last_name) {
             setProfileName([data.first_name, data.last_name].filter(Boolean).join(" "));
           } else {
@@ -129,7 +133,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
           if (data?.business_name) setProfileStudioName(data.business_name);
           if (data?.is_admin) setIsAdmin(true);
           if (role) setWorkspaceRole(role as "owner" | "admin" | "member");
-        }).catch(() => { setProfileLoaded(true); });
+        }).catch(() => { /* fetch failed — leave profileLoaded false so the trial gate stays hidden until we can confirm the real plan */ });
     });
   }, []);
 
