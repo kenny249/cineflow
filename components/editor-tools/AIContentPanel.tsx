@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import {
   Sparkles, Loader2, Copy, CheckCheck, ChevronDown, ChevronUp, Save,
-  Download, ArrowRight, FileText, Users, Scissors,
+  Download, ArrowRight, FileText, Users, Scissors, Clapperboard,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,15 @@ const VIDEO_FORMATS = [
   { key: "youtube_short", label: "YT Short" },
 ] as const;
 
+const PRODUCTION_FORMATS = [
+  { key: "commercial",  label: "Commercial" },
+  { key: "brand_video", label: "Website / Brand" },
+  { key: "testimonial", label: "Testimonial" },
+  { key: "trailer",     label: "Trailer / Sizzle" },
+  { key: "wedding",     label: "Wedding Highlight" },
+  { key: "documentary", label: "Documentary" },
+] as const;
+
 const MEETING_FORMATS = [
   { key: "meeting_summary", label: "Meeting Summary" },
   { key: "key_takeaways",   label: "Key Takeaways" },
@@ -37,7 +46,9 @@ const MEETING_FORMATS = [
 
 const VIBES = ["Fast Cuts", "Emotional", "Comedic", "Hype", "Cinematic"] as const;
 
-const VIDEO_FORMAT_KEYS = new Set(VIDEO_FORMATS.map((f) => f.key));
+// Every format that produces a cut list (not a text summary) gets the Vibe
+// picker and "Director's Brief" framing — Production formats included.
+const VIDEO_FORMAT_KEYS = new Set([...VIDEO_FORMATS, ...PRODUCTION_FORMATS].map((f) => f.key));
 
 // ── Label styling ─────────────────────────────────────────────────────────────
 
@@ -334,6 +345,30 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
           </div>
           <div className="flex flex-wrap gap-2">
             {VIDEO_FORMATS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => selectFormat(f.key)}
+                className={cn(
+                  "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
+                  format === f.key
+                    ? "border-[#d4a853] bg-[#d4a853]/15 text-[#d4a853]"
+                    : "border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Production formats */}
+        <div>
+          <div className="mb-2.5 flex items-center gap-1.5">
+            <Clapperboard className="h-3 w-3 text-muted-foreground/60" />
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Production</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {PRODUCTION_FORMATS.map((f) => (
               <button
                 key={f.key}
                 onClick={() => selectFormat(f.key)}

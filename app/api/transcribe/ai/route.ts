@@ -9,12 +9,83 @@ export const dynamic = "force-dynamic";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const FORMAT_LABELS: Record<string, string> = {
-  reel_30: "30-Second Instagram Reel",
-  reel_60: "60-Second Instagram Reel",
-  tiktok: "TikTok (15–60 seconds)",
-  podcast: "Podcast Highlight (2–3 minutes)",
-  youtube_short: "YouTube Short (under 60 seconds)",
+interface FormatConfig {
+  label: string;
+  durationHint: string;
+  guidance: string;
+  cutLabels: string;
+}
+
+// Each format gets genuinely different editorial direction, not just a
+// relabeled version of the same hook-first social structure — a Commercial
+// and a Documentary trailer should never come out edited the same way.
+const FORMAT_CONFIG: Record<string, FormatConfig> = {
+  reel_30: {
+    label: "30-Second Instagram Reel",
+    durationHint: "15–30 seconds",
+    guidance: "Hook-first, fast-moving social pacing. Open on the single strongest line — no windup. Every cut should earn the next three seconds of attention.",
+    cutLabels: "HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, ENERGY HIT, TRANSITION, CALLBACK, CLOSE, OUTRO",
+  },
+  reel_60: {
+    label: "60-Second Instagram Reel",
+    durationHint: "45–60 seconds",
+    guidance: "Hook-first, fast-moving social pacing. Open on the single strongest line — no windup. Every cut should earn the next three seconds of attention.",
+    cutLabels: "HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, ENERGY HIT, TRANSITION, CALLBACK, CLOSE, OUTRO",
+  },
+  tiktok: {
+    label: "TikTok (15–60 seconds)",
+    durationHint: "15–60 seconds",
+    guidance: "Hook-first, fast-moving social pacing. Open on the single strongest line — no windup. Every cut should earn the next three seconds of attention.",
+    cutLabels: "HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, ENERGY HIT, TRANSITION, CALLBACK, CLOSE, OUTRO",
+  },
+  podcast: {
+    label: "Podcast Highlight (2–3 minutes)",
+    durationHint: "2–3 minutes",
+    guidance: "Conversational pacing — let moments breathe more than a social cut would. Prioritize the most insightful, surprising, or quotable exchanges over pure energy.",
+    cutLabels: "HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, ENERGY HIT, TRANSITION, CALLBACK, CLOSE, OUTRO",
+  },
+  youtube_short: {
+    label: "YouTube Short (under 60 seconds)",
+    durationHint: "under 60 seconds",
+    guidance: "Hook-first, fast-moving social pacing. Open on the single strongest line — no windup. Every cut should earn the next three seconds of attention.",
+    cutLabels: "HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, ENERGY HIT, TRANSITION, CALLBACK, CLOSE, OUTRO",
+  },
+  commercial: {
+    label: "Commercial / Ad Spot",
+    durationHint: "15–60 seconds",
+    guidance: "Built for paid placement. Structure around a persuasive arc: hook the viewer, name the problem or pain point, deliver the value proposition, back it with proof if the transcript has it, and land on a clear call to action. Assertive, confident tone — this has to convert, not just entertain.",
+    cutLabels: "HOOK, PROBLEM, VALUE PROP, PROOF, CALL TO ACTION, CLOSE",
+  },
+  brand_video: {
+    label: "Website / Brand Video",
+    durationHint: "60–180 seconds",
+    guidance: "Not hook-first — this plays on a website to someone already curious. Measured, confident pacing that establishes who they are, what they do, and why it matters, backed by real proof points from the transcript. Close on an invitation, not an aggressive pitch.",
+    cutLabels: "OPENING, WHO WE ARE, WHAT WE DO, WHY IT MATTERS, PROOF POINT, INVITATION",
+  },
+  testimonial: {
+    label: "Testimonial / Case Study",
+    durationHint: "60–120 seconds",
+    guidance: "Find the real narrative arc in what they said: the problem or pain point before they found this solution, the turning point or decision to work together, what the work actually looked like, and the concrete result. Prioritize specific, credible detail over generic praise.",
+    cutLabels: "PROBLEM, TURNING POINT, THE WORK, RESULT, RECOMMENDATION",
+  },
+  trailer: {
+    label: "Trailer / Sizzle Reel",
+    durationHint: "30–90 seconds",
+    guidance: "Teaser pacing — build intrigue and escalate energy, but never resolve the story or give away the ending. Favor ambiguous, evocative lines over ones that explain too much. End on tension or a bold statement, not a conclusion.",
+    cutLabels: "TEASE, ESCALATION, TENSION PEAK, CLIFFHANGER",
+  },
+  wedding: {
+    label: "Wedding Highlight",
+    durationHint: "2–4 minutes",
+    guidance: "Emotional narrative arc, not a marketing hook. Favor genuine warmth, laughter, and vulnerable moments over anything that sounds like content. Build from anticipation through connection to an emotional peak, and close on something warm and celebratory.",
+    cutLabels: "ANTICIPATION, CONNECTION, EMOTIONAL PEAK, JOY, CLOSING",
+  },
+  documentary: {
+    label: "Documentary / Long-form",
+    durationHint: "3–6 minutes",
+    guidance: "Thematic arc, not hook-first. Establish context and theme, develop real complexity or conflict from the transcript, build toward a turning point, and land on a resolution or a genuinely thought-provoking closing line. Let it breathe — this is not optimized for retention, it's optimized for truth.",
+    cutLabels: "OPENING IMAGE, CONTEXT, COMPLICATION, TURNING POINT, CLIMAX, RESOLUTION",
+  },
 };
 
 const MEETING_FORMATS = new Set(["meeting_summary", "key_takeaways"]);
@@ -115,21 +186,25 @@ Extract 5–8 of the most valuable, actionable, or insightful takeaways. Each he
       return NextResponse.json({ type: "key_takeaways", takeaways });
     }
 
-    // ── Video cut list (existing) ─────────────────────────────────────────────
-    const formatLabel = FORMAT_LABELS[format] ?? format;
+    // ── Video cut list ──────────────────────────────────────────────────────
+    const config = FORMAT_CONFIG[format];
+    const formatLabel = config?.label ?? format;
     const vibeStr = vibes?.length ? `\nVibe/Energy: ${vibes.join(", ")}` : "";
     const briefStr = brief?.trim() ? `\nDirector's Brief: "${brief.trim()}"` : "\nNo specific brief — use your best editorial judgment.";
+    const cutLabels = config?.cutLabels ?? "HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, ENERGY HIT, TRANSITION, CALLBACK, CLOSE, OUTRO";
+    const durationHint = config?.durationHint ?? "under 60 seconds";
 
-    const prompt = `You are a senior video editor and content strategist at a top-tier media agency. You have an exceptional eye for storytelling, pacing, and what makes content perform on social platforms.
+    const prompt = `You are a senior video editor and content strategist at a top-tier media agency. You have an exceptional eye for storytelling, pacing, and what makes content perform for the specific format you're cutting.
 
 You have been given a raw transcript and creative direction. Your job is to produce an actionable cut list — a precise editorial plan that an editor can follow immediately to build the final video.
 
-TARGET FORMAT: ${formatLabel}${vibeStr}${briefStr}
+TARGET FORMAT: ${formatLabel} (target length: ${durationHint})
+EDITORIAL DIRECTION FOR THIS FORMAT: ${config?.guidance ?? "Hook-first, fast-moving social pacing."}${vibeStr}${briefStr}
 
 RAW TRANSCRIPT:
 ${transcript}
 
-Study the transcript carefully. Find the strongest soundbites, emotional beats, humor moments, and quotable lines. Then design the optimal edit sequence for the requested format and vision.
+Study the transcript carefully. Find the strongest soundbites, emotional beats, humor moments, and quotable lines. Then design the optimal edit sequence for this specific format's editorial direction and vision — not a generic template.
 
 Return ONLY a valid JSON object — no markdown, no explanation outside the JSON:
 {
@@ -157,7 +232,7 @@ Return ONLY a valid JSON object — no markdown, no explanation outside the JSON
   "editor_notes": "Overall pacing notes, suggested music energy, transition style, anything that makes this cut special"
 }
 
-Cut labels to use: HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, ENERGY HIT, TRANSITION, CALLBACK, CLOSE, OUTRO — pick what fits each moment.`;
+Cut labels to use: ${cutLabels} — pick what fits each moment. These are for THIS format specifically; use them, not a generic set.`;
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
