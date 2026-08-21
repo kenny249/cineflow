@@ -30,7 +30,9 @@ interface WindowMatch {
 // Best-scoring contiguous window of roughly `phraseTokens.length` tokens,
 // searched within [from, to) of wordTokens. `len` is always what was
 // actually compared (never a longer, unverified span) so a caller can trust
-// idx..idx+len-1 as the real matched range.
+// idx..idx+len-1 as the real matched range. Scans the whole range and keeps
+// the single best score — right for an anchor with no positional prior
+// (e.g. "where does this quote start, anywhere in the transcript").
 function bestWindow(
   phraseTokens: string[],
   wordTokens: string[],
@@ -57,13 +59,46 @@ function bestWindow(
   return best;
 }
 
+// Nearest window at or above minScore, searched forward from `from`. Right
+// for "where does this quote end, given we know it starts near here" — a
+// generic short word (e.g. "this", "that") can score highest far away, at a
+// position that has nothing to do with the actual quote. Taking the closest
+// sufficient match instead of the globally best one is what keeps a cut from
+// silently swallowing 30 extra seconds of unrelated audio.
+function nearestWindow(
+  phraseTokens: string[],
+  wordTokens: string[],
+  from: number,
+  to: number,
+  minScore: number
+): WindowMatch | null {
+  const upperBound = Math.min(to, wordTokens.length);
+  for (let i = Math.max(0, from); i < upperBound; i++) {
+    let bestAtI: WindowMatch | null = null;
+    for (const lenDelta of [0, 1, -1, 2, -2]) {
+      const winLen = phraseTokens.length + lenDelta;
+      if (winLen <= 0 || i + winLen > upperBound) continue;
+      const cmpLen = Math.min(winLen, phraseTokens.length);
+      let matches = 0;
+      for (let j = 0; j < cmpLen; j++) {
+        if (wordTokens[i + j] === phraseTokens[j]) matches++;
+      }
+      const score = matches / phraseTokens.length;
+      if (!bestAtI || score > bestAtI.score) bestAtI = { idx: i, len: cmpLen, score };
+    }
+    if (bestAtI && bestAtI.score >= minScore) return bestAtI;
+  }
+  return null;
+}
+
 const WHOLE_MATCH_THRESHOLD = 0.8;
 const SHORT_QUOTE_THRESHOLD = 0.55;
 const START_ANCHOR_LEN = 6;
 const START_ANCHOR_THRESHOLD = 0.65;
 const END_ANCHOR_LEN = 4;
-const END_ANCHOR_THRESHOLD = 0.6;
-const MAX_QUOTE_SPAN_WORDS = 220; // generous cap on how far the end can be from the start
+const END_ANCHOR_THRESHOLD = 0.7;
+const MAX_QUOTE_SPAN_WORDS = 100; // ~35-40s of raw speech — generous for a single soundbite, tight enough to keep a stray match from overshooting far past the real end
+const MAX_PLAUSIBLE_DURATION_SEC = 75; // final sanity gate regardless of word-count math
 
 export function findQuoteTimestamp(quote: string, words: WhisperWord[]): QuoteTimestamp | null {
   const quoteTokens = normalize(quote).split(" ").filter(Boolean);
@@ -73,21 +108,23 @@ export function findQuoteTimestamp(quote: string, words: WhisperWord[]): QuoteTi
   // this function returns from the words it actually came from.
   const wordTokens = words.map((w) => normalize(w.word));
 
-  const toResult = (m: WindowMatch): QuoteTimestamp => {
-    const endIdx = Math.min(m.idx + m.len - 1, words.length - 1);
-    return { start: words[m.idx].start, end: words[endIdx].end };
+  const toResult = (startIdx: number, endMatch: WindowMatch): QuoteTimestamp | null => {
+    const endIdx = Math.min(endMatch.idx + endMatch.len - 1, words.length - 1);
+    const result = { start: words[startIdx].start, end: words[endIdx].end };
+    if (result.end - result.start > MAX_PLAUSIBLE_DURATION_SEC) return null;
+    return result;
   };
 
   // Fast path: the quote matches cleanly and contiguously — most precise
   // when the AI quoted verbatim with no cleanup.
   const whole = bestWindow(quoteTokens, wordTokens, 0, wordTokens.length, WHOLE_MATCH_THRESHOLD);
-  if (whole) return toResult(whole);
+  if (whole) return toResult(whole.idx, whole);
 
   // Too short to meaningfully split into distinct start/end anchors —
   // relax the threshold on a direct match instead of anchor-splitting.
   if (quoteTokens.length <= START_ANCHOR_LEN + END_ANCHOR_LEN) {
     const loose = bestWindow(quoteTokens, wordTokens, 0, wordTokens.length, SHORT_QUOTE_THRESHOLD);
-    return loose ? toResult(loose) : null;
+    return loose ? toResult(loose.idx, loose) : null;
   }
 
   // Real speech is disfluent — "it's it's it's hard to explain" commonly
@@ -104,9 +141,8 @@ export function findQuoteTimestamp(quote: string, words: WhisperWord[]): QuoteTi
 
   const searchFrom = startMatch.idx + startMatch.len;
   const searchTo = Math.min(wordTokens.length, searchFrom + MAX_QUOTE_SPAN_WORDS);
-  const endMatch = bestWindow(endPhrase, wordTokens, searchFrom, searchTo, END_ANCHOR_THRESHOLD);
+  const endMatch = nearestWindow(endPhrase, wordTokens, searchFrom, searchTo, END_ANCHOR_THRESHOLD);
   if (!endMatch) return null;
 
-  const endIdx = Math.min(endMatch.idx + endMatch.len - 1, words.length - 1);
-  return { start: words[startMatch.idx].start, end: words[endIdx].end };
+  return toResult(startMatch.idx, endMatch);
 }

@@ -206,6 +206,8 @@ ${transcript}
 
 Study the transcript carefully. Find the strongest soundbites, emotional beats, humor moments, and quotable lines. Then design the optimal edit sequence for this specific format's editorial direction and vision — not a generic template.
 
+CRITICAL — every "quote" must be words the speaker actually said, appearing together as one continuous passage in the transcript above. Do not invent lines, do not paraphrase into something punchier, and do not stitch together sentences from different parts of the transcript into a single "quote" — that quote will be physically cut from the real audio, so it has to exist there. Cleaning up stutters and filler words within a single passage is fine (e.g. "it's it's it's hard to explain" → "it's hard to explain" is still the same real passage). Rewriting or merging separate statements is not — if no single real passage says what you wish it said, pick the closest real one instead of manufacturing a better one.
+
 Return ONLY a valid JSON object — no markdown, no explanation outside the JSON:
 {
   "format": "${formatLabel}",
