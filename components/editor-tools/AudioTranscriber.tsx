@@ -586,7 +586,7 @@ export function AudioTranscriber() {
           "w-[400px] xl:w-[440px] shrink-0 overflow-y-auto custom-scrollbar",
           mobileTab !== "ai" && "hidden md:block"
         )}>
-          <AIContentPanel transcript={state.text} filename={state.file.name} liveAudio={state.liveAudio} />
+          <AIContentPanel transcript={state.text} filename={state.file.name} liveAudio={state.liveAudio} duration={state.duration} />
         </div>
       </div>
 

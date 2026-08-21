@@ -9,6 +9,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { CutListSave } from "@/lib/supabase/queries";
 import { findQuoteTimestamp, type WhisperWord } from "@/lib/transcript-align";
+import { buildMarkerFile, NLE_LABELS, type NleTarget } from "@/lib/marker-export";
+
+const NLE_TARGETS: NleTarget[] = ["fcpx", "premiere", "resolve", "universal"];
 
 function fmtTime(secs: number): string {
   const s = Math.max(0, Math.round(secs));
@@ -118,12 +121,13 @@ interface Props {
   transcript: string;
   filename: string;
   liveAudio?: { file: File; words: WhisperWord[] } | null;
+  duration?: number | null;
   onSaveCutList?: (cutList: CutListSave) => Promise<void>;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function AIContentPanel({ transcript, filename, liveAudio, onSaveCutList }: Props) {
+export function AIContentPanel({ transcript, filename, liveAudio, duration, onSaveCutList }: Props) {
   const [format, setFormat] = useState<string>("reel_30");
   const [vibes, setVibes] = useState<string[]>([]);
   const [context, setContext] = useState("");
@@ -135,6 +139,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, onSaveCutList 
   const [expandedCuts, setExpandedCuts] = useState<Record<number, boolean>>({});
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [nleTarget, setNleTarget] = useState<NleTarget>("fcpx");
   const { copiedKey, copy } = useCopyText();
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -226,10 +231,13 @@ export function AIContentPanel({ transcript, filename, liveAudio, onSaveCutList 
       const cuts = resolvable.map(({ c, i }) => ({
         index: i + 1,
         label: c.label,
+        quote: c.quote,
         start: c.real_start_sec as number,
         end: c.real_end_sec as number,
       }));
-      const { blob, includedCount } = await exportCutsZip(liveAudio.file, cuts, 0.15, setExportProgress);
+      const totalDuration = duration ?? Math.max(...cuts.map((c) => c.end)) + 1;
+      const markerFile = buildMarkerFile(nleTarget, cuts, totalDuration);
+      const { blob, includedCount } = await exportCutsZip(liveAudio.file, cuts, 0.15, setExportProgress, markerFile);
 
       const url = URL.createObjectURL(blob);
       const baseName = filename.replace(/\.[^.]+$/, "");
@@ -240,10 +248,11 @@ export function AIContentPanel({ transcript, filename, liveAudio, onSaveCutList 
       setTimeout(() => URL.revokeObjectURL(url), 10000);
 
       const skipped = output.data.cuts.length - includedCount;
+      const nleLabel = NLE_LABELS[nleTarget];
       toast.success(
         skipped > 0
-          ? `Exported ${includedCount} soundbites — ${skipped} couldn't be matched to an exact timestamp.`
-          : `Exported ${includedCount} soundbites`
+          ? `Exported ${includedCount} soundbites + ${nleLabel} markers — ${skipped} couldn't be matched to an exact timestamp.`
+          : `Exported ${includedCount} soundbites + ${nleLabel} markers`
       );
     } catch (e: any) {
       toast.error(e?.message ?? "Export failed. Try again.");
@@ -437,18 +446,31 @@ export function AIContentPanel({ transcript, filename, liveAudio, onSaveCutList 
                 </div>
                 <div className="flex items-center gap-2">
                   {liveAudio && (
-                    <button
-                      onClick={exportCuts}
-                      disabled={exporting}
-                      title="Cut and download these soundbites as real audio files"
-                      className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 disabled:opacity-60 transition-colors"
-                    >
-                      {exporting ? (
-                        <><Loader2 className="h-3 w-3 animate-spin" /> {exportProgress}%</>
-                      ) : (
-                        <><Scissors className="h-3 w-3" /> Export Cuts</>
-                      )}
-                    </button>
+                    <>
+                      <select
+                        value={nleTarget}
+                        onChange={(e) => setNleTarget(e.target.value as NleTarget)}
+                        disabled={exporting}
+                        title="Which editor's marker format to include"
+                        className="rounded-lg border border-border bg-white/[0.03] px-2 py-1.5 text-xs text-muted-foreground disabled:opacity-60 transition-colors focus:border-[#d4a853]/50 focus:outline-none"
+                      >
+                        {NLE_TARGETS.map((t) => (
+                          <option key={t} value={t}>{NLE_LABELS[t]}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={exportCuts}
+                        disabled={exporting}
+                        title="Cut soundbites and download markers + audio for your editor"
+                        className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 disabled:opacity-60 transition-colors"
+                      >
+                        {exporting ? (
+                          <><Loader2 className="h-3 w-3 animate-spin" /> {exportProgress}%</>
+                        ) : (
+                          <><Scissors className="h-3 w-3" /> Export Cuts</>
+                        )}
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={() => copy(

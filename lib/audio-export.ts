@@ -3,6 +3,7 @@
 // clips in order, plus one combined file. Runs entirely in the browser via
 // ffmpeg.wasm; the audio never leaves the device.
 import { getFFmpeg } from "@/lib/ffmpeg-client";
+import type { MarkerFile } from "@/lib/marker-export";
 
 export interface ExportCut {
   index: number;
@@ -25,7 +26,8 @@ export async function exportCutsZip(
   file: File,
   cuts: ExportCut[],
   pad = 0.15,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  markerFile?: MarkerFile
 ): Promise<ExportResult> {
   if (cuts.length === 0) throw new Error("No cuts with a resolved timestamp to export.");
 
@@ -80,6 +82,10 @@ export async function exportCutsZip(
     ]);
     const combined = (await ffmpeg.readFile("combined.wav")) as Uint8Array;
     zip.file("combined.wav", combined);
+
+    if (markerFile) {
+      zip.file(markerFile.filename, markerFile.content);
+    }
     onProgress?.(92);
   } finally {
     // Best-effort cleanup of ffmpeg's virtual filesystem — never let a cleanup
