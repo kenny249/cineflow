@@ -13,6 +13,7 @@ import { getProjects, saveProjectTranscript } from "@/lib/supabase/queries";
 import type { ProjectTranscriptWithProject } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 import type { WhisperWord } from "@/lib/transcript-align";
+import { saveCurrentAudio, getCurrentAudio, clearCurrentAudio } from "@/lib/transcriber-audio-store";
 
 const ACCEPTED_EXT = [".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aac"];
 const MAX_MB = 25; // OpenAI Whisper hard limit
@@ -21,9 +22,10 @@ const LS_KEY = "cineflow_transcriber_state";
 
 type DoneState = { filename: string; fileSize: number; text: string; duration: number | null };
 
-// The real audio bytes + word timestamps only ever exist for a fresh, live
-// transcription in this browser tab — never restored from localStorage or a
-// saved transcript, since the original audio isn't kept past the session.
+// The real audio bytes + word timestamps. Set on a fresh transcription and
+// persisted to IndexedDB so a page refresh doesn't lose export capability;
+// never present for a transcript reopened from the library, since we never
+// stored audio for those in the first place.
 type LiveAudio = { file: File; words: WhisperWord[] };
 
 type State =
@@ -72,6 +74,20 @@ export function AudioTranscriber() {
         const fakeFile = new File([], saved.filename, { type: "audio/mpeg" });
         Object.defineProperty(fakeFile, "size", { value: saved.fileSize });
         setState({ phase: "done", file: fakeFile, text: saved.text, duration: saved.duration, liveAudio: null });
+
+        // The real audio may still be sitting in IndexedDB from before this
+        // refresh — restore it so exact timestamps and Export Cuts survive a
+        // reload instead of only surviving in memory. Guarded by filename +
+        // size so a stale/unrelated blob never gets attached to this text.
+        getCurrentAudio()
+          .then((audio) => {
+            if (audio && audio.file.name === saved.filename && audio.file.size === saved.fileSize) {
+              setState((s) =>
+                s.phase === "done" ? { ...s, file: audio.file, liveAudio: { file: audio.file, words: audio.words } } : s
+              );
+            }
+          })
+          .catch(() => {});
       }
     } catch {}
   }, []);
@@ -139,6 +155,8 @@ export function AudioTranscriber() {
       const words: WhisperWord[] = Array.isArray(data.words) ? data.words : [];
       setState({ phase: "done", file, text: done.text, duration: done.duration, liveAudio: { file, words } });
       try { localStorage.setItem(LS_KEY, JSON.stringify(done)); } catch {}
+      // Persist the real audio so a refresh doesn't throw away export capability.
+      saveCurrentAudio(file, words).catch(() => {});
     } catch (e: any) {
       setState({ phase: "error", message: e.message ?? "Something went wrong. Try again." });
     }
@@ -266,6 +284,7 @@ export function AudioTranscriber() {
     setIsEditing(false);
     setLibraryOpen(false);
     try { localStorage.removeItem(LS_KEY); } catch {}
+    clearCurrentAudio().catch(() => {});
   }
 
   function loadTranscript(t: ProjectTranscriptWithProject) {
@@ -277,6 +296,9 @@ export function AudioTranscriber() {
         filename: t.filename, fileSize: 0, text: t.transcript, duration: t.duration_secs ?? null,
       }));
     } catch {}
+    // A saved transcript never has live audio behind it — clear any stale
+    // blob from a previous live session so it can't be mistakenly restored.
+    clearCurrentAudio().catch(() => {});
   }
 
   // ── NEEDS COMPRESSION ────────────────────────────────────────────────────
