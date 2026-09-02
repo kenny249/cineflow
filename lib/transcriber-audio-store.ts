@@ -4,6 +4,11 @@
 // memory — any reload, even seconds after a successful transcription, threw
 // away the one thing that made export possible, with no way back short of
 // re-transcribing. This is 100% local to the browser; nothing is uploaded.
+//
+// Stored as a raw ArrayBuffer rather than the File/Blob object directly —
+// Safari has long-standing, well-documented bugs storing Blobs in IndexedDB
+// (silent failure or corruption across a reload). ArrayBuffers don't have
+// that history; they're the most basic structured-clone type there is.
 import type { WhisperWord } from "@/lib/transcript-align";
 
 const DB_NAME = "cineflow-transcriber";
@@ -13,7 +18,9 @@ const CURRENT_KEY = "current";
 
 interface StoredAudio {
   id: string;
-  file: File;
+  name: string;
+  type: string;
+  buffer: ArrayBuffer;
   words: WhisperWord[];
 }
 
@@ -32,10 +39,12 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 export async function saveCurrentAudio(file: File, words: WhisperWord[]): Promise<void> {
+  const buffer = await file.arrayBuffer();
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).put({ id: CURRENT_KEY, file, words } satisfies StoredAudio);
+    const record: StoredAudio = { id: CURRENT_KEY, name: file.name, type: file.type || "audio/mpeg", buffer, words };
+    tx.objectStore(STORE).put(record);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
@@ -48,7 +57,9 @@ export async function getCurrentAudio(): Promise<{ file: File; words: WhisperWor
     const req = tx.objectStore(STORE).get(CURRENT_KEY);
     req.onsuccess = () => {
       const result = req.result as StoredAudio | undefined;
-      resolve(result ? { file: result.file, words: result.words } : null);
+      if (!result || !result.buffer) { resolve(null); return; }
+      const file = new File([result.buffer], result.name, { type: result.type });
+      resolve({ file, words: result.words ?? [] });
     };
     req.onerror = () => reject(req.error);
   });

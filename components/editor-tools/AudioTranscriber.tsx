@@ -81,13 +81,22 @@ export function AudioTranscriber() {
         // size so a stale/unrelated blob never gets attached to this text.
         getCurrentAudio()
           .then((audio) => {
-            if (audio && audio.file.name === saved.filename && audio.file.size === saved.fileSize) {
-              setState((s) =>
-                s.phase === "done" ? { ...s, file: audio.file, liveAudio: { file: audio.file, words: audio.words } } : s
-              );
+            if (!audio) {
+              console.warn("[transcriber] no persisted audio found for refresh-restore — export unavailable this reload");
+              return;
             }
+            if (audio.file.name !== saved.filename || audio.file.size !== saved.fileSize) {
+              console.warn("[transcriber] persisted audio didn't match the current transcript, skipping restore", {
+                stored: { name: audio.file.name, size: audio.file.size },
+                expected: { name: saved.filename, size: saved.fileSize },
+              });
+              return;
+            }
+            setState((s) =>
+              s.phase === "done" ? { ...s, file: audio.file, liveAudio: { file: audio.file, words: audio.words } } : s
+            );
           })
-          .catch(() => {});
+          .catch((e) => console.error("[transcriber] failed to read persisted audio on refresh:", e));
       }
     } catch {}
   }, []);
@@ -156,7 +165,7 @@ export function AudioTranscriber() {
       setState({ phase: "done", file, text: done.text, duration: done.duration, liveAudio: { file, words } });
       try { localStorage.setItem(LS_KEY, JSON.stringify(done)); } catch {}
       // Persist the real audio so a refresh doesn't throw away export capability.
-      saveCurrentAudio(file, words).catch(() => {});
+      saveCurrentAudio(file, words).catch((e) => console.error("[transcriber] failed to persist audio for refresh-survival:", e));
     } catch (e: any) {
       setState({ phase: "error", message: e.message ?? "Something went wrong. Try again." });
     }
