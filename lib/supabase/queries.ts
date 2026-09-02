@@ -2265,6 +2265,20 @@ export async function getProjectTranscripts(projectId: string): Promise<ProjectT
   return (data ?? []) as ProjectTranscript[];
 }
 
+// Used to re-check a transcript's saved state (including its saved cut
+// lists) after a page refresh — the local cache only ever holds text/audio,
+// never what's actually saved in the database.
+export async function getTranscriptById(id: string): Promise<ProjectTranscript | null> {
+  const client = createClient();
+  const { data, error } = await client
+    .from("project_transcripts")
+    .select("*")
+    .eq("id", id)
+    .single();
+  if (error) return null;
+  return data as ProjectTranscript;
+}
+
 export async function saveProjectTranscript(params: {
   projectId?: string | null;
   filename: string;

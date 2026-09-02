@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
 import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
-import { getProjects, saveProjectTranscript, appendTranscriptCutList, updateProjectTranscriptText } from "@/lib/supabase/queries";
+import { getProjects, saveProjectTranscript, appendTranscriptCutList, updateProjectTranscriptText, getTranscriptById } from "@/lib/supabase/queries";
 import type { ProjectTranscriptWithProject, CutListSave } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 import type { WhisperWord } from "@/lib/transcript-align";
@@ -20,7 +20,19 @@ const MAX_MB = 25; // OpenAI Whisper hard limit
 const MAX_BYTES = MAX_MB * 1024 * 1024;
 const LS_KEY = "cineflow_transcriber_state";
 
-type DoneState = { filename: string; fileSize: number; text: string; duration: number | null };
+type DoneState = {
+  filename: string;
+  fileSize: number;
+  text: string;
+  duration: number | null;
+  // Whether/where this transcript is already saved — without this, a plain
+  // refresh forgets the transcript was ever saved at all: the Save button
+  // looks fresh again (risking a duplicate row on next click), and any
+  // saved cut lists become unreachable, since the local cache never held
+  // them in the first place.
+  transcriptId?: string | null;
+  projectLabel?: string | null;
+};
 
 // The real audio bytes + word timestamps. Set on a fresh transcription and
 // persisted to IndexedDB so a page refresh doesn't lose export capability;
@@ -100,6 +112,18 @@ export function AudioTranscriber() {
             );
           })
           .catch((e) => console.error("[transcriber] failed to read persisted audio on refresh:", e));
+
+        // This transcript was already saved before the refresh — restore
+        // that fact (so Save doesn't offer to create a duplicate) and
+        // re-fetch its cut lists fresh from the database, since the local
+        // cache never held them to begin with.
+        if (saved.transcriptId) {
+          setSavedTranscriptId(saved.transcriptId);
+          setSavedToProject(saved.projectLabel ?? "Personal");
+          getTranscriptById(saved.transcriptId)
+            .then((t) => { if (t) setSavedCutLists(t.cut_lists ?? []); })
+            .catch((e) => console.error("[transcriber] failed to refetch saved cut lists on refresh:", e));
+        }
       }
     } catch {}
   }, []);
@@ -270,6 +294,12 @@ export function AudioTranscriber() {
       });
       setSavedTranscriptId(saved.id);
       setSavedToProject(label);
+      // Persist the save itself, not just the text — otherwise a refresh
+      // forgets this transcript was ever saved at all.
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) localStorage.setItem(LS_KEY, JSON.stringify({ ...JSON.parse(raw), transcriptId: saved.id, projectLabel: label }));
+      } catch {}
       setShowProjectPicker(false);
       setHistoryKey((k) => k + 1);
       setTimeout(() => setLibraryOpen(true), 400);
@@ -342,6 +372,7 @@ export function AudioTranscriber() {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
         filename: t.filename, fileSize: 0, text: t.transcript, duration: t.duration_secs ?? null,
+        transcriptId: t.id, projectLabel: t.project_title ?? "Personal",
       }));
     } catch {}
     // A saved transcript never has live audio behind it — clear any stale
