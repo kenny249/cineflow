@@ -142,11 +142,11 @@ export function AudioTranscriber() {
         xhr.send(file);
       });
 
-      setState({ phase: "uploading", file, progress: 72, label: "Transcribing with Whisper…" });
+      setState({ phase: "uploading", file, progress: 72, label: "Transcribing your audio…" });
       let prog = 72;
       const tick = setInterval(() => {
         prog = Math.min(prog + Math.random() * 4, 92);
-        setState((s) => s.phase === "uploading" ? { ...s, progress: prog, label: "Transcribing with Whisper…" } : s);
+        setState((s) => s.phase === "uploading" ? { ...s, progress: prog, label: "Transcribing your audio…" } : s);
       }, 800);
 
       const res = await fetch("/api/transcribe", {
@@ -347,7 +347,7 @@ export function AudioTranscriber() {
           </div>
           <div>
             <p className="text-sm font-semibold text-foreground">{state.file.name}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{fileMB} MB — over Whisper&apos;s 25 MB limit</p>
+            <p className="mt-1 text-xs text-muted-foreground">{fileMB} MB — over the 25 MB limit</p>
           </div>
           <div className="w-full space-y-2.5">
             <button
@@ -390,7 +390,7 @@ export function AudioTranscriber() {
             </div>
             <p className="mt-1.5 text-right text-[10px] text-muted-foreground">{state.progress}%</p>
           </div>
-          <p className="text-[11px] text-muted-foreground/60">Running FFmpeg in your browser · no file leaves your device</p>
+          <p className="text-[11px] text-muted-foreground/60">Compressing right in your browser · no file leaves your device</p>
         </div>
       </div>
     );
@@ -462,7 +462,7 @@ export function AudioTranscriber() {
             </div>
             <p className="mt-1.5 text-right text-[10px] text-muted-foreground">{Math.round(state.progress)}%</p>
           </div>
-          <p className="text-[11px] text-muted-foreground/60">Powered by OpenAI Whisper · large files may take 30–60s</p>
+          <p className="text-[11px] text-muted-foreground/60">Catching every word · large files may take 30–60s</p>
         </div>
       </div>
     );

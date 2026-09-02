@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import {
   Sparkles, Loader2, Copy, CheckCheck, ChevronDown, ChevronUp, Save,
-  Download, ArrowRight, FileText, Users, Scissors, Clapperboard,
+  Download, ArrowRight, FileText, Users, Scissors, Clapperboard, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -593,10 +593,19 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                     onClick={() => controlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
                     className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
                   >
-                    ↑ Tweak &amp; regenerate
+                    ↑ Change settings
                   </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={generate}
+                    disabled={generating}
+                    title="Generate a new attempt with the same settings"
+                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-60 transition-colors"
+                  >
+                    {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                    {generating ? "Regenerating…" : "Regenerate"}
+                  </button>
                   {liveAudio && (
                     <>
                       <select
@@ -769,6 +778,21 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                 <p className="text-sm font-bold text-foreground">Meeting Summary</p>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => controlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    className="whitespace-nowrap text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                  >
+                    ↑ Change settings
+                  </button>
+                  <button
+                    onClick={generate}
+                    disabled={generating}
+                    title="Generate a new attempt with the same settings"
+                    className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-60 transition-colors"
+                  >
+                    {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                    {generating ? "Regenerating…" : "Regenerate"}
+                  </button>
+                  <button
                     onClick={() => copy(meetingText(output.data), "all")}
                     className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
                   >
@@ -856,6 +880,21 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                 <p className="text-sm font-bold text-foreground">Key Takeaways</p>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => controlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    className="whitespace-nowrap text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                  >
+                    ↑ Change settings
+                  </button>
+                  <button
+                    onClick={generate}
+                    disabled={generating}
+                    title="Generate a new attempt with the same settings"
+                    className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-60 transition-colors"
+                  >
+                    {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                    {generating ? "Regenerating…" : "Regenerate"}
+                  </button>
+                  <button
                     onClick={() => copy(takeawaysText(output.data), "all")}
                     className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
                   >
@@ -896,17 +935,6 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
               </div>
             </>
           )}
-
-          {/* Regenerate */}
-          <div className="border-t border-border/50 px-5 py-3">
-            <button
-              onClick={generate}
-              disabled={generating}
-              className="text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-            >
-              {generating ? "Regenerating…" : "↺ Regenerate"}
-            </button>
-          </div>
         </div>
       )}
     </div>
