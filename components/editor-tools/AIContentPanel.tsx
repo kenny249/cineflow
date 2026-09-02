@@ -491,7 +491,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                 </button>
               ))}
               {targetDurationKey === "custom" && (
-                <div className="flex items-center gap-1.5 rounded-full border border-border bg-white/[0.03] px-3 py-1">
+                <div className="flex items-center gap-1.5 rounded-full border border-border bg-white/[0.03] px-3 py-1 transition-colors focus-within:border-[#d4a853]/50 focus-within:ring-1 focus-within:ring-[#d4a853]/30">
                   <input
                     type="number"
                     min={1}
@@ -500,7 +500,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                     onChange={(e) => setCustomSeconds(e.target.value)}
                     placeholder="22"
                     autoFocus
-                    className="w-12 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                    className="w-10 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
                   <span className="text-xs text-muted-foreground">sec</span>
                 </div>
