@@ -176,6 +176,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
   const [customSeconds, setCustomSeconds] = useState("");
   const { copiedKey, copy } = useCopyText();
   const outputRef = useRef<HTMLDivElement>(null);
+  const controlsRef = useRef<HTMLDivElement>(null);
 
   const isVideo = VIDEO_FORMAT_KEYS.has(format as any);
 
@@ -215,6 +216,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
     setGenerating(true);
     setOutput(null);
     setSaved(false);
+    const requestedDurationSec = isVideo ? resolveTargetSeconds() : null;
     try {
       const res = await fetch("/api/transcribe/ai", {
         method: "POST",
@@ -222,7 +224,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
         body: JSON.stringify({
           transcript, format, brief: context,
           vibes: isVideo ? vibes : [],
-          targetDurationSec: isVideo ? resolveTargetSeconds() : null,
+          targetDurationSec: requestedDurationSec,
         }),
       });
       if (!res.ok) {
@@ -243,7 +245,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
         });
         setOutput({
           kind: "cut_list",
-          data: { ...json.cutList, cuts, brief: context, saved_at: new Date().toISOString() },
+          data: { ...json.cutList, cuts, brief: context, saved_at: new Date().toISOString(), requested_duration_sec: requestedDurationSec },
         });
       } else if (json.type === "meeting_summary") {
         setOutput({ kind: "meeting_summary", data: json.summary });
@@ -384,7 +386,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
         </div>
       </div>
 
-      <div className="space-y-5 p-5">
+      <div ref={controlsRef} className="space-y-5 p-5">
 
         {/* Video formats */}
         <div>
@@ -563,15 +565,26 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
           {output.kind === "cut_list" && (
             <>
               <div className="space-y-3 px-5 py-4">
-                <div>
-                  <p className="text-sm font-bold text-foreground">{output.data.format}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {measuredDurationSec != null ? (
-                      <>Actual {fmtDuration(measuredDurationSec)} <span className="text-muted-foreground/40">· measured from real timestamps</span></>
-                    ) : (
-                      <>Est. {output.data.total_duration}</>
-                    )}
-                  </p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-foreground">{output.data.format}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {output.data.requested_duration_sec != null && (
+                        <>Target {fmtDuration(output.data.requested_duration_sec)} · </>
+                      )}
+                      {measuredDurationSec != null ? (
+                        <>Actual {fmtDuration(measuredDurationSec)} <span className="text-muted-foreground/40">(measured)</span></>
+                      ) : (
+                        <>Est. {output.data.total_duration}</>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => controlsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                  >
+                    ↑ Tweak &amp; regenerate
+                  </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {liveAudio && (

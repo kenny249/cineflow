@@ -61,6 +61,13 @@ function fmtTime(startSecs: number, endSecs: number) {
   return `${fmt(startSecs)}–${fmt(endSecs)}`;
 }
 
+function fmtSecs(totalSecs: number) {
+  const s = Math.max(0, Math.round(totalSecs));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `0:${String(r).padStart(2, "0")}`;
+}
+
 function SavedCutListCard({ cl }: { cl: CutListSave }) {
   const [open, setOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -71,6 +78,13 @@ function SavedCutListCard({ cl }: { cl: CutListSave }) {
     setCopiedKey(key);
     setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 2000);
   }
+
+  // Same honesty rule as the live view — a measured length from real
+  // timestamps beats the AI's self-reported guess, whenever it's available.
+  const resolvedCuts = cl.cuts?.filter((c) => c.real_start_sec != null && c.real_end_sec != null) ?? [];
+  const measuredSec = resolvedCuts.length > 0
+    ? resolvedCuts.reduce((sum, c) => sum + (c.real_end_sec! - c.real_start_sec!) + 0.3, 0)
+    : null;
 
   return (
     <div className="rounded-xl border border-border bg-white/[0.02] overflow-hidden">
@@ -86,7 +100,9 @@ function SavedCutListCard({ cl }: { cl: CutListSave }) {
             </p>
           )}
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            {cl.cuts?.length} cuts · est. {cl.total_duration}
+            {cl.cuts?.length} cuts ·{" "}
+            {measuredSec != null ? <>actual {fmtSecs(measuredSec)} (measured)</> : <>est. {cl.total_duration}</>}
+            {cl.requested_duration_sec != null && <> · target {fmtSecs(cl.requested_duration_sec)}</>}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

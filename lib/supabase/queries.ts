@@ -2232,6 +2232,11 @@ export type CutListSave = {
   editor_notes: string;
   brief: string;
   saved_at: string;
+  // The exact length that was requested (null = "Auto", the format's own
+  // default). Kept alongside the result so "did the AI actually hit the
+  // spec" is answerable without cross-referencing UI state that may have
+  // since changed.
+  requested_duration_sec?: number | null;
 };
 
 export type ProjectTranscriptWithProject = ProjectTranscript & { project_title: string | null };
