@@ -46,6 +46,27 @@ const MEETING_FORMATS = [
 
 const VIBES = ["Fast Cuts", "Emotional", "Comedic", "Hype", "Cinematic"] as const;
 
+// "Auto" preserves today's behavior (the format's own built-in target).
+// Everything else is an explicit deliverable spec — the way agencies
+// actually think about length (a media buy is sold as :15/:30/:60, not
+// "15-60 seconds").
+const DURATION_OPTIONS = [
+  { key: "auto",   label: "Auto" },
+  { key: "15",     label: ":15" },
+  { key: "30",     label: ":30" },
+  { key: "60",     label: ":60" },
+  { key: "90",     label: ":90" },
+  { key: "120",    label: "2 min" },
+  { key: "custom", label: "Custom" },
+] as const;
+
+function fmtDuration(secs: number): string {
+  const s = Math.max(0, Math.round(secs));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `0:${String(r).padStart(2, "0")}`;
+}
+
 // Every format that produces a cut list (not a text summary) gets the Vibe
 // picker and "Director's Brief" framing — Production formats included.
 const VIDEO_FORMAT_KEYS = new Set([...VIDEO_FORMATS, ...PRODUCTION_FORMATS].map((f) => f.key));
@@ -151,10 +172,34 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [nleTarget, setNleTarget] = useState<NleTarget>("fcpx");
+  const [targetDurationKey, setTargetDurationKey] = useState<string>("auto");
+  const [customSeconds, setCustomSeconds] = useState("");
   const { copiedKey, copy } = useCopyText();
   const outputRef = useRef<HTMLDivElement>(null);
 
   const isVideo = VIDEO_FORMAT_KEYS.has(format as any);
+
+  // The AI's "total_duration" is just a guess. Whenever real timestamps
+  // resolved, prefer a measured length — the sum of each matched cut's real
+  // duration (plus the same padding the export applies) — over trusting a
+  // number the model invented.
+  const measuredDurationSec = (() => {
+    if (!output || output.kind !== "cut_list") return null;
+    const resolved = output.data.cuts.filter((c) => c.real_start_sec != null && c.real_end_sec != null);
+    if (resolved.length === 0) return null;
+    return resolved.reduce((sum, c) => sum + (c.real_end_sec! - c.real_start_sec!) + 0.3, 0);
+  })();
+
+  // null = "auto", use the format's own built-in target
+  function resolveTargetSeconds(): number | null {
+    if (targetDurationKey === "auto") return null;
+    if (targetDurationKey === "custom") {
+      const n = parseInt(customSeconds, 10);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    }
+    const n = parseInt(targetDurationKey, 10);
+    return Number.isFinite(n) ? n : null;
+  }
 
   function toggleVibe(v: string) {
     setVibes((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]);
@@ -174,7 +219,11 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
       const res = await fetch("/api/transcribe/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, format, brief: context, vibes: isVideo ? vibes : [] }),
+        body: JSON.stringify({
+          transcript, format, brief: context,
+          vibes: isVideo ? vibes : [],
+          targetDurationSec: isVideo ? resolveTargetSeconds() : null,
+        }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -409,6 +458,45 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
           </div>
         </div>
 
+        {/* Length — video only */}
+        {isVideo && (
+          <div>
+            <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Length <span className="font-normal normal-case text-muted-foreground/50">— optional</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {DURATION_OPTIONS.map((d) => (
+                <button
+                  key={d.key}
+                  onClick={() => setTargetDurationKey(d.key)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs font-medium transition-all",
+                    targetDurationKey === d.key
+                      ? "border-[#d4a853] bg-[#d4a853]/15 text-[#d4a853]"
+                      : "border-border text-muted-foreground hover:border-[#d4a853]/40 hover:text-foreground"
+                  )}
+                >
+                  {d.label}
+                </button>
+              ))}
+              {targetDurationKey === "custom" && (
+                <div className="flex items-center gap-1.5 rounded-full border border-border bg-white/[0.03] px-3 py-1">
+                  <input
+                    type="number"
+                    min={1}
+                    value={customSeconds}
+                    onChange={(e) => setCustomSeconds(e.target.value)}
+                    placeholder="22"
+                    autoFocus
+                    className="w-12 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
+                  />
+                  <span className="text-xs text-muted-foreground">sec</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Vibe — video only */}
         {isVideo && (
           <div>
@@ -477,7 +565,13 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
               <div className="space-y-3 px-5 py-4">
                 <div>
                   <p className="text-sm font-bold text-foreground">{output.data.format}</p>
-                  <p className="text-xs text-muted-foreground">Est. {output.data.total_duration}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {measuredDurationSec != null ? (
+                      <>Actual {fmtDuration(measuredDurationSec)} <span className="text-muted-foreground/40">· measured from real timestamps</span></>
+                    ) : (
+                      <>Est. {output.data.total_duration}</>
+                    )}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {liveAudio && (

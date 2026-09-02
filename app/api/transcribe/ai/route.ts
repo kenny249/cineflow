@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
   }
 
-  const { transcript, format, brief, vibes } = await req.json();
+  const { transcript, format, brief, vibes, targetDurationSec } = await req.json();
   if (!transcript) return NextResponse.json({ error: "No transcript provided" }, { status: 400 });
 
   try {
@@ -192,13 +192,23 @@ Extract 5–8 of the most valuable, actionable, or insightful takeaways. Each he
     const vibeStr = vibes?.length ? `\nVibe/Energy: ${vibes.join(", ")}` : "";
     const briefStr = brief?.trim() ? `\nDirector's Brief: "${brief.trim()}"` : "\nNo specific brief — use your best editorial judgment.";
     const cutLabels = config?.cutLabels ?? "HOOK, CORE MESSAGE, STORY BEAT, HUMOR BEAT, EMOTIONAL BEAT, ENERGY HIT, TRANSITION, CALLBACK, CLOSE, OUTRO";
-    const durationHint = config?.durationHint ?? "under 60 seconds";
+
+    // An explicit target from the user is a hard deliverable spec (a media
+    // buy is sold as :15/:30/:60, not "15-60 seconds") — it overrides the
+    // format's own loose default entirely.
+    const explicitSec = Number.isFinite(targetDurationSec) && targetDurationSec > 0 ? Math.round(targetDurationSec) : null;
+    const durationHint = explicitSec
+      ? `exactly ${explicitSec >= 60 ? `${Math.floor(explicitSec / 60)}:${String(explicitSec % 60).padStart(2, "0")}` : `${explicitSec} seconds`}`
+      : (config?.durationHint ?? "under 60 seconds");
+    const durationInstruction = explicitSec
+      ? `\nThis is a hard deliverable spec, not a suggestion — select and sequence enough (or few enough) real soundbites so the assembled cut list's combined speaking length lands close to this target. Prioritize hitting this length over including every good line you find.`
+      : "";
 
     const prompt = `You are a senior video editor and content strategist at a top-tier media agency. You have an exceptional eye for storytelling, pacing, and what makes content perform for the specific format you're cutting.
 
 You have been given a raw transcript and creative direction. Your job is to produce an actionable cut list — a precise editorial plan that an editor can follow immediately to build the final video.
 
-TARGET FORMAT: ${formatLabel} (target length: ${durationHint})
+TARGET FORMAT: ${formatLabel} (target length: ${durationHint})${durationInstruction}
 EDITORIAL DIRECTION FOR THIS FORMAT: ${config?.guidance ?? "Hook-first, fast-moving social pacing."}${vibeStr}${briefStr}
 
 RAW TRANSCRIPT:
