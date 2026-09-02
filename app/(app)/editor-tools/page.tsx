@@ -99,7 +99,14 @@ export default function EditorToolsPage() {
             <DeliverySpecs />
           </div>
         )}
-        {tab === "transcribe" && <AudioTranscriber />}
+        {/* Kept mounted at all times, just hidden — switching tabs used to
+            unmount this entirely, which throws away the live audio in memory
+            exactly like a page refresh would, silently, with no way back
+            short of re-transcribing. Hiding instead of destroying it means
+            clicking to another tab and back never costs you anything. */}
+        <div className={cn("h-full", tab !== "transcribe" && "hidden")}>
+          <AudioTranscriber />
+        </div>
       </div>
     </div>
   );
