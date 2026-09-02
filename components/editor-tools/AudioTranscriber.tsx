@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
 import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
-import { getProjects, saveProjectTranscript, appendTranscriptCutList } from "@/lib/supabase/queries";
+import { getProjects, saveProjectTranscript, appendTranscriptCutList, updateProjectTranscriptText } from "@/lib/supabase/queries";
 import type { ProjectTranscriptWithProject } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 import type { WhisperWord } from "@/lib/transcript-align";
@@ -60,6 +60,7 @@ export function AudioTranscriber() {
   const [savedToProject, setSavedToProject] = useState<string | null>(null);
   const [savedTranscriptId, setSavedTranscriptId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [editText, setEditText] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [historyKey, setHistoryKey] = useState(0);
@@ -215,10 +216,14 @@ export function AudioTranscriber() {
 
   async function copyText() {
     if (state.phase !== "done") return;
-    await navigator.clipboard.writeText(state.text);
-    setCopied(true);
-    toast.success("Copied to clipboard");
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(state.text);
+      setCopied(true);
+      toast.success("Copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Couldn't copy — your browser blocked clipboard access.");
+    }
   }
 
   async function downloadPDF() {
@@ -277,15 +282,31 @@ export function AudioTranscriber() {
     setIsEditing(true);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (state.phase !== "done") return;
     setState({ ...state, text: editText });
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) localStorage.setItem(LS_KEY, JSON.stringify({ ...JSON.parse(raw), text: editText }));
     } catch {}
+
+    // This transcript already has a database row — persist the edit there
+    // too, or "Transcript updated" would be a lie: without this, the edit
+    // only lived in this browser tab and would silently vanish on reload.
+    if (savedTranscriptId) {
+      setSavingEdit(true);
+      try {
+        await updateProjectTranscriptText(savedTranscriptId, editText);
+        toast.success("Transcript updated");
+      } catch {
+        toast.error("Updated here, but failed to save — your edit may not persist.");
+      } finally {
+        setSavingEdit(false);
+      }
+    } else {
+      toast.success("Transcript updated (save it to a project to keep this permanently)");
+    }
     setIsEditing(false);
-    toast.success("Transcript updated");
   }
 
   function reset() {
@@ -448,7 +469,7 @@ export function AudioTranscriber() {
   }
 
   // ── DONE: split workspace ─────────────────────────────────────────────────
-  const wordCount = state.text.trim().split(/\s+/).length;
+  const wordCount = state.text.trim() ? state.text.trim().split(/\s+/).length : 0;
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -570,8 +591,10 @@ export function AudioTranscriber() {
                 </button>
                 <button
                   onClick={saveEdit}
-                  className="rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 transition-colors"
+                  disabled={savingEdit}
+                  className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 disabled:opacity-60 transition-colors"
                 >
+                  {savingEdit && <Loader2 className="h-3 w-3 animate-spin" />}
                   Save edits
                 </button>
               </>

@@ -74,9 +74,13 @@ function SavedCutListCard({ cl }: { cl: CutListSave }) {
   const [expandedCuts, setExpandedCuts] = useState<Record<number, boolean>>({});
 
   async function copy(text: string, key: string) {
-    await navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 2000);
+    } catch {
+      toast.error("Couldn't copy — your browser blocked clipboard access.");
+    }
   }
 
   // Same honesty rule as the live view — a measured length from real
@@ -347,7 +351,7 @@ export function TranscriptHistory({ onLoadTranscript }: TranscriptHistoryProps =
           <div className="space-y-2">
             {group.items.map((t) => {
               const isOpen = expanded[t.id] ?? false;
-              const wordCount = t.transcript.trim().split(/\s+/).length;
+              const wordCount = t.transcript.trim() ? t.transcript.trim().split(/\s+/).length : 0;
               const isEditingThis = editingId === t.id;
               return (
                 <div key={t.id} className="rounded-2xl border border-border bg-white/[0.02] overflow-hidden">

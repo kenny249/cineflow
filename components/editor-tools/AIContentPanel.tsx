@@ -124,9 +124,13 @@ type AIOutput =
 function useCopyText() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   async function copy(text: string, key: string) {
-    await navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 2000);
+    } catch {
+      toast.error("Couldn't copy — your browser blocked clipboard access.");
+    }
   }
   return { copiedKey, copy };
 }
@@ -196,7 +200,9 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
     if (targetDurationKey === "auto") return null;
     if (targetDurationKey === "custom") {
       const n = parseInt(customSeconds, 10);
-      return Number.isFinite(n) && n > 0 ? n : null;
+      // The input's max is just a UI hint — clamp for real, so a pasted or
+      // typed-past-the-limit value can't produce a malformed request.
+      return Number.isFinite(n) && n > 0 ? Math.min(n, 600) : null;
     }
     const n = parseInt(targetDurationKey, 10);
     return Number.isFinite(n) ? n : null;
@@ -251,6 +257,9 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
         setOutput({ kind: "meeting_summary", data: json.summary });
       } else if (json.type === "key_takeaways") {
         setOutput({ kind: "key_takeaways", data: json.takeaways });
+      } else {
+        toast.error("Got an unexpected response. Try again.");
+        return;
       }
 
       setTimeout(() => outputRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
@@ -486,6 +495,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                   <input
                     type="number"
                     min={1}
+                    max={600}
                     value={customSeconds}
                     onChange={(e) => setCustomSeconds(e.target.value)}
                     placeholder="22"
