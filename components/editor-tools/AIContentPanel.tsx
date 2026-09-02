@@ -474,12 +474,12 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
           {/* ── CUT LIST ── */}
           {output.kind === "cut_list" && (
             <>
-              <div className="flex items-center justify-between px-5 py-4">
+              <div className="space-y-3 px-5 py-4">
                 <div>
                   <p className="text-sm font-bold text-foreground">{output.data.format}</p>
                   <p className="text-xs text-muted-foreground">Est. {output.data.total_duration}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {liveAudio && (
                     <>
                       <select
@@ -487,7 +487,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                         onChange={(e) => setNleTarget(e.target.value as NleTarget)}
                         disabled={exporting}
                         title="Which editor's marker format to include"
-                        className="rounded-lg border border-border bg-white/[0.03] px-2 py-1.5 text-xs text-muted-foreground disabled:opacity-60 transition-colors focus:border-[#d4a853]/50 focus:outline-none"
+                        className="shrink-0 rounded-lg border border-border bg-white/[0.03] px-2 py-1.5 text-xs text-muted-foreground disabled:opacity-60 transition-colors focus:border-[#d4a853]/50 focus:outline-none"
                       >
                         {NLE_TARGETS.map((t) => (
                           <option key={t} value={t}>{NLE_LABELS[t]}</option>
@@ -497,7 +497,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                         onClick={exportCuts}
                         disabled={exporting}
                         title="Cut soundbites and download markers + audio for your editor"
-                        className="flex items-center gap-1.5 rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 disabled:opacity-60 transition-colors"
+                        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[#d4a853] px-3 py-1.5 text-xs font-semibold text-black hover:bg-[#d4a853]/90 disabled:opacity-60 transition-colors"
                       >
                         {exporting ? (
                           <><Loader2 className="h-3 w-3 animate-spin" /> {exportProgress}%</>
@@ -512,7 +512,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                       output.data.cuts.map((c) => `[${c.label}] "${c.quote}"${c.speaker ? ` — ${c.speaker}` : ""}\n${c.note}`).join("\n\n"),
                       "all"
                     )}
-                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
                   >
                     {copiedKey === "all" ? <CheckCheck className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
                     Copy
@@ -520,7 +520,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                   <button
                     onClick={downloadPDF}
                     disabled={pdfLoading}
-                    className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-50 transition-colors"
+                    className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-white/[0.06] hover:text-foreground disabled:opacity-50 transition-colors"
                   >
                     {pdfLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
                     PDF
@@ -530,7 +530,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                       onClick={saveList}
                       disabled={saving || saved}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
                         saved
                           ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
                           : "border border-border text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
@@ -546,6 +546,12 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
               {!liveAudio && (
                 <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
                   The original audio isn&apos;t in this tab right now — either this was reopened from your library, or the page was refreshed since you last transcribed it. Exact timestamps and clip export need the live audio, so transcribe this file again without refreshing in between to get both.
+                </p>
+              )}
+
+              {!onSaveCutList && (
+                <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
+                  Save the transcript above first to also save this cut list — otherwise it only lives in this tab and won&apos;t be here if you come back later.
                 </p>
               )}
 

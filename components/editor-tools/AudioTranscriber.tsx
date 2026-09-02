@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
 import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
-import { getProjects, saveProjectTranscript } from "@/lib/supabase/queries";
+import { getProjects, saveProjectTranscript, appendTranscriptCutList } from "@/lib/supabase/queries";
 import type { ProjectTranscriptWithProject } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 import type { WhisperWord } from "@/lib/transcript-align";
@@ -58,6 +58,7 @@ export function AudioTranscriber() {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [savingProject, setSavingProject] = useState(false);
   const [savedToProject, setSavedToProject] = useState<string | null>(null);
+  const [savedTranscriptId, setSavedTranscriptId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -109,6 +110,7 @@ export function AudioTranscriber() {
 
   const uploadAndTranscribe = useCallback(async (file: File) => {
     setSavedToProject(null);
+    setSavedTranscriptId(null);
     setState({ phase: "uploading", file, progress: 0, label: "Preparing upload…" });
     try {
       const prepRes = await fetch("/api/transcribe/prepare", {
@@ -252,13 +254,14 @@ export function AudioTranscriber() {
     setSavingProject(true);
     const label = project ? project.title : "Personal";
     try {
-      await saveProjectTranscript({
+      const saved = await saveProjectTranscript({
         projectId: project?.id ?? null,
         filename: state.file.name,
         fileSizeBytes: state.file.size,
         durationSecs: state.duration,
         transcript: state.text,
       });
+      setSavedTranscriptId(saved.id);
       setSavedToProject(label);
       setShowProjectPicker(false);
       setHistoryKey((k) => k + 1);
@@ -289,6 +292,7 @@ export function AudioTranscriber() {
     setState({ phase: "idle" });
     setCopied(false);
     setSavedToProject(null);
+    setSavedTranscriptId(null);
     setShowProjectPicker(false);
     setIsEditing(false);
     setLibraryOpen(false);
@@ -300,6 +304,7 @@ export function AudioTranscriber() {
     const fakeFile = new File([], t.filename, { type: "audio/mpeg" });
     setState({ phase: "done", file: fakeFile, text: t.transcript, duration: t.duration_secs ?? null, liveAudio: null });
     setSavedToProject(t.project_title ?? "Personal");
+    setSavedTranscriptId(t.id);
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
         filename: t.filename, fileSize: 0, text: t.transcript, duration: t.duration_secs ?? null,
@@ -617,7 +622,13 @@ export function AudioTranscriber() {
           "w-[400px] xl:w-[440px] shrink-0 overflow-y-auto custom-scrollbar",
           mobileTab !== "ai" && "hidden md:block"
         )}>
-          <AIContentPanel transcript={state.text} filename={state.file.name} liveAudio={state.liveAudio} duration={state.duration} />
+          <AIContentPanel
+            transcript={state.text}
+            filename={state.file.name}
+            liveAudio={state.liveAudio}
+            duration={state.duration}
+            onSaveCutList={savedTranscriptId ? (cl) => appendTranscriptCutList(savedTranscriptId, cl) : undefined}
+          />
         </div>
       </div>
 
