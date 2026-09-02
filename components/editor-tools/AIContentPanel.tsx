@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import type { CutListSave } from "@/lib/supabase/queries";
 import { findQuoteTimestamp, type WhisperWord } from "@/lib/transcript-align";
 import { buildMarkerFile, NLE_LABELS, type NleTarget } from "@/lib/marker-export";
+import { SavedCutListCard } from "@/components/editor-tools/SavedCutListCard";
 
 const NLE_TARGETS: NleTarget[] = ["fcpx", "premiere", "resolve", "universal"];
 
@@ -159,11 +160,12 @@ interface Props {
   liveAudio?: { file: File; words: WhisperWord[] } | null;
   duration?: number | null;
   onSaveCutList?: (cutList: CutListSave) => Promise<void>;
+  savedCutLists?: CutListSave[];
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function AIContentPanel({ transcript, filename, liveAudio, duration, onSaveCutList }: Props) {
+export function AIContentPanel({ transcript, filename, liveAudio, duration, onSaveCutList, savedCutLists }: Props) {
   const [format, setFormat] = useState<string>("reel_30");
   const [vibes, setVibes] = useState<string[]>([]);
   const [context, setContext] = useState("");
@@ -394,6 +396,19 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
           <p className="text-[11px] text-muted-foreground">Cut lists, meeting summaries, and key takeaways</p>
         </div>
       </div>
+
+      {savedCutLists && savedCutLists.length > 0 && (
+        <div className="border-b border-[#d4a853]/15 p-5">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Saved Cut Lists <span className="normal-case font-normal text-muted-foreground/50">— from before</span>
+          </p>
+          <div className="space-y-1.5">
+            {savedCutLists.map((cl, i) => (
+              <SavedCutListCard key={i} cl={cl} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div ref={controlsRef} className="space-y-5 p-5">
 

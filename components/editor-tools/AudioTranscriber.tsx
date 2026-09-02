@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
 import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
 import { getProjects, saveProjectTranscript, appendTranscriptCutList, updateProjectTranscriptText } from "@/lib/supabase/queries";
-import type { ProjectTranscriptWithProject } from "@/lib/supabase/queries";
+import type { ProjectTranscriptWithProject, CutListSave } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 import type { WhisperWord } from "@/lib/transcript-align";
 import { saveCurrentAudio, getCurrentAudio, clearCurrentAudio } from "@/lib/transcriber-audio-store";
@@ -59,6 +59,7 @@ export function AudioTranscriber() {
   const [savingProject, setSavingProject] = useState(false);
   const [savedToProject, setSavedToProject] = useState<string | null>(null);
   const [savedTranscriptId, setSavedTranscriptId] = useState<string | null>(null);
+  const [savedCutLists, setSavedCutLists] = useState<CutListSave[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editText, setEditText] = useState("");
@@ -112,6 +113,7 @@ export function AudioTranscriber() {
   const uploadAndTranscribe = useCallback(async (file: File) => {
     setSavedToProject(null);
     setSavedTranscriptId(null);
+    setSavedCutLists([]);
     setState({ phase: "uploading", file, progress: 0, label: "Preparing upload…" });
     try {
       const prepRes = await fetch("/api/transcribe/prepare", {
@@ -276,6 +278,15 @@ export function AudioTranscriber() {
     finally { setSavingProject(false); }
   }
 
+  async function handleSaveCutList(cutList: CutListSave) {
+    if (!savedTranscriptId) return;
+    await appendTranscriptCutList(savedTranscriptId, cutList);
+    // Reflect it immediately in the "Saved Cut Lists" section, and in the
+    // Library's badge count, without needing to reopen the transcript.
+    setSavedCutLists((prev) => [cutList, ...prev]);
+    setHistoryKey((k) => k + 1);
+  }
+
   function startEdit() {
     if (state.phase !== "done") return;
     setEditText(state.text);
@@ -314,6 +325,7 @@ export function AudioTranscriber() {
     setCopied(false);
     setSavedToProject(null);
     setSavedTranscriptId(null);
+    setSavedCutLists([]);
     setShowProjectPicker(false);
     setIsEditing(false);
     setLibraryOpen(false);
@@ -326,6 +338,7 @@ export function AudioTranscriber() {
     setState({ phase: "done", file: fakeFile, text: t.transcript, duration: t.duration_secs ?? null, liveAudio: null });
     setSavedToProject(t.project_title ?? "Personal");
     setSavedTranscriptId(t.id);
+    setSavedCutLists(t.cut_lists ?? []);
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
         filename: t.filename, fileSize: 0, text: t.transcript, duration: t.duration_secs ?? null,
@@ -650,7 +663,8 @@ export function AudioTranscriber() {
             filename={state.file.name}
             liveAudio={state.liveAudio}
             duration={state.duration}
-            onSaveCutList={savedTranscriptId ? (cl) => appendTranscriptCutList(savedTranscriptId, cl) : undefined}
+            savedCutLists={savedCutLists}
+            onSaveCutList={savedTranscriptId ? handleSaveCutList : undefined}
           />
         </div>
       </div>
