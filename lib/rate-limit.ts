@@ -50,6 +50,17 @@ function isRateLimitedMemory(key: string, limit: number, windowMs: number): bool
   return bucket.count > limit;
 }
 
+function isRateLimitedMemoryByAmount(key: string, amount: number, limit: number, windowMs: number): boolean {
+  const now = Date.now();
+  const bucket = store.get(key);
+  if (!bucket || bucket.resetAt < now) {
+    store.set(key, { count: amount, resetAt: now + windowMs });
+    return amount > limit;
+  }
+  bucket.count += amount;
+  return bucket.count > limit;
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -76,6 +87,35 @@ export async function isRateLimited(
   } catch {
     // Redis unavailable — fall back to in-memory so the app keeps running
     return isRateLimitedMemory(key, limit, windowMs);
+  }
+}
+
+/**
+ * Same as isRateLimited, but consumes an arbitrary amount from the budget
+ * instead of a flat 1 per call — e.g. minutes of audio processed, so one
+ * long file and several short ones are bounded fairly by the same total
+ * cost exposure rather than by request count.
+ */
+export async function isRateLimitedByAmount(
+  key: string,
+  amount: number,
+  limit: number,
+  windowMs: number
+): Promise<boolean> {
+  const r = getRedis();
+  if (!r) return isRateLimitedMemoryByAmount(key, amount, limit, windowMs);
+
+  try {
+    const windowSecs = Math.ceil(windowMs / 1000);
+    const redisKey = `rl:${key}`;
+    const count = await r.incrby(redisKey, amount);
+    if (count === amount) {
+      // First contribution in this window — set TTL
+      await r.expire(redisKey, windowSecs);
+    }
+    return count > limit;
+  } catch {
+    return isRateLimitedMemoryByAmount(key, amount, limit, windowMs);
   }
 }
 

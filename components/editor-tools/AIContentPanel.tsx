@@ -183,6 +183,8 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
   const { copiedKey, copy } = useCopyText();
   const outputRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
+  const savedSectionRef = useRef<HTMLDivElement>(null);
+  const [justSaved, setJustSaved] = useState(false);
 
   const isVideo = VIDEO_FORMAT_KEYS.has(format as any);
 
@@ -218,12 +220,14 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
     setFormat(key);
     setOutput(null);
     setSaved(false);
+    setJustSaved(false);
   }
 
   async function generate() {
     setGenerating(true);
     setOutput(null);
     setSaved(false);
+    setJustSaved(false);
     const requestedDurationSec = isVideo ? resolveTargetSeconds() : null;
     try {
       const res = await fetch("/api/transcribe/ai", {
@@ -278,7 +282,13 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
     try {
       await onSaveCutList(output.data);
       setSaved(true);
+      setJustSaved(true);
       toast.success("Cut list saved to project");
+      // The Save button lives at the bottom of a potentially long result;
+      // the confirmation it saved lives in a section back at the top of
+      // the panel. Without this, "it saved" and "where it went" never
+      // visually connect — scroll there and open it so there's no doubt.
+      setTimeout(() => savedSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
     } catch {
       toast.error("Failed to save");
     } finally {
@@ -398,13 +408,13 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
       </div>
 
       {savedCutLists && savedCutLists.length > 0 && (
-        <div className="border-b border-[#d4a853]/15 p-5">
+        <div ref={savedSectionRef} className="border-b border-[#d4a853]/15 p-5">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Saved Cut Lists <span className="normal-case font-normal text-muted-foreground/50">— from before</span>
+            Saved Cut Lists <span className="normal-case font-normal text-muted-foreground/50">({savedCutLists.length})</span>
           </p>
           <div className="space-y-1.5">
             {savedCutLists.map((cl, i) => (
-              <SavedCutListCard key={i} cl={cl} />
+              <SavedCutListCard key={i} cl={cl} defaultOpen={i === 0 && justSaved} />
             ))}
           </div>
         </div>

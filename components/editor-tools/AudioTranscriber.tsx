@@ -14,10 +14,23 @@ import type { ProjectTranscriptWithProject, CutListSave } from "@/lib/supabase/q
 import type { Project } from "@/types";
 import type { WhisperWord } from "@/lib/transcript-align";
 import { saveCurrentAudio, getCurrentAudio, clearCurrentAudio } from "@/lib/transcriber-audio-store";
+import { getAudioDuration, splitAudioIntoChunks, CHUNK_SECONDS } from "@/lib/audio-chunk";
 
 const ACCEPTED_EXT = [".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aac"];
-const MAX_MB = 25; // OpenAI Whisper hard limit
-const MAX_BYTES = MAX_MB * 1024 * 1024;
+// OpenAI Whisper's real hard limit — what actually drives whether a file
+// needs to be compressed and/or split. Not shown to the user; the whole
+// point is that they never have to think about it.
+const WHISPER_MAX_BYTES = 25 * 1024 * 1024;
+// A sane outer ceiling on what we'll even attempt — not Whisper's limit,
+// just protection against someone accidentally selecting something
+// absurd (a raw video file, a multi-GB archive) and having their browser
+// grind on it for no reason.
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
+const MAX_DURATION_HOURS = 4;
+// Above this the export source falls back to the compressed copy instead
+// of the pristine original — keeps IndexedDB and later ffmpeg re-processing
+// (for Export Cuts) from having to handle a multi-hundred-MB blob.
+const EXPORT_SOURCE_MAX_BYTES = 500 * 1024 * 1024;
 const LS_KEY = "cineflow_transcriber_state";
 
 type DoneState = {
@@ -40,11 +53,14 @@ type DoneState = {
 // stored audio for those in the first place.
 type LiveAudio = { file: File; words: WhisperWord[] };
 
+// One continuous phase for the whole pipeline — probing duration,
+// compressing if needed, splitting if still too big, transcribing one or
+// more pieces, and stitching the result back together. Deliberately not
+// split into separate phases per step: the point is one smoothly-advancing
+// progress bar, not a sequence of different screens.
 type State =
   | { phase: "idle" }
-  | { phase: "needs_compression"; file: File }
-  | { phase: "compressing"; file: File; progress: number; label: string }
-  | { phase: "uploading"; file: File; progress: number; label: string }
+  | { phase: "processing"; file: File; progress: number; label: string }
   | { phase: "done"; file: File; text: string; duration: number | null; liveAudio: LiveAudio | null }
   | { phase: "error"; message: string };
 
@@ -134,85 +150,170 @@ export function AudioTranscriber() {
     }
   }, [showProjectPicker, projects.length]);
 
-  const uploadAndTranscribe = useCallback(async (file: File) => {
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const cancelledRef = useRef(false);
+
+  function cancelUpload() {
+    cancelledRef.current = true;
+    xhrRef.current?.abort();
+    abortControllerRef.current?.abort();
+    setState({ phase: "idle" });
+    toast("Upload cancelled");
+  }
+
+  // One upload target, regardless of how long the recording is. Compression
+  // and splitting both happen automatically, invisibly, only when actually
+  // needed — most files never touch either step.
+  const processAndTranscribe = useCallback(async (file: File) => {
+    cancelledRef.current = false;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setSavedToProject(null);
     setSavedTranscriptId(null);
     setSavedCutLists([]);
-    setState({ phase: "uploading", file, progress: 0, label: "Preparing upload…" });
+    setState({ phase: "processing", file, progress: 0, label: "Getting started…" });
+
+    const setProgress = (progress: number, label?: string) => {
+      setState((s) => s.phase === "processing" ? { ...s, progress, label: label ?? s.label } : s);
+    };
+
     try {
-      const prepRes = await fetch("/api/transcribe/prepare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name }),
-      });
-      if (!prepRes.ok) {
-        const d = await prepRes.json().catch(() => ({}));
-        setState({ phase: "error", message: d.error ?? "Failed to prepare upload" });
+      // Duration is checked up front — no point compressing or uploading
+      // anything before knowing whether it's within what we support at all.
+      let durationSec: number | null = null;
+      try {
+        durationSec = await getAudioDuration(file);
+      } catch {
+        // Some formats/browsers can't report this — not fatal, per-chunk
+        // server-side limits still apply regardless.
+      }
+      if (cancelledRef.current) return;
+      if (durationSec && durationSec > MAX_DURATION_HOURS * 3600) {
+        const hours = Math.round((durationSec / 3600) * 10) / 10;
+        setState({ phase: "error", message: `This file is about ${hours} hours long — CineFlow currently supports up to ${MAX_DURATION_HOURS} hours per file.` });
         return;
       }
-      const { signedUrl, path } = await prepRes.json();
-
-      setState({ phase: "uploading", file, progress: 5, label: "Uploading audio…" });
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const pct = 5 + (e.loaded / e.total) * 65;
-            setState((s) => s.phase === "uploading" ? { ...s, progress: pct, label: "Uploading audio…" } : s);
-          }
-        };
-        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`));
-        xhr.onerror = () => reject(new Error("Network error during upload"));
-        xhr.open("PUT", signedUrl);
-        xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg");
-        xhr.send(file);
-      });
-
-      setState({ phase: "uploading", file, progress: 72, label: "Transcribing your audio…" });
-      let prog = 72;
-      const tick = setInterval(() => {
-        prog = Math.min(prog + Math.random() * 4, 92);
-        setState((s) => s.phase === "uploading" ? { ...s, progress: prog, label: "Transcribing your audio…" } : s);
-      }, 800);
-
-      const res = await fetch("/api/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path }),
-      });
-      clearInterval(tick);
-
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        setState({ phase: "error", message: d.error ?? "Transcription failed. Try again." });
-        return;
+      if (durationSec && durationSec > 45 * 60) {
+        toast("This one's long — it might take a few minutes.");
       }
 
-      const data = await res.json();
-      const done: DoneState = { filename: file.name, fileSize: file.size, text: data.text ?? "", duration: data.duration ?? null };
-      const words: WhisperWord[] = Array.isArray(data.words) ? data.words : [];
-      setState({ phase: "done", file, text: done.text, duration: done.duration, liveAudio: { file, words } });
+      // Compress if it's over Whisper's limit — most files skip this.
+      let working = file;
+      if (working.size > WHISPER_MAX_BYTES) {
+        setProgress(3, "Compressing your audio…");
+        const { compressAudioForWhisper } = await import("@/lib/ffmpeg-compress");
+        working = await compressAudioForWhisper(working, (pct) => setProgress(3 + pct * 0.22));
+        if (cancelledRef.current) return;
+      }
+
+      // Split into pieces if it's still too big even compressed — only
+      // genuinely long recordings ever reach this.
+      let chunkFiles: File[];
+      if (working.size > WHISPER_MAX_BYTES) {
+        setProgress(28, "Preparing your audio…");
+        chunkFiles = (await splitAudioIntoChunks(working, CHUNK_SECONDS, (pct) => setProgress(28 + pct * 0.10))).map((c) => c.file);
+        if (cancelledRef.current) return;
+      } else {
+        chunkFiles = [working];
+      }
+
+      // Transcribe each piece — one API call per piece, stitched back into
+      // one continuous transcript with correctly-offset real timestamps.
+      // Nothing about this loop is visible to the person waiting; the
+      // progress bar just advances smoothly across all of it.
+      let combinedText = "";
+      const combinedWords: WhisperWord[] = [];
+      let cumulativeOffset = 0;
+      let totalDuration = 0;
+      const loopSpan = 57; // 38% -> 95%
+
+      for (let i = 0; i < chunkFiles.length; i++) {
+        if (cancelledRef.current) return;
+        const chunkFile = chunkFiles[i];
+        const baseProgress = 38 + (i / chunkFiles.length) * loopSpan;
+        const perChunkSpan = loopSpan / chunkFiles.length;
+        setProgress(baseProgress, "Uploading your audio…");
+
+        const prepRes = await fetch("/api/transcribe/prepare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: chunkFile.name }),
+          signal: controller.signal,
+        });
+        if (!prepRes.ok) {
+          const d = await prepRes.json().catch(() => ({}));
+          setState({ phase: "error", message: d.error ?? "Failed to prepare upload" });
+          return;
+        }
+        const { signedUrl, path } = await prepRes.json();
+
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhrRef.current = xhr;
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const pct = baseProgress + (e.loaded / e.total) * perChunkSpan * 0.6;
+              setProgress(pct);
+            }
+          };
+          xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`));
+          xhr.onerror = () => reject(new Error("Network error during upload"));
+          xhr.onabort = () => reject(new DOMException("Upload cancelled", "AbortError"));
+          xhr.open("PUT", signedUrl);
+          xhr.setRequestHeader("Content-Type", chunkFile.type || "audio/mpeg");
+          xhr.send(chunkFile);
+        });
+        if (cancelledRef.current) return;
+
+        setProgress(baseProgress + perChunkSpan * 0.6, "Transcribing your audio…");
+        // The client just created this chunk, so it knows its real target
+        // length — used to charge the per-user minutes budget before
+        // Whisper is even called, rather than trusting an unverified guess.
+        const estimatedDurationSec = await getAudioDuration(chunkFile).catch(() => CHUNK_SECONDS);
+
+        const res = await fetch("/api/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path, estimatedDurationSec }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          setState({ phase: "error", message: d.error ?? "Transcription failed. Try again." });
+          return;
+        }
+
+        const data = await res.json();
+        const chunkWords: WhisperWord[] = Array.isArray(data.words) ? data.words : [];
+        combinedText += (combinedText ? " " : "") + String(data.text ?? "").trim();
+        for (const w of chunkWords) combinedWords.push({ ...w, start: w.start + cumulativeOffset, end: w.end + cumulativeOffset });
+        const thisChunkDuration = Number(data.duration) || estimatedDurationSec;
+        cumulativeOffset += thisChunkDuration;
+        totalDuration += thisChunkDuration;
+      }
+
+      setProgress(97, "Finishing up…");
+      const finalDuration = totalDuration || durationSec;
+      const done: DoneState = { filename: file.name, fileSize: file.size, text: combinedText, duration: finalDuration };
+
+      // Export/cutting works from the pristine original whenever it's a
+      // reasonable size — better quality than the compressed copy used
+      // just to get through Whisper. Only falls back for genuinely huge
+      // originals, so IndexedDB and later ffmpeg re-processing (Export
+      // Cuts) never have to handle a multi-hundred-MB blob.
+      const exportSourceFile = file.size <= EXPORT_SOURCE_MAX_BYTES ? file : working;
+
+      setState({ phase: "done", file, text: done.text, duration: done.duration, liveAudio: { file: exportSourceFile, words: combinedWords } });
       try { localStorage.setItem(LS_KEY, JSON.stringify(done)); } catch {}
-      // Persist the real audio so a refresh doesn't throw away export capability.
-      saveCurrentAudio(file, words).catch((e) => console.error("[transcriber] failed to persist audio for refresh-survival:", e));
+      saveCurrentAudio(exportSourceFile, combinedWords).catch((e) => console.error("[transcriber] failed to persist audio for refresh-survival:", e));
     } catch (e: any) {
+      // A user-initiated cancel already reset state and showed its own
+      // toast in cancelUpload() — don't overwrite that with an error screen.
+      if (cancelledRef.current || e?.name === "AbortError") return;
       setState({ phase: "error", message: e.message ?? "Something went wrong. Try again." });
     }
   }, []);
-
-  const compressAndTranscribe = useCallback(async (file: File) => {
-    setState({ phase: "compressing", file, progress: 0, label: "Loading compressor…" });
-    try {
-      const { compressAudioForWhisper } = await import("@/lib/ffmpeg-compress");
-      setState({ phase: "compressing", file, progress: 0, label: "Compressing audio…" });
-      const compressed = await compressAudioForWhisper(file, (pct) => {
-        setState((s) => s.phase === "compressing" ? { ...s, progress: pct } : s);
-      });
-      await uploadAndTranscribe(compressed);
-    } catch (e: any) {
-      setState({ phase: "error", message: e.message ?? "Compression failed. Try a smaller file." });
-    }
-  }, [uploadAndTranscribe]);
 
   const transcribe = useCallback(async (file: File) => {
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
@@ -220,12 +321,14 @@ export function AudioTranscriber() {
       setState({ phase: "error", message: "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC." });
       return;
     }
-    if (file.size > MAX_BYTES) {
-      setState({ phase: "needs_compression", file });
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setState({ phase: "error", message: `That file is too large (${(file.size / (1024 * 1024 * 1024)).toFixed(1)} GB) — CineFlow supports up to 2 GB per file.` });
       return;
     }
-    await uploadAndTranscribe(file);
-  }, [uploadAndTranscribe]);
+    // Compression and, for genuinely long recordings, splitting both happen
+    // automatically inside here — no separate confirmation step.
+    await processAndTranscribe(file);
+  }, [processAndTranscribe]);
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -380,66 +483,6 @@ export function AudioTranscriber() {
     clearCurrentAudio().catch(() => {});
   }
 
-  // ── NEEDS COMPRESSION ────────────────────────────────────────────────────
-  if (state.phase === "needs_compression") {
-    const fileMB = (state.file.size / (1024 * 1024)).toFixed(1);
-    return (
-      <div className="flex h-full items-center justify-center p-8">
-        <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-2xl border border-amber-500/20 bg-amber-500/[0.04] px-8 py-14 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10">
-            <FileAudio className="h-6 w-6 text-amber-400" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">{state.file.name}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{fileMB} MB — over the 25 MB limit</p>
-          </div>
-          <div className="w-full space-y-2.5">
-            <button
-              onClick={() => compressAndTranscribe(state.file)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#d4a853] px-5 py-3 text-sm font-semibold text-black hover:bg-[#d4a853]/90 transition-colors"
-            >
-              <Zap className="h-4 w-4" />
-              Compress &amp; Transcribe
-            </button>
-            <p className="text-[10px] text-muted-foreground/60">
-              Shrinks to ~{Math.ceil(state.file.size / (1024 * 1024) * 0.5)} MB or less · mono 32 kbps · runs in your browser
-            </p>
-          </div>
-          <button
-            onClick={() => { setState({ phase: "idle" }); fileInputRef.current?.click(); }}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Choose a different file
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── COMPRESSING ───────────────────────────────────────────────────────────
-  if (state.phase === "compressing") {
-    return (
-      <div className="flex h-full flex-col items-center justify-center p-8">
-        <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-2xl border border-border bg-white/[0.02] px-8 py-14 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#d4a853]/30 bg-[#d4a853]/10">
-            <Loader2 className="h-6 w-6 animate-spin text-[#d4a853]" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-foreground">{state.label}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{state.file.name}</p>
-          </div>
-          <div className="w-full">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-              <div className="h-full rounded-full bg-[#d4a853] transition-all duration-300" style={{ width: `${state.progress}%` }} />
-            </div>
-            <p className="mt-1.5 text-right text-[10px] text-muted-foreground">{state.progress}%</p>
-          </div>
-          <p className="text-[11px] text-muted-foreground/60">Compressing right in your browser · no file leaves your device</p>
-        </div>
-      </div>
-    );
-  }
-
   // ── IDLE / ERROR ─────────────────────────────────────────────────────────
   if (state.phase === "idle" || state.phase === "error") {
     return (
@@ -462,7 +505,7 @@ export function AudioTranscriber() {
               {dragging ? <Upload className="h-6 w-6 text-[#d4a853]" /> : <FileAudio className="h-6 w-6 text-muted-foreground" />}
             </div>
             <p className="text-sm font-semibold text-foreground">{dragging ? "Drop to transcribe" : "Drop audio here or click to browse"}</p>
-            <p className="mt-1.5 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC · up to {MAX_MB} MB</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC · any length, up to {formatBytes(MAX_UPLOAD_BYTES)}</p>
             {state.phase === "error" && (
               <div className="mt-5 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
                 <AlertCircle className="h-4 w-4 shrink-0" />{state.message}
@@ -488,8 +531,8 @@ export function AudioTranscriber() {
     );
   }
 
-  // ── UPLOADING ─────────────────────────────────────────────────────────────
-  if (state.phase === "uploading") {
+  // ── PROCESSING: one smooth bar for compress → split → transcribe → stitch ──
+  if (state.phase === "processing") {
     return (
       <div className="flex h-full flex-col items-center justify-center p-8">
         <div className="flex w-full max-w-sm flex-col items-center gap-5 rounded-2xl border border-border bg-white/[0.02] px-8 py-14 text-center">
@@ -506,7 +549,13 @@ export function AudioTranscriber() {
             </div>
             <p className="mt-1.5 text-right text-[10px] text-muted-foreground">{Math.round(state.progress)}%</p>
           </div>
-          <p className="text-[11px] text-muted-foreground/60">Catching every word · large files may take 30–60s</p>
+          <p className="text-[11px] text-muted-foreground/60">Catching every word · large files may take a few minutes</p>
+          <button
+            onClick={cancelUpload}
+            className="text-xs text-muted-foreground/60 hover:text-red-400 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     );
