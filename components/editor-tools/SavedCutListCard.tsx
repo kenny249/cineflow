@@ -88,7 +88,7 @@ export function SavedCutListCard({ cl }: { cl: CutListSave }) {
           )}
           <p className="mt-0.5 text-[10px] text-muted-foreground">
             {cl.cuts?.length} cuts ·{" "}
-            {measuredSec != null ? <>actual {fmtSecs(measuredSec)} (measured)</> : <>est. {cl.total_duration}</>}
+            {measuredSec != null ? <>actual {fmtSecs(measuredSec)} (real speech length)</> : <>est. {cl.total_duration}</>}
             {cl.requested_duration_sec != null && <> · target {fmtSecs(cl.requested_duration_sec)}</>}
           </p>
         </div>

@@ -534,6 +534,16 @@ export function AIContentPanel({
                 </div>
               )}
             </div>
+            {/* Set the expectation before they ever see a mismatch — the AI
+                picks quotes by reading the transcript, before real timestamps
+                exist to check against, so the assembled length is aimed at
+                the target, not locked to it. Saying so here means "Actual
+                0:37" on a :30 target reads as normal, not broken. */}
+            {targetDurationKey !== "auto" && (
+              <p className="mt-2 text-[11px] text-muted-foreground/50 leading-relaxed">
+                A target, not a guarantee — real speech doesn&apos;t cut to the exact second, so the finished length can land a few seconds off.
+              </p>
+            )}
           </div>
         )}
 
@@ -611,7 +621,7 @@ export function AIContentPanel({
                         <>Target {fmtDuration(output.data.requested_duration_sec)} · </>
                       )}
                       {measuredDurationSec != null ? (
-                        <>Actual {fmtDuration(measuredDurationSec)} <span className="text-muted-foreground/40">(measured)</span></>
+                        <>Actual {fmtDuration(measuredDurationSec)} <span className="text-muted-foreground/40">(real speech length)</span></>
                       ) : (
                         <>Est. {output.data.total_duration}</>
                       )}
