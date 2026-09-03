@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, LayoutGrid, Lock } from "lucide-react";
+import { Loader2, LayoutGrid, Lock, Pencil } from "lucide-react";
 import type { BoardWithCards } from "@/lib/boards";
 import { BoardView } from "@/components/boards/BoardView";
 import { useStudioBranding, StudioBrandingBar, PoweredByCineFlow } from "@/components/shared/StudioBranding";
@@ -44,6 +44,8 @@ export default function SharedBoardPage() {
     );
   }
 
+  const canEdit = board.share_permission === "edit";
+
   return (
     <div className="flex min-h-screen flex-col bg-background" style={{ height: "100dvh" }}>
       {brand && <StudioBrandingBar brand={brand} />}
@@ -53,11 +55,15 @@ export default function SharedBoardPage() {
           <span className="font-display text-sm font-semibold text-foreground">{board.title}</span>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50">
-          <Lock className="h-3 w-3" /> Read-only
+          {canEdit ? (
+            <><Pencil className="h-3 w-3 text-[#d4a853]" /> <span className="text-[#d4a853]">Can edit</span></>
+          ) : (
+            <><Lock className="h-3 w-3" /> Read-only</>
+          )}
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        <BoardView board={board} readonly />
+        <BoardView board={board} readonly={!canEdit} shareToken={canEdit ? token : undefined} />
       </div>
       <PoweredByCineFlow />
     </div>

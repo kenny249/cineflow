@@ -4,11 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import {
   StickyNote, ScrollText, Camera, Image as ImageIcon, Video, CheckSquare, Link2,
   MapPin, User, MoreHorizontal, Trash2, Edit3, Sparkles, ArrowUpRight, Check,
-  ExternalLink, Plus, X,
+  ExternalLink, Plus, X, Square,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { BoardCard as BoardCardType, CardType } from "@/lib/boards";
-import { deleteCard, updateCard } from "@/lib/boards";
+import type { BoardCard as BoardCardType, BoardCardActions, CardType } from "@/lib/boards";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +30,7 @@ export const CARD_TYPE_META: Record<CardType, { label: string; icon: React.React
   link:      { label: "Link",      icon: <Link2       className="h-3 w-3" /> },
   location:  { label: "Location",  icon: <MapPin      className="h-3 w-3" /> },
   character: { label: "Character", icon: <User        className="h-3 w-3" /> },
+  frame:     { label: "Frame",     icon: <Square      className="h-3 w-3" /> },
 };
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -39,6 +39,11 @@ export interface BoardCardProps {
   card: BoardCardType;
   projectId?: string;
   readonly?: boolean;
+  /** True only on a public "anyone can edit" share link — hides AI Enhance,
+   *  since that calls an authenticated, billed endpoint an anonymous
+   *  visitor has no account or plan to run it against. */
+  disableAI?: boolean;
+  actions: BoardCardActions;
   isDragging?: boolean;
   isResizing?: boolean;
   startInlineEdit?: boolean;
@@ -59,6 +64,8 @@ export function BoardCardComponent({
   card,
   projectId,
   readonly,
+  disableAI,
+  actions,
   isDragging,
   isResizing,
   startInlineEdit,
@@ -137,7 +144,7 @@ export function BoardCardComponent({
 
   async function saveContent(newContent: Record<string, unknown>) {
     try {
-      await updateCard(card.id, { content: newContent });
+      await actions.updateCard(card.id, { content: newContent });
       onUpdate({ ...card, content: newContent });
     } catch {
       toast.error("Failed to save");
@@ -149,7 +156,7 @@ export function BoardCardComponent({
   async function handleDelete() {
     setMenuOpen(false);
     try {
-      await deleteCard(card.id);
+      await actions.deleteCard(card.id);
       onDelete(card.id);
     } catch {
       toast.error("Failed to delete card");
@@ -157,7 +164,25 @@ export function BoardCardComponent({
   }
 
   const canPush = projectId && (card.type === "shot" || card.type === "script");
-  const hasAI = card.type === "note" || card.type === "script" || card.type === "shot";
+  const hasAI = !disableAI && (card.type === "note" || card.type === "script" || card.type === "shot");
+
+  // Frames don't fit the header+content+"..." menu shape every other type
+  // shares — they're just a resizable region you drag other cards into, so
+  // they get their own render entirely (see below).
+  if (card.type === "frame") {
+    return (
+      <FrameCardComponent
+        card={card}
+        readonly={readonly}
+        isDragging={isDragging}
+        actions={actions}
+        onDragStart={onDragStart}
+        onResizeStart={onResizeStart}
+        onUpdate={onUpdate}
+        onDelete={onDelete}
+      />
+    );
+  }
 
   return (
     <div
@@ -240,7 +265,7 @@ export function BoardCardComponent({
             onClose={() => setInlineEditing(false)}
           />
         ) : (
-          <CardBody card={card} onUpdate={onUpdate} />
+          <CardBody card={card} actions={actions} onUpdate={onUpdate} />
         )}
       </div>
 
@@ -252,6 +277,137 @@ export function BoardCardComponent({
           onPointerDown={handleResizePointerDown}
           title="Drag to resize"
           className="absolute bottom-1 right-1 flex h-4 w-4 cursor-nwse-resize items-end justify-end p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 text-muted-foreground/50">
+            <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Frame (container) ───────────────────────────────────────────────────────────
+// A resizable region for combining several cards into one movable group.
+// Membership isn't stored anywhere — it's computed by geometry, on every
+// drag, from whichever cards currently sit inside the frame's bounds (see
+// startCardDrag in BoardView). The body is pointer-events-none so a card
+// rendered on top of a frame stays independently clickable/draggable;
+// only the label strip drags the frame itself.
+
+function FrameCardComponent({
+  card,
+  readonly,
+  isDragging,
+  actions,
+  onDragStart,
+  onResizeStart,
+  onUpdate,
+  onDelete,
+}: {
+  card: BoardCardType;
+  readonly?: boolean;
+  isDragging?: boolean;
+  actions: BoardCardActions;
+  onDragStart: (card: BoardCardType, startEvent: { clientX: number; clientY: number }) => void;
+  onResizeStart?: (card: BoardCardType, startEvent: { clientX: number; clientY: number }) => void;
+  onUpdate: (c: BoardCardType) => void;
+  onDelete: (cardId: string) => void;
+}) {
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(str(card.content.title));
+
+  function handleHeaderPointerDown(e: React.PointerEvent) {
+    if (readonly || editingTitle) return;
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let dragged = false;
+
+    function onMove(ev: PointerEvent) {
+      if (!dragged && (Math.abs(ev.clientX - startX) > 5 || Math.abs(ev.clientY - startY) > 5)) {
+        dragged = true;
+        cleanup();
+        onDragStart(card, { clientX: startX, clientY: startY });
+      }
+    }
+    function onUp() { cleanup(); }
+    function cleanup() {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  async function saveTitle() {
+    setEditingTitle(false);
+    const newContent = { ...card.content, title: titleDraft };
+    try {
+      await actions.updateCard(card.id, { content: newContent });
+      onUpdate({ ...card, content: newContent });
+    } catch {
+      toast.error("Failed to save");
+    }
+  }
+
+  async function handleDeleteFrame() {
+    try {
+      await actions.deleteCard(card.id);
+      onDelete(card.id);
+    } catch {
+      toast.error("Failed to delete card");
+    }
+  }
+
+  return (
+    <div
+      data-card-id={card.id}
+      style={{ width: card.width ?? 320 }}
+      className={`group relative rounded-2xl border-2 border-dashed border-border/60 transition-opacity select-none ${isDragging ? "opacity-70" : ""}`}
+    >
+      <div
+        onPointerDown={handleHeaderPointerDown}
+        className={`flex items-center justify-between gap-2 px-3 py-2 ${readonly || editingTitle ? "" : "cursor-grab active:cursor-grabbing"}`}
+      >
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={saveTitle}
+            onKeyDown={(e) => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") setEditingTitle(false); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-foreground outline-none border-b border-[#d4a853]/50"
+          />
+        ) : (
+          <button
+            onClick={() => { if (!readonly) { setTitleDraft(str(card.content.title)); setEditingTitle(true); } }}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-muted-foreground/70 hover:text-foreground transition-colors"
+          >
+            <Square className="h-3 w-3 shrink-0" />
+            <span className="truncate">{str(card.content.title) || "Untitled group"}</span>
+          </button>
+        )}
+        {!readonly && !editingTitle && (
+          <button
+            onClick={handleDeleteFrame}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="shrink-0 text-muted-foreground/30 opacity-0 transition-colors hover:text-red-400 group-hover:opacity-100"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+
+      <div data-resize-target="height" style={{ height: card.height ?? 220 }} className="pointer-events-none rounded-b-2xl" />
+
+      {!readonly && (
+        <div
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); onResizeStart?.(card, { clientX: e.clientX, clientY: e.clientY }); }}
+          title="Drag to resize"
+          className="absolute bottom-1 right-1 flex h-4 w-4 cursor-nwse-resize items-end justify-end p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
         >
           <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 text-muted-foreground/50">
             <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none" />
@@ -662,7 +818,7 @@ function InlineEditor({
 
 // ── Card body (read-only display) ──────────────────────────────────────────────
 
-function CardBody({ card, onUpdate }: { card: BoardCardType; onUpdate: (c: BoardCardType) => void }) {
+function CardBody({ card, actions, onUpdate }: { card: BoardCardType; actions: BoardCardActions; onUpdate: (c: BoardCardType) => void }) {
   const c = card.content;
 
   if (card.type === "note") {
@@ -826,7 +982,7 @@ function CardBody({ card, onUpdate }: { card: BoardCardType; onUpdate: (c: Board
     const title = str(c.title);
     const items = (c.items as { text: string; done: boolean }[]) ?? [];
     const doneCount = items.filter((i) => i.done).length;
-    return <ChecklistBody card={card} title={title} items={items} doneCount={doneCount} onUpdate={onUpdate} />;
+    return <ChecklistBody card={card} actions={actions} title={title} items={items} doneCount={doneCount} onUpdate={onUpdate} />;
   }
 
   if (card.type === "link") {
@@ -860,12 +1016,14 @@ function CardBody({ card, onUpdate }: { card: BoardCardType; onUpdate: (c: Board
 
 function ChecklistBody({
   card,
+  actions,
   title,
   items,
   doneCount,
   onUpdate,
 }: {
   card: BoardCardType;
+  actions: BoardCardActions;
   title: string;
   items: { text: string; done: boolean }[];
   doneCount: number;
@@ -880,7 +1038,7 @@ function ChecklistBody({
     setLocalItems(next);
     const newContent = { ...card.content, items: next };
     try {
-      await updateCard(card.id, { content: newContent });
+      await actions.updateCard(card.id, { content: newContent });
       onUpdate({ ...card, content: newContent });
     } catch {
       toast.error("Failed to update");

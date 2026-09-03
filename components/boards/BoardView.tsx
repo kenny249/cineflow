@@ -1,21 +1,35 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   StickyNote, ScrollText, Camera, CheckSquare, Link2, Image as ImageIcon, Video,
   MapPin, User, Share2, Copy, Check, Loader2, Trash2, X, ZoomIn, ZoomOut,
-  Maximize2, Printer, Download, Sparkles,
+  Maximize2, Printer, Download, Sparkles, Square, Eye, Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { Board, BoardCard, CardType, BoardWithCards } from "@/lib/boards";
+import type { Board, BoardCard, CardType, BoardWithCards, SharePermission } from "@/lib/boards";
 import {
-  createCard, updateCard, updateCardPosition, generateShareToken, revokeShareToken,
-  pushShotToShotList, pushScriptToNotes,
+  createCard, updateCard, updateCardPosition, deleteCard, generateShareToken, revokeShareToken,
+  setSharePermission, pushShotToShotList, pushScriptToNotes,
 } from "@/lib/boards";
+import { createPublicBoardActions } from "@/lib/boards-public-client";
+import { createClient } from "@/lib/supabase/client";
 import { BoardCardComponent } from "./BoardCard";
 import { CardEditModal } from "./CardEditModal";
 import { ImportPanel } from "./ImportPanel";
 import { BreakdownPanel } from "./BreakdownPanel";
+
+// Broadcast-only realtime — deliberately not postgres_changes, which would
+// require a public SELECT policy on board_cards (the exact hole closed
+// earlier: a policy that grants read access to anyone with the anon key
+// isn't safe just because the channel name itself is hard to guess).
+// Broadcast doesn't touch table RLS at all; the actual data stays gated by
+// the token-checked fetch/mutation routes, this only relays "something
+// changed, go re-check" between everyone currently looking at this board.
+type BoardBroadcastPayload =
+  | { type: "created"; card: BoardCard }
+  | { type: "updated"; card: BoardCard }
+  | { type: "deleted"; cardId: string };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -39,10 +53,12 @@ const DEFAULT_CONTENT: Record<CardType, Record<string, unknown>> = {
   link:      { url: "", title: "", description: "" },
   location:  { name: "", address: "", time_of_day: "DAY", requirements: "", notes: "" },
   character: { character_name: "", actor: "", appears_in: "", notes: "" },
+  frame:     { title: "" },
 };
 
 const TOOLBAR_TYPES: { type: CardType; icon: React.ReactNode; label: string }[] = [
   { type: "note",      icon: <StickyNote  className="h-4 w-4" />, label: "Note"      },
+  { type: "frame",     icon: <Square      className="h-4 w-4" />, label: "Frame"     },
   { type: "script",    icon: <ScrollText  className="h-4 w-4" />, label: "Script"    },
   { type: "shot",      icon: <Camera      className="h-4 w-4" />, label: "Shot"      },
   { type: "location",  icon: <MapPin      className="h-4 w-4" />, label: "Location"  },
@@ -59,12 +75,23 @@ interface BoardViewProps {
   board: BoardWithCards;
   projectId?: string;
   readonly?: boolean;
+  /** Present only on the public share page when the link is in "anyone can
+   *  edit" mode — routes every mutation through the token-checked public
+   *  API instead of the authenticated (RLS-based) path, since there's no
+   *  logged-in user at all in that context. */
+  shareToken?: string;
 }
 
-export function BoardView({ board: initialBoard, projectId, readonly }: BoardViewProps) {
+export function BoardView({ board: initialBoard, projectId, readonly, shareToken }: BoardViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  // Set only when the card being dragged is a frame — every other card
+  // that geometrically sits inside its bounds at drag-start, so the whole
+  // group moves together. Membership is recomputed fresh on every drag,
+  // never stored, so it always reflects what's visually inside the frame
+  // right now rather than some stale snapshot.
+  const frameGroupRef = useRef<{ id: string; startX: number; startY: number }[] | null>(null);
 
   const [cards, _setCards] = useState<BoardCard[]>(initialBoard.cards);
   const [pan, _setPan] = useState({ x: 60, y: 60 });
@@ -76,6 +103,7 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
   const [newCardId, setNewCardId] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareLoading, setShareLoading] = useState(false);
+  const [pendingPermission, setPendingPermission] = useState<SharePermission>("view");
   const [copied, setCopied] = useState(false);
   const [addingType, setAddingType] = useState<CardType | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -84,12 +112,48 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
   const cardsRef = useRef<BoardCard[]>(initialBoard.cards);
   const panRef = useRef({ x: 60, y: 60 });
   const zoomRef = useRef(1);
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+
+  // Which persistence layer this view writes through — the normal
+  // authenticated one, or (only on a public "anyone can edit" share link)
+  // the token-checked public API. Nothing else about the canvas changes.
+  const boardActions = useMemo(
+    () => (shareToken ? createPublicBoardActions(shareToken) : { createCard, updateCard, updateCardPosition, deleteCard }),
+    [shareToken]
+  );
 
   const setCards = useCallback((fn: (c: BoardCard[]) => BoardCard[]) => {
     const next = fn(cardsRef.current);
     cardsRef.current = next;
     _setCards(next);
   }, []);
+
+  // ── Live sync ─────────────────────────────────────────────────────────────────
+  // Everyone currently looking at this board — the owner's dashboard, any
+  // other tab, and anyone on an "anyone can edit" share link — joins the
+  // same channel and relays every change. Without this, two people editing
+  // at once would silently overwrite each other until one of them refreshed.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase.channel(`board:${board.id}`, { config: { broadcast: { self: false } } });
+    channel
+      .on("broadcast", { event: "card_change" }, ({ payload }: { payload: BoardBroadcastPayload }) => {
+        if (payload.type === "created") {
+          setCards((prev) => (prev.some((c) => c.id === payload.card.id) ? prev : [...prev, payload.card]));
+        } else if (payload.type === "updated") {
+          setCards((prev) => prev.map((c) => (c.id === payload.card.id ? { ...c, ...payload.card } : c)));
+        } else if (payload.type === "deleted") {
+          setCards((prev) => prev.filter((c) => c.id !== payload.cardId));
+        }
+      })
+      .subscribe();
+    channelRef.current = channel;
+    return () => { supabase.removeChannel(channel); channelRef.current = null; };
+  }, [board.id, setCards]);
+
+  function broadcastChange(payload: BoardBroadcastPayload) {
+    channelRef.current?.send({ type: "broadcast", event: "card_change", payload });
+  }
 
   const setPan = useCallback((p: { x: number; y: number }) => {
     panRef.current = p;
@@ -117,6 +181,15 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
         if (el) {
           el.style.transform = `translate(${dx}px, ${dy}px)`;
           el.style.zIndex = "50";
+        }
+        // Dragging a frame carries everything currently inside it along —
+        // move each grouped card's own DOM node by the same delta live,
+        // exactly like the frame itself, before anything is persisted.
+        if (frameGroupRef.current) {
+          for (const g of frameGroupRef.current) {
+            const gel = document.querySelector(`[data-card-id="${g.id}"]`) as HTMLElement | null;
+            if (gel) gel.style.transform = `translate(${dx}px, ${dy}px)`;
+          }
         }
       } else if (dr.type === "resize") {
         const dx = (e.clientX - dr.pointerStartX) / zoomRef.current;
@@ -152,18 +225,40 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
 
         const dx = dr.currentDx;
         const dy = dr.currentDy;
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        const moved = Math.abs(dx) > 3 || Math.abs(dy) > 3;
+        if (moved) {
           const newX = dr.cardStartX + dx;
           const newY = dr.cardStartY + dy;
           setCards((prev) => prev.map((c) => c.id === dr.cardId ? { ...c, x: newX, y: newY } : c));
-          updateCardPosition(dr.cardId, newX, newY).catch(() => toast.error("Failed to save position"));
+          boardActions.updateCardPosition(dr.cardId, newX, newY)
+            .then(() => broadcastChange({ type: "updated", card: { ...cardsRef.current.find((c) => c.id === dr.cardId)!, x: newX, y: newY } }))
+            .catch(() => toast.error("Failed to save position"));
         }
+
+        if (frameGroupRef.current) {
+          for (const g of frameGroupRef.current) {
+            const gel = document.querySelector(`[data-card-id="${g.id}"]`) as HTMLElement | null;
+            if (gel) gel.style.transform = "";
+            if (moved) {
+              const gNewX = g.startX + dx;
+              const gNewY = g.startY + dy;
+              setCards((prev) => prev.map((c) => c.id === g.id ? { ...c, x: gNewX, y: gNewY } : c));
+              boardActions.updateCardPosition(g.id, gNewX, gNewY)
+                .then(() => broadcastChange({ type: "updated", card: { ...cardsRef.current.find((c) => c.id === g.id)!, x: gNewX, y: gNewY } }))
+                .catch(() => toast.error("Failed to save position"));
+            }
+          }
+          frameGroupRef.current = null;
+        }
+
         setDraggingCardId(null);
       } else if (dr.type === "resize") {
         const newWidth = Math.round(dr.currentWidth);
         const newHeight = Math.round(dr.currentHeight);
         setCards((prev) => prev.map((c) => c.id === dr.cardId ? { ...c, width: newWidth, height: newHeight } : c));
-        updateCard(dr.cardId, { width: newWidth, height: newHeight }).catch(() => toast.error("Failed to save size"));
+        boardActions.updateCard(dr.cardId, { width: newWidth, height: newHeight })
+          .then(() => broadcastChange({ type: "updated", card: { ...cardsRef.current.find((c) => c.id === dr.cardId)!, width: newWidth, height: newHeight } }))
+          .catch(() => toast.error("Failed to save size"));
         setResizingCardId(null);
       } else {
         setPan({ x: panRef.current.x, y: panRef.current.y });
@@ -176,7 +271,7 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [setCards, setPan]);
+  }, [setCards, setPan, boardActions]);
 
   // ── Wheel zoom ───────────────────────────────────────────────────────────────
 
@@ -234,7 +329,10 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
   // ── Canvas pointer events ─────────────────────────────────────────────────────
 
   function handleCanvasPointerDown(e: React.PointerEvent) {
-    if (readonly || e.button !== 0) return;
+    // Panning is how you look around a board, not how you change it — it
+    // stays available in read-only mode (wheel-zoom already did), unlike
+    // adding/moving/editing cards, which stay fully blocked below.
+    if (e.button !== 0) return;
     dragRef.current = {
       type: "pan",
       panStartX: panRef.current.x,
@@ -263,6 +361,20 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
       currentDx: 0,
       currentDy: 0,
     };
+
+    if (card.type === "frame") {
+      const fw = card.width ?? 320;
+      const fh = card.height ?? 220;
+      frameGroupRef.current = cardsRef.current
+        .filter((c) =>
+          c.id !== card.id && c.type !== "frame" &&
+          c.x >= card.x && c.y >= card.y && c.x <= card.x + fw && c.y <= card.y + fh
+        )
+        .map((c) => ({ id: c.id, startX: c.x, startY: c.y }));
+    } else {
+      frameGroupRef.current = null;
+    }
+
     setDraggingCardId(card.id);
   }
 
@@ -293,8 +405,9 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
   async function addCardAt(type: CardType, x: number, y: number) {
     setAddingType(type);
     try {
-      const card = await createCard(board.id, type, DEFAULT_CONTENT[type], x, y);
+      const card = await boardActions.createCard(board.id, type, DEFAULT_CONTENT[type], x, y);
       setCards((prev) => [...prev, card]);
+      broadcastChange({ type: "created", card });
       // open inline edit for all types (checklist and link use modal-style inline editor)
       setNewCardId(card.id);
     } catch {
@@ -311,14 +424,20 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
   }
 
   // ── Card callbacks ────────────────────────────────────────────────────────────
+  // Called after a card's own content/color/etc. has *already* been
+  // persisted (by BoardCard's inline editor, the checklist toggle, or the AI
+  // enhance modal) — this just reflects it into shared state and relays it
+  // to everyone else watching this board.
 
   function handleCardUpdate(updated: BoardCard) {
     setCards((prev) => prev.map((c) => c.id === updated.id ? { ...c, ...updated } : c));
     setNewCardId(null);
+    broadcastChange({ type: "updated", card: updated });
   }
 
   function handleCardDelete(cardId: string) {
     setCards((prev) => prev.filter((c) => c.id !== cardId));
+    broadcastChange({ type: "deleted", cardId });
   }
 
   async function handlePush(card: BoardCard) {
@@ -382,11 +501,11 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/share/board/${board.share_token}`
     : null;
 
-  async function handleGenerateShare() {
+  async function handleGenerateShare(permission: SharePermission) {
     setShareLoading(true);
     try {
-      const token = await generateShareToken(board.id);
-      setBoard((b) => ({ ...b, share_token: token }));
+      const token = await generateShareToken(board.id, permission);
+      setBoard((b) => ({ ...b, share_token: token, share_permission: permission }));
     } catch { toast.error("Failed to generate link"); }
     finally { setShareLoading(false); }
   }
@@ -400,6 +519,17 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
     finally { setShareLoading(false); }
   }
 
+  async function handleChangePermission(permission: SharePermission) {
+    const prev = board.share_permission;
+    setBoard((b) => ({ ...b, share_permission: permission })); // optimistic
+    try {
+      await setSharePermission(board.id, permission);
+    } catch {
+      setBoard((b) => ({ ...b, share_permission: prev }));
+      toast.error("Failed to update permission");
+    }
+  }
+
   async function copyShareUrl() {
     if (!shareUrl) return;
     await navigator.clipboard.writeText(shareUrl);
@@ -409,17 +539,32 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  // Frames always render behind every other card, regardless of creation
+  // order — otherwise a frame created after a note would sit on top and
+  // cover it (frames have no z-index of their own; DOM order is what
+  // stacks siblings, so this is the only thing that keeps that consistent).
+  const orderedCards = useMemo(
+    () => [...cards.filter((c) => c.type === "frame"), ...cards.filter((c) => c.type !== "frame")],
+    [cards]
+  );
+
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#0a0a0a]">
       {/* Top right actions */}
       {!readonly && (
         <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
-          <button
-            onClick={() => setShareOpen((o) => !o)}
-            className="flex items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
-          >
-            <Share2 className="h-3.5 w-3.5" /> Share
-          </button>
+          {/* Share manages the link itself (permission, revoke) — owner
+              only, even when this render is an anonymous editor on an
+              "anyone can edit" link. Being allowed to edit cards is not
+              the same as being allowed to control who else can. */}
+          {!shareToken && (
+            <button
+              onClick={() => setShareOpen((o) => !o)}
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
+            >
+              <Share2 className="h-3.5 w-3.5" /> Share
+            </button>
+          )}
           <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
@@ -450,14 +595,56 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
                   <Trash2 className="h-3 w-3" /> Revoke
                 </button>
               </div>
+              <div className="flex rounded-lg border border-border p-0.5">
+                <button
+                  onClick={() => handleChangePermission("view")}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                    board.share_permission === "view" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Eye className="h-3 w-3" /> Can view
+                </button>
+                <button
+                  onClick={() => handleChangePermission("edit")}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                    board.share_permission === "edit" ? "bg-[#d4a853]/15 text-[#d4a853]" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Pencil className="h-3 w-3" /> Can edit
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground/50">
+                {board.share_permission === "edit"
+                  ? "Anyone with this link can add, move, and edit cards — no account needed. Changes sync live."
+                  : "Anyone with this link can view the board — read-only, no account needed."}
+              </p>
             </div>
           ) : (
-            <button onClick={handleGenerateShare} disabled={shareLoading} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#d4a853] px-3 py-2 text-xs font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors">
-              {shareLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
-              Generate share link
-            </button>
+            <div className="space-y-2">
+              <div className="flex rounded-lg border border-border p-0.5">
+                <button
+                  onClick={() => setPendingPermission("view")}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                    pendingPermission === "view" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Eye className="h-3 w-3" /> Can view
+                </button>
+                <button
+                  onClick={() => setPendingPermission("edit")}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+                    pendingPermission === "edit" ? "bg-[#d4a853]/15 text-[#d4a853]" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Pencil className="h-3 w-3" /> Can edit
+                </button>
+              </div>
+              <button onClick={() => handleGenerateShare(pendingPermission)} disabled={shareLoading} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#d4a853] px-3 py-2 text-xs font-semibold text-black hover:bg-[#c49843] disabled:opacity-50 transition-colors">
+                {shareLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
+                Generate share link
+              </button>
+            </div>
           )}
-          <p className="text-[10px] text-muted-foreground/50">Anyone with the link can view (read-only).</p>
         </div>
       )}
 
@@ -507,12 +694,14 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
             willChange: "transform",
           }}
         >
-          {cards.map((card) => (
+          {orderedCards.map((card) => (
             <div key={card.id} style={{ position: "absolute", left: card.x, top: card.y }}>
               <BoardCardComponent
                 card={card}
                 projectId={projectId}
                 readonly={readonly}
+                disableAI={!!shareToken}
+                actions={boardActions}
                 isDragging={draggingCardId === card.id}
                 isResizing={resizingCardId === card.id}
                 startInlineEdit={newCardId === card.id}
@@ -561,16 +750,18 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
             </button>
           )}
 
-          <button
-            title="AI Scene Breakdown"
-            onClick={() => { setImportOpen(false); setBreakdownOpen((o) => !o); }}
-            className={`flex flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 transition-colors ${
-              breakdownOpen ? "bg-[#d4a853]/20 text-[#d4a853]" : "text-muted-foreground hover:text-foreground hover:bg-accent"
-            }`}
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="text-[9px] font-medium">AI Break</span>
-          </button>
+          {!shareToken && (
+            <button
+              title="AI Scene Breakdown"
+              onClick={() => { setImportOpen(false); setBreakdownOpen((o) => !o); }}
+              className={`flex flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 transition-colors ${
+                breakdownOpen ? "bg-[#d4a853]/20 text-[#d4a853]" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+              }`}
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="text-[9px] font-medium">AI Break</span>
+            </button>
+          )}
 
           <div className="mx-1.5 h-6 w-px bg-border" />
 

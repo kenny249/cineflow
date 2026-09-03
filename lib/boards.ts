@@ -9,7 +9,8 @@ export type CardType =
   | "checklist"
   | "link"
   | "location"
-  | "character";
+  | "character"
+  | "frame";
 
 export interface BoardCard {
   id: string;
@@ -29,17 +30,29 @@ export interface BoardCard {
   updated_at: string;
 }
 
+export type SharePermission = "view" | "edit";
+
 export interface Board {
   id: string;
   workspace_id: string;
   project_id: string | null;
   title: string;
   share_token: string | null;
+  share_permission: SharePermission;
   created_at: string;
   updated_at: string;
 }
 
 export type BoardWithCards = Board & { cards: BoardCard[] };
+
+// The subset of mutations an individual card needs to perform on itself —
+// satisfied both by the real authenticated functions below and by
+// lib/boards-public-client.ts's token-checked equivalents, so BoardCard
+// doesn't need to know or care which one it's actually talking to.
+export interface BoardCardActions {
+  updateCard(cardId: string, updates: Partial<Pick<BoardCard, "content" | "color" | "type" | "width" | "height">>): Promise<void>;
+  deleteCard(cardId: string): Promise<void>;
+}
 
 // Kept for backward compat
 export interface BoardColumn {
@@ -154,14 +167,18 @@ export async function deleteBoard(boardId: string): Promise<void> {
   await db().from("boards").delete().eq("id", boardId);
 }
 
-export async function generateShareToken(boardId: string): Promise<string> {
+export async function generateShareToken(boardId: string, permission: SharePermission = "view"): Promise<string> {
   const token = crypto.randomUUID().replace(/-/g, "");
-  await db().from("boards").update({ share_token: token }).eq("id", boardId);
+  await db().from("boards").update({ share_token: token, share_permission: permission }).eq("id", boardId);
   return token;
 }
 
 export async function revokeShareToken(boardId: string): Promise<void> {
   await db().from("boards").update({ share_token: null }).eq("id", boardId);
+}
+
+export async function setSharePermission(boardId: string, permission: SharePermission): Promise<void> {
+  await db().from("boards").update({ share_permission: permission }).eq("id", boardId);
 }
 
 // ── Card CRUD ──────────────────────────────────────────────────────────────────
