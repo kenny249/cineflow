@@ -329,8 +329,29 @@ export function AudioTranscriber() {
     await processAndTranscribe(file);
   }, [processAndTranscribe]);
 
+  // dragenter/dragleave fire per-element, not just for the dropzone as a
+  // whole — moving the cursor from the outer box onto a child (the icon,
+  // the text) fires a dragleave on the box itself, immediately followed by
+  // a dragenter, which flickered the "drop to transcribe" state on and off
+  // rapidly. A counter (rather than a plain boolean) only turns it off once
+  // every nested enter has been matched by a leave.
+  const dragCounterRef = useRef(0);
+
+  function onDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounterRef.current++;
+    setDragging(true);
+  }
+
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setDragging(false);
+  }
+
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
+    dragCounterRef.current = 0;
     setDragging(false);
     const file = e.dataTransfer.files[0];
     if (file) transcribe(file);
@@ -514,8 +535,9 @@ export function AudioTranscriber() {
         {/* Left: Upload zone */}
         <div className="flex flex-1 items-center justify-center border-r border-border p-8">
           <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
+            onDragEnter={onDragEnter}
+            onDragOver={(e) => e.preventDefault()}
+            onDragLeave={onDragLeave}
             onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}
             className={cn(
@@ -527,7 +549,7 @@ export function AudioTranscriber() {
               {dragging ? <Upload className="h-6 w-6 text-[#d4a853]" /> : <FileAudio className="h-6 w-6 text-muted-foreground" />}
             </div>
             <p className="text-sm font-semibold text-foreground">{dragging ? "Drop to transcribe" : "Drop audio here or click to browse"}</p>
-            <p className="mt-1.5 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC · any length, up to {formatBytes(MAX_UPLOAD_BYTES)}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">MP3 · M4A · WAV · OGG · FLAC · AAC</p>
             {state.phase === "error" && (
               <div className="mt-5 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-2.5 text-sm text-red-400">
                 <AlertCircle className="h-4 w-4 shrink-0" />{state.message}
