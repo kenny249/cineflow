@@ -423,19 +423,6 @@ export function AIContentPanel({
         </div>
       </div>
 
-      {savedCutLists && savedCutLists.length > 0 && (
-        <div className="border-b border-[#d4a853]/15 p-5">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Saved Cut Lists <span className="normal-case font-normal text-muted-foreground/50">({savedCutLists.length})</span>
-          </p>
-          <div className="space-y-1.5">
-            {savedCutLists.map((cl, i) => (
-              <SavedCutListCard key={i} cl={cl} />
-            ))}
-          </div>
-        </div>
-      )}
-
       <div ref={controlsRef} className="space-y-5 p-5">
 
         {/* Video formats */}
@@ -982,6 +969,24 @@ export function AIContentPanel({
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Saved history lives at the bottom, not the top — saving inserts a
+          new card here every time, and this section sitting above the
+          active work area meant every save pushed your current scroll
+          position down, which looked exactly like an unwanted jump to the
+          top. Down here, saving never displaces anything you're looking at. */}
+      {savedCutLists && savedCutLists.length > 0 && (
+        <div className="border-t border-[#d4a853]/15 p-5">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Saved Cut Lists <span className="normal-case font-normal text-muted-foreground/50">({savedCutLists.length})</span>
+          </p>
+          <div className="space-y-1.5">
+            {savedCutLists.map((cl, i) => (
+              <SavedCutListCard key={i} cl={cl} />
+            ))}
+          </div>
         </div>
       )}
     </div>
