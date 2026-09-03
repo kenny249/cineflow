@@ -157,11 +157,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "This quote has expired. Please request an updated proposal." }, { status: 410 });
     }
 
+    // The status check above isn't the real guard — two near-simultaneous
+    // submissions (double-click, a slow-network retry) would both pass it
+    // before either had actually updated anything, and both continue on to
+    // create a retainer record and send confirmation emails. Excluding the
+    // terminal statuses right in the update call makes only one of them
+    // actually win, atomically.
     if (declined) {
-      await supabase
+      const { data: updated } = await supabase
         .from("quotes")
         .update({ status: "declined", declined_at: new Date().toISOString() })
-        .eq("id", quote.id);
+        .eq("id", quote.id)
+        .not("status", "in", "(accepted,declined)")
+        .select("id");
+      if (!updated || updated.length === 0) return NextResponse.json({ ok: true, already: true });
       return NextResponse.json({ ok: true, status: "declined" });
     }
 
@@ -172,7 +181,7 @@ export async function POST(req: NextRequest) {
     const trimmedName = name.trim();
     const trimmedEmail = email?.trim() ?? null;
 
-    await supabase
+    const { data: updatedRows } = await supabase
       .from("quotes")
       .update({
         status: "accepted",
@@ -181,7 +190,13 @@ export async function POST(req: NextRequest) {
         accepted_email: trimmedEmail,
         ...(selectedPackageId ? { accepted_package_id: selectedPackageId } : {}),
       })
-      .eq("id", quote.id);
+      .eq("id", quote.id)
+      .not("status", "in", "(accepted,declined)")
+      .select("id");
+
+    if (!updatedRows || updatedRows.length === 0) {
+      return NextResponse.json({ ok: true, already: true });
+    }
 
     // Auto-create retainer record when a retainer quote is accepted
     if (quote.quote_type === "retainer" && quote.client_name && quote.created_by) {

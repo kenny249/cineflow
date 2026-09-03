@@ -74,6 +74,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "This contract has been voided" }, { status: 410 });
   }
 
+  const now = new Date().toISOString();
+
+  // Flip the status first, atomically and conditionally — this is the real
+  // guard, not the status check above. Two near-simultaneous submissions
+  // (a double-click, a slow-network retry) would otherwise both pass that
+  // check before either had updated anything, both insert a signature row,
+  // and both fire confirmation emails. Only the request that actually wins
+  // this conditional update gets to record a signature and notify anyone.
+  const { data: updatedRows, error: updateErr } = await supabase
+    .from("contracts")
+    .update({ status: "signed", signed_at: now, updated_at: now })
+    .eq("id", contract.id)
+    .neq("status", "signed")
+    .select("id");
+
+  if (updateErr) {
+    return NextResponse.json({ error: "Failed to save signature" }, { status: 500 });
+  }
+  if (!updatedRows || updatedRows.length === 0) {
+    return NextResponse.json({ error: "Contract has already been signed" }, { status: 409 });
+  }
+
   // Save signature
   const { error: sigErr } = await supabase.from("contract_signatures").insert({
     contract_id: contract.id,
@@ -84,16 +106,11 @@ export async function POST(req: NextRequest) {
   });
 
   if (sigErr) {
+    // The status flip above already went through — undo it so the contract
+    // doesn't end up marked "signed" with no actual signature on file.
+    await supabase.from("contracts").update({ status: contract.status, signed_at: null, updated_at: now }).eq("id", contract.id);
     return NextResponse.json({ error: "Failed to save signature" }, { status: 500 });
   }
-
-  const now = new Date().toISOString();
-
-  // Mark contract as signed
-  await supabase
-    .from("contracts")
-    .update({ status: "signed", signed_at: now, updated_at: now })
-    .eq("id", contract.id);
 
   const origin = req.headers.get("origin") ?? req.nextUrl.origin;
 
