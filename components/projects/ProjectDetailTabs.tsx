@@ -474,6 +474,7 @@ export default function ProjectDetailTabs({
   const [displayClientLogoUrl, setDisplayClientLogoUrl] = useState(project.client_logo_url ?? "");
   const [editType, setEditType] = useState(project.type);
   const [editCustomType, setEditCustomType] = useState(project.custom_type ?? "");
+  const [editDueDate, setEditDueDate] = useState(project.due_date ?? "");
   const [editClientLogoUrl, setEditClientLogoUrl] = useState(project.client_logo_url ?? "");
   const [uploadingClientLogo, setUploadingClientLogo] = useState(false);
   const [editTags, setEditTags] = useState<string[]>(project.tags ?? []);
@@ -1106,6 +1107,7 @@ export default function ProjectDetailTabs({
       client_email: editClientEmail.trim() || undefined,
       type: editType,
       custom_type: editType === "custom" ? (editCustomType.trim() || undefined) : undefined,
+      due_date: editDueDate || undefined,
       client_logo_url: editClientLogoUrl || undefined,
       tags: editTags,
     };
@@ -1197,6 +1199,7 @@ export default function ProjectDetailTabs({
     setEditClientEmail(project.client_email ?? "");
     setEditType(project.type);
     setEditCustomType(project.custom_type ?? "");
+    setEditDueDate(project.due_date ?? "");
     setEditClientLogoUrl(project.client_logo_url ?? "");
     setEditTags(project.tags ?? []);
     setEditTagInput("");
@@ -3022,7 +3025,7 @@ export default function ProjectDetailTabs({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit project</DialogTitle>
-            <DialogDescription>Update the project's title, description, type, and client details.</DialogDescription>
+            <DialogDescription>Update the project's title, description, type, due date, and client details.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
@@ -3058,6 +3061,18 @@ export default function ProjectDetailTabs({
                   className="mt-1.5"
                 />
               )}
+            </div>
+
+            {/* Due date */}
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-due-date">Due date</Label>
+              <Input
+                id="edit-due-date"
+                type="date"
+                value={editDueDate}
+                onChange={(e) => setEditDueDate(e.target.value)}
+                className="[color-scheme:dark]"
+              />
             </div>
 
             {/* Client details */}
