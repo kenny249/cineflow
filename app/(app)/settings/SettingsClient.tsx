@@ -1200,7 +1200,8 @@ export default function SettingsClient() {
                 <div>
                   <p className="text-sm font-medium text-foreground">Delete account</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Permanently delete your account and all data. This cannot be undone.
+                    Permanently delete your account and everything in it — projects, invoices, contracts, quotes, and
+                    uploaded files. This cannot be undone.
                   </p>
                 </div>
                 <Button
@@ -1215,7 +1216,8 @@ export default function SettingsClient() {
               {deleteConfirmOpen && (
                 <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-4 space-y-3">
                   <p className="text-xs text-red-400">
-                    This will open a deletion request email. Type <span className="font-mono font-bold">DELETE</span> to confirm.
+                    This opens a deletion request to our support team — once we process it, everything above is
+                    permanently erased. Type <span className="font-mono font-bold">DELETE</span> to confirm.
                   </p>
                   <input
                     value={deleteInput}

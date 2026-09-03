@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Search, Shield, ShieldCheck, ShieldOff, MoreHorizontal, Check, Trash2, Crown, Clock, AlertCircle, CheckCircle2, Star, Download, Mail, LogIn, StickyNote, X, FlaskConical } from "lucide-react";
+import { Search, Shield, ShieldCheck, ShieldOff, MoreHorizontal, Check, Trash2, Crown, Clock, AlertCircle, CheckCircle2, Star, Download, Mail, LogIn, StickyNote, X, FlaskConical, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type User = {
   id: string;
@@ -98,6 +99,10 @@ function TrialBadge({ plan, planStatus, trialEndsAt }: { plan: string; planStatu
 }
 
 export function UsersTable({ users, currentUserId }: { users: User[]; currentUserId: string }) {
+  const confirm = useConfirm();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; email: string } | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -292,7 +297,7 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
 
   async function toggleAdmin(userId: string, grant: boolean) {
     const label = grant ? "grant admin access to" : "revoke admin access from";
-    if (!confirm(`Are you sure you want to ${label} this user?`)) return;
+    if (!(await confirm(`Are you sure you want to ${label} this user?`))) return;
     startTransition(async () => {
       const res = await fetch("/api/admin/users", {
         method: "PATCH",
@@ -327,17 +332,27 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
     });
   }
 
-  async function deleteUser(userId: string, email: string) {
-    if (!confirm(`Permanently delete ${email}? This cannot be undone.`)) return;
-    startTransition(async () => {
-      const res = await fetch(`/api/admin/users?userId=${userId}`, { method: "DELETE" });
+  function deleteUser(userId: string, email: string) {
+    setDeleteTarget({ id: userId, email });
+    setDeleteConfirmInput("");
+  }
+
+  async function performDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/users?userId=${deleteTarget.id}`, { method: "DELETE" });
       if (res.ok) {
-        toast.success("User deleted");
+        toast.success("User and all their data deleted");
+        setDeleteTarget(null);
         window.location.reload();
       } else {
-        toast.error("Failed to delete user");
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.error ?? "Failed to delete user");
       }
-    });
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -710,6 +725,49 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                 className="flex-1 rounded-lg border border-[#d4a853]/30 bg-[#d4a853]/10 py-2 text-sm font-semibold text-[#d4a853] transition-all hover:bg-[#d4a853]/20"
               >
                 Copy link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4" onClick={() => !deleting && setDeleteTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-red-500/20 bg-[#111] p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
+                <AlertTriangle className="h-4 w-4 text-red-400" />
+              </div>
+              <h3 className="text-sm font-bold text-white">Permanently delete this account?</h3>
+            </div>
+            <p className="mb-4 text-xs text-zinc-500 leading-relaxed">
+              This deletes <strong className="text-white">{deleteTarget.email}</strong> and everything tied to their
+              account — projects, invoices, contracts, quotes, and uploaded files. There is no undo.
+            </p>
+            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+              Type the account&apos;s email to confirm
+            </p>
+            <input
+              value={deleteConfirmInput}
+              onChange={(e) => setDeleteConfirmInput(e.target.value)}
+              placeholder={deleteTarget.email}
+              autoFocus
+              className="mb-4 w-full rounded-lg border border-red-500/30 bg-black/30 px-3 py-2 text-sm text-white font-mono placeholder:text-zinc-700 focus:outline-none focus:border-red-500/60"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 rounded-lg border border-white/[0.08] py-2 text-sm text-zinc-400 hover:text-white transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={performDelete}
+                disabled={deleting || deleteConfirmInput !== deleteTarget.email}
+                className="flex-1 rounded-lg border border-red-500/30 bg-red-500/10 py-2 text-sm font-semibold text-red-400 transition-all hover:bg-red-500/20 disabled:opacity-40 disabled:hover:bg-red-500/10"
+              >
+                {deleting ? "Deleting…" : "Delete permanently"}
               </button>
             </div>
           </div>

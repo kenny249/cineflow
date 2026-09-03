@@ -140,22 +140,39 @@ export async function DELETE(req: NextRequest) {
   if (profile?.is_admin) return NextResponse.json({ error: "Cannot delete an admin account" }, { status: 403 });
 
   // Deleting the auth user cascades to a handful of directly user-scoped
-  // tables, but not to storage — Supabase never ties files to an auth user
-  // automatically. Clean those up first, while we still know which
-  // projects were theirs, since deleteUser() doesn't touch project rows
-  // (there's no foreign key from projects to auth.users at all) and we'd
-  // otherwise have no way to find their files again afterward.
+  // tables, but NOT to projects — there's no foreign key from projects to
+  // auth.users at all, so a project someone owns would otherwise survive
+  // untouched forever, orphaned, pointing at a user that no longer exists.
+  // Nearly everything nested under a project (revisions, shoot days,
+  // deliverables, invoices, call sheets, etc.) does cascade from the
+  // project itself, so explicitly deleting their projects here is most of
+  // the work; a couple of standalone tables (quotes) use SET NULL instead
+  // of CASCADE and need their own explicit cleanup.
+  //
+  // Look up what's theirs *before* deleting anything — once the project
+  // rows are gone we'd have no way to find the matching storage files.
   const { data: ownedProjects } = await admin.from("projects").select("id").eq("created_by", userId);
   const projectIds = (ownedProjects ?? []).map((p) => p.id as string);
 
-  await Promise.all([
-    deleteStoragePrefix(admin, "contracts", userId),
-    deleteStoragePrefix(admin, "shot-images", userId),
-    ...projectIds.flatMap((id) => [
+  await deleteStoragePrefix(admin, "contracts", userId);
+  await deleteStoragePrefix(admin, "shot-images", userId);
+  await Promise.all(
+    projectIds.flatMap((id) => [
       deleteStoragePrefix(admin, "project-files", id),
       deleteStoragePrefix(admin, "storyboard-images", `storyboard/${id}`),
-    ]),
-  ]);
+    ])
+  );
+
+  // Quotes use ON DELETE SET NULL for created_by, not CASCADE — nothing
+  // else will ever clean these up.
+  await admin.from("quotes").delete().eq("created_by", userId);
+
+  // Deletes the projects themselves, cascading almost everything nested
+  // under them (revisions, shoot days, deliverables, invoices, call
+  // sheets, storyboard frames, shot lists, and more).
+  if (projectIds.length > 0) {
+    await admin.from("projects").delete().eq("created_by", userId);
+  }
 
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) {
