@@ -8,6 +8,7 @@ import {
   Moon, Upload, ExternalLink, FileText, TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,6 +177,7 @@ function EmptyState({ icon: Icon, title, desc, action }: {
 type Tab = "equipment" | "batteries" | "flights" | "maintenance" | "part107";
 
 export default function DronesPage() {
+  const confirm = useConfirm();
   const supabase = createClient();
 
   // ── State ──
@@ -351,7 +353,7 @@ export default function DronesPage() {
   }, [fMake, fModel, fNickname, fSerial, fFaaReg, fPurchaseDate, fDroneStatus, fDroneNotes, fWeight, fRemoteId, fFirmware, fInsurancePolicy, fInsuranceExpires, editDrone, userId]);
 
   async function deleteDrone(id: string) {
-    if (!confirm("Delete this drone? All associated flights and maintenance logs will also be deleted.")) return;
+    if (!(await confirm({ title: "Delete drone?", description: "All associated flights and maintenance logs will also be deleted.", destructive: true }))) return;
     await supabase.from("drone_equipment").delete().eq("id", id);
     setDrones((prev) => prev.filter((d) => d.id !== id));
     setFlights((prev) => prev.filter((f) => f.drone_id !== id));
@@ -401,7 +403,7 @@ export default function DronesPage() {
   }, [bLabel, bDroneId, bSerial, bPurchaseDate, bCycles, bCapacity, bBattStatus, editBattery, userId]);
 
   async function deleteBattery(id: string) {
-    if (!confirm("Delete this battery?")) return;
+    if (!(await confirm({ title: "Delete battery?", description: "This can't be undone.", destructive: true }))) return;
     await supabase.from("drone_batteries").delete().eq("id", id);
     setBatteries((prev) => prev.filter((b) => b.id !== id));
     toast.success("Battery deleted");
@@ -492,7 +494,7 @@ export default function DronesPage() {
   }, [flDate, flDroneId, flLocation, flDuration, flAltitude, flPurpose, flWeather, flWind, flVisibility, flTemp, flProjectId, flNotes, flChecklist, flBatteries, flLaanc, flNightFlight, flIncident, flIncidentNotes, editFlight, userId, batteries]);
 
   async function deleteFlight(id: string) {
-    if (!confirm("Delete this flight log? Battery cycle counts will not be reversed.")) return;
+    if (!(await confirm({ title: "Delete flight log?", description: "Battery cycle counts will not be reversed.", destructive: true }))) return;
     await supabase.from("drone_flight_logs").delete().eq("id", id);
     setFlights((prev) => prev.filter((f) => f.id !== id));
     toast.success("Flight deleted");
@@ -540,7 +542,7 @@ export default function DronesPage() {
   }, [mDroneId, mDate, mType, mDesc, mCost, mNextDate, editMaintenance, userId]);
 
   async function deleteMaintenance(id: string) {
-    if (!confirm("Delete this maintenance record?")) return;
+    if (!(await confirm({ title: "Delete maintenance record?", description: "This can't be undone.", destructive: true }))) return;
     await supabase.from("drone_maintenance_logs").delete().eq("id", id);
     setMaintenance((prev) => prev.filter((m) => m.id !== id));
     toast.success("Deleted");

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { CalendarEvent, CalendarEventType, Project } from "@/types";
 import { EventFormModal } from "@/components/calendar/EventFormModal";
 import type { EventFormValues } from "@/components/calendar/EventFormModal";
@@ -69,6 +70,7 @@ function getEventsForDay(events: CalendarEvent[], year: number, month: number, d
 type ViewMode = "month" | "list";
 
 export default function CalendarPage() {
+  const confirm = useConfirm();
   const now = new Date();
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
@@ -210,7 +212,7 @@ export default function CalendarPage() {
   };
 
   const handleDeleteEvent = async (id: string) => {
-    if (!confirm("Delete this event?")) return;
+    if (!(await confirm({ title: "Delete event?", description: "This can't be undone.", destructive: true }))) return;
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setSelectedDay((d) => d); // keep panel open
     try { await deleteCalendarEvent(id); toast.success("Event deleted."); } catch { toast.error("Failed to delete."); }

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import {
   getMyCrewProfiles, getPublicCrewProfiles,
@@ -313,6 +314,7 @@ function CrewCard({
   onDelete?: () => void;
   isDiscover?: boolean;
 }) {
+  const confirm = useConfirm();
   const initials = profile.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
@@ -414,8 +416,8 @@ function CrewCard({
               <Edit2 className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={() => {
-                if (window.confirm(`Remove ${profile.name} from your crew network?`)) onDelete?.();
+              onClick={async () => {
+                if (await confirm(`Remove ${profile.name} from your crew network?`)) onDelete?.();
               }}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 transition-colors"
               title="Remove"

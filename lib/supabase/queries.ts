@@ -1971,6 +1971,15 @@ export async function getMyCrewProfiles(): Promise<CrewProfile[]> {
   return (data ?? []) as CrewProfile[];
 }
 
+// The public "discover" browse queries this directly with the browser's
+// anon key (this is a genuine public-read feature, unlike quotes), so the
+// column list itself is the only thing standing between "public profile"
+// and "everything in the row" — RLS is row-level, not column-level, and
+// `notes` is an internal field the app's own UI already treats as
+// network-only (CrewCard only renders it when !isDiscover). Explicit
+// columns here, never select('*'), so that stays true no matter what.
+export const PUBLIC_CREW_COLUMNS = "id, name, slug, photo_url, primary_role, roles, city, state, country, skills, gear, day_rate_min, day_rate_max, reel_url, instagram, website, email, phone, bio, rating, availability, available_from, is_public, is_claimed, created_at, updated_at";
+
 export async function getPublicCrewProfiles(filters?: {
   role?: string;
   city?: string;
@@ -1978,7 +1987,7 @@ export async function getPublicCrewProfiles(filters?: {
 }): Promise<CrewProfile[]> {
   let q = db()
     .from('crew_profiles')
-    .select('*')
+    .select(PUBLIC_CREW_COLUMNS)
     .eq('is_public', true)
     .order('name');
 
@@ -1988,17 +1997,7 @@ export async function getPublicCrewProfiles(filters?: {
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return (data ?? []) as CrewProfile[];
-}
-
-export async function getCrewProfileBySlug(slug: string): Promise<CrewProfile | null> {
-  const { data } = await db()
-    .from('crew_profiles')
-    .select('*')
-    .eq('slug', slug)
-    .eq('is_public', true)
-    .single();
-  return data as CrewProfile | null;
+  return (data ?? []) as unknown as CrewProfile[];
 }
 
 function generateSlug(name: string): string {

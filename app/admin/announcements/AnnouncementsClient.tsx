@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Plus, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 
 type Announcement = {
@@ -22,6 +23,7 @@ const TYPE_STYLES: Record<string, string> = {
 };
 
 export function AnnouncementsClient({ initial }: { initial: Announcement[] }) {
+  const confirm = useConfirm();
   const [items, setItems] = useState(initial);
   const [message, setMessage] = useState("");
   const [type, setType] = useState("info");
@@ -60,7 +62,7 @@ export function AnnouncementsClient({ initial }: { initial: Announcement[] }) {
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this announcement?")) return;
+    if (!(await confirm({ title: "Delete this announcement?", description: "This can't be undone.", destructive: true }))) return;
     const res = await fetch(`/api/admin/announcements?id=${id}`, { method: "DELETE" });
     if (res.ok) {
       setItems((prev) => prev.filter((a) => a.id !== id));

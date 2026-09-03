@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useId } from "react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Upload, Trash2, Download, FileIcon } from "lucide-react";
 
 // ─── CineFlow Mark SVG ───────────────────────────────────────────────────────
@@ -107,6 +108,7 @@ function isImage(type: string) {
 }
 
 export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
+  const confirm = useConfirm();
   const [assets, setAssets] = useState<Asset[]>(initialAssets);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -141,7 +143,7 @@ export function BrandClient({ initialAssets }: { initialAssets: Asset[] }) {
   }, [uploadFiles]);
 
   const deleteAsset = async (path: string) => {
-    if (!confirm("Delete this asset?")) return;
+    if (!(await confirm({ title: "Delete this asset?", description: "This can't be undone.", destructive: true }))) return;
     const res = await fetch(`/api/admin/brand?path=${encodeURIComponent(path)}`, { method: "DELETE" });
     if (res.ok) {
       setAssets((prev) => prev.filter((a) => a.path !== path));

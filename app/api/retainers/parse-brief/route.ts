@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireActivePlan } from "@/lib/billing-server";
+import { isRateLimited } from "@/lib/rate-limit";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -9,6 +11,11 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const planError = await requireActivePlan(supabase, user.id);
+    if (planError) return planError;
+    if (await isRateLimited(`ai:parse-brief:${user.id}`, 20, 60 * 60 * 1000)) {
+      return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+    }
 
     const body = await req.json();
     const { pdfBase64 } = body;

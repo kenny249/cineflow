@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { Check, Star, ExternalLink, Mail, Phone, CalendarCheck } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { Quote, QuotePackage } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -210,6 +211,7 @@ function PackageCard({
 // ─── Main client component ────────────────────────────────────────────────────
 
 export default function QuotePortalClient({ quote }: { quote: Quote }) {
+  const confirm = useConfirm();
   const accentColor = quote.brand_color || "#d4a853";
   const expired = isExpired(quote);
   const alreadyActed = ["accepted", "declined"].includes(quote.status);
@@ -244,7 +246,7 @@ export default function QuotePortalClient({ quote }: { quote: Quote }) {
   }
 
   async function handleDecline() {
-    if (!confirm("Are you sure you want to decline this quote?")) return;
+    if (!(await confirm({ title: "Decline this quote?", description: "You can always reach out again later if you change your mind." }))) return;
     await fetch("/api/quotes/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

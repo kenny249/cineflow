@@ -6,6 +6,7 @@ import { getProjectFiles } from "@/lib/supabase/queries";
 import type { ProjectFile } from "@/types";
 import { FileUploadZone } from "./FileUploadZone";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const DOC_CATEGORIES = [
   { key: "call-sheets",  label: "Call Sheets" },
@@ -31,6 +32,7 @@ interface ProductionDocsTabProps {
 }
 
 export function ProductionDocsTab({ projectId, canEdit, onOpenCallSheet }: ProductionDocsTabProps) {
+  const confirm = useConfirm();
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [openCategories, setOpenCategories] = useState<Set<string>>(new Set());
@@ -50,7 +52,7 @@ export function ProductionDocsTab({ projectId, canEdit, onOpenCallSheet }: Produ
   }, [projectId]);
 
   async function deleteCallSheet(id: string) {
-    if (!confirm("Delete this call sheet?")) return;
+    if (!(await confirm({ title: "Delete call sheet?", description: "This can't be undone.", destructive: true }))) return;
     const res = await fetch(`/api/call-sheets/${id}`, { method: "DELETE" });
     if (res.ok) {
       setCallSheets((prev) => prev.filter((s) => s.id !== id));

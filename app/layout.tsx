@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { UtmCapture } from "@/components/shared/UtmCapture";
+import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -62,11 +63,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.variable} ${syne.variable} font-sans antialiased`}>
-        {children}
-        <Toaster />
-        <Suspense fallback={null}>
-          <UtmCapture />
-        </Suspense>
+        <ConfirmDialogProvider>
+          {children}
+          <Toaster />
+          <Suspense fallback={null}>
+            <UtmCapture />
+          </Suspense>
+        </ConfirmDialogProvider>
       </body>
     </html>
   );

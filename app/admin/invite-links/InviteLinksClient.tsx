@@ -6,6 +6,7 @@ import {
   ChevronUp, Eye, EyeOff, Sparkles, Users, Clock, ToggleLeft, ToggleRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 
 type InviteLink = {
@@ -41,6 +42,7 @@ const PLANS = ["solo", "studio", "agency", "lifetime"];
 const PLAN_LABELS: Record<string, string> = { solo: "Solo", studio: "Studio", agency: "Agency", lifetime: "Lifetime" };
 
 export function InviteLinksClient({ links: initial, appUrl }: { links: InviteLink[]; appUrl: string }) {
+  const confirm = useConfirm();
   const [links, setLinks] = useState(initial);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -159,8 +161,8 @@ export function InviteLinksClient({ links: initial, appUrl }: { links: InviteLin
     }
   }
 
-  function deleteLink(id: string) {
-    if (!confirm("Delete this invite link permanently?")) return;
+  async function deleteLink(id: string) {
+    if (!(await confirm({ title: "Delete this invite link?", description: "This is permanent and can't be undone.", destructive: true }))) return;
     startTransition(async () => {
       const res = await fetch(`/api/admin/invite-links?id=${id}`, { method: "DELETE" });
       if (res.ok) {

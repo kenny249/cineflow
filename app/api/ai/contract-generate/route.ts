@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isRateLimited } from "@/lib/rate-limit";
+import { requireActivePlan } from "@/lib/billing-server";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -163,6 +164,8 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const planError = await requireActivePlan(supabase, user.id);
+    if (planError) return planError;
 
     if (await isRateLimited(`ai:contract-generate:${user.id}`, 10, 60 * 60 * 1000)) {
       return NextResponse.json({ error: "Too many requests. Please wait before generating another contract." }, { status: 429 });

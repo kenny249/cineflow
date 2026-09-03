@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { MapPin, Mail, Phone, Globe, Instagram, ExternalLink, Star } from "lucide-react";
 import type { CrewProfile } from "@/types";
+import { PUBLIC_CREW_COLUMNS } from "@/lib/supabase/queries";
 
 function getAdminClient() {
   return createClient(
@@ -23,14 +24,14 @@ export default async function PublicCrewProfile({ params }: { params: Promise<{ 
 
   const { data } = await supabase
     .from("crew_profiles")
-    .select("*")
+    .select(PUBLIC_CREW_COLUMNS)
     .eq("slug", slug)
     .eq("is_public", true)
     .single();
 
   if (!data) notFound();
 
-  const profile = data as CrewProfile;
+  const profile = data as unknown as CrewProfile;
   const initials = profile.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
   const location = [profile.city, profile.state].filter(Boolean).join(", ");
 

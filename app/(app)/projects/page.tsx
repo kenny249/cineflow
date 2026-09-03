@@ -26,6 +26,7 @@ import { ProjectCard } from "@/components/projects/ProjectCard";
 import { getProjects, softDeleteProject, getTrashedProjects, restoreProject, permanentlyDeleteProject, updateProject } from "@/lib/supabase/queries";
 import { getCinematicGradient } from "@/lib/cinematic-images";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { Project } from "@/types";
 import {
   formatDate,
@@ -48,6 +49,7 @@ const STATUS_FILTERS: { value: "all" | ProjectStatus; label: string }[] = [
 ];
 
 function ProjectsPageInner() {
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
@@ -131,7 +133,7 @@ function ProjectsPageInner() {
   };
 
   const handlePermanentDelete = async (id: string) => {
-    if (!confirm("Permanently delete this project? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Permanently delete this project?", description: "This cannot be undone.", destructive: true }))) return;
     await permanentlyDeleteProject(id).catch(() => { toast.error("Failed to permanently delete"); return; });
     setTrashedProjects((prev) => prev.filter((p) => p.id !== id));
     toast.success("Project permanently deleted");
