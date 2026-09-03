@@ -107,6 +107,60 @@ interface EventFormModalProps {
   saving?: boolean;
 }
 
+// ── DatePicker ────────────────────────────────────────────────────────────────
+// A native <input type="date"> hands its look and feel entirely to the
+// browser — the focused-segment highlight and the calendar-icon popup can't
+// really be restyled to match the rest of the app. Same fix as TimePicker
+// above: three plain dropdowns instead, so date entry looks and behaves
+// exactly like time entry does.
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+function parseDateStr(value: string): { y: number; m: number; d: number } {
+  const [y, m, d] = (value || "").split("-").map(Number);
+  if (y && m && d) return { y, m, d };
+  const now = new Date();
+  return { y: now.getFullYear(), m: now.getMonth() + 1, d: now.getDate() };
+}
+
+function formatDateStr(y: number, m: number, d: number): string {
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function DatePicker({ value, onChange, min }: { value: string; onChange: (v: string) => void; min?: string }) {
+  const { y, m, d } = parseDateStr(value);
+  const dayCount = daysInMonth(y, m);
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 8 }, (_, i) => currentYear - 1 + i);
+  const sel = "rounded-lg border border-border bg-input px-2.5 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-[#d4a853]/50 cursor-pointer";
+
+  function set(newY: number, newM: number, newD: number) {
+    // Clamp instead of allowing e.g. Feb 31 — switching from a 31-day month
+    // to Feb with day 31 already selected should land on Feb's last real day.
+    const clampedDay = Math.min(newD, daysInMonth(newY, newM));
+    const next = formatDateStr(newY, newM, clampedDay);
+    onChange(min && next < min ? min : next);
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <select value={m} onChange={(e) => set(y, Number(e.target.value), d)} className={`${sel} w-[4.5rem]`}>
+        {MONTHS.map((label, i) => <option key={label} value={i + 1}>{label}</option>)}
+      </select>
+      <select value={d} onChange={(e) => set(y, m, Number(e.target.value))} className={`${sel} w-14`}>
+        {Array.from({ length: dayCount }, (_, i) => i + 1).map((day) => <option key={day} value={day}>{day}</option>)}
+      </select>
+      <select value={y} onChange={(e) => set(Number(e.target.value), m, d)} className={`${sel} w-[4.75rem]`}>
+        {years.map((yr) => <option key={yr} value={yr}>{yr}</option>)}
+      </select>
+    </div>
+  );
+}
+
 // ── TimePicker ────────────────────────────────────────────────────────────────
 
 function TimePicker({ value, onChange }: { value: TimeState; onChange: (t: TimeState) => void }) {
@@ -250,12 +304,7 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
             <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border">
               <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
               <Label className="text-sm text-muted-foreground w-12 flex-shrink-0">Date</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => handleStartDateChange(e.target.value)}
-                className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0 flex-1"
-              />
+              <DatePicker value={startDate} onChange={handleStartDateChange} />
             </div>
             {/* Time row */}
             <div className="flex items-center gap-3 px-3 py-2.5">
@@ -282,13 +331,7 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
                 <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border/50">
                   <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <Label className="text-sm text-muted-foreground w-12 flex-shrink-0">End</Label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    min={startDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0 flex-1"
-                  />
+                  <DatePicker value={endDate} onChange={setEndDate} min={startDate} />
                 </div>
                 <div className="flex items-center gap-3 px-3 py-2.5">
                   <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -342,7 +385,15 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
                 <RotateCcw className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <select
                   value={recurrenceRule}
-                  onChange={(e) => setRecurrenceRule(e.target.value as "" | "daily" | "weekly" | "monthly")}
+                  onChange={(e) => {
+                    const rule = e.target.value as "" | "daily" | "weekly" | "monthly";
+                    setRecurrenceRule(rule);
+                    // Give the "Until" picker a concrete starting value the
+                    // moment it appears — showing three dropdowns with
+                    // nothing meaningfully selected reads as broken, unlike
+                    // a native date input's honest blank state.
+                    if (rule && !recurrenceEndDate) setRecurrenceEndDate(startDate);
+                  }}
                   className="flex-1 bg-transparent text-sm text-foreground focus:outline-none"
                 >
                   <option value="">No repeat</option>
@@ -351,14 +402,7 @@ export function EventFormModal({ open, onClose, onSave, projects, teamMembers = 
                   <option value="monthly">Monthly</option>
                 </select>
                 {recurrenceRule && (
-                  <Input
-                    type="date"
-                    value={recurrenceEndDate}
-                    min={startDate}
-                    onChange={(e) => setRecurrenceEndDate(e.target.value)}
-                    className="border-0 bg-transparent p-0 h-auto text-sm focus-visible:ring-0 w-36"
-                    placeholder="Until…"
-                  />
+                  <DatePicker value={recurrenceEndDate} onChange={setRecurrenceEndDate} min={startDate} />
                 )}
               </div>
 
