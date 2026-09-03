@@ -56,6 +56,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, paymentStatus: session.payment_status });
   }
 
+  // A paid session alone isn't enough — it has to be a session that was
+  // actually paid *for this invoice*. Without this, any session this
+  // business has ever collected a real payment through (even for a
+  // different, smaller invoice) could be replayed here against a larger
+  // invoiceId and get it marked paid for free.
+  //
+  // Payment links are permanent, so invoices sent before this fix may still
+  // have a link whose sessions carry no invoice_id metadata — for those,
+  // fall back to an amount match alone rather than hard-failing a real
+  // outstanding invoice. Any link generated from now on carries the tag, so
+  // this fallback only matters for what's already out in the wild today.
+  const expectedCents = Math.round((invoice.amount as number) * 100);
+  const sessionInvoiceId = session.metadata?.invoice_id;
+  const amountMatches = session.amount_total === expectedCents;
+  const invoiceMatches = sessionInvoiceId ? sessionInvoiceId === invoiceId : amountMatches;
+  if (!invoiceMatches || !amountMatches) {
+    console.warn("[confirm-payment] session/invoice mismatch — refusing to mark paid", {
+      invoiceId, sessionId, sessionInvoiceId, expectedCents, sessionAmount: session.amount_total,
+    });
+    return NextResponse.json({ error: "This payment doesn't match this invoice" }, { status: 400 });
+  }
+
   // Atomic conditional update: only marks paid if still unpaid, preventing double-payment on concurrent requests.
   const { data: updatedRows } = await supabase
     .from("invoices")

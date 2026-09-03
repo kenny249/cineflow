@@ -97,7 +97,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: price.error.message }, { status: 400 });
     }
 
-    // 3. Create a permanent Payment Link with redirect back to pay page after completion
+    // 3. Create a permanent Payment Link with redirect back to pay page after completion.
+    // Tagging the link (and therefore every Checkout Session it produces) with the
+    // exact invoice it's for — without this, confirm-payment could only check
+    // "was *some* session paid?", which a client could satisfy by replaying a
+    // session ID from a different, smaller invoice they legitimately paid.
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.usecineflow.com";
     const link = await stripePost(
       "/payment_links",
@@ -106,6 +110,7 @@ export async function POST(req: NextRequest) {
         "line_items[0][quantity]": "1",
         "after_completion[type]": "redirect",
         "after_completion[redirect][url]": `${baseUrl}/pay/${invoiceId}?session_id={CHECKOUT_SESSION_ID}`,
+        "metadata[invoice_id]": invoiceId as string,
       },
       stripeKey
     );

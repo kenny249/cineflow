@@ -1,0 +1,17 @@
+-- The "Public can view active quotes" policy allowed ANY request — no
+-- token, no login — to read every quote where is_active = true, across
+-- every account on the platform (client names, emails, pricing, line
+-- items, notes). It only checked is_active; it never checked the token
+-- column that /quote/[token] actually authenticates with. That check
+-- lived in application code, not in the database, so it was never a real
+-- access boundary — anyone with the public anon key (shipped in every
+-- page load) could ask Supabase directly and bypass it entirely.
+--
+-- The public quote page has been moved to a service-role fetch (which
+-- bypasses RLS and does the real token check server-side, same pattern as
+-- every other public/token-based page in this app), so this policy is no
+-- longer needed for the app to function. Dropping it removes the public
+-- read path from the database entirely — quotes are now only readable by
+-- their owner (via the existing "Users can manage their own quotes"
+-- policy) or by server code holding the service role key.
+drop policy if exists "Public can view active quotes" on public.quotes;
