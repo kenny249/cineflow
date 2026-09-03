@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   StickyNote, ScrollText, Camera, Image as ImageIcon, Video, CheckSquare, Link2,
   MapPin, User, MoreHorizontal, Trash2, Edit3, Sparkles, ArrowUpRight, Check,
@@ -119,7 +119,6 @@ export function BoardCardComponent({
 
   function handleCardClick() {
     if (card.type === "link") return; // link card — click on the anchor itself
-    if (card.type === "checklist") return; // checklist is already interactive
     setInlineEditing(true);
   }
 
@@ -279,9 +278,21 @@ function InlineEditor({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<Record<string, unknown>>({ ...card.content });
+  const itemRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const focusItemIndex = useRef<number | null>(null);
 
   function f(key: string): string { return (form[key] as string) ?? ""; }
   function set(key: string, val: unknown) { setForm((p) => ({ ...p, [key]: val })); }
+
+  // Focuses whichever item index a checklist edit just targeted, once React
+  // has actually rendered that input (a plain synchronous focus() call right
+  // after setState would run before the new/shifted input exists yet).
+  useEffect(() => {
+    if (focusItemIndex.current === null) return;
+    const i = focusItemIndex.current;
+    focusItemIndex.current = null;
+    requestAnimationFrame(() => itemRefs.current[i]?.focus());
+  });
 
   function save() {
     onSave(form);
@@ -564,13 +575,47 @@ function InlineEditor({
 
   if (card.type === "checklist") {
     const items = (form.items as { text: string; done: boolean }[]) ?? [];
-    function addItem() { set("items", [...items, { text: "", done: false }]); }
+
+    function addItem() {
+      set("items", [...items, { text: "", done: false }]);
+      focusItemIndex.current = items.length;
+    }
     function removeItem(i: number) { set("items", items.filter((_, idx) => idx !== i)); }
     function updateItemText(i: number, text: string) {
       const next = [...items];
       next[i] = { ...next[i], text };
       set("items", next);
     }
+    // Splitting a pasted multi-line list into one item per line is the
+    // fastest way to build a real checklist — typing each line by hand
+    // one "Add item" click at a time is the exact friction this exists to
+    // remove. The first line replaces whatever was already being typed;
+    // the rest insert right after it.
+    function insertLinesAt(i: number, lines: string[]) {
+      const next = [...items];
+      next[i] = { ...next[i], text: lines[0] };
+      next.splice(i + 1, 0, ...lines.slice(1).map((text) => ({ text, done: false })));
+      set("items", next);
+      focusItemIndex.current = i + lines.length - 1;
+    }
+    function handleItemKeyDown(e: React.KeyboardEvent<HTMLInputElement>, i: number) {
+      handleKeyDown(e);
+      if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        const next = [...items];
+        next.splice(i + 1, 0, { text: "", done: false });
+        set("items", next);
+        focusItemIndex.current = i + 1;
+      }
+    }
+    function handleItemPaste(e: React.ClipboardEvent<HTMLInputElement>, i: number) {
+      const text = e.clipboardData.getData("text");
+      const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      if (lines.length < 2) return; // single line — let the normal paste happen
+      e.preventDefault();
+      insertLinesAt(i, lines);
+    }
+
     return (
       <div onPointerDown={(e) => e.stopPropagation()} className="space-y-1.5">
         <input
@@ -585,10 +630,13 @@ function InlineEditor({
           {items.map((item, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <input
+                ref={(el) => { itemRefs.current[i] = el; }}
                 value={item.text}
                 onChange={(e) => updateItemText(i, e.target.value)}
+                onPaste={(e) => handleItemPaste(e, i)}
                 placeholder={`Item ${i + 1}…`}
                 {...sharedProps}
+                onKeyDown={(e) => handleItemKeyDown(e, i)}
                 className="flex-1 rounded border border-border bg-background/50 px-2 py-0.5 text-xs text-foreground placeholder:text-muted-foreground/30 outline-none focus:border-[#d4a853]/50"
               />
               <button onClick={() => removeItem(i)} className="text-muted-foreground/30 hover:text-red-400 transition-colors">
@@ -602,7 +650,7 @@ function InlineEditor({
           onPointerDown={(e) => e.stopPropagation()}
           className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-foreground transition-colors"
         >
-          <Plus className="h-3 w-3" /> Add item
+          <Plus className="h-3 w-3" /> Add item <span className="text-muted-foreground/30">(⏎ for next, paste a list to add many)</span>
         </button>
         <Actions />
       </div>

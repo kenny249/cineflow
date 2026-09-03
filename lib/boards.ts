@@ -113,14 +113,6 @@ export async function getBoardByProject(projectId: string): Promise<BoardWithCar
   return getBoard(board.id);
 }
 
-export async function getPublicBoard(token: string): Promise<BoardWithCards | null> {
-  const supabase = db();
-  const { data: board } = await supabase.from("boards").select("*").eq("share_token", token).maybeSingle();
-  if (!board) return null;
-  const { data: cards } = await supabase.from("board_cards").select("*").eq("board_id", board.id).order("created_at");
-  return { ...board, cards: (cards ?? []) as BoardCard[] };
-}
-
 export async function getAllBoards(): Promise<Board[]> {
   const { data } = await db().from("boards").select("*").order("created_at", { ascending: false });
   return (data ?? []) as Board[];

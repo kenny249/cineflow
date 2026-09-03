@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, LayoutGrid, Lock } from "lucide-react";
-import { getPublicBoard } from "@/lib/boards";
 import type { BoardWithCards } from "@/lib/boards";
 import { BoardView } from "@/components/boards/BoardView";
 import { useStudioBranding, StudioBrandingBar, PoweredByCineFlow } from "@/components/shared/StudioBranding";
@@ -16,8 +15,9 @@ export default function SharedBoardPage() {
   const brand = useStudioBranding(token, "board");
 
   useEffect(() => {
-    getPublicBoard(token)
-      .then((b) => { if (!b) setNotFound(true); else setBoard(b); })
+    fetch(`/api/boards/public?token=${encodeURIComponent(token)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => setBoard(data.board))
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [token]);
