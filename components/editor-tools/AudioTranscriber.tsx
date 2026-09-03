@@ -145,10 +145,8 @@ export function AudioTranscriber() {
   }, []);
 
   useEffect(() => {
-    if (showProjectPicker && projects.length === 0) {
-      getProjects().then(setProjects).catch(() => {});
-    }
-  }, [showProjectPicker, projects.length]);
+    if (showProjectPicker) ensureProjectsLoaded();
+  }, [showProjectPicker]);
 
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -383,37 +381,60 @@ export function AudioTranscriber() {
     finally { setPdfLoading(false); }
   }
 
+  // Creates the transcript's database row — the one piece both "Save
+  // transcript" and "Save cut list" ultimately depend on. Pulled out on its
+  // own so a cut list can trigger it too: previously, saving a cut list
+  // silently required the transcript to already be saved first, with no
+  // indication that was even a requirement — this way one click always
+  // does whatever hasn't happened yet.
+  async function persistTranscriptSave(project: Project | null): Promise<string> {
+    if (state.phase !== "done") throw new Error("Nothing to save yet");
+    const label = project ? project.title : "Personal";
+    const saved = await saveProjectTranscript({
+      projectId: project?.id ?? null,
+      filename: state.file.name,
+      fileSizeBytes: state.file.size,
+      durationSecs: state.duration,
+      transcript: state.text,
+    });
+    setSavedTranscriptId(saved.id);
+    setSavedToProject(label);
+    // Persist the save itself, not just the text — otherwise a refresh
+    // forgets this transcript was ever saved at all.
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) localStorage.setItem(LS_KEY, JSON.stringify({ ...JSON.parse(raw), transcriptId: saved.id, projectLabel: label }));
+    } catch {}
+    setHistoryKey((k) => k + 1);
+    return saved.id;
+  }
+
+  function ensureProjectsLoaded() {
+    if (projects.length === 0) getProjects().then(setProjects).catch(() => {});
+  }
+
   async function saveToProject(project: Project | null) {
     if (state.phase !== "done") return;
     setSavingProject(true);
     const label = project ? project.title : "Personal";
     try {
-      const saved = await saveProjectTranscript({
-        projectId: project?.id ?? null,
-        filename: state.file.name,
-        fileSizeBytes: state.file.size,
-        durationSecs: state.duration,
-        transcript: state.text,
-      });
-      setSavedTranscriptId(saved.id);
-      setSavedToProject(label);
-      // Persist the save itself, not just the text — otherwise a refresh
-      // forgets this transcript was ever saved at all.
-      try {
-        const raw = localStorage.getItem(LS_KEY);
-        if (raw) localStorage.setItem(LS_KEY, JSON.stringify({ ...JSON.parse(raw), transcriptId: saved.id, projectLabel: label }));
-      } catch {}
+      await persistTranscriptSave(project);
       setShowProjectPicker(false);
-      setHistoryKey((k) => k + 1);
       setTimeout(() => setLibraryOpen(true), 400);
       toast.success(project ? `Saved to "${label}"` : "Saved to Personal");
     } catch (e: any) { toast.error(e.message ?? "Failed to save"); }
     finally { setSavingProject(false); }
   }
 
-  async function handleSaveCutList(cutList: CutListSave) {
-    if (!savedTranscriptId) return;
-    await appendTranscriptCutList(savedTranscriptId, cutList);
+  // Single entry point the AI panel calls to save a cut list, regardless of
+  // whether the transcript was ever explicitly saved first. That two-step
+  // requirement — save the transcript, THEN a separate cut-list Save button
+  // appears — was the actual cause of cut lists silently never reaching the
+  // database: the second button simply didn't exist yet, with nothing
+  // telling you so. This collapses both into one action.
+  async function saveCutListCombined(cutList: CutListSave, project: Project | null) {
+    const id = savedTranscriptId ?? (await persistTranscriptSave(project));
+    await appendTranscriptCutList(id, cutList);
     // Reflect it immediately in the "Saved Cut Lists" section, and in the
     // Library's badge count, without needing to reopen the transcript.
     setSavedCutLists((prev) => [cutList, ...prev]);
@@ -743,8 +764,11 @@ export function AudioTranscriber() {
             filename={state.file.name}
             liveAudio={state.liveAudio}
             duration={state.duration}
+            savedTranscriptId={savedTranscriptId}
             savedCutLists={savedCutLists}
-            onSaveCutList={savedTranscriptId ? handleSaveCutList : undefined}
+            projects={projects}
+            onLoadProjects={ensureProjectsLoaded}
+            onSaveCutList={saveCutListCombined}
           />
         </div>
       </div>

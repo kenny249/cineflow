@@ -11,6 +11,7 @@ import type { CutListSave } from "@/lib/supabase/queries";
 import { findQuoteTimestamp, type WhisperWord } from "@/lib/transcript-align";
 import { buildMarkerFile, NLE_LABELS, type NleTarget } from "@/lib/marker-export";
 import { SavedCutListCard } from "@/components/editor-tools/SavedCutListCard";
+import type { Project } from "@/types";
 
 const NLE_TARGETS: NleTarget[] = ["fcpx", "premiere", "resolve", "universal"];
 
@@ -159,13 +160,22 @@ interface Props {
   filename: string;
   liveAudio?: { file: File; words: WhisperWord[] } | null;
   duration?: number | null;
-  onSaveCutList?: (cutList: CutListSave) => Promise<void>;
+  // Whether the transcript itself already has a database row — when it
+  // doesn't yet, saving a cut list also has to ask which project it belongs
+  // to (same choice the standalone transcript-save flow offers) before it
+  // can save anything, since there's nowhere to attach it yet.
+  savedTranscriptId?: string | null;
+  onSaveCutList?: (cutList: CutListSave, project: Project | null) => Promise<void>;
   savedCutLists?: CutListSave[];
+  projects?: Project[];
+  onLoadProjects?: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function AIContentPanel({ transcript, filename, liveAudio, duration, onSaveCutList, savedCutLists }: Props) {
+export function AIContentPanel({
+  transcript, filename, liveAudio, duration, savedTranscriptId, onSaveCutList, savedCutLists, projects, onLoadProjects,
+}: Props) {
   const [format, setFormat] = useState<string>("reel_30");
   const [vibes, setVibes] = useState<string[]>([]);
   const [context, setContext] = useState("");
@@ -185,6 +195,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
   const controlsRef = useRef<HTMLDivElement>(null);
   const savedSectionRef = useRef<HTMLDivElement>(null);
   const [justSaved, setJustSaved] = useState(false);
+  const [showSavePicker, setShowSavePicker] = useState(false);
 
   const isVideo = VIDEO_FORMAT_KEYS.has(format as any);
 
@@ -221,6 +232,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
     setOutput(null);
     setSaved(false);
     setJustSaved(false);
+    setShowSavePicker(false);
   }
 
   async function generate() {
@@ -228,6 +240,7 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
     setOutput(null);
     setSaved(false);
     setJustSaved(false);
+    setShowSavePicker(false);
     const requestedDurationSec = isVideo ? resolveTargetSeconds() : null;
     try {
       const res = await fetch("/api/transcribe/ai", {
@@ -276,14 +289,26 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
     }
   }
 
-  async function saveList() {
+  // One button, one action, regardless of whether the transcript has ever
+  // been saved before. If it hasn't, `project` is undefined on the first
+  // call — instead of failing or saving into a void, this opens the same
+  // "which project" choice the standalone transcript-save flow offers,
+  // right here, then saves both the transcript and this cut list together
+  // as soon as one is picked.
+  async function saveList(project?: Project | null) {
     if (!output || output.kind !== "cut_list" || !onSaveCutList) return;
+    if (!savedTranscriptId && project === undefined) {
+      setShowSavePicker(true);
+      onLoadProjects?.();
+      return;
+    }
+    setShowSavePicker(false);
     setSaving(true);
     try {
-      await onSaveCutList(output.data);
+      await onSaveCutList(output.data, project ?? null);
       setSaved(true);
       setJustSaved(true);
-      toast.success("Cut list saved to project");
+      toast.success(savedTranscriptId ? "Cut list saved to project" : "Transcript & cut list saved");
       // The Save button lives at the bottom of a potentially long result;
       // the confirmation it saved lives in a section back at the top of
       // the panel. Without this, "it saved" and "where it went" never
@@ -677,19 +702,55 @@ export function AIContentPanel({ transcript, filename, liveAudio, duration, onSa
                     PDF
                   </button>
                   {onSaveCutList && (
-                    <button
-                      onClick={saveList}
-                      disabled={saving || saved}
-                      className={cn(
-                        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                        saved
-                          ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
-                          : "border border-border text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                    <div className="relative shrink-0">
+                      <button
+                        onClick={() => saveList()}
+                        disabled={saving || saved}
+                        className={cn(
+                          "flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                          saved
+                            ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-400"
+                            : "border border-border text-muted-foreground hover:bg-white/[0.06] hover:text-foreground"
+                        )}
+                      >
+                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        {saved ? "Saved" : "Save"}
+                      </button>
+
+                      {showSavePicker && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setShowSavePicker(false)} />
+                          <div className="absolute right-0 top-9 z-50 w-64 overflow-hidden rounded-xl border border-border bg-[#111] shadow-2xl">
+                            <p className="border-b border-border px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Save transcript &amp; cut list
+                            </p>
+                            <button
+                              onClick={() => saveList(null)}
+                              className="flex w-full items-center border-b border-border/50 px-4 py-2.5 text-left text-sm text-muted-foreground hover:bg-white/[0.05] hover:text-foreground transition-colors"
+                            >
+                              Personal (no project)
+                            </button>
+                            {!projects || projects.length === 0 ? (
+                              <div className="flex items-center justify-center py-6">
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
+                              </div>
+                            ) : (
+                              <div className="max-h-52 overflow-y-auto">
+                                {projects.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    onClick={() => saveList(p)}
+                                    className="flex w-full items-center px-4 py-2.5 text-left text-sm text-foreground hover:bg-white/[0.05] transition-colors"
+                                  >
+                                    <span className="truncate">{p.title}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
                       )}
-                    >
-                      {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                      {saved ? "Saved" : "Save"}
-                    </button>
+                    </div>
                   )}
                 </div>
               </div>
