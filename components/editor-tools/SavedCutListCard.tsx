@@ -51,8 +51,8 @@ function fmtSecs(totalSecs: number) {
   return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `0:${String(r).padStart(2, "0")}`;
 }
 
-export function SavedCutListCard({ cl, defaultOpen }: { cl: CutListSave; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(!!defaultOpen);
+export function SavedCutListCard({ cl }: { cl: CutListSave }) {
+  const [open, setOpen] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [expandedCuts, setExpandedCuts] = useState<Record<number, boolean>>({});
 

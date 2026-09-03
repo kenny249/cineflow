@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
+import { ProjectPicker } from "@/components/editor-tools/ProjectPicker";
 import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
 import { getProjects, saveProjectTranscript, appendTranscriptCutList, updateProjectTranscriptText, getTranscriptById } from "@/lib/supabase/queries";
 import type { ProjectTranscriptWithProject, CutListSave } from "@/lib/supabase/queries";
@@ -621,35 +622,13 @@ export function AudioTranscriber() {
           </button>
 
           {showProjectPicker && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowProjectPicker(false)} />
-              <div className="absolute right-0 top-10 z-50 w-64 overflow-hidden rounded-xl border border-border bg-[#111] shadow-2xl">
-                <p className="border-b border-border px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Save transcript</p>
-                <button
-                  onClick={() => saveToProject(null)}
-                  className="flex w-full items-center border-b border-border/50 px-4 py-2.5 text-left text-sm text-muted-foreground hover:bg-white/[0.05] hover:text-foreground transition-colors"
-                >
-                  Personal (no project)
-                </button>
-                {projects.length === 0 ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
-                  </div>
-                ) : (
-                  <div className="max-h-52 overflow-y-auto">
-                    {projects.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => saveToProject(p)}
-                        className="flex w-full items-center px-4 py-2.5 text-left text-sm text-foreground hover:bg-white/[0.05] transition-colors"
-                      >
-                        <span className="truncate">{p.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </>
+            <ProjectPicker
+              projects={projects}
+              heading="Save transcript"
+              className="top-10"
+              onClose={() => setShowProjectPicker(false)}
+              onPick={saveToProject}
+            />
           )}
         </div>
 

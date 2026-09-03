@@ -11,6 +11,7 @@ import type { CutListSave } from "@/lib/supabase/queries";
 import { findQuoteTimestamp, type WhisperWord } from "@/lib/transcript-align";
 import { buildMarkerFile, NLE_LABELS, type NleTarget } from "@/lib/marker-export";
 import { SavedCutListCard } from "@/components/editor-tools/SavedCutListCard";
+import { ProjectPicker } from "@/components/editor-tools/ProjectPicker";
 import type { Project } from "@/types";
 
 const NLE_TARGETS: NleTarget[] = ["fcpx", "premiere", "resolve", "universal"];
@@ -193,8 +194,6 @@ export function AIContentPanel({
   const { copiedKey, copy } = useCopyText();
   const outputRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
-  const savedSectionRef = useRef<HTMLDivElement>(null);
-  const [justSaved, setJustSaved] = useState(false);
   const [showSavePicker, setShowSavePicker] = useState(false);
 
   const isVideo = VIDEO_FORMAT_KEYS.has(format as any);
@@ -231,7 +230,6 @@ export function AIContentPanel({
     setFormat(key);
     setOutput(null);
     setSaved(false);
-    setJustSaved(false);
     setShowSavePicker(false);
   }
 
@@ -239,7 +237,6 @@ export function AIContentPanel({
     setGenerating(true);
     setOutput(null);
     setSaved(false);
-    setJustSaved(false);
     setShowSavePicker(false);
     const requestedDurationSec = isVideo ? resolveTargetSeconds() : null;
     try {
@@ -307,13 +304,7 @@ export function AIContentPanel({
     try {
       await onSaveCutList(output.data, project ?? null);
       setSaved(true);
-      setJustSaved(true);
       toast.success(savedTranscriptId ? "Cut list saved to project" : "Transcript & cut list saved");
-      // The Save button lives at the bottom of a potentially long result;
-      // the confirmation it saved lives in a section back at the top of
-      // the panel. Without this, "it saved" and "where it went" never
-      // visually connect — scroll there and open it so there's no doubt.
-      setTimeout(() => savedSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
     } catch {
       toast.error("Failed to save");
     } finally {
@@ -433,13 +424,13 @@ export function AIContentPanel({
       </div>
 
       {savedCutLists && savedCutLists.length > 0 && (
-        <div ref={savedSectionRef} className="border-b border-[#d4a853]/15 p-5">
+        <div className="border-b border-[#d4a853]/15 p-5">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Saved Cut Lists <span className="normal-case font-normal text-muted-foreground/50">({savedCutLists.length})</span>
           </p>
           <div className="space-y-1.5">
             {savedCutLists.map((cl, i) => (
-              <SavedCutListCard key={i} cl={cl} defaultOpen={i === 0 && justSaved} />
+              <SavedCutListCard key={i} cl={cl} />
             ))}
           </div>
         </div>
@@ -718,37 +709,13 @@ export function AIContentPanel({
                       </button>
 
                       {showSavePicker && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setShowSavePicker(false)} />
-                          <div className="absolute right-0 top-9 z-50 w-64 overflow-hidden rounded-xl border border-border bg-[#111] shadow-2xl">
-                            <p className="border-b border-border px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                              Save transcript &amp; cut list
-                            </p>
-                            <button
-                              onClick={() => saveList(null)}
-                              className="flex w-full items-center border-b border-border/50 px-4 py-2.5 text-left text-sm text-muted-foreground hover:bg-white/[0.05] hover:text-foreground transition-colors"
-                            >
-                              Personal (no project)
-                            </button>
-                            {!projects || projects.length === 0 ? (
-                              <div className="flex items-center justify-center py-6">
-                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />
-                              </div>
-                            ) : (
-                              <div className="max-h-52 overflow-y-auto">
-                                {projects.map((p) => (
-                                  <button
-                                    key={p.id}
-                                    onClick={() => saveList(p)}
-                                    className="flex w-full items-center px-4 py-2.5 text-left text-sm text-foreground hover:bg-white/[0.05] transition-colors"
-                                  >
-                                    <span className="truncate">{p.title}</span>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </>
+                        <ProjectPicker
+                          projects={projects ?? []}
+                          heading="Save transcript & cut list"
+                          className="top-9"
+                          onClose={() => setShowSavePicker(false)}
+                          onPick={saveList}
+                        />
                       )}
                     </div>
                   )}
@@ -758,12 +725,6 @@ export function AIContentPanel({
               {!liveAudio && (
                 <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
                   The original audio isn&apos;t in this tab right now — either this was reopened from your library, or the page was refreshed since you last transcribed it. Exact timestamps and clip export need the live audio, so transcribe this file again without refreshing in between to get both.
-                </p>
-              )}
-
-              {!onSaveCutList && (
-                <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
-                  Save the transcript above first to also save this cut list — otherwise it only lives in this tab and won&apos;t be here if you come back later.
                 </p>
               )}
 
