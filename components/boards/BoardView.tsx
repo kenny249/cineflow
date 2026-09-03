@@ -31,6 +31,20 @@ type BoardBroadcastPayload =
   | { type: "updated"; card: BoardCard }
   | { type: "deleted"; cardId: string };
 
+// Live cursors — a separate broadcast event on the same channel, not
+// folded into card_change, since it's a much higher-frequency, throwaway
+// stream (never persisted, never needs the create/update/delete shape).
+interface CursorPayload {
+  clientId: string;
+  x: number;
+  y: number;
+  color: string;
+}
+
+const CURSOR_COLORS = ["#d4a853", "#60a5fa", "#f472b6", "#4ade80", "#a78bfa", "#fb923c"];
+const CURSOR_STALE_MS = 6000;
+const CURSOR_BROADCAST_INTERVAL_MS = 45;
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type DragState =
@@ -113,6 +127,19 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
   const panRef = useRef({ x: 60, y: 60 });
   const zoomRef = useRef(1);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+  const [remoteCursors, setRemoteCursors] = useState<Record<string, CursorPayload & { lastSeen: number }>>({});
+  const lastCursorSentRef = useRef(0);
+
+  // A random, per-tab identity — never tied to a real account, since an
+  // anonymous share-link editor has none. Computed once on mount, not on
+  // every render (a plain useRef(crypto.randomUUID()) would still evaluate
+  // the call every render even though only the first result is kept).
+  const clientIdRef = useRef<string | null>(null);
+  if (clientIdRef.current === null) clientIdRef.current = crypto.randomUUID();
+  const cursorColorRef = useRef<string | null>(null);
+  if (cursorColorRef.current === null) {
+    cursorColorRef.current = CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)];
+  }
 
   // Which persistence layer this view writes through — the normal
   // authenticated one, or (only on a public "anyone can edit" share link)
@@ -146,13 +173,41 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
           setCards((prev) => prev.filter((c) => c.id !== payload.cardId));
         }
       })
+      .on("broadcast", { event: "cursor_move" }, ({ payload }: { payload: CursorPayload }) => {
+        setRemoteCursors((prev) => ({ ...prev, [payload.clientId]: { ...payload, lastSeen: Date.now() } }));
+      })
       .subscribe();
     channelRef.current = channel;
     return () => { supabase.removeChannel(channel); channelRef.current = null; };
   }, [board.id, setCards]);
 
+  // A cursor that stops sending (tab closed, navigated away) has no
+  // explicit "goodbye" message to rely on — just age it out.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const cutoff = Date.now() - CURSOR_STALE_MS;
+      setRemoteCursors((prev) => {
+        const next = Object.fromEntries(Object.entries(prev).filter(([, c]) => c.lastSeen >= cutoff));
+        return Object.keys(next).length === Object.keys(prev).length ? prev : next;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
   function broadcastChange(payload: BoardBroadcastPayload) {
     channelRef.current?.send({ type: "broadcast", event: "card_change", payload });
+  }
+
+  function handleCanvasPointerMoveForCursor(e: React.PointerEvent) {
+    const now = Date.now();
+    if (now - lastCursorSentRef.current < CURSOR_BROADCAST_INTERVAL_MS) return;
+    lastCursorSentRef.current = now;
+    const world = screenToWorld(e.clientX, e.clientY);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "cursor_move",
+      payload: { clientId: clientIdRef.current, x: world.x, y: world.y, color: cursorColorRef.current },
+    });
   }
 
   const setPan = useCallback((p: { x: number; y: number }) => {
@@ -673,6 +728,7 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
         className="flex-1 overflow-hidden"
         style={{ cursor: dragRef.current?.type === "pan" ? "grabbing" : "default" }}
         onPointerDown={handleCanvasPointerDown}
+        onPointerMove={handleCanvasPointerMoveForCursor}
         onDoubleClick={handleCanvasDoubleClick as unknown as React.MouseEventHandler}
       >
         {cards.length === 0 && !readonly && (
@@ -713,6 +769,21 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
                 onPush={handlePush}
                 onDelete={handleCardDelete}
               />
+            </div>
+          ))}
+
+          {/* Other people's cursors — positioned in the same world space as
+              cards, so they pan/zoom along with everything else instead of
+              needing their own separate coordinate math. */}
+          {Object.entries(remoteCursors).map(([clientId, cursor]) => (
+            <div
+              key={clientId}
+              className="pointer-events-none absolute z-40 transition-[left,top] duration-75 ease-linear"
+              style={{ left: cursor.x, top: cursor.y }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.4))" }}>
+                <path d="M2 2L14.5 8.5L8.5 9.5L6 15.5L2 2Z" fill={cursor.color} stroke="black" strokeWidth="0.75" strokeLinejoin="round" />
+              </svg>
             </div>
           ))}
         </div>
