@@ -21,6 +21,10 @@ export interface BoardCard {
   color?: string | null;
   x: number;
   y: number;
+  // Explicit size override — null/undefined means "use the type's default
+  // size," so existing cards render unchanged until someone resizes them.
+  width?: number | null;
+  height?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -189,7 +193,7 @@ export async function createCard(
 
 export async function updateCard(
   cardId: string,
-  updates: Partial<Pick<BoardCard, "content" | "color" | "type">>
+  updates: Partial<Pick<BoardCard, "content" | "color" | "type" | "width" | "height">>
 ): Promise<void> {
   await db().from("board_cards").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", cardId);
 }

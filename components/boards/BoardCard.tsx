@@ -40,8 +40,10 @@ export interface BoardCardProps {
   projectId?: string;
   readonly?: boolean;
   isDragging?: boolean;
+  isResizing?: boolean;
   startInlineEdit?: boolean;
   onDragStart: (card: BoardCardType, startEvent: { clientX: number; clientY: number }) => void;
+  onResizeStart?: (card: BoardCardType, startEvent: { clientX: number; clientY: number }) => void;
   onUpdate: (card: BoardCardType) => void;
   onOpenModal: (card: BoardCardType) => void;
   onAI: (card: BoardCardType) => void;
@@ -58,8 +60,10 @@ export function BoardCardComponent({
   projectId,
   readonly,
   isDragging,
+  isResizing,
   startInlineEdit,
   onDragStart,
+  onResizeStart,
   onUpdate,
   onOpenModal,
   onAI,
@@ -102,6 +106,15 @@ export function BoardCardComponent({
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+  }
+
+  // ── Resize handle (note cards only, for now) ────────────────────────────────
+
+  function handleResizePointerDown(e: React.PointerEvent) {
+    if (readonly || !onResizeStart) return;
+    e.stopPropagation();
+    e.preventDefault();
+    onResizeStart(card, { clientX: e.clientX, clientY: e.clientY });
   }
 
   function handleCardClick() {
@@ -151,9 +164,11 @@ export function BoardCardComponent({
     <div
       data-card-id={card.id}
       onPointerDown={handlePointerDown}
-      className={`group relative w-60 rounded-2xl border shadow-md transition-shadow select-none
+      style={{ width: card.width ?? 240 }}
+      className={`group relative rounded-2xl border shadow-md transition-shadow select-none
         ${colorCfg.bg} ${colorCfg.border}
         ${isDragging ? "shadow-2xl opacity-60 rotate-1" : "hover:shadow-lg"}
+        ${isResizing ? "shadow-2xl" : ""}
         ${inlineEditing ? "cursor-default" : "cursor-grab active:cursor-grabbing"}
       `}
     >
@@ -229,6 +244,21 @@ export function BoardCardComponent({
           <CardBody card={card} onUpdate={onUpdate} />
         )}
       </div>
+
+      {/* Resize handle — note cards only for now; drags width + the note's
+          own text area/paragraph height, not the whole card's DOM height,
+          so the header stays put and only the writable area grows. */}
+      {card.type === "note" && !readonly && (
+        <div
+          onPointerDown={handleResizePointerDown}
+          title="Drag to resize"
+          className="absolute bottom-1 right-1 flex h-4 w-4 cursor-nwse-resize items-end justify-end p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <svg viewBox="0 0 10 10" className="h-2.5 w-2.5 text-muted-foreground/50">
+            <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+          </svg>
+        </div>
+      )}
     </div>
   );
 }
@@ -296,6 +326,8 @@ function InlineEditor({
         onChange={(e) => set("text", e.target.value)}
         placeholder="Write your note…"
         rows={5}
+        data-resize-target="height"
+        style={card.height ? { height: card.height } : undefined}
         {...sharedProps}
         onBlur={(e) => { save(); sharedProps.onBlur(); void e; }}
         className="w-full resize-none bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 outline-none leading-relaxed"
@@ -591,7 +623,11 @@ function CardBody({ card, onUpdate }: { card: BoardCardType; onUpdate: (c: Board
     return (
       <div className="space-y-0.5">
         {title && <p className="text-xs font-semibold text-foreground line-clamp-1">{title}</p>}
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-6 whitespace-pre-wrap min-h-[1.5rem]">
+        <p
+          data-resize-target="height"
+          style={card.height ? { height: card.height, overflowY: "auto" } : undefined}
+          className={`text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap min-h-[1.5rem] ${card.height ? "" : "line-clamp-6"}`}
+        >
           {text || <span className="text-muted-foreground/30 italic">Click to edit…</span>}
         </p>
       </div>

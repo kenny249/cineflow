@@ -9,7 +9,7 @@ import {
 import { toast } from "sonner";
 import type { Board, BoardCard, CardType, BoardWithCards } from "@/lib/boards";
 import {
-  createCard, updateCardPosition, generateShareToken, revokeShareToken,
+  createCard, updateCard, updateCardPosition, generateShareToken, revokeShareToken,
   pushShotToShotList, pushScriptToNotes,
 } from "@/lib/boards";
 import { BoardCardComponent } from "./BoardCard";
@@ -21,7 +21,11 @@ import { BreakdownPanel } from "./BreakdownPanel";
 
 type DragState =
   | { type: "card"; cardId: string; cardStartX: number; cardStartY: number; pointerStartX: number; pointerStartY: number; currentDx: number; currentDy: number }
-  | { type: "pan"; panStartX: number; panStartY: number; pointerStartX: number; pointerStartY: number };
+  | { type: "pan"; panStartX: number; panStartY: number; pointerStartX: number; pointerStartY: number }
+  | { type: "resize"; cardId: string; cardStartWidth: number; cardStartHeight: number; pointerStartX: number; pointerStartY: number; currentWidth: number; currentHeight: number };
+
+const MIN_CARD_WIDTH = 180;
+const MIN_NOTE_HEIGHT = 80;
 
 // ── Default card content per type ─────────────────────────────────────────────
 
@@ -67,6 +71,7 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
   const [zoom, _setZoom] = useState(1);
   const [board, setBoard] = useState(initialBoard);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
+  const [resizingCardId, setResizingCardId] = useState<string | null>(null);
   const [modalCard, setModalCard] = useState<BoardCard | null>(null);
   const [newCardId, setNewCardId] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -113,6 +118,19 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
           el.style.transform = `translate(${dx}px, ${dy}px)`;
           el.style.zIndex = "50";
         }
+      } else if (dr.type === "resize") {
+        const dx = (e.clientX - dr.pointerStartX) / zoomRef.current;
+        const dy = (e.clientY - dr.pointerStartY) / zoomRef.current;
+        const newWidth = Math.max(MIN_CARD_WIDTH, dr.cardStartWidth + dx);
+        const newHeight = Math.max(MIN_NOTE_HEIGHT, dr.cardStartHeight + dy);
+        dr.currentWidth = newWidth;
+        dr.currentHeight = newHeight;
+        const el = document.querySelector(`[data-card-id="${dr.cardId}"]`) as HTMLElement | null;
+        if (el) {
+          el.style.width = `${newWidth}px`;
+          const target = el.querySelector('[data-resize-target="height"]') as HTMLElement | null;
+          if (target) target.style.height = `${newHeight}px`;
+        }
       } else {
         const x = dr.panStartX + (e.clientX - dr.pointerStartX);
         const y = dr.panStartY + (e.clientY - dr.pointerStartY);
@@ -141,6 +159,12 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
           updateCardPosition(dr.cardId, newX, newY).catch(() => toast.error("Failed to save position"));
         }
         setDraggingCardId(null);
+      } else if (dr.type === "resize") {
+        const newWidth = Math.round(dr.currentWidth);
+        const newHeight = Math.round(dr.currentHeight);
+        setCards((prev) => prev.map((c) => c.id === dr.cardId ? { ...c, width: newWidth, height: newHeight } : c));
+        updateCard(dr.cardId, { width: newWidth, height: newHeight }).catch(() => toast.error("Failed to save size"));
+        setResizingCardId(null);
       } else {
         setPan({ x: panRef.current.x, y: panRef.current.y });
       }
@@ -240,6 +264,28 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
       currentDy: 0,
     };
     setDraggingCardId(card.id);
+  }
+
+  // ── Card resize start ──────────────────────────────────────────────────────
+  // Measures the card's actual current on-screen size rather than assuming a
+  // constant, so a not-yet-resized card (no stored width/height) starts the
+  // drag from wherever it really is instead of jumping to a guessed default.
+  function startCardResize(card: BoardCard, startEvent: { clientX: number; clientY: number }) {
+    const el = document.querySelector(`[data-card-id="${card.id}"]`) as HTMLElement | null;
+    const rect = el?.getBoundingClientRect();
+    const startWidth = card.width ?? (rect ? rect.width / zoomRef.current : 240);
+    const startHeight = card.height ?? (rect ? rect.height / zoomRef.current : 132);
+    dragRef.current = {
+      type: "resize",
+      cardId: card.id,
+      cardStartWidth: startWidth,
+      cardStartHeight: startHeight,
+      pointerStartX: startEvent.clientX,
+      pointerStartY: startEvent.clientY,
+      currentWidth: startWidth,
+      currentHeight: startHeight,
+    };
+    setResizingCardId(card.id);
   }
 
   // ── Add card ──────────────────────────────────────────────────────────────────
@@ -468,8 +514,10 @@ export function BoardView({ board: initialBoard, projectId, readonly }: BoardVie
                 projectId={projectId}
                 readonly={readonly}
                 isDragging={draggingCardId === card.id}
+                isResizing={resizingCardId === card.id}
                 startInlineEdit={newCardId === card.id}
                 onDragStart={startCardDrag}
+                onResizeStart={startCardResize}
                 onUpdate={handleCardUpdate}
                 onOpenModal={setModalCard}
                 onAI={setModalCard}

@@ -10,6 +10,44 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { BreakdownPanel } from "@/app/(app)/scripts/BreakdownPanel";
 
+// ─── Caret positioning ────────────────────────────────────────────────────────
+// The textarea has no height/scroll of its own (it grows with its content;
+// the parent div scrolls) and wraps text, so a logical line number doesn't
+// map to a fixed pixel offset — a long paragraph wraps into several visual
+// lines, and every scene after it drifts further out of sync. This measures
+// where a character position actually renders by mirroring the textarea's
+// text (font, width, padding — everything that affects wrapping) in a
+// hidden clone and reading back where a marker at that position landed.
+function getCaretOffsetTop(ta: HTMLTextAreaElement, position: number): number {
+  const mirror = document.createElement("div");
+  const style = getComputedStyle(ta);
+  const propsToCopy: (keyof CSSStyleDeclaration)[] = [
+    "boxSizing", "width", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+    "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth",
+    "fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing",
+  ];
+  for (const prop of propsToCopy) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (mirror.style as any)[prop] = style[prop];
+  }
+  mirror.style.position = "absolute";
+  mirror.style.visibility = "hidden";
+  mirror.style.whiteSpace = "pre-wrap";
+  mirror.style.wordWrap = "break-word";
+  mirror.style.top = "0";
+  mirror.style.left = "-9999px";
+  mirror.textContent = ta.value.slice(0, position);
+
+  const marker = document.createElement("span");
+  marker.textContent = "​";
+  mirror.appendChild(marker);
+
+  document.body.appendChild(mirror);
+  const offsetTop = marker.offsetTop;
+  document.body.removeChild(mirror);
+  return offsetTop;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AIMessage { role: "user" | "assistant"; content: string }
@@ -437,7 +475,15 @@ export function ScriptEditorPage({
     const pos = content.split("\n").slice(0, lineNum).join("\n").length;
     ta.focus();
     ta.setSelectionRange(pos, pos);
-    ta.scrollTop = lineNum * (parseInt(getComputedStyle(ta).lineHeight) || 22);
+
+    // The textarea itself doesn't scroll — its parent does, and text wraps,
+    // so the actual pixel position has to be measured, not guessed from a
+    // fixed per-line height (see getCaretOffsetTop above).
+    const scrollContainer = ta.parentElement;
+    if (scrollContainer) {
+      const offsetTop = getCaretOffsetTop(ta, pos);
+      scrollContainer.scrollTop = Math.max(0, offsetTop - scrollContainer.clientHeight / 3);
+    }
   }
 
   async function flowToShotList() {
