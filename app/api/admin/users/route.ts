@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { Resend } from "resend";
 import { emailLifetimeGift } from "@/lib/email-templates";
 import { logAdminAction } from "@/lib/admin-audit";
+import { deleteStoragePrefix } from "@/lib/storage-cleanup";
 
 function getAdmin() {
   return createAdminClient(
@@ -137,6 +138,24 @@ export async function DELETE(req: NextRequest) {
   // Safety: never delete an admin account
   const { data: profile } = await admin.from("profiles").select("is_admin").eq("id", userId).single();
   if (profile?.is_admin) return NextResponse.json({ error: "Cannot delete an admin account" }, { status: 403 });
+
+  // Deleting the auth user cascades to a handful of directly user-scoped
+  // tables, but not to storage — Supabase never ties files to an auth user
+  // automatically. Clean those up first, while we still know which
+  // projects were theirs, since deleteUser() doesn't touch project rows
+  // (there's no foreign key from projects to auth.users at all) and we'd
+  // otherwise have no way to find their files again afterward.
+  const { data: ownedProjects } = await admin.from("projects").select("id").eq("created_by", userId);
+  const projectIds = (ownedProjects ?? []).map((p) => p.id as string);
+
+  await Promise.all([
+    deleteStoragePrefix(admin, "contracts", userId),
+    deleteStoragePrefix(admin, "shot-images", userId),
+    ...projectIds.flatMap((id) => [
+      deleteStoragePrefix(admin, "project-files", id),
+      deleteStoragePrefix(admin, "storyboard-images", `storyboard/${id}`),
+    ]),
+  ]);
 
   const { error } = await admin.auth.admin.deleteUser(userId);
   if (error) {
