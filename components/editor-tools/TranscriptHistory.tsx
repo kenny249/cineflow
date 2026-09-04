@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
 import { SavedCutListCard } from "@/components/editor-tools/SavedCutListCard";
+import { SyncedTranscript } from "@/components/editor-tools/SyncedTranscript";
 import {
   getAllUserTranscripts,
   appendTranscriptCutList,
@@ -42,6 +43,9 @@ export function TranscriptHistory({ onLoadTranscript }: TranscriptHistoryProps =
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  // Fetched lazily, only once a row is actually expanded — no point signing
+  // a playback URL for every saved transcript up front.
+  const [audioUrls, setAudioUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     getAllUserTranscripts()
@@ -65,6 +69,19 @@ export function TranscriptHistory({ onLoadTranscript }: TranscriptHistoryProps =
     setTranscripts((prev) => prev.map((t) =>
       t.id === transcriptId ? { ...t, cut_lists: [cutList, ...(t.cut_lists ?? [])] } : t
     ));
+  }
+
+  function toggleExpand(t: ProjectTranscriptWithProject) {
+    setExpanded((e) => {
+      const opening = !(e[t.id] ?? false);
+      if (opening && t.audio_path && !audioUrls[t.id]) {
+        fetch(`/api/transcribe/audio-url?id=${t.id}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => { if (d?.url) setAudioUrls((prev) => ({ ...prev, [t.id]: d.url })); })
+          .catch(() => {});
+      }
+      return { ...e, [t.id]: opening };
+    });
   }
 
   function startEdit(t: ProjectTranscriptWithProject) {
@@ -162,7 +179,7 @@ export function TranscriptHistory({ onLoadTranscript }: TranscriptHistoryProps =
                   {/* Row — click to load (sidebar mode) or expand (drawer mode) */}
                   <div
                     className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors"
-                    onClick={() => onLoadTranscript ? onLoadTranscript(t) : setExpanded((e) => ({ ...e, [t.id]: !isOpen }))}
+                    onClick={() => onLoadTranscript ? onLoadTranscript(t) : toggleExpand(t)}
                   >
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-white/[0.03]">
                       <FileAudio className="h-3.5 w-3.5 text-muted-foreground" />
@@ -245,8 +262,12 @@ export function TranscriptHistory({ onLoadTranscript }: TranscriptHistoryProps =
                             rows={Math.max(8, editText.split("\n").length)}
                           />
                         ) : (
-                          <div className="max-h-52 overflow-y-auto custom-scrollbar rounded-xl border border-border bg-white/[0.02] p-4">
-                            <p className="whitespace-pre-wrap text-sm leading-7 text-foreground/80">{t.transcript}</p>
+                          <div className="max-h-72 overflow-y-auto custom-scrollbar rounded-xl border border-border bg-white/[0.02] p-4">
+                            <SyncedTranscript
+                              text={t.transcript}
+                              words={t.words ?? []}
+                              audioUrl={audioUrls[t.id] ?? null}
+                            />
                           </div>
                         )}
                       </div>
@@ -269,6 +290,9 @@ export function TranscriptHistory({ onLoadTranscript }: TranscriptHistoryProps =
                       <AIContentPanel
                         transcript={t.transcript}
                         filename={t.filename}
+                        liveAudio={t.words && t.words.length > 0 ? { file: null, words: t.words } : null}
+                        duration={t.duration_secs}
+                        savedTranscriptId={t.id}
                         onSaveCutList={(cl) => handleSaveCutList(t.id, cl)}
                       />
                     </div>

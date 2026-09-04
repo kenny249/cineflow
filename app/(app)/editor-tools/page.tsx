@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { Wrench, Clock, MonitorPlay, Mic2 } from "lucide-react";
 import { getEditSessions } from "@/lib/supabase/queries";
 import type { EditSession } from "@/types";
@@ -17,14 +18,34 @@ const TABS = [
 
 type Tab = typeof TABS[number]["key"];
 
+// useSearchParams (for the PDF deep-link) requires a Suspense boundary or
+// Next.js bails the whole route out of static generation.
 export default function EditorToolsPage() {
+  return (
+    <Suspense fallback={null}>
+      <EditorToolsPageInner />
+    </Suspense>
+  );
+}
+
+function EditorToolsPageInner() {
   const [tab, setTab]           = useState<Tab>("log");
   const [sessions, setSessions] = useState<EditSession[]>([]);
   const [loading, setLoading]   = useState(true);
-  // Persist active tab in URL hash so refresh restores the same tab
+  const searchParams = useSearchParams();
+  // A PDF's clickable timecode links back here as
+  // ?transcript=<id>&t=<seconds>#transcribe — jump straight to that
+  // transcript, seeked to that moment, instead of a fresh upload screen.
+  const deepLinkTranscriptId = searchParams.get("transcript");
+  const deepLinkSeek = searchParams.get("t");
+
+  // Persist active tab in URL hash so refresh restores the same tab —
+  // a deep-linked transcript always forces the Transcribe tab regardless.
   useEffect(() => {
+    if (deepLinkTranscriptId) { setTab("transcribe"); return; }
     const hash = window.location.hash.slice(1) as Tab;
     if (TABS.some((t) => t.key === hash)) setTab(hash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleTabChange(key: Tab) {
@@ -105,7 +126,10 @@ export default function EditorToolsPage() {
             short of re-transcribing. Hiding instead of destroying it means
             clicking to another tab and back never costs you anything. */}
         <div className={cn("h-full", tab !== "transcribe" && "hidden")}>
-          <AudioTranscriber />
+          <AudioTranscriber
+            initialTranscriptId={deepLinkTranscriptId}
+            initialSeekSeconds={deepLinkSeek ? Number(deepLinkSeek) : null}
+          />
         </div>
       </div>
     </div>

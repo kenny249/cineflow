@@ -1,4 +1,5 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Link } from "@react-pdf/renderer";
+import { buildTranscriptCues, formatClock, type WhisperWord } from "@/lib/transcript-cues";
 
 const styles = StyleSheet.create({
   page: {
@@ -40,6 +41,24 @@ const styles = StyleSheet.create({
     lineHeight: 1.7,
     color: "#1a1a1a",
   },
+  cue: {
+    marginBottom: 10,
+    flexDirection: "row",
+  },
+  timecode: {
+    width: 46,
+    flexShrink: 0,
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    color: "#a3792f",
+    paddingTop: 1,
+  },
+  cueText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 1.6,
+    color: "#1a1a1a",
+  },
   footer: {
     position: "absolute",
     bottom: 28,
@@ -61,12 +80,25 @@ export function TranscriptPDFDocument({
   text,
   filename,
   duration,
+  words,
+  transcriptId,
+  siteUrl,
 }: {
   text: string;
   filename: string;
   duration: number | null;
+  // Timestamped layout when word-level data is available; otherwise falls
+  // back to the original single flowing block, same as before this existed.
+  words?: WhisperWord[] | null;
+  // When both are present, each timecode becomes a real link back into
+  // CineFlow's own transcript viewer, seeked to that exact moment — the
+  // same trick Rev's "clickable timecode" PDFs use, since a static PDF
+  // can't control audio playback on its own either way.
+  transcriptId?: string | null;
+  siteUrl?: string | null;
 }) {
   const now = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const cues = words && words.length > 0 ? buildTranscriptCues(words) : [];
 
   return (
     <Document>
@@ -80,7 +112,27 @@ export function TranscriptPDFDocument({
         </View>
 
         <Text style={styles.sectionLabel}>Transcript</Text>
-        <Text style={styles.body}>{text}</Text>
+
+        {cues.length > 0 ? (
+          cues.map((cue, i) => {
+            const label = formatClock(cue.start);
+            const href = transcriptId && siteUrl
+              ? `${siteUrl}/editor-tools?transcript=${transcriptId}&t=${Math.floor(cue.start)}#transcribe`
+              : null;
+            return (
+              <View key={i} style={styles.cue} wrap={false}>
+                {href ? (
+                  <Link src={href} style={styles.timecode}>{label}</Link>
+                ) : (
+                  <Text style={styles.timecode}>{label}</Text>
+                )}
+                <Text style={styles.cueText}>{cue.text}</Text>
+              </View>
+            );
+          })
+        ) : (
+          <Text style={styles.body}>{text}</Text>
+        )}
 
         <Text style={styles.footer} render={({ pageNumber, totalPages }) =>
           `Page ${pageNumber} of ${totalPages}`

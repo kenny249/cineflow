@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
 import { ProjectPicker } from "@/components/editor-tools/ProjectPicker";
 import { TranscriptHistory } from "@/components/editor-tools/TranscriptHistory";
-import { getProjects, saveProjectTranscript, appendTranscriptCutList, updateProjectTranscriptText, getTranscriptById } from "@/lib/supabase/queries";
+import { SyncedTranscript } from "@/components/editor-tools/SyncedTranscript";
+import { getProjects, saveProjectTranscript, appendTranscriptCutList, updateProjectTranscriptText, getTranscriptById, attachTranscriptAudio } from "@/lib/supabase/queries";
 import type { ProjectTranscriptWithProject, CutListSave } from "@/lib/supabase/queries";
 import type { Project } from "@/types";
 import type { WhisperWord } from "@/lib/transcript-align";
@@ -48,11 +49,14 @@ type DoneState = {
   projectLabel?: string | null;
 };
 
-// The real audio bytes + word timestamps. Set on a fresh transcription and
-// persisted to IndexedDB so a page refresh doesn't lose export capability;
-// never present for a transcript reopened from the library, since we never
-// stored audio for those in the first place.
-type LiveAudio = { file: File; words: WhisperWord[] };
+// Word timestamps, plus the real audio bytes when we have them in memory
+// (a fresh transcription, or one restored from IndexedDB after a refresh).
+// `file` is null for a transcript reopened from the library that has
+// timestamps but whose audio lives only in durable storage — playback then
+// comes from a fetched signed URL instead (see `audioUrl` state below), and
+// Export Cuts (which needs real bytes for ffmpeg) stays unavailable until
+// that's fetched on demand.
+type LiveAudio = { file: File | null; words: WhisperWord[] };
 
 // One continuous phase for the whole pipeline — probing duration,
 // compressing if needed, splitting if still too big, transcribing one or
@@ -78,7 +82,15 @@ function formatDuration(secs: number) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-export function AudioTranscriber() {
+interface AudioTranscriberProps {
+  // Set from a PDF's deep-link ("?transcript=<id>&t=<seconds>") so opening
+  // that link jumps straight to a saved transcript, seeked to that moment,
+  // instead of landing on the empty upload screen.
+  initialTranscriptId?: string | null;
+  initialSeekSeconds?: number | null;
+}
+
+export function AudioTranscriber({ initialTranscriptId, initialSeekSeconds }: AudioTranscriberProps = {}) {
   const [state, setState] = useState<State>({ phase: "idle" });
   const [dragging, setDragging] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -96,6 +108,13 @@ export function AudioTranscriber() {
   const [historyKey, setHistoryKey] = useState(0);
   const [mobileTab, setMobileTab] = useState<MobileTab>("transcript");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Playable URL for the synced transcript — an object URL for audio already
+  // in memory, or a fetched signed URL for a saved transcript reopened from
+  // the library. Kept separate from `liveAudio` so playback can work even
+  // when there's no local File yet (see the LiveAudio comment above).
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioPersistStatus, setAudioPersistStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
+  const [pendingSeek, setPendingSeek] = useState<number | null>(initialSeekSeconds ?? null);
 
   useEffect(() => {
     try {
@@ -148,6 +167,47 @@ export function AudioTranscriber() {
   useEffect(() => {
     if (showProjectPicker) ensureProjectsLoaded();
   }, [showProjectPicker]);
+
+  // Resolves a playable URL for whatever's currently loaded: an object URL
+  // when the real bytes are already in memory (live session, or restored
+  // from IndexedDB after a refresh), otherwise a fetched signed URL for a
+  // saved transcript's durably-stored audio. Neither may exist — an older
+  // transcript saved before this feature, or one whose audio upload never
+  // finished — in which case SyncedTranscript just falls back to plain text.
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    setAudioUrl(null);
+    if (state.phase !== "done") return;
+    if (state.liveAudio?.file) {
+      objectUrl = URL.createObjectURL(state.liveAudio.file);
+      setAudioUrl(objectUrl);
+    } else if (savedTranscriptId) {
+      fetch(`/api/transcribe/audio-url?id=${savedTranscriptId}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (!cancelled && d?.url) setAudioUrl(d.url); })
+        .catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [state, savedTranscriptId]);
+
+  // Deep-linked open from a PDF's clickable timecode — load that specific
+  // transcript and let the pendingSeek prop above carry it the rest of the
+  // way once its audio is ready. project_title is left blank here (this
+  // fetch doesn't join it); a cosmetic gap only, since the point of this
+  // link is jumping to a moment, not the project label.
+  useEffect(() => {
+    if (!initialTranscriptId) return;
+    getTranscriptById(initialTranscriptId)
+      .then((t) => { if (t) loadTranscript({ ...t, project_title: null }); })
+      .catch((e) => console.error("[transcriber] failed to open deep-linked transcript:", e));
+    // Intentionally run once — this only ever reflects the URL this
+    // component was mounted with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -383,7 +443,13 @@ export function AudioTranscriber() {
       const res = await fetch("/api/transcribe/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: state.text, filename: basename, duration: state.duration }),
+        body: JSON.stringify({
+          text: state.text,
+          filename: basename,
+          duration: state.duration,
+          words: state.liveAudio?.words ?? null,
+          transcriptId: savedTranscriptId,
+        }),
       });
       if (!res.ok) throw new Error("PDF failed");
       const blob = await res.blob();
@@ -418,6 +484,7 @@ export function AudioTranscriber() {
       fileSizeBytes: state.file.size,
       durationSecs: state.duration,
       transcript: state.text,
+      words: state.liveAudio?.words ?? null,
     });
     setSavedTranscriptId(saved.id);
     setSavedToProject(label);
@@ -428,7 +495,47 @@ export function AudioTranscriber() {
       if (raw) localStorage.setItem(LS_KEY, JSON.stringify({ ...JSON.parse(raw), transcriptId: saved.id, projectLabel: label }));
     } catch {}
     setHistoryKey((k) => k + 1);
+    // Best-effort, non-blocking: the transcript text itself is already
+    // durably saved above regardless of whether this succeeds. Only when
+    // it does does the transcript get real playback/scrub if reopened
+    // later — worth trying whenever we actually have the audio bytes in
+    // memory, but never worth making someone wait on or fail a save over.
+    if (state.liveAudio?.file) {
+      persistAudioForTranscript(saved.id, state.liveAudio.file, state.liveAudio.words);
+    }
     return saved.id;
+  }
+
+  // Uploads the real audio to durable storage and records where it landed,
+  // so this transcript keeps its scrub/click-to-seek player forever, not
+  // just for the rest of this browser tab. Fire-and-forget from the
+  // caller's perspective — failure here doesn't undo the text save, it
+  // just means playback won't be available next time this is reopened.
+  async function persistAudioForTranscript(transcriptId: string, file: File, words: WhisperWord[]) {
+    setAudioPersistStatus("saving");
+    try {
+      const ext = file.name.split(".").pop() || "mp3";
+      const prepRes = await fetch("/api/transcribe/save-audio-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcriptId, filename: `audio.${ext}` }),
+      });
+      if (!prepRes.ok) throw new Error("Could not prepare audio storage");
+      const { signedUrl, path } = await prepRes.json();
+
+      const putRes = await fetch(signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "audio/mpeg" },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("Audio upload failed");
+
+      await attachTranscriptAudio(transcriptId, path, words);
+      setAudioPersistStatus("done");
+    } catch (e) {
+      console.error("[transcriber] failed to persist audio for durable playback:", e);
+      setAudioPersistStatus("error");
+    }
   }
 
   function ensureProjectsLoaded() {
@@ -511,7 +618,19 @@ export function AudioTranscriber() {
 
   function loadTranscript(t: ProjectTranscriptWithProject) {
     const fakeFile = new File([], t.filename, { type: "audio/mpeg" });
-    setState({ phase: "done", file: fakeFile, text: t.transcript, duration: t.duration_secs ?? null, liveAudio: null });
+    // Word timestamps (if this transcript was saved after durable playback
+    // shipped) travel with it even though the real audio bytes don't — that
+    // alone restores exact-timestamp cut-list grounding and the synced
+    // transcript view; only Export Cuts needs the actual audio, fetched
+    // separately (and lazily) via `audioUrl`.
+    const words = t.words ?? [];
+    setState({
+      phase: "done",
+      file: fakeFile,
+      text: t.transcript,
+      duration: t.duration_secs ?? null,
+      liveAudio: words.length > 0 ? { file: null, words } : null,
+    });
     setSavedToProject(t.project_title ?? "Personal");
     setSavedTranscriptId(t.id);
     setSavedCutLists(t.cut_lists ?? []);
@@ -521,8 +640,10 @@ export function AudioTranscriber() {
         transcriptId: t.id, projectLabel: t.project_title ?? "Personal",
       }));
     } catch {}
-    // A saved transcript never has live audio behind it — clear any stale
-    // blob from a previous live session so it can't be mistakenly restored.
+    // A saved transcript never has a local audio File behind it — clear any
+    // stale blob from a previous live session so it can't be mistakenly
+    // restored. Its durably-stored audio (if any) is fetched separately by
+    // the audioUrl effect, keyed off savedTranscriptId.
     clearCurrentAudio().catch(() => {});
   }
 
@@ -623,6 +744,16 @@ export function AudioTranscriber() {
             {state.duration ? ` · ${formatDuration(state.duration)}` : ""}
             {" · "}{wordCount.toLocaleString()} words
             {savedToProject && <span className="ml-2 text-emerald-400">· saved to &ldquo;{savedToProject}&rdquo;</span>}
+            {audioPersistStatus === "saving" && (
+              <span className="ml-2 inline-flex items-center gap-1 text-muted-foreground/60">
+                <Loader2 className="h-2.5 w-2.5 animate-spin" /> storing audio for playback later…
+              </span>
+            )}
+            {audioPersistStatus === "error" && (
+              <span className="ml-2 text-amber-400/80" title="The transcript itself is saved fine — only the reopen-later playback couldn't be stored.">
+                · couldn&apos;t store audio for later playback
+              </span>
+            )}
           </p>
         </div>
 
@@ -750,7 +881,12 @@ export function AudioTranscriber() {
                 className="h-full w-full resize-none bg-transparent text-sm leading-8 text-foreground focus:outline-none"
               />
             ) : (
-              <p className="whitespace-pre-wrap text-sm leading-8 text-foreground/90">{state.text}</p>
+              <SyncedTranscript
+                text={state.text}
+                words={state.liveAudio?.words ?? []}
+                audioUrl={audioUrl}
+                seekToSeconds={pendingSeek}
+              />
             )}
           </div>
         </div>

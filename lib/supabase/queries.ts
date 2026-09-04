@@ -2199,6 +2199,8 @@ export async function deleteQuoteEstimate(id: string): Promise<void> {
 
 // ── Project Transcripts ───────────────────────────────────────────────────────
 
+export type TranscriptWord = { word: string; start: number; end: number };
+
 export type ProjectTranscript = {
   id: string;
   project_id: string | null;
@@ -2209,6 +2211,11 @@ export type ProjectTranscript = {
   transcript: string;
   cut_lists: CutListSave[];
   created_at: string;
+  // Both null for transcripts saved before durable playback existed, or if
+  // the audio upload failed — always fall back to the plain-text view in
+  // that case rather than assuming these are present.
+  words: TranscriptWord[] | null;
+  audio_path: string | null;
 };
 
 export type CutListSave = {
@@ -2284,6 +2291,7 @@ export async function saveProjectTranscript(params: {
   fileSizeBytes: number;
   durationSecs: number | null;
   transcript: string;
+  words?: TranscriptWord[] | null;
 }): Promise<ProjectTranscript> {
   const client = createClient();
   const { data: { user } } = await client.auth.getUser();
@@ -2297,11 +2305,25 @@ export async function saveProjectTranscript(params: {
       file_size_bytes: params.fileSizeBytes,
       duration_secs: params.durationSecs,
       transcript: params.transcript,
+      words: params.words ?? null,
     })
     .select()
     .single();
   if (error) throw new Error(error.message);
   return data as ProjectTranscript;
+}
+
+// Records where a transcript's source audio landed in storage once the
+// (best-effort, non-blocking) upload after save finishes — kept separate
+// from saveProjectTranscript because the upload happens after the row
+// already exists and can genuinely fail without that meaning the save did.
+export async function attachTranscriptAudio(id: string, audioPath: string, words: TranscriptWord[]): Promise<void> {
+  const client = createClient();
+  const { error } = await client
+    .from("project_transcripts")
+    .update({ audio_path: audioPath, words })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function appendTranscriptCutList(transcriptId: string, cutList: CutListSave): Promise<void> {

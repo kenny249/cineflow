@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { text, filename, duration, aiContent } = await req.json();
+  const { text, filename, duration, aiContent, words, transcriptId } = await req.json();
 
   try {
     let buffer: Buffer;
@@ -42,7 +42,14 @@ export async function POST(req: NextRequest) {
     } else {
       if (!text) return NextResponse.json({ error: "No transcript text provided" }, { status: 400 });
       buffer = await renderToBuffer(
-        createElement(TranscriptPDFDocument, { text, filename: filename ?? "Transcript", duration: duration ?? null }) as any
+        createElement(TranscriptPDFDocument, {
+          text,
+          filename: filename ?? "Transcript",
+          duration: duration ?? null,
+          words: Array.isArray(words) ? words : null,
+          transcriptId: transcriptId ?? null,
+          siteUrl: process.env.NEXT_PUBLIC_SITE_URL ?? null,
+        }) as any
       );
       downloadName = `${baseName}-transcript.pdf`;
     }

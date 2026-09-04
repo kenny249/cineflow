@@ -159,7 +159,11 @@ function takeawaysText(d: KeyTakeawaysData): string {
 interface Props {
   transcript: string;
   filename: string;
-  liveAudio?: { file: File; words: WhisperWord[] } | null;
+  // `file` is null when this transcript's word timestamps were restored
+  // from a saved transcript but its audio wasn't fetched into memory (or
+  // was never durably stored) — grounding cut-list quotes to real timestamps
+  // only needs `words`; only Export Cuts (real ffmpeg bytes) needs `file`.
+  liveAudio?: { file: File | null; words: WhisperWord[] } | null;
   duration?: number | null;
   // Whether the transcript itself already has a database row — when it
   // doesn't yet, saving a cut list also has to ask which project it belongs
@@ -314,7 +318,7 @@ export function AIContentPanel({
   }
 
   async function exportCuts() {
-    if (!output || output.kind !== "cut_list" || !liveAudio) return;
+    if (!output || output.kind !== "cut_list" || !liveAudio?.file) return;
     const resolvable = output.data.cuts
       .map((c, i) => ({ c, i }))
       .filter((x) => x.c.real_start_sec != null && x.c.real_end_sec != null);
@@ -645,7 +649,7 @@ export function AIContentPanel({
                     {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
                     {generating ? "Regenerating…" : "Regenerate"}
                   </button>
-                  {liveAudio && (
+                  {liveAudio?.file && (
                     <>
                       <select
                         value={nleTarget}
@@ -735,11 +739,17 @@ export function AIContentPanel({
 
               {!liveAudio && (
                 <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
-                  The original audio isn&apos;t in this tab right now — either this was reopened from your library, or the page was refreshed since you last transcribed it. Exact timestamps and clip export need the live audio, so transcribe this file again without refreshing in between to get both.
+                  No exact timestamps for this transcript — either it predates timestamp support, or the page was refreshed before the audio finished saving. Exact timestamps and clip export need those, so transcribe this file again to get both.
                 </p>
               )}
 
-              {liveAudio && (
+              {liveAudio && !liveAudio.file && (
+                <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
+                  Soundbites above are matched to exact timestamps, but this transcript&apos;s audio isn&apos;t loaded right now, so clip export isn&apos;t available here — reopen it from a fresh transcription in this tab to export cuts.
+                </p>
+              )}
+
+              {liveAudio?.file && (
                 <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
                   {IMPORT_INSTRUCTIONS[nleTarget]}
                   {NEEDS_FRAME_RATE[nleTarget] && " Set the fps above to match your project's real frame rate — a mismatch shifts every marker by a fraction of a second."}
