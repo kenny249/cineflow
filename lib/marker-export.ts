@@ -4,15 +4,22 @@
 //
 // Format notes (confidence varies — see individual builders):
 // - Premiere Pro CSV marker import: well-documented, high confidence.
+//   Timecode-based — needs the real project frame rate (see NEEDS_FRAME_RATE)
+//   or markers land a fraction of a second off, silently.
 // - FCPXML markers: documented format, but XML validation is strict —
 //   this generates a self-contained reference timeline (a gap clip sized to
 //   the source audio, with markers at each real timestamp), not markers
 //   attached to footage already in your library. Verify on a real import.
-// - DaVinci Resolve: markers import via EDL (not CSV) using the legacy
-//   "* LOC:" locator comment convention. Medium confidence — the exact
-//   dummy-event/LOC arrangement isn't something we could verify without a
-//   real Resolve import.
-// - SRT: universal fallback, importable as captions almost anywhere.
+//   Expressed as an exact rational fraction of a second, not a frame-rate-
+//   dependent timecode, so it doesn't have the mismatch risk below.
+// - DaVinci Resolve: markers import via EDL (not CSV/XML) using the legacy
+//   "* LOC:" locator comment convention — this is the correct, surgical
+//   way to drop real timeline markers into Resolve without importing a
+//   whole new sequence, not a fallback. Timecode-based like Premiere, same
+//   frame-rate requirement. Medium confidence on the exact dummy-event/LOC
+//   arrangement — not something we could verify without a real import.
+// - SRT: universal fallback, importable as captions almost anywhere,
+//   millisecond-based so it has no frame-rate dependency at all.
 
 export interface MarkerCut {
   label: string;
@@ -47,15 +54,22 @@ function csvEscape(s: string): string {
 }
 
 function secToTimecode(totalSeconds: number, fps: number): string {
+  // Non-drop-frame timecode always counts whole frames per second (0–23 at
+  // 23.976fps, 0–29 at 29.97fps) — the fractional rate only affects how much
+  // real time each frame spans, not how the digits are labeled. So elapsed
+  // frames are computed from the true (fractional) rate, but the h:m:s:f
+  // digit math must use the rounded nominal rate, or the frame field comes
+  // out fractional (e.g. ":11.56") instead of a real frame number.
+  const nominalFps = Math.round(fps);
   const totalFrames = Math.max(0, Math.round(totalSeconds * fps));
-  const framesPerHour = fps * 3600;
-  const framesPerMinute = fps * 60;
+  const framesPerHour = nominalFps * 3600;
+  const framesPerMinute = nominalFps * 60;
   const h = Math.floor(totalFrames / framesPerHour);
   const remH = totalFrames % framesPerHour;
   const m = Math.floor(remH / framesPerMinute);
   const remM = remH % framesPerMinute;
-  const s = Math.floor(remM / fps);
-  const f = remM % fps;
+  const s = Math.floor(remM / nominalFps);
+  const f = remM % nominalFps;
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
 }
@@ -119,11 +133,13 @@ ${markers}
 }
 
 // ── Premiere Pro (CSV marker import) ────────────────────────────────────────
-// Markers panel → Import Marker List. Columns: Marker Name, Description,
-// In, Out. Timecodes assume 30fps — adjust in Premiere if your project
-// differs.
-function buildPremiereCsv(cuts: MarkerCut[]): string {
-  const fps = DEFAULT_FPS;
+// Markers panel → panel menu (☰) → Import Marker List. Columns: Marker
+// Name, Description, In, Out. Timecodes are baked in at whatever frame
+// rate is passed in — they only line up correctly if it matches the real
+// project's rate, since HH:MM:SS stays right regardless but the frame
+// count doesn't, so a mismatch quietly shifts every marker by a fraction
+// of a second rather than erroring.
+function buildPremiereCsv(cuts: MarkerCut[], fps: number): string {
   const header = "Marker Name,Description,In,Out,Duration,Marker Type";
   const rows = cuts.map((c) => {
     const inTc = secToTimecode(c.start, fps);
@@ -143,9 +159,11 @@ function buildPremiereCsv(cuts: MarkerCut[]): string {
 
 // ── DaVinci Resolve (marker EDL) ─────────────────────────────────────────────
 // Timeline > Import > Timeline Markers from EDL. Uses the legacy "* LOC:"
-// locator convention. Timecodes assume 30fps non-drop-frame.
-function buildResolveEdl(cuts: MarkerCut[]): string {
-  const fps = DEFAULT_FPS;
+// locator convention — the correct, surgical way to drop real, native
+// timeline markers into Resolve without touching any clips, as opposed to
+// importing a whole new sequence. Timecodes are non-drop-frame at
+// whatever rate is passed in; same mismatch caveat as Premiere above.
+function buildResolveEdl(cuts: MarkerCut[], fps: number): string {
   const lines = [
     "TITLE: CineFlow Soundbites",
     "FCM: NON-DROP FRAME",
@@ -179,14 +197,40 @@ export interface MarkerFile {
   content: string;
 }
 
-export function buildMarkerFile(target: NleTarget, cuts: MarkerCut[], totalDurationSec: number): MarkerFile {
+// Only Premiere and Resolve actually need this — they're built from literal
+// HH:MM:SS:FF timecode strings, which only mean what they're supposed to if
+// the frame rate they were written at matches the project they land in.
+// FCPXML expresses time as an exact rational fraction of a second (correct
+// regardless of what frame rate the receiving project happens to be), and
+// SRT is millisecond-based — neither has this problem at all.
+export const MARKER_FRAME_RATES = [23.976, 24, 25, 29.97, 30] as const;
+export type MarkerFrameRate = (typeof MARKER_FRAME_RATES)[number];
+export const NEEDS_FRAME_RATE: Record<NleTarget, boolean> = {
+  fcpx: false,
+  premiere: true,
+  resolve: true,
+  universal: false,
+};
+
+export const IMPORT_INSTRUCTIONS: Record<NleTarget, string> = {
+  fcpx: "In Final Cut Pro: File → Import → XML… then select this file. It creates a new reference timeline — line it up against your real clip at 0:00.",
+  premiere: "In Premiere Pro: open the Markers panel → panel menu (☰) → Import Marker List… then select this file.",
+  resolve: "In DaVinci Resolve: Timeline menu → Import → Timeline Markers from EDL… then select this file.",
+  universal: "Import as a caption/subtitle track — works via drag-and-drop in nearly every editor, Resolve, Premiere, and Final Cut included.",
+};
+
+function fpsSuffix(fps: number): string {
+  return `${fps}fps`.replace(".", "_");
+}
+
+export function buildMarkerFile(target: NleTarget, cuts: MarkerCut[], totalDurationSec: number, fps: number = DEFAULT_FPS): MarkerFile {
   switch (target) {
     case "fcpx":
       return { filename: "cineflow-markers.fcpxml", content: buildFcpxml(cuts, totalDurationSec) };
     case "premiere":
-      return { filename: "cineflow-markers-30fps.csv", content: buildPremiereCsv(cuts) };
+      return { filename: `cineflow-markers-${fpsSuffix(fps)}.csv`, content: buildPremiereCsv(cuts, fps) };
     case "resolve":
-      return { filename: "cineflow-markers-30fps.edl", content: buildResolveEdl(cuts) };
+      return { filename: `cineflow-markers-${fpsSuffix(fps)}.edl`, content: buildResolveEdl(cuts, fps) };
     case "universal":
       return { filename: "cineflow-captions.srt", content: buildSrt(cuts) };
   }

@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { CutListSave } from "@/lib/supabase/queries";
 import { findQuoteTimestamp, type WhisperWord } from "@/lib/transcript-align";
-import { buildMarkerFile, NLE_LABELS, type NleTarget } from "@/lib/marker-export";
+import { buildMarkerFile, NLE_LABELS, NEEDS_FRAME_RATE, IMPORT_INSTRUCTIONS, MARKER_FRAME_RATES, type NleTarget } from "@/lib/marker-export";
 import { SavedCutListCard } from "@/components/editor-tools/SavedCutListCard";
 import { ProjectPicker } from "@/components/editor-tools/ProjectPicker";
 import type { Project } from "@/types";
@@ -189,6 +189,7 @@ export function AIContentPanel({
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
   const [nleTarget, setNleTarget] = useState<NleTarget>("fcpx");
+  const [exportFps, setExportFps] = useState<number>(30);
   const [targetDurationKey, setTargetDurationKey] = useState<string>("auto");
   const [customSeconds, setCustomSeconds] = useState("");
   const { copiedKey, copy } = useCopyText();
@@ -335,7 +336,7 @@ export function AIContentPanel({
         end: c.real_end_sec as number,
       }));
       const totalDuration = duration ?? Math.max(...cuts.map((c) => c.end)) + 1;
-      const markerFile = buildMarkerFile(nleTarget, cuts, totalDuration);
+      const markerFile = buildMarkerFile(nleTarget, cuts, totalDuration, exportFps);
       const { blob, includedCount } = await exportCutsZip(liveAudio.file, cuts, 0.15, setExportProgress, markerFile);
 
       const url = URL.createObjectURL(blob);
@@ -657,6 +658,19 @@ export function AIContentPanel({
                           <option key={t} value={t}>{NLE_LABELS[t]}</option>
                         ))}
                       </select>
+                      {NEEDS_FRAME_RATE[nleTarget] && (
+                        <select
+                          value={exportFps}
+                          onChange={(e) => setExportFps(Number(e.target.value))}
+                          disabled={exporting}
+                          title="Your project's frame rate — markers are timecode-based and only land in the right place if this matches"
+                          className="shrink-0 rounded-lg border border-border bg-white/[0.03] px-2 py-1.5 text-xs text-muted-foreground disabled:opacity-60 transition-colors focus:border-[#d4a853]/50 focus:outline-none"
+                        >
+                          {MARKER_FRAME_RATES.map((fps) => (
+                            <option key={fps} value={fps}>{fps} fps</option>
+                          ))}
+                        </select>
+                      )}
                       <button
                         onClick={exportCuts}
                         disabled={exporting}
@@ -722,6 +736,13 @@ export function AIContentPanel({
               {!liveAudio && (
                 <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
                   The original audio isn&apos;t in this tab right now — either this was reopened from your library, or the page was refreshed since you last transcribed it. Exact timestamps and clip export need the live audio, so transcribe this file again without refreshing in between to get both.
+                </p>
+              )}
+
+              {liveAudio && (
+                <p className="px-5 pb-3 text-[11px] text-muted-foreground/50 leading-relaxed">
+                  {IMPORT_INSTRUCTIONS[nleTarget]}
+                  {NEEDS_FRAME_RATE[nleTarget] && " Set the fps above to match your project's real frame rate — a mismatch shifts every marker by a fraction of a second."}
                 </p>
               )}
 
