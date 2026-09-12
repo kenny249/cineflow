@@ -20,6 +20,7 @@ const PUBLIC_PREFIXES = [
   "/update-password",
   "/share",
   "/maintenance",
+  "/manifest.webmanifest",
   // Public / token-gated API routes — these are hit by unauthenticated clients
   // (review portals, share links, public forms, quote & contract signing, etc.).
   // Each handler enforces its own token/auth, so the middleware must let them through.
@@ -186,7 +187,12 @@ export async function proxy(request: NextRequest) {
   return supabaseResponse;
 }
 
-export const proxyConfig = {
+// NOTE: Next.js's build-time analysis only recognizes a const literally named
+// `config` to extract this matcher — `proxyConfig` (the old name here) is
+// silently ignored, which makes proxy() run on every request with no
+// exemptions at all (previously broke favicon.ico, icon.svg, apple-icon.png,
+// and manifest.webmanifest for every logged-out visitor). Do not rename this.
+export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|manifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],

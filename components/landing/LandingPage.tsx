@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Film, Check } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
 import { scrollState } from "./scrollState";
@@ -28,25 +29,34 @@ const PANELS = [
     h: ["Your whole", "production.", "One view."] as const,
     sub: "Shot lists, call sheets, and scheduling. Everything your crew needs, right where your project lives.",
     note: "Replaces StudioBinder + Notion",
+    img: "/marketing/panel-production.png",
+    imgAlt: "CineFlow shot list for a short film production, with scenes, camera moves, and lenses tracked per shot.",
   },
   {
     num: "02", tag: "Client Portal",
     h: ["Clients stay", "in the loop.", "Automatically."] as const,
     sub: "Every client gets their own portal. They see progress, approve cuts, and sign off. Without texting you.",
     note: 'No more "hey, are the videos done yet?"',
+    img: "/marketing/panel-client-portal.png",
+    imgAlt: "CineFlow review hub showing video cuts with approval status — in house, revision needed, approved.",
   },
   {
     num: "03", tag: "Payments",
     h: ["Stop chasing", "your own", "money."] as const,
     sub: "Professional invoices, deposit collection, and automated reminders, right next to the project.",
     note: "Replaces HoneyBook + DocuSign",
+    img: "/marketing/panel-payments.png",
+    imgAlt: "CineFlow finance dashboard with revenue chart, top clients, and a list of invoices by status.",
   },
 ] as const;
 
+// Annual figures mirror app/(app)/upgrade/page.tsx — keep in sync if pricing changes.
 const LP_PLANS = [
   {
     name: "Solo",
     price: 39,
+    annual: 29,
+    annualTotal: 348,
     seats: "1 filmmaker",
     features: [
       "Unlimited projects",
@@ -60,6 +70,8 @@ const LP_PLANS = [
   {
     name: "Studio",
     price: 79,
+    annual: 65,
+    annualTotal: 780,
     seats: "Up to 5 team members",
     features: [
       "Everything in Solo",
@@ -73,6 +85,8 @@ const LP_PLANS = [
   {
     name: "Agency",
     price: 159,
+    annual: 129,
+    annualTotal: 1548,
     seats: "Up to 15 team members",
     features: [
       "Everything in Studio",
@@ -98,6 +112,15 @@ const TESTIMONIALS = [
 
 export function LandingPage({ refCode }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
+  const [scrolled, setScrolled] = useState(false);
+  const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     let teardown: (() => void) | undefined;
@@ -148,19 +171,31 @@ export function LandingPage({ refCode }: Props) {
       <BackgroundCanvas />
 
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5">
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5 transition-colors duration-300 ${
+          scrolled ? "border-b border-white/5 bg-[#050508]/80 backdrop-blur-md" : "border-b border-transparent bg-transparent"
+        }`}
+      >
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#d4a853]/40 bg-[#d4a853]/10">
             <Film className="h-3.5 w-3.5 text-[#d4a853]" />
           </div>
           <span className="text-sm font-semibold tracking-tight text-white/90">CineFlow</span>
         </div>
-        <Link
-          href={href}
-          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 backdrop-blur-sm transition-all hover:border-[#d4a853]/50 hover:text-[#d4a853]"
-        >
-          Start free trial
-        </Link>
+        <div className="flex items-center gap-5">
+          <Link
+            href="/login"
+            className="text-xs font-medium text-white/45 transition-colors hover:text-white/80"
+          >
+            Log in
+          </Link>
+          <Link
+            href={href}
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 backdrop-blur-sm transition-all hover:border-[#d4a853]/50 hover:text-[#d4a853]"
+          >
+            Start free trial
+          </Link>
+        </div>
       </nav>
 
       <div className="relative z-20">
@@ -396,37 +431,57 @@ export function LandingPage({ refCode }: Props) {
 
         {/* ══ PANELS ════════════════════════════════════════════════════ */}
         <section className="relative py-20 px-8">
-          <div className="mx-auto max-w-xl flex flex-col items-center gap-20">
+          <div className="mx-auto max-w-6xl flex flex-col gap-28">
             {PANELS.map((panel, i) => (
               <div
                 key={i}
                 data-reveal="clip"
-                className="flex flex-col items-center text-center"
+                className={`flex flex-col items-center gap-10 text-center md:gap-16 md:text-left ${
+                  i % 2 === 1 ? "md:flex-row-reverse" : "md:flex-row"
+                }`}
               >
-                <div className="lp-clip mb-6">
-                  <p className="lp-clip-inner font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48"
-                    style={{ "--di": "0s" } as React.CSSProperties}>
-                    {panel.num} · {panel.tag}
-                  </p>
+                <div className="flex flex-col items-center md:w-[42%] md:shrink-0 md:items-start">
+                  <div className="lp-clip mb-6">
+                    <p className="lp-clip-inner font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48"
+                      style={{ "--di": "0s" } as React.CSSProperties}>
+                      {panel.num} · {panel.tag}
+                    </p>
+                  </div>
+                  <div
+                    className="font-black leading-[1.06] tracking-tighter text-white"
+                    style={{ fontSize: "clamp(2.6rem,5vw,4.6rem)" }}
+                  >
+                    <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.08s" } as React.CSSProperties}>{panel.h[0]}</div></div>
+                    <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.16s" } as React.CSSProperties}>{panel.h[1]}</div></div>
+                    <div className="lp-clip"><div className="lp-clip-inner text-[#d4a853]" style={{ "--di": "0.24s" } as React.CSSProperties}>{panel.h[2]}</div></div>
+                  </div>
+                  <div className="lp-clip my-7">
+                    <div className="lp-clip-inner h-px w-8 bg-[#d4a853]/22" style={{ "--di": "0.30s" } as React.CSSProperties} />
+                  </div>
+                  <div className="lp-clip">
+                    <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/48"
+                      style={{ "--di": "0.36s" } as React.CSSProperties}>{panel.sub}</p>
+                  </div>
+                  <div className="lp-clip mt-5">
+                    <p className="lp-clip-inner font-mono text-[9px] tracking-[0.32em] uppercase text-white/18"
+                      style={{ "--di": "0.42s" } as React.CSSProperties}>{panel.note}</p>
+                  </div>
                 </div>
-                <div
-                  className="font-black leading-[1.06] tracking-tighter text-white"
-                  style={{ fontSize: "clamp(3rem,6.5vw,5.8rem)" }}
-                >
-                  <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.08s" } as React.CSSProperties}>{panel.h[0]}</div></div>
-                  <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.16s" } as React.CSSProperties}>{panel.h[1]}</div></div>
-                  <div className="lp-clip"><div className="lp-clip-inner text-[#d4a853]" style={{ "--di": "0.24s" } as React.CSSProperties}>{panel.h[2]}</div></div>
-                </div>
-                <div className="lp-clip my-7">
-                  <div className="lp-clip-inner h-px w-8 bg-[#d4a853]/22" style={{ "--di": "0.30s" } as React.CSSProperties} />
-                </div>
-                <div className="lp-clip">
-                  <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/48"
-                    style={{ "--di": "0.36s" } as React.CSSProperties}>{panel.sub}</p>
-                </div>
-                <div className="lp-clip mt-5">
-                  <p className="lp-clip-inner font-mono text-[9px] tracking-[0.32em] uppercase text-white/18"
-                    style={{ "--di": "0.42s" } as React.CSSProperties}>{panel.note}</p>
+
+                <div className="w-full md:flex-1">
+                  <div
+                    className="overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+                    style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
+                  >
+                    <Image
+                      src={panel.img}
+                      alt={panel.imgAlt}
+                      width={1440}
+                      height={i === 0 ? 820 : i === 1 ? 460 : 1060}
+                      sizes="(min-width: 768px) 58vw, 92vw"
+                      className="w-full h-auto"
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -491,9 +546,27 @@ export function LandingPage({ refCode }: Props) {
               <p className="mt-4 text-[13px] text-white/40">
                 30-day free trial on every plan. No credit card required.
               </p>
-              <p className="mt-1.5 font-mono text-[10px] text-[#d4a853]/55 tracking-wide">
-                Save ~20% with annual billing
-              </p>
+
+              <div className="mt-6 inline-flex items-center rounded-full border border-white/10 bg-white/[0.03] p-1">
+                <button
+                  type="button"
+                  onClick={() => setBilling("monthly")}
+                  className={`rounded-full px-4 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+                    billing === "monthly" ? "bg-white/10 text-white" : "text-white/40 hover:text-white/70"
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBilling("annual")}
+                  className={`rounded-full px-4 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide transition-colors ${
+                    billing === "annual" ? "bg-[#d4a853] text-black" : "text-white/40 hover:text-white/70"
+                  }`}
+                >
+                  Annual · save ~20%
+                </button>
+              </div>
             </div>
 
             <div data-reveal className="grid gap-4 sm:grid-cols-3">
@@ -521,9 +594,12 @@ export function LandingPage({ refCode }: Props) {
 
                   <div className="mb-6">
                     <span className={`text-3xl font-black ${plan.popular ? "text-[#d4a853]" : "text-white"}`}>
-                      ${plan.price}
+                      ${billing === "annual" ? plan.annual : plan.price}
                     </span>
                     <span className="ml-1 text-xs text-white/28">/mo</span>
+                    {billing === "annual" && (
+                      <p className="mt-1 font-mono text-[10px] text-white/28">Billed ${plan.annualTotal}/year</p>
+                    )}
                   </div>
 
                   <ul className="mb-8 flex-1 space-y-2.5">
