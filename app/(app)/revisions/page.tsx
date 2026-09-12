@@ -422,7 +422,14 @@ function RevisionCard({
     }`}>
       {/* Thumbnail */}
       <div className="relative aspect-video overflow-hidden bg-zinc-900/80" onClick={onSelect}>
-        {revision.file_url ? (
+        {revision.thumbnail_url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- arbitrary external URL, not worth a remotePatterns entry
+          <img
+            src={revision.thumbnail_url}
+            alt={revision.title}
+            className="h-full w-full object-cover transition-[filter] duration-300 group-hover:brightness-125"
+          />
+        ) : revision.file_url ? (
           <video
             ref={thumbRef}
             src={revision.file_url}
