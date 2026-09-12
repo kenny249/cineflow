@@ -90,6 +90,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   );
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [isDemoUser, setIsDemoUser] = useState(false);
+  const [userId, setUserId] = useState<string>("");
   const [profileName, setProfileName] = useState<string>("");
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string>("");
   const [profileStudioName, setProfileStudioName] = useState<string>("");
@@ -104,6 +105,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
+      setUserId(user.id);
       if (user.user_metadata?.is_demo === true) setIsDemoUser(true);
       Promise.all([
         supabase.from("profiles").select("plan, plan_status, trial_ends_at, first_name, last_name, avatar_url, workspace_id, is_admin, business_name").eq("id", user.id).single(),
@@ -244,9 +246,9 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
-          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} plan={plan} planStatus={planStatus} studioName={profileStudioName || undefined} />
+          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userId={userId || undefined} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} plan={plan} planStatus={planStatus} studioName={profileStudioName || undefined} />
         </Suspense>
-        <DemoBanner />
+        <DemoBanner isDemo={isDemoUser} />
         {announcements.map((a) => (
           <AnnouncementBanner key={a.id} id={a.id} message={a.message} type={a.type} />
         ))}

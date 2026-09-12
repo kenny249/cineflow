@@ -1,25 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { FlaskConical, X, Mail, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-export function DemoBanner() {
-  const [isDemo, setIsDemo] = useState(false);
+interface DemoBannerProps {
+  isDemo?: boolean;
+}
+
+export function DemoBanner({ isDemo = false }: DemoBannerProps) {
   const [dismissed, setDismissed] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
-
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user?.user_metadata?.is_demo === true) {
-        setIsDemo(true);
-      }
-    });
-  }, []);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();

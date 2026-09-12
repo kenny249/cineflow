@@ -23,6 +23,10 @@ function formatDate(iso: string | null): string {
   });
 }
 
+function formatEdited(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function daysUntil(iso: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -89,6 +93,8 @@ function CallSheetCard({ cs, onClick }: { cs: CallSheetRow; onClick: () => void 
               <span>{formatDate(cs.shoot_date)}</span>
             </>
           )}
+          <span className="text-muted-foreground/30">·</span>
+          <span>Edited {formatEdited(cs.updated_at)}</span>
         </div>
       </div>
 

@@ -47,6 +47,7 @@ interface TopBarProps {
   onOpenPalette?: () => void;
   theme?: "dark" | "light";
   onToggleTheme?: () => void;
+  userId?: string;
   userAvatarUrl?: string;
   userFullName?: string;
   plan?: string;
@@ -64,7 +65,7 @@ function planLabel(plan?: string, planStatus?: string): string {
   return "CineFlow Member";
 }
 
-export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userAvatarUrl, userFullName, plan, planStatus, studioName }: TopBarProps) {
+export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userId, userAvatarUrl, userFullName, plan, planStatus, studioName }: TopBarProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("Studio User");
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -86,40 +87,39 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
     // Only fall back to random name for unauthenticated demo users (no userFullName passed)
   }, [userFullName]);
 
-  // Load on mount + set up real-time subscription for new notifications
+  // Load on mount
   useEffect(() => {
     loadNotifications();
-
-    // Real-time: subscribe to new notifications for the current user
-    let channel: ReturnType<ReturnType<typeof createClient>["channel"]> | null = null;
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      channel = supabase
-        .channel("notifications-realtime")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "notifications",
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            setNotifications((prev) => [payload.new as AppNotification, ...prev]);
-          }
-        )
-        .subscribe();
-    });
-
     // Fallback poll every 5 min (in case real-time misses something)
     const interval = setInterval(loadNotifications, 5 * 60_000);
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
+
+  // Real-time: subscribe to new notifications for the current user.
+  // userId comes from AppLayout's own auth fetch — no need to re-fetch it here.
+  useEffect(() => {
+    if (!userId) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel("notifications-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          setNotifications((prev) => [payload.new as AppNotification, ...prev]);
+        }
+      )
+      .subscribe();
 
     return () => {
-      clearInterval(interval);
-      if (channel) supabase.removeChannel(channel);
+      supabase.removeChannel(channel);
     };
-  }, [loadNotifications]);
+  }, [userId]);
 
   // Reload when dropdown opens
   useEffect(() => {
