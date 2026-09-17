@@ -820,17 +820,8 @@ export default function JarvisPage() {
   const [elevenlabsOk, setElevenlabsOk] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [barHeights, setBarHeights]     = useState<number[]>([6, 22, 10, 40, 14, 30, 8, 44, 12, 26, 7]);
-  const [personality, setPersonality] = useState<Personality>(() => {
-    if (typeof window === "undefined") return { humor: 50, energy: 50, formality: 50 };
-    try {
-      const s = localStorage.getItem("jarvis-personality");
-      return s ? JSON.parse(s) : { humor: 50, energy: 50, formality: 50 };
-    } catch { return { humor: 50, energy: 50, formality: 50 }; }
-  });
-  const [voiceSpeed, setVoiceSpeed] = useState(() => {
-    if (typeof window === "undefined") return 1.0;
-    return parseFloat(localStorage.getItem("jarvis-voice-speed") ?? "1.0");
-  });
+  const [personality, setPersonality] = useState<Personality>({ humor: 50, energy: 50, formality: 50 });
+  const [voiceSpeed, setVoiceSpeed] = useState(1.0);
   const [settingsSaved, setSettingsSaved] = useState<"" | "saved">("");
   const [showPersonality, setShowPersonality] = useState(false);
   const [activeTools, setActiveTools]   = useState<string[]>([]);
@@ -840,11 +831,7 @@ export default function JarvisPage() {
   const [saveFeedback, setSaveFeedback] = useState<"" | "saved" | "error">("");
   const [muted, setMuted]               = useState(false);
   const [micError, setMicError]         = useState<string>("");
-  const [hour12, setHour12]             = useState(() => {
-    if (typeof window === "undefined") return true;
-    const s = localStorage.getItem("jarvis-hour12");
-    return s !== null ? s === "true" : true;
-  });
+  const [hour12, setHour12]             = useState(true);
 
   const containerRef          = useRef<HTMLDivElement>(null);
   const conversationActiveRef = useRef(false);
@@ -876,6 +863,18 @@ export default function JarvisPage() {
   // ── Stats ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     fetch("/api/admin/jarvis/stats", { cache: "no-store" }).then(r => r.json()).then(setStats).catch(() => {});
+  }, []);
+
+  // ── Hydrate from localStorage post-mount (avoids SSR/first-paint hydration mismatch) ──
+  useEffect(() => {
+    try {
+      const p = localStorage.getItem("jarvis-personality");
+      if (p) setPersonality(JSON.parse(p));
+    } catch { /* ignore malformed stored value */ }
+    const vs = localStorage.getItem("jarvis-voice-speed");
+    if (vs !== null) setVoiceSpeed(parseFloat(vs));
+    const h12 = localStorage.getItem("jarvis-hour12");
+    if (h12 !== null) setHour12(h12 === "true");
   }, []);
 
   // ── Load saved settings from DB — overrides localStorage defaults ──────────
@@ -1184,6 +1183,14 @@ export default function JarvisPage() {
 
       const latencyMs = Date.now() - t0;
       const contentType = res.headers.get("Content-Type") ?? "";
+
+      if (!res.ok) {
+        let errMsg = `Request failed (${res.status}).`;
+        try { errMsg = (await res.clone().json())?.error ?? errMsg; } catch { /* body wasn't JSON */ }
+        console.error("[Jarvis] API error:", res.status, errMsg);
+        setMessages(prev => [...prev, { role: "jarvis", text: `I hit an error talking to the server: ${errMsg}`, ts: new Date(), latencyMs }]);
+        throw new Error(errMsg);
+      }
 
       // Show which tools Jarvis used
       const toolsHeader = res.headers.get("X-Jarvis-Tools") ?? "";
