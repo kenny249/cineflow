@@ -50,11 +50,23 @@ type ReportedItem = {
   note?: string;
 };
 
-// One small, bounded request per item — a handful of searches at most, not a
-// single giant request researching all 8 items sequentially. That older
-// design could run for many minutes with no way to bound it; this one keeps
-// every item independent, fast, and parallelizable.
-async function researchOne(target: ResearchTarget): Promise<ReportedItem | null> {
+// Hard ceiling on a single item's total research time. Live-tested: even
+// with each item individually capped at a few searches and 3 rounds, one
+// slow/contended item (in practice, likely the two-company comparisons —
+// "DocuSign vs HelloSign", "Wave vs FreshBooks") blocked the entire parallel
+// batch past 90s, then 150s, with no per-item bound to fall back on. This
+// guarantees no single item can hold up the others, regardless of why it's
+// slow (rate-limit contention, retries, an indecisive multi-source compare).
+// Verified locally: 8 concurrent items genuinely contend with each other —
+// at a 30s cap only 4/8 finished in time. A failed item just keeps its
+// previous value until the next run (weekly cron + on-demand), so this is
+// an acceptable, self-healing tradeoff rather than a bug to fully solve.
+const PER_ITEM_TIMEOUT_MS = 40_000;
+// Per-call SDK timeout so one stuck HTTP request can't itself outlast the
+// item-level deadline above.
+const PER_CALL_TIMEOUT_MS = 20_000;
+
+async function researchOneInner(target: ResearchTarget): Promise<ReportedItem | null> {
   const messages: Anthropic.MessageParam[] = [
     {
       role: "user",
@@ -63,17 +75,20 @@ async function researchOne(target: ResearchTarget): Promise<ReportedItem | null>
   ];
 
   for (let round = 0; round < 3; round++) {
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-5",
-      max_tokens: 1024,
-      thinking: { type: "adaptive" },
-      output_config: { effort: "low" },
-      tools: [
-        { type: "web_search_20260209", name: "web_search", max_uses: 4 },
-        REPORT_TOOL,
-      ],
-      messages,
-    });
+    const response = await anthropic.messages.create(
+      {
+        model: "claude-sonnet-5",
+        max_tokens: 1024,
+        thinking: { type: "adaptive" },
+        output_config: { effort: "low" },
+        tools: [
+          { type: "web_search_20260209", name: "web_search", max_uses: 4 },
+          REPORT_TOOL,
+        ],
+        messages,
+      },
+      { timeout: PER_CALL_TIMEOUT_MS }
+    );
 
     const reportCall = response.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "report_verified_value"
@@ -94,6 +109,18 @@ async function researchOne(target: ResearchTarget): Promise<ReportedItem | null>
     }
   }
   return null;
+}
+
+// One small, bounded request per item — a handful of searches at most, not a
+// single giant request researching all 8 items sequentially. That older
+// design could run for many minutes with no way to bound it; this one keeps
+// every item independent, fast, and parallelizable — and now hard-capped so
+// one slow item can't stall the rest of the batch either.
+async function researchOne(target: ResearchTarget): Promise<ReportedItem | null> {
+  return Promise.race([
+    researchOneInner(target).catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), PER_ITEM_TIMEOUT_MS)),
+  ]);
 }
 
 export type BriefVerifyResult = {
