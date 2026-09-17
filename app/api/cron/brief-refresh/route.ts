@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { runBriefVerification } from "@/lib/brief-verify";
 
-// 8 items, each needing its own web search + a careful pick between conflicting
-// sources, comfortably exceeds a 60-120s ceiling — this genuinely takes a while.
-export const maxDuration = 280;
+// Each of the 8 items now runs as its own small, bounded, parallel request
+// (a few searches max) instead of one giant sequential request researching
+// all of them — total wall time is bounded by the slowest single item.
+export const maxDuration = 90;
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");
