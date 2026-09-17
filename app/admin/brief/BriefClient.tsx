@@ -8,7 +8,7 @@ import {
 import {
   Sparkles, FileText, Download, Copy, CheckCheck, Loader2,
   Users, TrendingUp, DollarSign, Activity, ExternalLink,
-  ChevronRight, Check, X as XIcon,
+  ChevronRight, Check, X as XIcon, RefreshCw, Globe,
 } from "lucide-react";
 import { BRIEF } from "@/lib/brief.config";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,27 @@ type LiveMetrics = {
   activeRecently: number;
   totalProjects: number;
   mrr: number | null;
+};
+
+type DataPoint = {
+  key: string;
+  label: string;
+  value_display: string;
+  value_number: number | null;
+  source_url: string | null;
+  source_title: string | null;
+  note: string | null;
+  verified_at: string;
+};
+
+// Maps each ROI line item (by tool name, as written in lib/brief.config.ts)
+// to the web-verified data point that should override its hardcoded cost.
+const ROI_KEY_MAP: Record<string, string> = {
+  "Frame.io (Pro)": "frameio_price",
+  "StudioBinder (Indie)": "studiobinder_price",
+  "DocuSign / HelloSign": "docusign_hellosign_price",
+  "Wave / FreshBooks": "wave_freshbooks_price",
+  "Notion (for production)": "notion_price",
 };
 
 const GOLD = "#d4a853";
@@ -60,7 +81,35 @@ function SectionHeader({ label, number }: { label: string; number: string }) {
   );
 }
 
-function buildAIBrief(metrics: LiveMetrics): string {
+function LiveDataBar({ lastVerifiedAt, refreshing, onRefresh }: { lastVerifiedAt: string | null; refreshing: boolean; onRefresh: () => void }) {
+  return (
+    <div className="flex items-center gap-2 -mt-3 mb-5 text-[11px] text-zinc-600">
+      <Globe className="h-3 w-3 text-[#d4a853]/70" />
+      {lastVerifiedAt ? (
+        <span>Pricing &amp; market figures verified via live web search {new Date(lastVerifiedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+      ) : (
+        <span>Pricing &amp; market figures — not yet web-verified, showing baseline estimates</span>
+      )}
+      <button
+        onClick={onRefresh}
+        disabled={refreshing}
+        className="ml-1 flex items-center gap-1 rounded-md border border-white/[0.08] px-2 py-0.5 text-zinc-500 transition-colors hover:border-[#d4a853]/30 hover:text-[#d4a853] disabled:opacity-50"
+      >
+        {refreshing ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <RefreshCw className="h-2.5 w-2.5" />}
+        {refreshing ? "Verifying…" : "Refresh now"}
+      </button>
+    </div>
+  );
+}
+
+type RoiFigures = {
+  savings: { tool: string; cost: number; replacedBy: string }[];
+  totalReplaced: number;
+  monthlySavings: number;
+  annualSavings: number;
+};
+
+function buildAIBrief(metrics: LiveMetrics, roi: RoiFigures, market: { tam: string; sam: string }): string {
   const mrrLine = metrics.mrr != null ? `$${metrics.mrr.toLocaleString()}/mo MRR` : "pre-revenue (beta)";
   return `# CineFlow — Full AI Context Brief
 Generated from: ${BRIEF.company.website} | Stage: ${BRIEF.company.stage}
@@ -110,19 +159,19 @@ CineFlow is the ONLY platform that combines: project management, client review p
 
 Key moat: ${BRIEF.competitors.savingsNote}
 
-A filmmaker using competitor tools pays $${BRIEF.roi.totalReplaced}/mo across 5+ subscriptions. CineFlow replaces all of them for $${BRIEF.roi.cineflowCost}/mo — saving $${BRIEF.roi.monthlySavings}/mo ($${BRIEF.roi.annualSavings}/yr).
+A filmmaker using competitor tools pays $${roi.totalReplaced}/mo across 5+ subscriptions. CineFlow replaces all of them for $${BRIEF.roi.cineflowCost}/mo — saving $${roi.monthlySavings}/mo ($${roi.annualSavings}/yr).
 
 Time saved: ${BRIEF.roi.timePerWeek}.
 
 Tools CineFlow replaces:
-${BRIEF.roi.savings.map(s => `- ${s.tool} ($${s.cost}/mo) → ${s.replacedBy}`).join("\n")}
+${roi.savings.map(s => `- ${s.tool} ($${s.cost}/mo) → ${s.replacedBy}`).join("\n")}
 
 ---
 
 ## Market Opportunity
 
-- TAM: ${BRIEF.market.tam.value} — ${BRIEF.market.tam.label} (${BRIEF.market.tam.growth})
-- SAM: ${BRIEF.market.sam.value} — ${BRIEF.market.sam.label}
+- TAM: ${market.tam} — ${BRIEF.market.tam.label} (${BRIEF.market.tam.growth})
+- SAM: ${market.sam} — ${BRIEF.market.sam.label}
 - Target segment: ${BRIEF.market.target.value} — ${BRIEF.market.target.label}
 
 Tailwinds:
@@ -176,6 +225,21 @@ export function BriefClient() {
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [aiBriefCopied, setAiBriefCopied] = useState(false);
+  const [dataPoints, setDataPoints] = useState<Record<string, DataPoint>>({});
+  const [refreshingData, setRefreshingData] = useState(false);
+
+  const loadDataPoints = () => {
+    fetch("/api/admin/brief/data-points", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.points)) {
+          const map: Record<string, DataPoint> = {};
+          for (const p of d.points) map[p.key] = p;
+          setDataPoints(map);
+        }
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     fetch("/api/admin/brief/metrics")
@@ -196,7 +260,41 @@ export function BriefClient() {
       .then((r) => r.json())
       .then((d) => { if (d.token) setShareToken(d.token); })
       .catch(() => {});
+    loadDataPoints();
   }, []);
+
+  async function refreshLiveData() {
+    setRefreshingData(true);
+    try {
+      const res = await fetch("/api/admin/brief/verify", { method: "POST" });
+      if (!res.ok) throw new Error();
+      loadDataPoints();
+      toast.success("Live pricing & market data refreshed from the web");
+    } catch {
+      toast.error("Refresh failed — check ANTHROPIC_API_KEY and try again");
+    } finally {
+      setRefreshingData(false);
+    }
+  }
+
+  // Live-verified ROI figures — falls back to the static config per line item
+  // until the first web verification has run (or if a given item failed).
+  const liveSavings = BRIEF.roi.savings.map((s) => {
+    const dp = dataPoints[ROI_KEY_MAP[s.tool]];
+    const cost = dp?.value_number ?? s.cost;
+    return { ...s, cost, live: dp?.value_number != null, source: dp?.source_url ?? null, verifiedAt: dp?.verified_at ?? null };
+  });
+  const totalReplaced = liveSavings.reduce((sum, s) => sum + s.cost, 0);
+  const monthlySavings = totalReplaced - BRIEF.roi.cineflowCost;
+  const annualSavings = monthlySavings * 12;
+
+  const tamPoint = dataPoints["market_tam"];
+  const samPoint = dataPoints["market_sam"];
+  const tamDisplay = tamPoint?.value_display ?? BRIEF.market.tam.value;
+  const samDisplay = samPoint?.value_display ?? BRIEF.market.sam.value;
+
+  const verifiedTimestamps = Object.values(dataPoints).map((p) => p.verified_at).filter(Boolean).sort();
+  const lastVerifiedAt = verifiedTimestamps[verifiedTimestamps.length - 1] ?? null;
 
   async function copyShareLink() {
     if (!shareToken) return;
@@ -227,7 +325,7 @@ export function BriefClient() {
   }
 
   async function copyAIBrief() {
-    await navigator.clipboard.writeText(buildAIBrief(metrics));
+    await navigator.clipboard.writeText(buildAIBrief(metrics, { savings: liveSavings, totalReplaced, monthlySavings, annualSavings }, { tam: tamDisplay, sam: samDisplay }));
     setAiBriefCopied(true);
     toast.success("AI brief copied — paste into Claude, ChatGPT, or any AI");
     setTimeout(() => setAiBriefCopied(false), 3000);
@@ -243,10 +341,19 @@ export function BriefClient() {
   }
 
   // Chart data
-  const savingsChartData = BRIEF.roi.savings.map(s => ({
+  const savingsChartData = liveSavings.map(s => ({
     name: s.tool.replace(" (Pro)", "").replace(" (Indie)", ""),
     cost: s.cost,
   }));
+
+  const competitorMonthlyPrice: (number | string)[] = [
+    BRIEF.competitors.monthlyPrice[0],
+    dataPoints["frameio_price"]?.value_number ?? BRIEF.competitors.monthlyPrice[1],
+    dataPoints["studiobinder_price"]?.value_number ?? BRIEF.competitors.monthlyPrice[2],
+    dataPoints["wipster_price"]?.value_number ?? BRIEF.competitors.monthlyPrice[3],
+    BRIEF.competitors.monthlyPrice[4],
+    dataPoints["notion_price"]?.value_number ?? BRIEF.competitors.monthlyPrice[5],
+  ];
 
   const radarData = [
     { subject: "AI Tools",       CineFlow: 100, Others: 0 },
@@ -263,7 +370,7 @@ export function BriefClient() {
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/[0.06] bg-[#080808]/95 px-6 py-3 backdrop-blur">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#d4a853]">CineFlow</p>
-          <p className="text-[10px] text-zinc-600">Company Brief · Auto-updates on deploy</p>
+          <p className="text-[10px] text-zinc-600">Company Brief · Content updates on deploy · Pricing &amp; market data verified weekly via live web search</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -405,12 +512,22 @@ export function BriefClient() {
         {/* ── Market ── */}
         <div>
           <SectionHeader label="Market Opportunity" number="06" />
+          <LiveDataBar lastVerifiedAt={lastVerifiedAt} refreshing={refreshingData} onRefresh={refreshLiveData} />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            {[BRIEF.market.tam, BRIEF.market.sam, BRIEF.market.target].map((m, i) => (
+            {[
+              { ...BRIEF.market.tam, value: tamDisplay, point: tamPoint },
+              { ...BRIEF.market.sam, value: samDisplay, point: samPoint },
+              { ...BRIEF.market.target, point: undefined as DataPoint | undefined },
+            ].map((m, i) => (
               <div key={i} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <p className="text-3xl font-black text-white mb-1">{m.value}</p>
                 <p className="text-xs text-zinc-400 leading-relaxed">{m.label}</p>
                 {"growth" in m && <p className="mt-1 text-[10px] font-semibold text-emerald-400">{m.growth}</p>}
+                {m.point?.source_url && (
+                  <a href={m.point.source_url} target="_blank" rel="noopener noreferrer" className="mt-1.5 flex items-center gap-1 text-[10px] text-zinc-600 hover:text-[#d4a853]">
+                    <Globe className="h-2.5 w-2.5" /> Verified source
+                  </a>
+                )}
               </div>
             ))}
           </div>
@@ -477,7 +594,7 @@ export function BriefClient() {
                 ))}
                 <tr className="border-t border-white/[0.08] bg-white/[0.03]">
                   <td className="px-4 py-3 text-xs font-semibold text-zinc-400">Monthly Price</td>
-                  {BRIEF.competitors.monthlyPrice.map((p, i) => (
+                  {competitorMonthlyPrice.map((p, i) => (
                     <td key={i} className={cn("px-4 py-3 text-center text-xs font-bold", i === 0 ? "text-[#d4a853]" : "text-zinc-500")}>
                       {typeof p === "number" ? `$${p}` : p}
                     </td>
@@ -492,6 +609,7 @@ export function BriefClient() {
         {/* ── ROI ── */}
         <div>
           <SectionHeader label="ROI — Why Filmmakers Switch" number="08" />
+          <LiveDataBar lastVerifiedAt={lastVerifiedAt} refreshing={refreshingData} onRefresh={refreshLiveData} />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
               <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">Tools CineFlow Replaces</p>
@@ -506,12 +624,27 @@ export function BriefClient() {
                   <Bar dataKey="cost" fill="#6b7280" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              <ul className="mt-3 space-y-1">
+                {liveSavings.map((s) => (
+                  <li key={s.tool} className="flex items-center justify-between text-[10px] text-zinc-600">
+                    <span>{s.tool}</span>
+                    <span className="flex items-center gap-1">
+                      ${s.cost}/mo
+                      {s.live && s.source && (
+                        <a href={s.source} target="_blank" rel="noopener noreferrer" className="text-[#d4a853]/70 hover:text-[#d4a853]" title="Verified source">
+                          <Globe className="h-2.5 w-2.5" />
+                        </a>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div className="flex flex-col gap-4">
               <div className="flex-1 rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
                 <p className="text-xs text-zinc-500 mb-1">Avg. monthly spend on separate tools</p>
-                <p className="text-3xl font-black text-white">${BRIEF.roi.totalReplaced}<span className="text-base text-zinc-500 font-normal">/mo</span></p>
+                <p className="text-3xl font-black text-white">${totalReplaced}<span className="text-base text-zinc-500 font-normal">/mo</span></p>
               </div>
               <div className="flex-1 rounded-xl border border-[#d4a853]/20 bg-[#d4a853]/5 p-5">
                 <p className="text-xs text-zinc-500 mb-1">CineFlow Solo Plan</p>
@@ -519,7 +652,7 @@ export function BriefClient() {
               </div>
               <div className="flex-1 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-5">
                 <p className="text-xs text-zinc-500 mb-1">Monthly savings</p>
-                <p className="text-3xl font-black text-emerald-400">${BRIEF.roi.monthlySavings}<span className="text-base font-normal text-zinc-500">/mo · ${BRIEF.roi.annualSavings}/yr</span></p>
+                <p className="text-3xl font-black text-emerald-400">${monthlySavings}<span className="text-base font-normal text-zinc-500">/mo · ${annualSavings}/yr</span></p>
               </div>
             </div>
           </div>
@@ -614,7 +747,7 @@ export function BriefClient() {
               </button>
             </div>
             <pre className="whitespace-pre-wrap p-5 text-xs text-zinc-400 leading-relaxed font-mono max-h-96 overflow-y-auto">
-              {buildAIBrief(metrics)}
+              {buildAIBrief(metrics, { savings: liveSavings, totalReplaced, monthlySavings, annualSavings }, { tam: tamDisplay, sam: samDisplay })}
             </pre>
           </div>
         </div>
@@ -624,7 +757,10 @@ export function BriefClient() {
           <p className="text-[11px] text-zinc-700">
             {BRIEF.company.name} · {BRIEF.company.website} · Founded {BRIEF.company.founded}
           </p>
-          <p className="text-[10px] text-zinc-800 mt-1">This brief auto-updates on every deployment — last updated when this version was deployed.</p>
+          <p className="text-[10px] text-zinc-800 mt-1">
+            This brief's content updates on every deployment. Pricing &amp; market figures are verified against the live web weekly
+            {lastVerifiedAt ? ` — last verified ${new Date(lastVerifiedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.` : "."}
+          </p>
         </div>
       </div>
     </div>

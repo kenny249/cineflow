@@ -145,7 +145,7 @@ export const BRIEF = {
 
   competitors: {
     columns: ["CineFlow", "Frame.io", "StudioBinder", "Wipster", "Vimeo Review", "Notion"],
-    monthlyPrice: [39, 25, 29, 25, "Bundled", 16],
+    monthlyPrice: [39, 15, 49, 25, "Bundled", 12],
     rows: [
       { feature: "Built for filmmakers", values: [true, false, true, false, false, false] },
       { feature: "Project management", values: [true, false, true, false, false, true] },
@@ -161,7 +161,7 @@ export const BRIEF = {
       { feature: "Retainer management", values: [true, false, false, false, false, false] },
       { feature: "All-in-one (no integrations)", values: [true, false, false, false, false, false] },
     ],
-    savingsNote: "A typical filmmaker using Frame.io + StudioBinder alone spends $54+/mo. CineFlow's Solo plan ($39/mo) replaces both and adds AI, invoicing, contracts, and more.",
+    savingsNote: "A typical filmmaker using Frame.io + StudioBinder alone spends $64+/mo. CineFlow's Solo plan ($39/mo) replaces both and adds AI, invoicing, contracts, and more.",
   },
 
   market: {
@@ -178,21 +178,21 @@ export const BRIEF = {
 
   roi: {
     savings: [
-      { tool: "Frame.io (Pro)", cost: 25, replacedBy: "Client portal + video review" },
-      { tool: "StudioBinder (Indie)", cost: 29, replacedBy: "Project mgmt + shot lists + crew" },
-      { tool: "DocuSign / HelloSign", cost: 20, replacedBy: "Built-in contracts" },
-      { tool: "Wave / FreshBooks", cost: 16, replacedBy: "Built-in invoicing" },
-      { tool: "Notion (for production)", cost: 16, replacedBy: "Project workspace" },
+      { tool: "Frame.io (Pro)", cost: 15, replacedBy: "Client portal + video review" },
+      { tool: "StudioBinder (Indie)", cost: 49, replacedBy: "Project mgmt + shot lists + crew" },
+      { tool: "DocuSign / HelloSign", cost: 15, replacedBy: "Built-in contracts" },
+      { tool: "Wave / FreshBooks", cost: 19, replacedBy: "Built-in invoicing" },
+      { tool: "Notion (for production)", cost: 12, replacedBy: "Project workspace" },
     ],
-    totalReplaced: 106,
+    totalReplaced: 110,
     cineflowCost: 39,
-    monthlySavings: 67,
+    monthlySavings: 71,
     timePerWeek: "5–10 hours saved on admin tasks",
-    annualSavings: 804,
+    annualSavings: 852,
   },
 
   tech: {
-    stack: ["Next.js 15 (App Router)", "Supabase (Postgres + Auth + Storage)", "Stripe (billing)", "OpenAI Whisper (transcription)", "Anthropic Claude (AI features)", "Vercel (deployment)", "Resend (email)"],
+    stack: ["Next.js 16 (App Router)", "Supabase (Postgres + Auth + Storage)", "Stripe (billing)", "OpenAI Whisper (transcription)", "Anthropic Claude (AI features)", "Vercel (deployment)", "Resend (email)"],
     highlights: [
       "100% cloud-native — no install required, works on any device",
       "Real-time collaboration via Supabase subscriptions",
