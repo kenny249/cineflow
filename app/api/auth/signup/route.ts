@@ -27,6 +27,15 @@ export async function POST(req: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
+    // The signup form already marks these required client-side — this just
+    // closes the gap for anything that calls this route directly instead of
+    // going through the form. Every one of a batch of spam signups found in
+    // the admin Users list (no name, random gmail address, zero activity,
+    // ever) had firstName/lastName blank — that only reaches this route by
+    // skipping the browser form.
+    if (!(firstName as string | undefined)?.trim() || !(lastName as string | undefined)?.trim()) {
+      return NextResponse.json({ error: "First and last name are required" }, { status: 400 });
+    }
 
     const supabase = getAdminClient();
 
