@@ -6,6 +6,10 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Per-admin, live data — never cache.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function getAdmin() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,7 +41,7 @@ async function saveSessionSummary(messages: any[], adminId: string, commandCount
       .join("\n");
 
     const resp = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-haiku-4-5",
       max_tokens: 130,
       messages: [{
         role: "user",

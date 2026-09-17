@@ -937,7 +937,7 @@ CineFlow Agency at $159/mo does what a $354+/mo stack does. Built by a filmmaker
 CODEBASE — FULL MAP
 ═══════════════════════════════════════════════════════════
 
-TECH STACK: Next.js 15 App Router, TypeScript, Tailwind CSS, Framer Motion, Supabase (auth + Postgres + storage + SSR), Anthropic Claude API (claude-sonnet-4-6 for AI features), ElevenLabs (Jarvis TTS), Stripe (billing — fully wired: subscription checkout, webhook handling, plan upgrades, payment links on invoices), Vercel (hosting, auto-deploys from GitHub main on push).
+TECH STACK: Next.js 16 App Router, TypeScript, Tailwind CSS, Framer Motion, Supabase (auth + Postgres + storage + SSR), Anthropic Claude API (claude-sonnet-5 for AI features), ElevenLabs (Jarvis TTS), Stripe (billing — fully wired: subscription checkout, webhook handling, plan upgrades, payment links on invoices), Vercel (hosting, auto-deploys from GitHub main on push).
 
 REPO: ${GITHUB_REPO}
 KEY DIRECTORIES:
@@ -991,6 +991,7 @@ get_at_risk_users — users whose trial expires soon
 get_recent_signups — recent signups with plan info
 add_user_note — attach a note to a specific user's profile
 get_user_notes — retrieve all notes on a specific user
+web_search — search the live public web. Use for anything outside CineFlow's own data: competitor pricing/feature changes, industry news, a technical question the codebase can't answer, or verifying a fact ${firstName} asks about. Do NOT use it for anything about CineFlow's own users, revenue, or code — those come from the tools above.
 
 CODE ACCESS STRATEGY: For any code question, use search_codebase first (fastest — returns matching lines with file paths), then read_file for full context. list_directory to explore unknown areas. You can chain: search → read → respond in one turn.
 
@@ -999,13 +1000,13 @@ BUSINESS CONTEXT
 ═══════════════════════════════════════════════════════════
 
 LIFETIME USERS — CRITICAL CONTEXT:
-The "lifetime" users in the DB are ${firstName}'s personal friends and early supporters who were manually granted lifetime access for FREE — zero dollars collected. This was completely intentional. MRR = $0 is correct and expected. The Stripe billing flow to collect recurring payments has not been built yet — that is the #1 priority. The lifetime plan sitting at $0 revenue is not a bug. Never frame this as Stripe being broken in terms of the existing users. The gap is simply: no new user can pay yet because checkout hasn't been built.
+The "lifetime" users in the DB are ${firstName}'s personal friends and early supporters who were manually granted lifetime access for FREE — zero dollars collected. This was completely intentional. MRR = $0 is correct and expected for them specifically. The lifetime plan sitting at $0 revenue is not a bug. Stripe checkout IS fully built and live — subscription checkout, webhook handling, plan upgrades, and payment links all work today, and new signups can and do convert to paying customers right now.
 
 CURRENT PRIORITIES:
-#1 — Build Stripe subscription checkout so new signups can actually convert to paying customers
-#2 — Re-engage the lifetime users (friends) and get them actively using the product — they're the fastest feedback loop
-#3 — Fix activation: get users logging in and hitting the "aha moment" (sharing a call sheet link and seeing it work)
-Roadmap: Stripe → landing page → Google OAuth → referrals → out of beta
+#1 — Re-engage the lifetime users (friends) and get them actively using the product — they're the fastest feedback loop
+#2 — Fix activation: get users logging in and hitting the "aha moment" (sharing a call sheet link and seeing it work)
+#3 — Drive new signups and conversion now that Stripe checkout is live
+Roadmap: Landing page → Google OAuth → referrals → out of beta
 
 PRICING: Solo $39/mo | Studio $79/mo | Agency $159/mo | Enterprise $299/mo | Lifetime $299 one-time (gifted to friends for free in beta)`;
 
@@ -1029,21 +1030,27 @@ Time: ${new Date().toLocaleString("en-US", { timeZone: "America/Los_Angeles", da
     let text = "";
     let toolsUsed = "";
 
-    for (let round = 0; round < 3; round++) {
+    for (let round = 0; round < 4; round++) {
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 700,
-        temperature: 0.7,
+        model: "claude-sonnet-5",
+        max_tokens: 1536,
+        thinking: { type: "adaptive" },
+        output_config: { effort: "medium" },
         system: [
           { type: "text" as const, text: staticSystemBlock, cache_control: { type: "ephemeral" } as any },
           { type: "text" as const, text: dynamicSystemBlock },
         ],
-        tools: TOOLS,
+        tools: [...TOOLS, { type: "web_search_20260209", name: "web_search", max_uses: 5 }],
         messages: currentMessages,
       });
 
       const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === "text");
       if (textBlock?.text) text = textBlock.text;
+
+      if (response.stop_reason === "refusal") {
+        text = `I can't help with that one, ${firstName} — it tripped a safety check. Try rephrasing it.`;
+        break;
+      }
 
       if (response.stop_reason !== "tool_use") break;
 

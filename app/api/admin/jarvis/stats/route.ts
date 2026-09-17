@@ -3,6 +3,15 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+// Live admin metrics — must never be cached. Without this, Next/Vercel's edge
+// network can serve a stale snapshot from whenever it was first cached, and
+// different edge nodes can each be holding a *different* stale snapshot —
+// which is exactly what was happening here (totalUsers flipping between old,
+// small numbers on reload instead of the real, growing count every other
+// admin page showed correctly).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function getAdmin() {
   return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -71,5 +80,5 @@ export async function GET() {
     mrr,
     arr: mrr * 12,
     breakdown,
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }

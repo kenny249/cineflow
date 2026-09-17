@@ -875,7 +875,7 @@ export default function JarvisPage() {
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch("/api/admin/jarvis/stats").then(r => r.json()).then(setStats).catch(() => {});
+    fetch("/api/admin/jarvis/stats", { cache: "no-store" }).then(r => r.json()).then(setStats).catch(() => {});
   }, []);
 
   // ── Load saved settings from DB — overrides localStorage defaults ──────────
@@ -1590,8 +1590,8 @@ export default function JarvisPage() {
                   <div className="absolute top-3 left-3" style={{ borderLeft: `1px solid ${c}18`, borderTop: `1px solid ${c}18`, paddingLeft: 7, paddingTop: 5, width: 145 }}>
                     <p className="text-[5px] tracking-[0.5em] mb-1" style={{ color: `${c}35`, fontFamily: "monospace" }}>SYS.CORE</p>
                     <p className="text-[7px] font-mono mb-0.5" style={{ color: `${c}65` }}>J4RV1S-ALPHA</p>
-                    <p className="text-[5px] font-mono" style={{ color: "rgba(255,255,255,0.15)" }}>claude-sonnet-4-6</p>
-                    <p className="text-[5px] font-mono" style={{ color: "rgba(255,255,255,0.08)" }}>VERCEL · NEXT.JS 15</p>
+                    <p className="text-[5px] font-mono" style={{ color: "rgba(255,255,255,0.15)" }}>claude-sonnet-5</p>
+                    <p className="text-[5px] font-mono" style={{ color: "rgba(255,255,255,0.08)" }}>VERCEL · NEXT.JS 16</p>
                   </div>
                   <div className="absolute top-3 right-3 flex flex-col items-end" style={{ borderRight: `1px solid ${c}18`, borderTop: `1px solid ${c}18`, paddingRight: 7, paddingTop: 5, width: 145 }}>
                     <p className="text-[5px] tracking-[0.5em] mb-1" style={{ color: `${c}35`, fontFamily: "monospace" }}>NETWORK</p>
