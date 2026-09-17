@@ -361,14 +361,8 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   );
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [userPrefs, setUserPrefs] = useState<UserPrefs>({ user_role: null, team_size: null, uses_drone: false });
-  const [moreExpanded, setMoreExpanded] = useState(() =>
-    typeof window !== "undefined" ? localStorage.getItem("sidebar-more") === "1" : false
-  );
-  const [trialDismissed, setTrialDismissed] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
-    const v = localStorage.getItem("trial_banner_dismissed");
-    return v ? parseInt(v) : null;
-  });
+  const [moreExpanded, setMoreExpanded] = useState(false);
+  const [trialDismissed, setTrialDismissed] = useState<number | null>(null);
   const [sidebarPins,   setSidebarPins]   = useState<string[]>([]);
   const [sidebarHidden, setSidebarHidden] = useState<string[]>([]);
   const [contextMenu,   setContextMenu]   = useState<{ href: string; x: number; y: number } | null>(null);
@@ -377,18 +371,24 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const [showCustomize,   setShowCustomize]   = useState(false);
   const [upgradeModal, setUpgradeModal] = useState<string | null>(null);
 
-  const [showCustomizeHint, setShowCustomizeHint] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !localStorage.getItem("cf-customize-hint-seen");
-  });
+  const [showCustomizeHint, setShowCustomizeHint] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
-    if (typeof window === "undefined") return new Set();
+  // Read localStorage-derived state only after mount — reading it in the
+  // useState initializer (as this used to) makes the client's first render
+  // disagree with the server-rendered HTML (server always sees no window),
+  // which is a real, reproducible hydration mismatch (React error #418),
+  // not just a theoretical one — this is what was throwing it here.
+  useEffect(() => {
+    setMoreExpanded(localStorage.getItem("sidebar-more") === "1");
+    const dismissed = localStorage.getItem("trial_banner_dismissed");
+    if (dismissed) setTrialDismissed(parseInt(dismissed));
+    setShowCustomizeHint(!localStorage.getItem("cf-customize-hint-seen"));
     try {
       const s = localStorage.getItem("sidebar-collapsed-sections");
-      return s ? new Set(JSON.parse(s)) : new Set();
-    } catch { return new Set(); }
-  });
+      if (s) setCollapsedSections(new Set(JSON.parse(s)));
+    } catch { /* ignore malformed stored value */ }
+  }, []);
 
   useEffect(() => {
     fetch("/api/feature-flags")
