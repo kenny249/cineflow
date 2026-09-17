@@ -91,6 +91,7 @@ Search for each item, then call report_verified_data exactly once with all ${RES
       const items = (reportCall.input as { items?: any[] }).items ?? [];
       const admin = getAdmin();
       let updated = 0;
+      let lastError: string | undefined;
       for (const item of items) {
         if (!item.key || !item.value_display || !item.source_url) continue;
         const target = RESEARCH_TARGETS.find((t) => t.key === item.key);
@@ -105,6 +106,12 @@ Search for each item, then call report_verified_data exactly once with all ${RES
           verified_at: new Date().toISOString(),
         }, { onConflict: "key" });
         if (!error) updated++;
+        else lastError = error.message;
+      }
+      // Claude did the research, but nothing actually made it into the DB —
+      // surface that as a failure rather than reporting success with 0 writes.
+      if (updated === 0 && items.length > 0) {
+        return { ok: false, updated: 0, error: lastError ?? "Research completed but no items could be saved." };
       }
       return { ok: true, updated, items: items.map((i) => ({ key: i.key, value_display: i.value_display })) };
     }

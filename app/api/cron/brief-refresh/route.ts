@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { runBriefVerification } from "@/lib/brief-verify";
 
-export const maxDuration = 120;
+// 8 items, each needing its own web search + a careful pick between conflicting
+// sources, comfortably exceeds a 60-120s ceiling — this genuinely takes a while.
+export const maxDuration = 280;
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("authorization");

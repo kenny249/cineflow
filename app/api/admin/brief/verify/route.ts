@@ -3,7 +3,9 @@ import { requireAdminPage } from "@/lib/admin-guard";
 import { runBriefVerification } from "@/lib/brief-verify";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// 8 items, each needing its own web search + a careful pick between conflicting
+// sources, comfortably exceeds a 60-120s ceiling — this genuinely takes a while.
+export const maxDuration = 280;
 
 export async function POST() {
   try {

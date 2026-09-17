@@ -267,11 +267,15 @@ export function BriefClient() {
     setRefreshingData(true);
     try {
       const res = await fetch("/api/admin/brief/verify", { method: "POST" });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        let msg = `Refresh failed (${res.status}).`;
+        try { msg = (await res.clone().json())?.error ?? msg; } catch { /* body wasn't JSON, e.g. a gateway timeout */ }
+        throw new Error(msg);
+      }
       loadDataPoints();
       toast.success("Live pricing & market data refreshed from the web");
-    } catch {
-      toast.error("Refresh failed — check ANTHROPIC_API_KEY and try again");
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "Refresh failed — try again in a moment");
     } finally {
       setRefreshingData(false);
     }
