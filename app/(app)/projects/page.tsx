@@ -488,14 +488,26 @@ function PipelineView({ projects: initialProjects, onNew, onStatusChange }: { pr
     const project = projects.find((p) => p.id === id);
     if (!project || project.status === status) { setDraggingId(null); return; }
     const prevStatus = project.status;
-    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, status } : p));
+    const prevProgress = project.progress;
+    const prevPhaseItems = project.phase_items;
+    // "Delivered" means the deliverable itself is done — force progress to 100%
+    // and mark the delivery-phase checklist's "delivered to client" item, the
+    // same thing the CTA button on the project detail page does. Otherwise a
+    // project dragged straight to Delivered here keeps whatever progress % it
+    // last had, and re-opening the project would recompute that same stale
+    // value and overwrite this fix right back.
+    const updates: Partial<Project> =
+      status === "delivered"
+        ? { status, progress: 100, phase_items: Array.from(new Set([...(project.phase_items ?? []), "delivered_to_client"])) }
+        : { status };
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, ...updates } : p));
     setDraggingId(null);
     try {
-      await updateProject(id, { status });
+      await updateProject(id, updates);
       onStatusChange?.(id, status);
       toast.success(`Moved to ${PIPELINE_COLUMNS.find((c) => c.status === status)?.label}`);
     } catch {
-      setProjects((prev) => prev.map((p) => p.id === id ? { ...p, status: prevStatus } : p));
+      setProjects((prev) => prev.map((p) => p.id === id ? { ...p, status: prevStatus, progress: prevProgress, phase_items: prevPhaseItems } : p));
       toast.error("Failed to update status");
     }
   }

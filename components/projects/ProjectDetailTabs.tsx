@@ -1131,6 +1131,19 @@ export default function ProjectDetailTabs({
     if (newStatus === status || statusSaving) return;
     const prev = status;
     setStatus(newStatus);
+    // "Delivered" means the deliverable itself is done — force progress to 100%
+    // the same way manually checking "Files uploaded to client" would, so the
+    // status badge and the progress bar never contradict each other (a project
+    // could otherwise sit at "Delivered" / 37% forever if no one opened the
+    // Delivery phase checklist afterward).
+    if (newStatus === "delivered" && !checkedPhaseItems.has("delivered_to_client")) {
+      setCheckedPhaseItems((prevItems) => {
+        const next = new Set(prevItems);
+        next.add("delivered_to_client");
+        try { localStorage.setItem(`cf_phases_${project.id}`, JSON.stringify([...next])); } catch { /* ignore */ }
+        return next;
+      });
+    }
     setStatusSaving(true);
     try {
       await updateProject(project.id, { status: newStatus });
