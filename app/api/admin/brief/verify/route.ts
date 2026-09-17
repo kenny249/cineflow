@@ -3,10 +3,14 @@ import { requireAdminPage } from "@/lib/admin-guard";
 import { runBriefVerification } from "@/lib/brief-verify";
 
 export const dynamic = "force-dynamic";
-// Each of the 8 items now runs as its own small, bounded, parallel request
-// (a few searches max) instead of one giant sequential request researching
-// all of them — total wall time is bounded by the slowest single item.
-export const maxDuration = 90;
+// Each of the 8 items runs as its own small, bounded, parallel request (a few
+// searches max each) rather than one giant sequential request researching all
+// of them. Measured 13s for 2 items run locally, but 8 concurrent requests
+// from the same API key can hit real contention/backoff in production that
+// doesn't show up at small scale — 90s wasn't enough margin, even though each
+// item is individually bounded. 150s gives real headroom without going back
+// to the old design's unbounded risk.
+export const maxDuration = 150;
 
 export async function POST() {
   try {
