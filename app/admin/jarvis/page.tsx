@@ -276,7 +276,10 @@ function RadialAudioVisualizer({
         ctx.stroke();
       }
 
-      rafId = requestAnimationFrame(draw);
+      // Only keep animating while a session is actually active — otherwise this
+      // was redrawing an unchanging idle frame at 60fps indefinitely, burning
+      // CPU/battery the entire time the page sits open with no session running.
+      if (active) rafId = requestAnimationFrame(draw);
     };
 
     draw();
