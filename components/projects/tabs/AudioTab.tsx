@@ -5,6 +5,7 @@ import { Mic2, Upload, FileAudio, Loader2, ChevronDown, ChevronUp, Trash2, Alert
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AIContentPanel } from "@/components/editor-tools/AIContentPanel";
+import { splitAudioIntoChunks, CHUNK_SECONDS } from "@/lib/audio-chunk";
 import {
   getProjectTranscripts,
   saveProjectTranscript,
@@ -16,6 +17,7 @@ import {
 
 
 const ACCEPTED_EXT = [".mp3", ".mp4", ".m4a", ".wav", ".ogg", ".flac", ".aac", ".webm"];
+const WHISPER_MAX_BYTES = 25 * 1024 * 1024;
 
 type UploadState =
   | { phase: "idle" }
@@ -59,71 +61,88 @@ export function AudioTab({ projectId }: Props) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const doUploadAndTranscribe = useCallback(async (file: File) => {
-
-    setUpload({ phase: "uploading", file, progress: 0, label: "Preparing…" });
+  // Accepts one or more pieces to transcribe (more than one only when the
+  // file needed splitting after compression) and stitches the results into
+  // a single transcript saved under the original file's name — mirrors the
+  // Editor Tools Transcribe pipeline so a long recording doesn't behave
+  // differently, or fail outright, just because it was uploaded from here.
+  const doUploadAndTranscribe = useCallback(async (chunks: File[], originalFile: File) => {
+    setUpload({ phase: "uploading", file: originalFile, progress: 0, label: "Preparing…" });
 
     try {
-      // Step 1: get signed upload URL
-      const prepRes = await fetch("/api/transcribe/prepare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name }),
-      });
-      if (!prepRes.ok) {
-        const d = await prepRes.json().catch(() => ({}));
-        setUpload({ phase: "error", message: d.error ?? "Failed to prepare upload" });
-        return;
+      let combinedText = "";
+      let totalDuration = 0;
+      const loopSpan = 95; // 0 -> 95%; saving to the project takes it to 100
+      const multi = chunks.length > 1;
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunkFile = chunks[i];
+        const baseProgress = (i / chunks.length) * loopSpan;
+        const perChunkSpan = loopSpan / chunks.length;
+
+        // Step 1: get signed upload URL
+        const prepRes = await fetch("/api/transcribe/prepare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: chunkFile.name }),
+        });
+        if (!prepRes.ok) {
+          const d = await prepRes.json().catch(() => ({}));
+          setUpload({ phase: "error", message: d.error ?? "Failed to prepare upload" });
+          return;
+        }
+        const { signedUrl, path } = await prepRes.json();
+
+        // Step 2: upload directly to Supabase (bypasses Vercel body limit)
+        setUpload({ phase: "uploading", file: originalFile, progress: baseProgress, label: multi ? `Uploading part ${i + 1} of ${chunks.length}…` : "Uploading audio…" });
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              const pct = baseProgress + (e.loaded / e.total) * perChunkSpan * 0.6;
+              setUpload((s) => s.phase === "uploading" ? { ...s, progress: pct } : s);
+            }
+          };
+          xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`));
+          xhr.onerror = () => reject(new Error("Network error during upload"));
+          xhr.open("PUT", signedUrl);
+          xhr.setRequestHeader("Content-Type", chunkFile.type || "audio/mpeg");
+          xhr.send(chunkFile);
+        });
+
+        // Step 3: transcribe this piece
+        let prog = baseProgress + perChunkSpan * 0.6;
+        const tick = setInterval(() => {
+          prog = Math.min(prog + Math.random() * (perChunkSpan * 0.05), baseProgress + perChunkSpan * 0.95);
+          setUpload((s) => s.phase === "uploading" ? { ...s, progress: prog } : s);
+        }, 800);
+        setUpload({ phase: "uploading", file: originalFile, progress: prog, label: multi ? `Transcribing part ${i + 1} of ${chunks.length}…` : "Transcribing with Whisper…" });
+
+        const txRes = await fetch("/api/transcribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path }),
+        });
+        clearInterval(tick);
+
+        if (!txRes.ok) {
+          const d = await txRes.json().catch(() => ({}));
+          setUpload({ phase: "error", message: d.error ?? "Transcription failed" });
+          return;
+        }
+        const { text, duration } = await txRes.json();
+        combinedText += (combinedText ? " " : "") + String(text ?? "").trim();
+        totalDuration += Number(duration) || 0;
       }
-      const { signedUrl, path } = await prepRes.json();
-
-      // Step 2: upload directly to Supabase (bypasses Vercel body limit)
-      setUpload({ phase: "uploading", file, progress: 5, label: "Uploading audio…" });
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            const pct = 5 + (e.loaded / e.total) * 65;
-            setUpload((s) => s.phase === "uploading" ? { ...s, progress: pct, label: "Uploading audio…" } : s);
-          }
-        };
-        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`));
-        xhr.onerror = () => reject(new Error("Network error during upload"));
-        xhr.open("PUT", signedUrl);
-        xhr.setRequestHeader("Content-Type", file.type || "audio/mpeg");
-        xhr.send(file);
-      });
-
-      // Step 3: transcribe
-      let prog = 72;
-      const tick = setInterval(() => {
-        prog = Math.min(prog + Math.random() * 3, 92);
-        setUpload((s) => s.phase === "uploading" ? { ...s, progress: prog, label: "Transcribing with Whisper…" } : s);
-      }, 800);
-      setUpload({ phase: "uploading", file, progress: 72, label: "Transcribing with Whisper…" });
-
-      const txRes = await fetch("/api/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path }),
-      });
-      clearInterval(tick);
-
-      if (!txRes.ok) {
-        const d = await txRes.json().catch(() => ({}));
-        setUpload({ phase: "error", message: d.error ?? "Transcription failed" });
-        return;
-      }
-      const { text, duration } = await txRes.json();
 
       // Step 4: save to project
-      setUpload({ phase: "uploading", file, progress: 98, label: "Saving to project…" });
+      setUpload({ phase: "uploading", file: originalFile, progress: 98, label: "Saving to project…" });
       const saved = await saveProjectTranscript({
         projectId,
-        filename: file.name,
-        fileSizeBytes: file.size,
-        durationSecs: duration ?? null,
-        transcript: text,
+        filename: originalFile.name,
+        fileSizeBytes: originalFile.size,
+        durationSecs: totalDuration || null,
+        transcript: combinedText,
       });
 
       setTranscripts((prev) => [saved, ...prev]);
@@ -141,9 +160,20 @@ export function AudioTab({ projectId }: Props) {
       const { compressAudioForWhisper } = await import("@/lib/ffmpeg-compress");
       setUpload({ phase: "compressing", file, progress: 0, label: "Compressing audio…" });
       const compressed = await compressAudioForWhisper(file, (pct) => {
-        setUpload((s) => s.phase === "compressing" ? { ...s, progress: pct } : s);
+        setUpload((s) => s.phase === "compressing" ? { ...s, progress: pct * 0.9 } : s);
       });
-      await doUploadAndTranscribe(compressed);
+
+      // Long enough that compression alone isn't enough — split what's left
+      // into pieces, same as Editor Tools does, instead of failing outright.
+      if (compressed.size > WHISPER_MAX_BYTES) {
+        setUpload({ phase: "compressing", file, progress: 90, label: "Splitting into parts…" });
+        const chunks = (await splitAudioIntoChunks(compressed, CHUNK_SECONDS, (pct) => {
+          setUpload((s) => s.phase === "compressing" ? { ...s, progress: 90 + pct * 0.1 } : s);
+        })).map((c) => c.file);
+        await doUploadAndTranscribe(chunks, file);
+      } else {
+        await doUploadAndTranscribe([compressed], file);
+      }
     } catch (e: any) {
       setUpload({ phase: "error", message: e.message ?? "Compression failed." });
     }
@@ -155,11 +185,11 @@ export function AudioTab({ projectId }: Props) {
       setUpload({ phase: "error", message: "Unsupported format. Use MP3, M4A, WAV, OGG, FLAC, or AAC." });
       return;
     }
-    if (file.size > 25 * 1024 * 1024) {
+    if (file.size > WHISPER_MAX_BYTES) {
       setUpload({ phase: "needs_compression", file });
       return;
     }
-    await doUploadAndTranscribe(file);
+    await doUploadAndTranscribe([file], file);
   }, [doUploadAndTranscribe]);
 
   async function handleDelete(id: string) {

@@ -37,13 +37,11 @@ export async function compressAudioForWhisper(
     await ffmpeg.deleteFile(inputName).catch(() => {});
     await ffmpeg.deleteFile(outputName).catch(() => {});
 
-    if (data.byteLength >= 24 * 1024 * 1024) {
-      throw new Error(
-        `Compressed file is still ${(data.byteLength / (1024 * 1024)).toFixed(1)} MB — ` +
-        `this recording may be too long to transcribe. Try trimming it to under 30 minutes.`
-      );
-    }
-
+    // Deliberately does NOT throw if the compressed result is still over
+    // Whisper's 25MB limit — every caller already has its own fallback for
+    // that (splitting into chunks). Throwing here made that fallback
+    // unreachable: compression could only ever return under 24MB or throw,
+    // so "still too big after compressing, so split it" could never fire.
     return new File(
       [data],
       file.name.replace(/\.[^.]+$/, "") + "_compressed.mp3",
