@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePostHog } from "posthog-js/react";
 import { Film, Check, ChevronDown } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
@@ -18,23 +19,38 @@ interface Props { refCode?: string; heroVariant?: HeroVariant }
 // Paid-traffic headline test (Oct 2026) — Kenny sends ?h=b/c/d to compare
 // against the control. Swaps only the hero H1/sub; rest of the page is
 // identical across variants. See landing_hero_view / landing_cta_click.
-const HERO_VARIANTS: Record<HeroVariant, { h1: React.ReactNode; h1Size?: string; sub: React.ReactNode }> = {
+const HERO_VARIANTS: Record<
+  HeroVariant,
+  { h1: React.ReactNode; h1Size?: string; sub: React.ReactNode; img: string; imgAlt: string; imgHeight: number }
+> = {
   a: {
     h1: <>Stop stitching your<br />production together.</>,
     sub: <>Your quote becomes the contract, the contract becomes the shoot,<br />and the shoot becomes the invoice. Nothing gets retyped.</>,
+    img: "/marketing/panel-production.png",
+    imgAlt: "CineFlow shot list for a short film production, with scenes, camera moves, and lenses tracked per shot.",
+    imgHeight: 820,
   },
   b: {
     h1: <>One project. First call<br />to final payment.</>,
     sub: <>Your quote becomes the contract, the contract becomes the shoot,<br />and the shoot becomes the invoice. Nothing gets retyped.</>,
+    img: "/marketing/panel-client-portal.png",
+    imgAlt: "CineFlow review hub showing video cuts with approval status — in house, revision needed, approved.",
+    imgHeight: 460,
   },
   c: {
     h1: <>You got into this to make films.<br />Not to chase invoices.</>,
     sub: <>Quotes, contracts, client approvals, and payments — handled,<br />so you can get back on set.</>,
+    img: "/marketing/panel-invoicing.png",
+    imgAlt: "CineFlow finance dashboard with a revenue chart, top clients, and invoice totals.",
+    imgHeight: 900,
   },
   d: {
     h1: <>Frame.io for review. StudioBinder for prep.<br />Spreadsheets for everything else.</>,
     h1Size: "clamp(1.7rem,3.4vw,2.9rem)",
     sub: <>Or one platform that does the whole job.</>,
+    img: "/marketing/panel-production.png",
+    imgAlt: "CineFlow shot list for a short film production, with scenes, camera moves, and lenses tracked per shot.",
+    imgHeight: 820,
   },
 };
 
@@ -211,10 +227,6 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
     }
   }
 
-  function scrollToPanels() {
-    lenisRef.current?.scrollTo("#lp-panels", { duration: 1.6, offset: -20 });
-  }
-
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     onScroll();
@@ -306,7 +318,7 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
       <div className="relative z-20">
 
         {/* ══ HERO ══════════════════════════════════════════════════════ */}
-        <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 text-center">
+        <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 pb-40 text-center">
 
           {/* Hidden on mobile — overlap hero content on small screens */}
           {FRAGMENTS.map((f, i) => (
@@ -355,17 +367,31 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
               >
                 Start for free →
               </MagneticLink>
-              <button
-                type="button"
-                onClick={scrollToPanels}
-                className="font-mono text-[10px] tracking-[0.28em] uppercase text-white/35 transition-colors hover:text-[#d4a853]"
-              >
-                See the product ↓
-              </button>
             </div>
             <p className="lp-hero-trust mt-3 font-mono text-[9px] tracking-[0.28em] uppercase text-white/22">
               No credit card required · Cancel anytime
             </p>
+          </div>
+
+          {/* Product peek — top edge breaks into the first viewport so cold
+              traffic sees the software without scrolling. Tied to the hero
+              variant so each headline immediately shows what it promised. */}
+          <div className="lp-hero-peek relative z-10 mt-64 w-full max-w-4xl">
+            <div
+              className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+              style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
+            >
+              <Image
+                src={hero.img}
+                alt={hero.imgAlt}
+                width={1440}
+                height={hero.imgHeight}
+                priority
+                sizes="(min-width: 1024px) 896px, 92vw"
+                className="block h-auto w-full"
+              />
+              <div className="lp-panel-shine" />
+            </div>
           </div>
 
           <div className="lp-hero-scroll absolute bottom-10 flex flex-col items-center gap-3">
