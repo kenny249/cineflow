@@ -24,7 +24,9 @@ export async function generateMetadata({
       .single();
     if (portal?.client_name) {
       return {
-        title: `${portal.client_name} – Content Library | CineFlow`,
+        // The root layout's title template already appends " | CineFlow" —
+        // doing it here too produced "Joe – Content Library | CineFlow | CineFlow".
+        title: `${portal.client_name} – Content Library`,
         description: "Your delivered videos, organized and ready to view or download.",
         openGraph: {
           title: `${portal.client_name} – Content Library`,
@@ -36,7 +38,7 @@ export async function generateMetadata({
   } catch {}
 
   return {
-    title: "Client Content Library | CineFlow",
+    title: "Client Content Library",
     description: "Your delivered videos, organized and ready to view or download.",
   };
 }

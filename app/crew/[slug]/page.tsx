@@ -169,11 +169,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     .eq("is_public", true)
     .single();
 
-  if (!data) return { title: "Crew Profile | CineFlow" };
+  // The root layout's title template already appends " | CineFlow" — doing
+  // it here too doubled the suffix in the browser tab title.
+  if (!data) return { title: "Crew Profile" };
 
   const location = [data.city, data.state].filter(Boolean).join(", ");
   return {
-    title: `${data.name} — ${data.primary_role}${location ? ` in ${location}` : ""} | CineFlow`,
+    title: `${data.name} — ${data.primary_role}${location ? ` in ${location}` : ""}`,
     description: `${data.name} is a ${data.primary_role}${location ? ` based in ${location}` : ""}. Connect on CineFlow.`,
   };
 }

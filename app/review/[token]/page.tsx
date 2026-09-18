@@ -36,7 +36,9 @@ export async function generateMetadata({
           : "Your";
 
         return {
-          title: `${project.title} – Client Portal | CineFlow`,
+          // The root layout's title template already appends " | CineFlow" —
+          // doing it here too doubled the suffix in the browser tab title.
+          title: `${project.title} – Client Portal`,
           description: `${clientGreeting} project is ready for review. View cuts, leave feedback, and track progress.`,
           openGraph: {
             title: `${project.title} – Client Review Portal`,
@@ -56,7 +58,7 @@ export async function generateMetadata({
   }
 
   return {
-    title: "Client Review Portal | CineFlow",
+    title: "Client Review Portal",
     description: "Your project is ready for review. View cuts, leave feedback, and track progress.",
     openGraph: {
       title: "Client Review Portal | CineFlow",
