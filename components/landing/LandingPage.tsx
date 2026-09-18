@@ -122,6 +122,62 @@ const CF_PARTICLES = [
   { sx: "90px",   sy: "-170px", d: "0.27s" },
 ] as const;
 
+// Not drawn from support history (too early for that) — these are the
+// objections a rational buyer has right before a card-free trial, answered
+// only with things that are actually true about the product today.
+const FAQS = [
+  {
+    q: "Do I need a credit card to start?",
+    a: "No. Every plan starts with a 30-day free trial, no card required. You only pay if you decide to continue.",
+  },
+  {
+    q: "Can I cancel anytime?",
+    a: "Yes — there's no long-term contract. Cancel anytime from your account settings.",
+  },
+  {
+    q: "Is my data secure?",
+    a: "CineFlow runs on the same infrastructure (Supabase, Vercel) used by SOC 2–compliant companies, with encryption in transit and for sensitive fields at rest. Your client data is yours — it's never sold or used to train anything.",
+  },
+  {
+    q: "Can my team use it with me?",
+    a: "Yes. Studio and Agency plans include team seats with role-based permissions, so you control who sees what on a project.",
+  },
+  {
+    q: "What if I outgrow my plan?",
+    a: "Change plans anytime from your account — billing adjusts automatically, prorated for the time you've already paid.",
+  },
+  {
+    q: "Does it work on mobile?",
+    a: "Yes, in any mobile browser today — CineFlow is fully cloud-native. Native Mac and iOS apps are planned but not yet available.",
+  },
+] as const;
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-white/[0.06] py-5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-4 text-left"
+      >
+        <span className="text-sm font-medium text-white/80">{q}</span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-[#d4a853]/60 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      <div
+        className="grid transition-all duration-300 ease-out"
+        style={{ gridTemplateRows: open ? "1fr" : "0fr", opacity: open ? 1 : 0 }}
+      >
+        <div className="overflow-hidden">
+          <p className="mt-3 max-w-lg text-[13px] leading-relaxed text-white/45">{a}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LandingPage({ refCode }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
   const [scrolled, setScrolled] = useState(false);
@@ -379,7 +435,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ ENOUGH ════════════════════════════════════════════════════ */}
-        <section className="relative flex items-center justify-center px-8 py-24 text-center">
+        <section className="relative flex items-center justify-center px-8 py-14 text-center">
           <div data-reveal="clip">
             <div
               className="lp-clip font-black leading-none tracking-tighter text-white"
@@ -405,8 +461,8 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ SCATTER TRANSITION ════════════════════════════════════════ */}
-        <section className="relative overflow-hidden py-10">
-          <div className="relative mx-auto h-28 max-w-2xl">
+        <section className="relative overflow-hidden py-4">
+          <div className="relative mx-auto h-16 max-w-2xl">
             {([
               { left: "6%",  top: "15%", w: 28, rot: -22, dur: 3.8, del: 0.0 },
               { left: "78%", top: "25%", w: 16, rot:  41, dur: 4.2, del: 0.5 },
@@ -441,7 +497,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ CINEFLOW INTRO ════════════════════════════════════════════ */}
-        <section className="relative flex flex-col items-center justify-center px-8 py-20 text-center">
+        <section className="relative flex flex-col items-center justify-center px-8 py-14 text-center">
           <div data-reveal="clip" className="flex flex-col items-center">
             <div className="lp-clip mb-8">
               <div className="lp-clip-inner h-px w-10 bg-[#d4a853]" style={{ "--di": "0s" } as React.CSSProperties} />
@@ -587,7 +643,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ PRICING ═══════════════════════════════════════════════════ */}
-        <section className="relative py-24 px-8">
+        <section id="lp-pricing" className="relative py-24 px-8">
           <div className="mx-auto max-w-4xl">
 
             <div data-reveal className="mb-14 text-center">
@@ -714,6 +770,20 @@ export function LandingPage({ refCode }: Props) {
           </div>
         </section>
 
+        {/* ══ FAQ ═══════════════════════════════════════════════════════ */}
+        <section className="relative py-20 px-8">
+          <div className="mx-auto max-w-2xl">
+            <div data-reveal className="mb-10 text-center">
+              <p className="font-mono text-[10px] tracking-[0.42em] uppercase text-white/20">Questions</p>
+            </div>
+            <div data-reveal>
+              {FAQS.map((f) => (
+                <FaqItem key={f.q} q={f.q} a={f.a} />
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ══ CTA ═══════════════════════════════════════════════════════ */}
         <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 text-center">
           <div
@@ -731,7 +801,7 @@ export function LandingPage({ refCode }: Props) {
             <div className="lp-clip mb-5">
               <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/40"
                 style={{ "--di": "0.20s" } as React.CSSProperties}>
-                Join filmmakers and video teams already running their productions on CineFlow.
+                Built by a filmmaker who got tired of stitching tools together. See if it fits how you actually work.
               </p>
             </div>
             <div className="lp-clip mb-2 mt-1">
@@ -757,7 +827,10 @@ export function LandingPage({ refCode }: Props) {
             </div>
           </div>
 
-          <div className="absolute bottom-6 left-0 right-0 flex justify-center gap-8 font-mono text-[9px] tracking-widest uppercase text-white/10">
+          <div className="absolute bottom-6 left-0 right-0 flex flex-wrap justify-center gap-x-8 gap-y-2 px-8 font-mono text-[9px] tracking-widest uppercase text-white/10">
+            <a href="#lp-pricing" className="hover:text-white/30 transition-colors">Pricing</a>
+            <Link href="/login" className="hover:text-white/30 transition-colors">Log in</Link>
+            <a href="mailto:hello@usecineflow.com" className="hover:text-white/30 transition-colors">Contact</a>
             <Link href="/privacy" className="hover:text-white/30 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-white/30 transition-colors">Terms</Link>
             <span>© 2026 CineFlow</span>
