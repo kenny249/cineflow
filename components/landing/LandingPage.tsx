@@ -106,6 +106,21 @@ const OUTCOMES = [
   { stat: "Zero chaos.",      sub: "Everything in one place. Nothing falls through." },
 ] as const;
 
+// Scattered points the intro particles converge in from — echoes the chaos
+// fragments resolving into the wordmark, like scattered light finding focus.
+const CF_PARTICLES = [
+  { sx: "-320px", sy: "-90px",  d: "0.05s" },
+  { sx: "300px",  sy: "-120px", d: "0.12s" },
+  { sx: "-260px", sy: "110px",  d: "0.02s" },
+  { sx: "340px",  sy: "80px",   d: "0.18s" },
+  { sx: "-150px", sy: "-160px", d: "0.24s" },
+  { sx: "180px",  sy: "150px",  d: "0.08s" },
+  { sx: "-380px", sy: "20px",   d: "0.30s" },
+  { sx: "400px",  sy: "-30px",  d: "0.15s" },
+  { sx: "-80px",  sy: "160px",  d: "0.21s" },
+  { sx: "90px",   sy: "-170px", d: "0.27s" },
+] as const;
+
 export function LandingPage({ refCode }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
   const [scrolled, setScrolled] = useState(false);
@@ -408,6 +423,14 @@ export function LandingPage({ refCode }: Props) {
                   filter: "blur(32px)",
                 }}
               />
+              {/* Scattered fragments converging into the wordmark on reveal */}
+              {CF_PARTICLES.map((p, i) => (
+                <span
+                  key={i}
+                  className="lp-cf-particle pointer-events-none absolute left-1/2 top-1/2"
+                  style={{ "--sx": p.sx, "--sy": p.sy, "--di": p.d } as React.CSSProperties}
+                />
+              ))}
               <div
                 className="font-black leading-none tracking-tight"
                 style={{
@@ -419,6 +442,9 @@ export function LandingPage({ refCode }: Props) {
                   paddingRight: "0.06em",
                 }}
               >CineFlow</div>
+              {/* Specular sweep — light catching gold foil, on a loop */}
+              <div className="lp-cf-shine pointer-events-none absolute inset-0 font-black leading-none tracking-tight"
+                style={{ paddingRight: "0.06em" }} aria-hidden="true">CineFlow</div>
             </div>
 
             <div className="lp-clip mt-7">
