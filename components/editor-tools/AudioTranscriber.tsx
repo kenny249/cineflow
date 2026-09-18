@@ -650,11 +650,11 @@ export function AudioTranscriber({ initialTranscriptId, initialSeekSeconds }: Au
   // ── IDLE / ERROR ─────────────────────────────────────────────────────────
   if (state.phase === "idle" || state.phase === "error") {
     return (
-      <div className="flex h-full overflow-hidden">
+      <div className="flex h-full flex-col overflow-hidden md:flex-row">
         <input ref={fileInputRef} type="file" accept={ACCEPTED_EXT.join(",")} className="hidden" onChange={onFileChange} />
 
         {/* Left: Upload zone */}
-        <div className="flex flex-1 items-center justify-center border-r border-border p-8">
+        <div className="flex flex-1 items-center justify-center border-b border-border p-8 md:border-b-0 md:border-r">
           <div
             onDragEnter={onDragEnter}
             onDragOver={(e) => e.preventDefault()}
@@ -662,7 +662,7 @@ export function AudioTranscriber({ initialTranscriptId, initialSeekSeconds }: Au
             onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}
             className={cn(
-              "flex w-full max-w-md cursor-pointer select-none flex-col items-center justify-center rounded-2xl border-2 border-dashed px-8 py-20 text-center transition-colors",
+              "flex w-full max-w-md cursor-pointer select-none flex-col items-center justify-center rounded-2xl border-2 border-dashed px-8 py-14 text-center transition-colors md:py-20",
               dragging ? "border-[#d4a853] bg-[#d4a853]/5" : "border-border hover:border-[#d4a853]/50 hover:bg-white/[0.02]"
             )}
           >
@@ -680,7 +680,7 @@ export function AudioTranscriber({ initialTranscriptId, initialSeekSeconds }: Au
         </div>
 
         {/* Right: Library — always visible in idle state */}
-        <div className="flex w-[360px] xl:w-[400px] shrink-0 flex-col">
+        <div className="flex max-h-[45vh] w-full shrink-0 flex-col md:max-h-none md:w-[360px] xl:w-[400px]">
           <div className="shrink-0 flex items-center gap-2.5 border-b border-border px-5 py-3.5">
             <Library className="h-3.5 w-3.5 text-[#d4a853]" />
             <div>
