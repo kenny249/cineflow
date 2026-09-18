@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Film, Check } from "lucide-react";
+import { Film, Check, ChevronDown } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
 import { SpotlightCanvas } from "./SpotlightCanvas";
 import { scrollState } from "./scrollState";
@@ -352,14 +352,12 @@ export function LandingPage({ refCode }: Props) {
                 There&apos;s a better way.
               </p>
             </div>
-            <div className="lp-clip mt-8">
+            <div className="lp-clip mt-10">
               <div className="lp-clip-inner" style={{ "--di": "0.34s" } as React.CSSProperties}>
-              <MagneticLink
-                href={href}
-                className="inline-block rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
-              >
-                Start for free →
-              </MagneticLink>
+                <ChevronDown
+                  className="mx-auto h-5 w-5 text-[#d4a853]/45"
+                  style={{ animation: "float-up-down 2.6s ease-in-out infinite" }}
+                />
               </div>
             </div>
           </div>

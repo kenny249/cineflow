@@ -36,39 +36,39 @@ export function SpotlightCanvas() {
       mouse.current.x = x / window.innerWidth;
       mouse.current.y = y / window.innerHeight;
 
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0; i < 1; i++) {
         embers.current.push({
           x, y,
-          vx: (Math.random() - 0.5) * 1.8,
-          vy: -Math.random() * 2.0 - 0.4,
+          vx: (Math.random() - 0.5) * 1.4,
+          vy: -Math.random() * 1.6 - 0.3,
           life: 1,
-          maxLife: 0.6 + Math.random() * 0.9,
-          size: 1.0 + Math.random() * 1.8,
+          maxLife: 0.5 + Math.random() * 0.6,
+          size: 0.8 + Math.random() * 1.2,
         });
       }
-      if (embers.current.length > 160) embers.current.splice(0, embers.current.length - 160);
+      if (embers.current.length > 60) embers.current.splice(0, embers.current.length - 60);
     }
     window.addEventListener("mousemove", onMove, { passive: true });
     window.addEventListener("touchmove", onMove, { passive: true });
 
     function draw() {
       raf = requestAnimationFrame(draw);
-      current.current.x += (mouse.current.x - current.current.x) * 0.065;
-      current.current.y += (mouse.current.y - current.current.y) * 0.065;
+      current.current.x += (mouse.current.x - current.current.x) * 0.4;
+      current.current.y += (mouse.current.y - current.current.y) * 0.4;
 
       ctx.clearRect(0, 0, canvas!.width, canvas!.height);
       if (!active.current && embers.current.length === 0) return;
 
       const cx = current.current.x * canvas!.width;
       const cy = current.current.y * canvas!.height;
-      const r = Math.min(canvas!.width, canvas!.height) * 0.32;
+      const r = Math.min(canvas!.width, canvas!.height) * 0.16;
 
       // Soft warm light pool centered on the cursor — additive only, never darkens
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       const pool = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-      pool.addColorStop(0, "rgba(255,240,200,0.10)");
-      pool.addColorStop(0.4, "rgba(212,168,83,0.07)");
+      pool.addColorStop(0, "rgba(255,240,200,0.045)");
+      pool.addColorStop(0.4, "rgba(212,168,83,0.03)");
       pool.addColorStop(1, "rgba(212,168,83,0)");
       ctx.fillStyle = pool;
       ctx.beginPath();
@@ -87,7 +87,7 @@ export function SpotlightCanvas() {
         e.vx *= 0.97;
         e.life -= 0.025 / e.maxLife;
         const clampedLife = Math.max(0, e.life);
-        const alpha = clampedLife * 0.9;
+        const alpha = clampedLife * 0.45;
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.size * clampedLife, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(212,168,83,${alpha})`;
