@@ -38,7 +38,7 @@ const features = [
   },
   {
     title: "Client Hub",
-    description: "Share, review, and get approvals in one place.",
+    description: "Share, review, and get approvals without a single email thread.",
     icon: (
       <svg width="30" height="30" viewBox="0 0 32 32" fill="none" className="text-[#d4a853]" xmlns="http://www.w3.org/2000/svg">
         <rect x="4" y="7" width="24" height="18" rx="4" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeWidth="1.5" />
