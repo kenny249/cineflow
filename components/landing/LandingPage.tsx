@@ -183,6 +183,25 @@ export function LandingPage({ refCode }: Props) {
   const [scrolled, setScrolled] = useState(false);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const lenisRef = useRef<{ scrollTo: (target: string | number | HTMLElement, opts?: Record<string, unknown>) => void } | null>(null);
+  const [nlEmail, setNlEmail] = useState("");
+  const [nlStatus, setNlStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+
+  async function handleNewsletterSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (nlStatus === "loading") return;
+    setNlStatus("loading");
+    try {
+      const res = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: nlEmail }),
+      });
+      if (!res.ok) throw new Error();
+      setNlStatus("success");
+    } catch {
+      setNlStatus("error");
+    }
+  }
 
   function scrollToPanels() {
     lenisRef.current?.scrollTo("#lp-panels", { duration: 1.6, offset: -20 });
@@ -824,6 +843,40 @@ export function LandingPage({ refCode }: Props) {
                 style={{ "--di": "0.44s" } as React.CSSProperties}>
                 Replaces 4+ subscriptions. Starts at $39/mo.
               </p>
+            </div>
+
+            <div className="lp-clip mt-10">
+              <div className="lp-clip-inner" style={{ "--di": "0.5s" } as React.CSSProperties}>
+                {nlStatus === "success" ? (
+                  <p className="text-[11px] text-[#d4a853]/70">You&apos;re on the list — thanks.</p>
+                ) : (
+                  <>
+                    <p className="mb-3 text-[10px] text-white/25">
+                      Not ready to try it? Get occasional product updates — about once a month, no spam.
+                    </p>
+                    <form onSubmit={handleNewsletterSubmit} className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        required
+                        value={nlEmail}
+                        onChange={(e) => setNlEmail(e.target.value)}
+                        placeholder="you@studio.com"
+                        className="w-40 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/70 placeholder:text-white/20 focus:border-[#d4a853]/40 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={nlStatus === "loading"}
+                        className="shrink-0 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-white/60 transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853] disabled:opacity-50"
+                      >
+                        {nlStatus === "loading" ? "…" : "Notify me"}
+                      </button>
+                    </form>
+                    {nlStatus === "error" && (
+                      <p className="mt-2 text-[10px] text-red-400/70">Something went wrong — try again.</p>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

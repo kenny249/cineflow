@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown, MessageSquarePlus, BookOpen, Code2, LineChart, ExternalLink, AlertTriangle, FlaskConical, Cpu } from "lucide-react";
+import { Users, BarChart2, DollarSign, Link2, Share2, Settings2, Film, ArrowLeft, ScrollText, Flag, Megaphone, Palette, Zap, Radio, Send, TrendingDown, MessageSquarePlus, BookOpen, Code2, LineChart, ExternalLink, AlertTriangle, FlaskConical, Cpu, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ const NAV = [
   { href: "/admin/feedback",     label: "Feedback",       icon: MessageSquarePlus },
   { href: "/admin/invite-links", label: "Invite Links",   icon: Link2 },
   { href: "/admin/referrals",    label: "Referrals",      icon: Share2 },
+  { href: "/admin/newsletter",   label: "Newsletter",     icon: Mail },
   { href: "/admin/audit-log",    label: "Audit Log",      icon: ScrollText },
   { href: "/admin/feature-flags",label: "Feature Flags",  icon: Flag },
   { href: "/admin/announcements",label: "Announcements",  icon: Megaphone },

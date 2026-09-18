@@ -41,6 +41,7 @@ const PUBLIC_PREFIXES = [
   "/api/contracts/certificate",
   "/api/invoices/confirm-payment",
   "/api/boards/public",
+  "/api/newsletter",
 ];
 
 function isPublic(pathname: string): boolean {
