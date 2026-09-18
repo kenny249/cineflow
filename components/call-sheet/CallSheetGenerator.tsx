@@ -336,8 +336,8 @@ function PrintHeader({ project, profile, formData, clientLogoUrl }: {
           <p style={{ fontSize: 12, fontWeight: 700, color: "#111", margin: 0 }}>{profile?.business_name || "Production Company"}</p>
           {producerName && <p style={{ fontSize: 9, color: "#6b7280", marginTop: 2 }}>{producerName}</p>}
         </div>
-        <div style={{ textAlign: "center", flex: 1, padding: "0 20px" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 3px" }}>{project.title}</h1>
+        <div style={{ textAlign: "center", flex: 1, minWidth: 0, padding: "0 20px" }}>
+          <h1 style={{ fontSize: 22, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase", margin: "0 0 3px", wordBreak: "break-word" }}>{project.title}</h1>
           {project.client_name && <p style={{ fontSize: 9, color: "#6b7280", margin: "0 0 2px" }}>Client: {project.client_name}</p>}
           <p style={{ fontSize: 10, fontWeight: 700, color: "#111", margin: 0 }}>CALL SHEET — {shootDateStr}</p>
         </div>
