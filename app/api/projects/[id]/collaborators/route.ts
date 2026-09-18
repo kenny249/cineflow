@@ -38,6 +38,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // Only Producers (owner/admin) decide who gets added to a project — not every member
+    const { data: isProducer } = await supabase.rpc("is_producer_or_above");
+    if (!isProducer) {
+      return NextResponse.json(
+        { error: "Only a Producer or the workspace owner can invite collaborators" },
+        { status: 403 }
+      );
+    }
+
     // Check plan allows collaborator invites (Studio+ only)
     const { data: profile } = await supabase
       .from("profiles")
@@ -169,6 +178,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const { data: isProducer } = await supabase.rpc("is_producer_or_above");
+    if (!isProducer) {
+      return NextResponse.json(
+        { error: "Only a Producer or the workspace owner can manage collaborators" },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json() as { collaboratorId: string; permissions: string[] };
     if (!body.collaboratorId) return NextResponse.json({ error: "collaboratorId required" }, { status: 400 });
 
@@ -199,6 +216,14 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { data: isProducer } = await supabase.rpc("is_producer_or_above");
+    if (!isProducer) {
+      return NextResponse.json(
+        { error: "Only a Producer or the workspace owner can remove collaborators" },
+        { status: 403 }
+      );
+    }
 
     const collaboratorId = req.nextUrl.searchParams.get("collaboratorId");
     if (!collaboratorId) return NextResponse.json({ error: "collaboratorId required" }, { status: 400 });
