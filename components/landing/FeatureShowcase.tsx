@@ -54,21 +54,21 @@ const CATEGORIES: readonly ShowcaseCategory[] = [
     label: "Finance",
     features: [
       {
-        label: "Invoicing",
-        h: "Stop chasing your own money.",
-        sub: "Revenue, expenses, and invoices across every project — see what's outstanding at a glance.",
-        note: "Replaces HoneyBook + Wave",
-        img: "/marketing/panel-invoicing.png",
-        imgAlt: "CineFlow finance dashboard with a revenue chart, top clients, and invoice totals.",
-        imgHeight: 900,
-      },
-      {
         label: "Quote Calculator",
         h: "Price a job in minutes, not hours.",
         sub: "Build a quote from real crew rates, apply your markup, and turn it into a client-ready estimate.",
         note: "From rate card to client quote",
         img: "/marketing/panel-quote-calculator.png",
         imgAlt: "CineFlow quote calculator with crew and equipment line items and floor, standard, and premium pricing tiers.",
+        imgHeight: 900,
+      },
+      {
+        label: "Invoicing",
+        h: "Stop chasing your own money.",
+        sub: "Revenue, expenses, and invoices across every project — see what's outstanding at a glance.",
+        note: "Replaces HoneyBook + Wave",
+        img: "/marketing/panel-invoicing.png",
+        imgAlt: "CineFlow finance dashboard with a revenue chart, top clients, and invoice totals.",
         imgHeight: 900,
       },
     ],
@@ -218,8 +218,8 @@ function CategorySection({ category, reversed }: { category: ShowcaseCategory; r
         <p className="mb-6 font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48">
           {category.num} · {category.label}
         </p>
-        <div className="w-full min-w-0 md:max-w-md">
-          <AnimatePresence mode="wait">
+        <motion.div layout transition={{ layout: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }} className="w-full min-w-0 md:max-w-md">
+          <AnimatePresence mode="popLayout">
             <motion.div
               key={feature.label}
               initial={{ opacity: 0, y: 8 }}
@@ -239,7 +239,7 @@ function CategorySection({ category, reversed }: { category: ShowcaseCategory; r
               <p className="mt-5 font-mono text-[9px] tracking-[0.32em] uppercase text-white/18">{feature.note}</p>
             </motion.div>
           </AnimatePresence>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
