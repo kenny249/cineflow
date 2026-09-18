@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Film, Check } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
+import { SpotlightCanvas } from "./SpotlightCanvas";
 import { scrollState } from "./scrollState";
 import { AdPixels } from "@/components/shared/AdPixels";
 import { MagneticLink } from "./MagneticLink";
@@ -164,6 +165,7 @@ export function LandingPage({ refCode }: Props) {
     <div style={{ background: "#050508" }}>
       <AdPixels />
       <BackgroundCanvas />
+      <SpotlightCanvas />
 
       {/* Nav */}
       <nav
