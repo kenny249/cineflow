@@ -157,6 +157,14 @@ function RadarSweep({ c, active, r = 210 }: { c: string; active: boolean; r?: nu
   );
 }
 
+// Node's SSR engine and the browser's can round Math.cos/Math.sin
+// differently in the last couple of float digits — invisible to the eye but
+// enough for React's strict hydration diff to flag every one of these lines
+// as a mismatch. Round to a sane SVG precision so both sides agree exactly.
+function r2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function TickRing({ radius, count, c }: { radius: number; count: number; c: string }) {
   const ticks = Array.from({ length: count }, (_, i) => {
     const angle = (i / count) * 360;
@@ -169,8 +177,8 @@ function TickRing({ radius, count, c }: { radius: number; count: number; c: stri
     <svg className="absolute pointer-events-none" style={{ width: radius * 2, height: radius * 2, left: -radius, top: -radius }} viewBox={`0 0 ${radius * 2} ${radius * 2}`}>
       {ticks.map(({ rad, inner, major }, i) => (
         <line key={i}
-          x1={radius + Math.cos(rad) * inner} y1={radius + Math.sin(rad) * inner}
-          x2={radius + Math.cos(rad) * radius} y2={radius + Math.sin(rad) * radius}
+          x1={r2(radius + Math.cos(rad) * inner)} y1={r2(radius + Math.sin(rad) * inner)}
+          x2={r2(radius + Math.cos(rad) * radius)} y2={r2(radius + Math.sin(rad) * radius)}
           stroke={major ? `${c}55` : `${c}22`} strokeWidth={major ? 1.5 : 0.75} />
       ))}
     </svg>
