@@ -1,12 +1,45 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, Phone, Mail, Trash2, Edit3, Check, X, Users } from "lucide-react";
-import { getCrewContacts, createCrewContact, updateCrewContact, deleteCrewContact } from "@/lib/supabase/queries";
-import type { CrewContact } from "@/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Phone, Mail, Trash2, Edit3, Check, X, Users, Sparkles } from "lucide-react";
+import { getCrewContacts, createCrewContact, updateCrewContact, deleteCrewContact, getMyCrewProfiles } from "@/lib/supabase/queries";
+import type { CrewContact, CrewProfile } from "@/types";
 import { toast } from "sonner";
 
 const DEPARTMENTS = ["Direction", "Camera", "Lighting", "Sound", "Art", "Wardrobe", "Hair & Makeup", "Production", "Post", "Other"];
+
+// Maps a Crew Network primary_role to the closest bucket in DEPARTMENTS above,
+// so picking a suggestion doesn't leave the department dropdown on its default.
+const ROLE_DEPARTMENT: Record<string, string> = {
+  "Director": "Direction",
+  "Director of Photography (DP)": "Camera",
+  "Camera Operator": "Camera",
+  "Drone / Aerial Operator": "Camera",
+  "1st AC / Focus Puller": "Camera",
+  "2nd AC": "Camera",
+  "Steadicam Operator": "Camera",
+  "Photographer": "Camera",
+  "Editor": "Post",
+  "Colorist": "Post",
+  "Motion Graphics Designer": "Post",
+  "VFX Artist": "Post",
+  "Sound Mixer / Recordist": "Sound",
+  "Sound Designer": "Sound",
+  "Composer": "Sound",
+  "Gaffer": "Lighting",
+  "Key Grip": "Lighting",
+  "Production Designer": "Art",
+  "Art Director": "Art",
+  "Makeup / Hair": "Hair & Makeup",
+  "Producer": "Production",
+  "Line Producer": "Production",
+  "Production Assistant": "Production",
+  "Script Supervisor": "Production",
+};
+
+function departmentForRole(role: string): string {
+  return ROLE_DEPARTMENT[role] ?? "Other";
+}
 
 interface CrewTabProps {
   projectId: string;
@@ -42,10 +75,52 @@ export function CrewTab({ projectId, canEdit }: CrewTabProps) {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [network, setNetwork] = useState<CrewProfile[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     getCrewContacts(projectId).then(setCrew).catch(() => {}).finally(() => setLoading(false));
+    // Crew Network is the user's own saved-crew address book — used to suggest
+    // people they've already worked with instead of retyping contact info.
+    getMyCrewProfiles().then(setNetwork).catch(() => {});
   }, [projectId]);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const alreadyOnProject = useMemo(
+    () => new Set(crew.map((c) => (c.email || c.name).toLowerCase())),
+    [crew]
+  );
+
+  const suggestions = useMemo(() => {
+    const q = form.name.trim().toLowerCase();
+    if (!q) return [];
+    return network
+      .filter((p) => p.name.toLowerCase().includes(q))
+      .filter((p) => !alreadyOnProject.has((p.email || p.name).toLowerCase()))
+      .slice(0, 5);
+  }, [form.name, network, alreadyOnProject]);
+
+  function applySuggestion(profile: CrewProfile) {
+    setForm({
+      name: profile.name,
+      role: profile.primary_role,
+      department: departmentForRole(profile.primary_role),
+      email: profile.email ?? "",
+      phone: profile.phone ?? "",
+      notes: "",
+    });
+    setShowSuggestions(false);
+  }
 
   async function handleSave() {
     if (!form.name.trim() || !form.role.trim()) { toast.error("Name and role are required"); return; }
@@ -122,7 +197,34 @@ export function CrewTab({ projectId, canEdit }: CrewTabProps) {
         <div className="shrink-0 border-b border-border bg-muted/10 px-4 sm:px-5 py-4">
           <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">{editingId ? "Edit Contact" : "New Crew Member"}</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <input className="col-span-2 sm:col-span-1 input-base" placeholder="Full name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <div className="relative col-span-2 sm:col-span-1" ref={suggestionsRef}>
+              <input
+                className="input-base w-full"
+                placeholder="Full name *"
+                value={form.name}
+                onChange={(e) => { setForm({ ...form, name: e.target.value }); setShowSuggestions(true); }}
+                onFocus={() => setShowSuggestions(true)}
+              />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-10 overflow-hidden rounded-lg border border-border bg-popover shadow-lg">
+                  {suggestions.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => applySuggestion(p)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60 transition-colors"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#d4a853]" />
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="font-medium text-foreground">{p.name}</span>
+                        <span className="ml-1.5 text-xs text-muted-foreground">{p.primary_role}</span>
+                      </span>
+                    </button>
+                  ))}
+                  <p className="border-t border-border px-3 py-1.5 text-[10px] text-muted-foreground/70">From your Crew Network</p>
+                </div>
+              )}
+            </div>
             <input className="input-base" placeholder="Role / Job title *" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} />
             <select className="input-base" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}>
               {DEPARTMENTS.map((d) => <option key={d}>{d}</option>)}
