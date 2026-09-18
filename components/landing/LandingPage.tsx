@@ -7,6 +7,7 @@ import { Film, Check } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
 import { scrollState } from "./scrollState";
 import { AdPixels } from "@/components/shared/AdPixels";
+import { MagneticLink } from "./MagneticLink";
 
 interface Props { refCode?: string }
 
@@ -239,12 +240,14 @@ export function LandingPage({ refCode }: Props) {
             <p className="lp-hero-sub mt-6 max-w-sm text-[13px] leading-relaxed text-white/48">
               Shot lists, client portals, invoicing, crew scheduling.<br />All flowing in one place. Finally.
             </p>
-            <Link
-              href={href}
-              className="lp-hero-cta mt-8 rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
-            >
-              Start for free →
-            </Link>
+            <div className="lp-hero-cta mt-8">
+              <MagneticLink
+                href={href}
+                className="inline-block rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
+              >
+                Start for free →
+              </MagneticLink>
+            </div>
             <p className="lp-hero-trust mt-3 font-mono text-[9px] tracking-[0.28em] uppercase text-white/22">
               No credit card required · Cancel anytime
             </p>
@@ -333,13 +336,14 @@ export function LandingPage({ refCode }: Props) {
               </p>
             </div>
             <div className="lp-clip mt-8">
-              <Link
+              <div className="lp-clip-inner" style={{ "--di": "0.34s" } as React.CSSProperties}>
+              <MagneticLink
                 href={href}
-                className="lp-clip-inner inline-block rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
-                style={{ "--di": "0.34s" } as React.CSSProperties}
+                className="inline-block rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
               >
                 Start for free →
-              </Link>
+              </MagneticLink>
+              </div>
             </div>
           </div>
         </section>
@@ -464,7 +468,7 @@ export function LandingPage({ refCode }: Props) {
 
                 <div className="w-full md:flex-1">
                   <div
-                    className="overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+                    className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
                     style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
                   >
                     <Image
@@ -475,6 +479,7 @@ export function LandingPage({ refCode }: Props) {
                       sizes="(min-width: 768px) 58vw, 92vw"
                       className="w-full h-auto"
                     />
+                    <div className="lp-panel-shine" />
                   </div>
                 </div>
               </div>
@@ -493,7 +498,7 @@ export function LandingPage({ refCode }: Props) {
                 <div
                   key={stat}
                   data-reveal
-                  className="rounded-2xl px-6 py-7"
+                  className="lp-outcome-card rounded-2xl px-6 py-7"
                   style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
                 >
                   <p
@@ -551,7 +556,7 @@ export function LandingPage({ refCode }: Props) {
               {LP_PLANS.map((plan) => (
                 <div
                   key={plan.name}
-                  className="relative flex flex-col rounded-2xl p-6"
+                  className={`lp-pricing-card relative flex flex-col rounded-2xl p-6 ${plan.popular ? "lp-pricing-card--popular" : ""}`}
                   style={{
                     background: plan.popular ? "rgba(212,168,83,0.05)" : "rgba(255,255,255,0.02)",
                     border: plan.popular ? "1px solid rgba(212,168,83,0.25)" : "1px solid rgba(255,255,255,0.06)",
@@ -589,8 +594,9 @@ export function LandingPage({ refCode }: Props) {
                     ))}
                   </ul>
 
-                  <Link
+                  <MagneticLink
                     href={href}
+                    strength={7}
                     className={`block w-full rounded-xl py-2.5 text-center text-xs font-bold transition-all ${
                       plan.popular
                         ? "bg-[#d4a853] text-black hover:bg-[#d4a853]/90 hover:shadow-[0_0_28px_rgba(212,168,83,0.22)]"
@@ -598,7 +604,7 @@ export function LandingPage({ refCode }: Props) {
                     }`}
                   >
                     Start free trial
-                  </Link>
+                  </MagneticLink>
                 </div>
               ))}
             </div>
