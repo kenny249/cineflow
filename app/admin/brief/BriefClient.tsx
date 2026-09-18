@@ -201,7 +201,7 @@ ${BRIEF.tech.highlights.map(h => `- ${h}`).join("\n")}
 
 - Direct: usecineflow.com (SEO, social, word of mouth)
 - Referral system: built-in custom referral program
-- Mac desktop app: available as a native .dmg download
+- Mac desktop app: planned (native .dmg download)
 - Extended trials (90-day) being used for early adopter seeding in film communities
 - Target channels: film schools, DP/editor communities, indie production Facebook groups, YouTube filmmaking creators
 
