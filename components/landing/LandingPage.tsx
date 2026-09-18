@@ -54,27 +54,26 @@ const HERO_VARIANTS: Record<
   },
 };
 
+// Across all 4 hero variants, the H1+sub block occupies a fixed pixel
+// band (independent of viewport height — the section is taller than any
+// tested viewport, so its layout is content-driven, not viewport-driven):
+// y 60-243px, x up to 270-1010px at its widest (variant c). The CTA
+// button sits at y 275-319, x 559-721 — comfortably clear of that band
+// (32px > the ~8.87px worst-case mouse-parallax excursion) with wide
+// open margins to either side. Fragments that used to sit near the
+// headline were repositioned into that band instead of hidden, so all
+// 10 render on all 4 variants with no variant-conditional logic.
 const FRAGMENTS = [
   { text: '"where are we at?" · 11:47pm',     mono: false, x: "4%",  y: "20%", rot: -3, d: 0.6,  dur: 3.8 },
-  // Sits close enough to the headline that its own float animation
-  // (translateY 0 to -20px) plus mouse parallax (worst case ~8.9px
-  // combined) can close the gap — measured clearance at rest+extreme:
-  // a 2.2px, c 3.4px, d overlaps outright (~81px). Only b has real
-  // clearance (15.6px), so it's the only variant that keeps this one.
-  { text: "Invoice_v4_FINAL_FINAL.pdf",        mono: true,  x: "70%", y: "16%", rot:  4, d: 1.0,  dur: 4.2, hideFor: ["a", "c", "d"] as const },
+  { text: "Invoice_v4_FINAL_FINAL.pdf",        mono: true,  x: "82%", y: "26%", rot:  4, d: 1.0,  dur: 4.2 },
   { text: '"did you get the rough cut link?"', mono: false, x: "3%",  y: "60%", rot: -2, d: 1.2,  dur: 3.5 },
   { text: "shot_list_REVISED_use_this.xlsx",   mono: true,  x: "68%", y: "72%", rot:  5, d: 0.8,  dur: 4.5 },
   { text: '"can you resend the contract?"',    mono: false, x: "74%", y: "42%", rot: -4, d: 1.4,  dur: 3.9 },
   { text: "Client approval: pending 14d",      mono: false, x: "8%",  y: "80%", rot:  3, d: 1.0,  dur: 4.1 },
   { text: '"what time is call time again?"',   mono: false, x: "12%", y: "38%", rot: -5, d: 1.5,  dur: 3.6 },
-  // Collides with variant b's sub (~76px overlap at 768px height).
-  { text: "call_sheet_saturday_v4.pdf",        mono: true,  x: "58%", y: "24%", rot:  3, d: 0.9,  dur: 4.3, hideFor: ["b"] as const },
+  { text: "call_sheet_saturday_v4.pdf",        mono: true,  x: "6%",  y: "33%", rot:  3, d: 0.9,  dur: 4.3 },
   { text: '"I never got the invoice 🙏"',      mono: false, x: "76%", y: "60%", rot: -3, d: 1.3,  dur: 3.7 },
-  // Removed entirely (not hidden per-variant): overlaps a's sub (~51px)
-  // and b's headline (~80px) and sub (~79px) outright, and even where it
-  // doesn't overlap at rest, its own float + mouse parallax closes the
-  // remaining gap for c (9.5px, under the ~8.9px worst-case combined
-  // excursion) and d (2.9px). No variant has safe clearance for it.
+  { text: '"just checking in again..."',       mono: false, x: "83%", y: "35%", rot:  2, d: 1.6,  dur: 4.0 },
 ] as const;
 
 // Annual figures mirror app/(app)/upgrade/page.tsx — keep in sync if pricing changes.
@@ -331,7 +330,7 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
         <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 pb-40 text-center">
 
           {/* Hidden on mobile — overlap hero content on small screens */}
-          {FRAGMENTS.filter((f) => !("hideFor" in f && (f.hideFor as readonly string[]).includes(heroVariant))).map((f) => (
+          {FRAGMENTS.map((f) => (
             <div
               key={f.text}
               className="lp-frag-wrap absolute pointer-events-none hidden sm:block"
