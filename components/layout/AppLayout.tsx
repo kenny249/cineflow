@@ -254,7 +254,7 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <Suspense fallback={<div className="h-14 border-b border-border bg-background/80" />}>
-          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userId={userId || undefined} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} plan={plan} planStatus={planStatus} studioName={profileStudioName || undefined} />
+          <TopBar action={topBarAction} onSignOut={handleSignOut} onOpenPalette={() => setPaletteOpen(true)} theme={theme} onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")} userId={userId || undefined} userFullName={profileName || undefined} userAvatarUrl={profileAvatarUrl || undefined} plan={plan} planStatus={planStatus} studioName={profileStudioName || undefined} profileLoaded={profileLoaded} />
         </Suspense>
         <DemoBanner isDemo={isDemoUser} />
         {announcements.map((a) => (

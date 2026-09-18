@@ -96,7 +96,7 @@ export default async function UsersPage() {
     <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-xl font-bold text-white">Users</h1>
-        <p className="text-sm text-zinc-500 mt-0.5">All real accounts (demo accounts excluded)</p>
+        <p className="text-sm text-zinc-500 mt-0.5">Demo accounts excluded — test-flagged accounts are shown below for review</p>
       </div>
 
       {/* Stats row */}

@@ -53,6 +53,7 @@ interface TopBarProps {
   plan?: string;
   planStatus?: string;
   studioName?: string;
+  profileLoaded?: boolean;
 }
 
 function planLabel(plan?: string, planStatus?: string): string {
@@ -65,7 +66,7 @@ function planLabel(plan?: string, planStatus?: string): string {
   return "CineFlow Member";
 }
 
-export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userId, userAvatarUrl, userFullName, plan, planStatus, studioName }: TopBarProps) {
+export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onToggleTheme, userId, userAvatarUrl, userFullName, plan, planStatus, studioName, profileLoaded = true }: TopBarProps) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState("Studio User");
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -266,17 +267,25 @@ export function TopBar({ action, onSignOut, onOpenPalette, theme = "dark", onTog
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex h-8 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-accent focus:outline-none">
-              <Avatar className="h-6 w-6 ring-1 ring-border">
-                {userAvatarUrl && <AvatarImage src={userAvatarUrl} />}
-                <AvatarFallback className="text-[10px] bg-[#d4a853]/20 text-[#d4a853]">
-                  {getInitials(displayName)}
-                </AvatarFallback>
-              </Avatar>
+              {profileLoaded ? (
+                <Avatar className="h-6 w-6 ring-1 ring-border">
+                  {userAvatarUrl && <AvatarImage src={userAvatarUrl} />}
+                  <AvatarFallback className="text-[10px] bg-[#d4a853]/20 text-[#d4a853]">
+                    {getInitials(displayName)}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <span className="shimmer-gold block h-6 w-6 shrink-0 rounded-full" />
+              )}
               <div className="hidden md:flex flex-col items-start leading-tight">
                 {studioName && (
                   <span className="text-[9px] text-muted-foreground/50 truncate max-w-[100px]">{studioName}</span>
                 )}
-                <span className="text-xs font-medium text-foreground">{displayName.split(" ")[0]}</span>
+                {profileLoaded ? (
+                  <span className="text-xs font-medium text-foreground">{displayName.split(" ")[0]}</span>
+                ) : (
+                  <span className="shimmer-gold block h-3 w-14 rounded-full" />
+                )}
               </div>
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </button>

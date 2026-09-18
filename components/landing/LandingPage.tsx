@@ -104,12 +104,6 @@ const OUTCOMES = [
   { stat: "Zero chaos.",      sub: "Everything in one place. Nothing falls through." },
 ] as const;
 
-const TESTIMONIALS = [
-  "Dude this is a game changer.",
-  "This makes my life so much easier.",
-  "I genuinely needed this.",
-] as const;
-
 export function LandingPage({ refCode }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
   const [scrolled, setScrolled] = useState(false);
@@ -512,22 +506,6 @@ export function LandingPage({ refCode }: Props) {
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-
-        {/* ══ TESTIMONIALS ══════════════════════════════════════════════ */}
-        <section className="relative py-16 px-8">
-          <div className="mx-auto max-w-3xl grid gap-10 sm:grid-cols-3">
-            {TESTIMONIALS.map((quote) => (
-              <div key={quote} data-reveal className="flex flex-col items-center text-center">
-                <p
-                  className="font-black leading-[1.18] tracking-tight text-white/75"
-                  style={{ fontSize: "clamp(1rem,1.8vw,1.25rem)" }}
-                >
-                  &ldquo;{quote}&rdquo;
-                </p>
-              </div>
-            ))}
           </div>
         </section>
 

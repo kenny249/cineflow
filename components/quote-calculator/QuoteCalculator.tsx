@@ -830,10 +830,11 @@ export function QuoteCalculator() {
               )}
             </div>
 
-            {/* Line items table */}
+            {/* Line items table — grid layout at sm+, stacked cards below (the fixed
+                pixel columns below sm cramped "Service" down to a few letters) */}
             <div className="rounded-xl border border-border bg-card overflow-hidden">
-              {/* Column headers */}
-              <div className="grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 border-b border-border bg-muted/20">
+              {/* Column headers — sm+ only, mobile cards label each field inline */}
+              <div className="hidden sm:grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 border-b border-border bg-muted/20">
                 {["Service", "People", "Days / Hrs", "Rate", "Total", ""].map((h) => (
                   <span key={h} className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50 text-center first:text-left last:text-right">
                     {h}
@@ -848,96 +849,144 @@ export function QuoteCalculator() {
                   const rt = item.rateType ?? (item.isFlat ? "flat" : "day");
                   const total = lineTotal(item);
                   const RATE_CYCLE: Record<"day" | "hour" | "unit" | "flat", "day" | "hour" | "unit" | "flat"> = { day: "hour", hour: "unit", unit: "flat", flat: "day" };
+                  const categoryDot = (
+                    <button
+                      onClick={() => {
+                        const idx = CATEGORIES.indexOf(item.category);
+                        updateItem(item.id, "category", CATEGORIES[(idx + 1) % CATEGORIES.length]);
+                      }}
+                      title={cfg.label}
+                      className={cn("h-2 w-2 shrink-0 rounded-full transition-transform hover:scale-125", cfg.dot)}
+                    />
+                  );
+                  const rateTypeBadge = (
+                    <button
+                      onClick={() => updateItem(item.id, "rateType", RATE_CYCLE[rt])}
+                      title="Click to change: Day Rate → Per Unit → Flat Fee"
+                      className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border transition-all hover:opacity-80",
+                        rt === "day"  && "border-amber-500/25 bg-amber-500/8 text-amber-400/70",
+                        rt === "hour" && "border-orange-500/25 bg-orange-500/8 text-orange-400/70",
+                        rt === "unit" && "border-cyan-500/25 bg-cyan-500/8 text-cyan-400/70",
+                        rt === "flat" && "border-zinc-500/25 bg-zinc-500/8 text-zinc-400/70",
+                      )}
+                    >
+                      {rt === "day" ? "Day" : rt === "hour" ? "Hour" : rt === "unit" ? "Unit" : "Flat"}
+                    </button>
+                  );
+                  const serviceInput = (
+                    <input
+                      value={item.service}
+                      onChange={(e) => updateItem(item.id, "service", e.target.value)}
+                      placeholder={rt === "unit" ? "Deliverable (e.g. Edit per video)" : "Service or crew role"}
+                      className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
+                    />
+                  );
+                  const peopleInput = rt === "day" || rt === "hour" ? (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={String(item.people)}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/\D/g, "");
+                        updateItem(item.id, "people", v === "" ? 0 : Number(v));
+                      }}
+                      className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors"
+                    />
+                  ) : (
+                    <span className="block text-center text-muted-foreground/20 text-sm select-none">—</span>
+                  );
+                  const daysInput = rt === "flat" ? (
+                    <span className="block text-center text-muted-foreground/20 text-sm select-none">—</span>
+                  ) : (
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={String(item.days)}
+                      onChange={(e) => {
+                        const v = e.target.value.replace(/\D/g, "");
+                        updateItem(item.id, "days", v === "" ? 0 : Number(v));
+                      }}
+                      placeholder={rt === "unit" ? "qty" : rt === "hour" ? "hrs" : ""}
+                      className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors placeholder:text-muted-foreground/30"
+                    />
+                  );
+                  const rateInput = (
+                    <div className="relative">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/50">$</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={item.rate === 0 ? "" : String(item.rate)}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/[^\d.]/g, "");
+                          updateItem(item.id, "rate", v === "" ? 0 : Number(v));
+                        }}
+                        placeholder="0"
+                        className="w-full rounded-md border border-transparent bg-transparent pl-5 pr-1.5 py-1 text-sm font-mono text-foreground text-right focus:border-border focus:bg-background focus:outline-none transition-colors"
+                      />
+                    </div>
+                  );
+                  const deleteBtn = (
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      className="p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-muted-foreground/30 hover:text-red-400 transition-all"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  );
+
                   return (
-                    <div key={item.id} className="grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 items-center group hover:bg-muted/10 transition-colors">
-                      {/* Service name + category dot + rate type badge */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <button
-                          onClick={() => {
-                            const idx = CATEGORIES.indexOf(item.category);
-                            updateItem(item.id, "category", CATEGORIES[(idx + 1) % CATEGORIES.length]);
-                          }}
-                          title={cfg.label}
-                          className={cn("h-2 w-2 shrink-0 rounded-full transition-transform hover:scale-125", cfg.dot)}
-                        />
-                        <button
-                          onClick={() => updateItem(item.id, "rateType", RATE_CYCLE[rt])}
-                          title="Click to change: Day Rate → Per Unit → Flat Fee"
-                          className={cn(
-                            "shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider border transition-all hover:opacity-80",
-                            rt === "day"  && "border-amber-500/25 bg-amber-500/8 text-amber-400/70",
-                            rt === "hour" && "border-orange-500/25 bg-orange-500/8 text-orange-400/70",
-                            rt === "unit" && "border-cyan-500/25 bg-cyan-500/8 text-cyan-400/70",
-                            rt === "flat" && "border-zinc-500/25 bg-zinc-500/8 text-zinc-400/70",
-                          )}
-                        >
-                          {rt === "day" ? "Day" : rt === "hour" ? "Hour" : rt === "unit" ? "Unit" : "Flat"}
-                        </button>
-                        <input
-                          value={item.service}
-                          onChange={(e) => updateItem(item.id, "service", e.target.value)}
-                          placeholder={rt === "unit" ? "Deliverable (e.g. Edit per video)" : "Service or crew role"}
-                          className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none"
-                        />
+                    <div key={item.id} className="group">
+                      {/* Desktop / sm+: single grid row */}
+                      <div className="hidden sm:grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 items-center hover:bg-muted/10 transition-colors">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {categoryDot}
+                          {rateTypeBadge}
+                          {serviceInput}
+                        </div>
+                        {peopleInput}
+                        {daysInput}
+                        {rateInput}
+                        <p className="text-sm font-semibold text-foreground text-right font-mono tabular-nums">
+                          {total > 0 ? fmt(total) : "—"}
+                        </p>
+                        <div className="flex items-center justify-end gap-1">{deleteBtn}</div>
                       </div>
-                      {/* People — only for day/hour rate */}
-                      {rt === "day" || rt === "hour" ? (
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={String(item.people)}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/\D/g, "");
-                            updateItem(item.id, "people", v === "" ? 0 : Number(v));
-                          }}
-                          className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors"
-                        />
-                      ) : (
-                        <span className="text-center text-muted-foreground/20 text-sm select-none">—</span>
-                      )}
-                      {/* Days / Qty — hidden for flat */}
-                      {rt === "flat" ? (
-                        <span className="text-center text-muted-foreground/20 text-sm select-none">—</span>
-                      ) : (
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={String(item.days)}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/\D/g, "");
-                            updateItem(item.id, "days", v === "" ? 0 : Number(v));
-                          }}
-                          placeholder={rt === "unit" ? "qty" : rt === "hour" ? "hrs" : ""}
-                          className="w-full rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm text-center font-mono text-foreground focus:border-border focus:bg-background focus:outline-none transition-colors placeholder:text-muted-foreground/30"
-                        />
-                      )}
-                      {/* Rate */}
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground/50">$</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={item.rate === 0 ? "" : String(item.rate)}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/[^\d.]/g, "");
-                            updateItem(item.id, "rate", v === "" ? 0 : Number(v));
-                          }}
-                          placeholder="0"
-                          className="w-full rounded-md border border-transparent bg-transparent pl-5 pr-1.5 py-1 text-sm font-mono text-foreground text-right focus:border-border focus:bg-background focus:outline-none transition-colors"
-                        />
-                      </div>
-                      {/* Total */}
-                      <p className="text-sm font-semibold text-foreground text-right font-mono tabular-nums">
-                        {total > 0 ? fmt(total) : "—"}
-                      </p>
-                      {/* Delete */}
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="p-1 rounded-md opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-muted-foreground/30 hover:text-red-400 transition-all"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+
+                      {/* Mobile: stacked card — same fields, each labeled, nothing truncated */}
+                      <div className="sm:hidden px-4 py-3 space-y-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          {categoryDot}
+                          {rateTypeBadge}
+                          {serviceInput}
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="shrink-0 p-1 -mr-1 rounded-md text-muted-foreground/40 hover:bg-red-500/10 hover:text-red-400 transition-all"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                          <div>
+                            <span className="block mb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">People</span>
+                            {peopleInput}
+                          </div>
+                          <div>
+                            <span className="block mb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Days/Hrs</span>
+                            {daysInput}
+                          </div>
+                          <div>
+                            <span className="block mb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40">Rate</span>
+                            {rateInput}
+                          </div>
+                          <div>
+                            <span className="block mb-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/40 text-right">Total</span>
+                            <p className="text-sm font-semibold text-foreground text-right font-mono tabular-nums py-1">
+                              {total > 0 ? fmt(total) : "—"}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -946,10 +995,10 @@ export function QuoteCalculator() {
 
               {/* Subtotal row */}
               {lineItems.length > 0 && (
-                <div className="grid grid-cols-[1fr_56px_56px_96px_80px_32px] gap-2 px-4 py-2.5 border-t border-border bg-muted/10">
-                  <span className="text-xs text-muted-foreground/50 font-medium col-span-4">Subtotal (crew & services cost)</span>
+                <div className="flex sm:grid sm:grid-cols-[1fr_56px_56px_96px_80px_32px] items-center justify-between gap-2 px-4 py-2.5 border-t border-border bg-muted/10">
+                  <span className="text-xs text-muted-foreground/50 font-medium sm:col-span-4">Subtotal (crew & services cost)</span>
                   <span className="text-sm font-bold text-foreground text-right font-mono tabular-nums">{fmt(subtotal)}</span>
-                  <span />
+                  <span className="hidden sm:inline" />
                 </div>
               )}
             </div>
