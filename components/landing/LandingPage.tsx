@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Film, Check, ChevronDown } from "lucide-react";
@@ -9,6 +9,7 @@ import { SpotlightCanvas } from "./SpotlightCanvas";
 import { scrollState } from "./scrollState";
 import { AdPixels } from "@/components/shared/AdPixels";
 import { MagneticLink } from "./MagneticLink";
+import { TiltCard } from "./TiltCard";
 
 interface Props { refCode?: string }
 
@@ -125,6 +126,11 @@ export function LandingPage({ refCode }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
   const [scrolled, setScrolled] = useState(false);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
+  const lenisRef = useRef<{ scrollTo: (target: string | number | HTMLElement, opts?: Record<string, unknown>) => void } | null>(null);
+
+  function scrollToPanels() {
+    lenisRef.current?.scrollTo("#lp-panels", { duration: 1.6, offset: -20 });
+  }
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -140,6 +146,7 @@ export function LandingPage({ refCode }: Props) {
       const { default: Lenis } = await import("lenis");
 
       const lenis = new Lenis({ lerp: 0.10, smoothWheel: true });
+      lenisRef.current = lenis;
       lenis.on("scroll", ({ progress }: { progress: number }) => {
         scrollState.prog = progress;
       });
@@ -168,6 +175,7 @@ export function LandingPage({ refCode }: Props) {
       teardown = () => {
         cancelAnimationFrame(rafId);
         lenis.destroy();
+        lenisRef.current = null;
         window.removeEventListener("mousemove", onMove);
         io.disconnect();
       };
@@ -181,6 +189,7 @@ export function LandingPage({ refCode }: Props) {
       <AdPixels />
       <BackgroundCanvas />
       <SpotlightCanvas />
+      <div className="lp-grain" />
 
       {/* Nav */}
       <nav
@@ -257,13 +266,20 @@ export function LandingPage({ refCode }: Props) {
             <p className="lp-hero-sub mt-6 max-w-sm text-[13px] leading-relaxed text-white/48">
               Shot lists, client portals, invoicing, crew scheduling.<br />All flowing in one place. Finally.
             </p>
-            <div className="lp-hero-cta mt-8">
+            <div className="lp-hero-cta mt-8 flex flex-col items-center gap-4">
               <MagneticLink
                 href={href}
                 className="inline-block rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
               >
                 Start for free →
               </MagneticLink>
+              <button
+                type="button"
+                onClick={scrollToPanels}
+                className="font-mono text-[10px] tracking-[0.28em] uppercase text-white/35 transition-colors hover:text-[#d4a853]"
+              >
+                See it in action ↓
+              </button>
             </div>
             <p className="lp-hero-trust mt-3 font-mono text-[9px] tracking-[0.28em] uppercase text-white/22">
               No credit card required · Cancel anytime
@@ -455,7 +471,7 @@ export function LandingPage({ refCode }: Props) {
         </section>
 
         {/* ══ PANELS ════════════════════════════════════════════════════ */}
-        <section className="relative py-20 px-8">
+        <section id="lp-panels" className="relative py-20 px-8">
           <div className="mx-auto max-w-6xl flex flex-col gap-28">
             {PANELS.map((panel, i) => (
               <div
@@ -494,20 +510,22 @@ export function LandingPage({ refCode }: Props) {
                 </div>
 
                 <div className="w-full md:flex-1">
-                  <div
-                    className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
-                    style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
-                  >
-                    <Image
-                      src={panel.img}
-                      alt={panel.imgAlt}
-                      width={1440}
-                      height={i === 0 ? 820 : i === 1 ? 460 : 1060}
-                      sizes="(min-width: 768px) 58vw, 92vw"
-                      className="w-full h-auto"
-                    />
-                    <div className="lp-panel-shine" />
-                  </div>
+                  <TiltCard>
+                    <div
+                      className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+                      style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
+                    >
+                      <Image
+                        src={panel.img}
+                        alt={panel.imgAlt}
+                        width={1440}
+                        height={i === 0 ? 820 : i === 1 ? 460 : 1060}
+                        sizes="(min-width: 768px) 58vw, 92vw"
+                        className="w-full h-auto"
+                      />
+                      <div className="lp-panel-shine" />
+                    </div>
+                  </TiltCard>
                 </div>
               </div>
             ))}
