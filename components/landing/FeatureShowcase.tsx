@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -17,6 +17,7 @@ interface ShowcaseFeature {
 
 interface ShowcaseCategory {
   key: string;
+  num: string;
   label: string;
   features: readonly ShowcaseFeature[];
 }
@@ -24,6 +25,7 @@ interface ShowcaseCategory {
 const CATEGORIES: readonly ShowcaseCategory[] = [
   {
     key: "production",
+    num: "01",
     label: "Production",
     features: [
       {
@@ -48,6 +50,7 @@ const CATEGORIES: readonly ShowcaseCategory[] = [
   },
   {
     key: "finance",
+    num: "02",
     label: "Finance",
     features: [
       {
@@ -72,6 +75,7 @@ const CATEGORIES: readonly ShowcaseCategory[] = [
   },
   {
     key: "clients",
+    num: "03",
     label: "Clients & Projects",
     features: [
       {
@@ -97,149 +101,147 @@ const CATEGORIES: readonly ShowcaseCategory[] = [
 ] as const;
 
 const SWIPE_THRESHOLD = 80;
+const WHEEL_THRESHOLD = 40;
+const WHEEL_COOLDOWN_MS = 500;
 
-export function FeatureShowcase() {
-  const [catIndex, setCatIndex] = useState(0);
+function CategorySection({ category, reversed }: { category: ShowcaseCategory; reversed: boolean }) {
   const [[featIndex, direction], setFeat] = useState<[number, number]>([0, 0]);
-
-  const category = CATEGORIES[catIndex];
+  const wheelCooldown = useRef(false);
   const feature = category.features[featIndex];
-
-  function selectCategory(i: number) {
-    if (i === catIndex) return;
-    setCatIndex(i);
-    setFeat([0, 0]);
-  }
 
   function paginate(dir: number) {
     const len = category.features.length;
     setFeat(([prev]) => [(prev + dir + len) % len, dir]);
   }
 
+  function handleWheel(e: React.WheelEvent) {
+    if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) return; // vertical scroll — let the page scroll
+    if (Math.abs(e.deltaX) < WHEEL_THRESHOLD) return;
+    if (wheelCooldown.current) return;
+    e.preventDefault();
+    wheelCooldown.current = true;
+    paginate(e.deltaX > 0 ? 1 : -1);
+    setTimeout(() => { wheelCooldown.current = false; }, WHEEL_COOLDOWN_MS);
+  }
+
   return (
-    <div data-reveal="clip">
-      {/* Category tabs — quiet until hovered, no auto-switching */}
-      <div className="lp-clip mb-14 flex justify-center">
-        <div className="lp-clip-inner flex flex-wrap items-center justify-center gap-2" style={{ "--di": "0s" } as React.CSSProperties}>
-          {CATEGORIES.map((c, i) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => selectCategory(i)}
-              className={`rounded-full border px-5 py-2 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] transition-all ${
-                i === catIndex
-                  ? "border-[#d4a853]/40 bg-[#d4a853]/10 text-[#d4a853]"
-                  : "border-white/10 text-white/40 hover:border-white/20 hover:text-white/70"
-              }`}
+    <div
+      data-reveal="clip"
+      className={`flex flex-col items-center gap-10 text-center md:gap-16 md:text-left ${
+        reversed ? "md:flex-row-reverse" : "md:flex-row"
+      }`}
+    >
+      {/* Screenshot + swipe/arrows */}
+      <div className="relative w-full md:w-[54%] md:shrink-0" onWheel={handleWheel}>
+        <div
+          className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+          style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
+        >
+          <AnimatePresence initial={false} custom={direction} mode="wait">
+            <motion.div
+              key={feature.label}
+              custom={direction}
+              initial={{ x: direction >= 0 ? 40 : -40, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: direction >= 0 ? -40 : 40, opacity: 0 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.6}
+              onDragEnd={(_e, info) => {
+                if (info.offset.x < -SWIPE_THRESHOLD) paginate(1);
+                else if (info.offset.x > SWIPE_THRESHOLD) paginate(-1);
+              }}
+              className="cursor-grab touch-pan-y active:cursor-grabbing"
             >
-              {c.label}
+              <Image
+                src={feature.img}
+                alt={feature.imgAlt}
+                width={1440}
+                height={feature.imgHeight}
+                sizes="(min-width: 768px) 54vw, 92vw"
+                className="w-full h-auto pointer-events-none select-none"
+                draggable={false}
+              />
+            </motion.div>
+          </AnimatePresence>
+          <div className="lp-panel-shine" />
+        </div>
+
+        {category.features.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={() => paginate(-1)}
+              aria-label="Previous feature"
+              className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0a0a0a]/70 text-white/60 backdrop-blur-sm transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
+            >
+              <ChevronLeft className="h-4 w-4" />
             </button>
-          ))}
-        </div>
+            <button
+              type="button"
+              onClick={() => paginate(1)}
+              aria-label="Next feature"
+              className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0a0a0a]/70 text-white/60 backdrop-blur-sm transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+
+            <div className="mt-4 flex justify-center gap-1.5">
+              {category.features.map((f, i) => (
+                <button
+                  key={f.label}
+                  type="button"
+                  onClick={() => setFeat([i, i > featIndex ? 1 : -1])}
+                  aria-label={`Show ${f.label}`}
+                  className={`h-1.5 rounded-full transition-all ${
+                    i === featIndex ? "w-5 bg-[#d4a853]" : "w-1.5 bg-white/15 hover:bg-white/30"
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="lp-clip">
-        <div className="lp-clip-inner" style={{ "--di": "0.08s" } as React.CSSProperties}>
-          <div className="flex flex-col items-center gap-10 md:flex-row md:items-center md:gap-14">
-            {/* Screenshot + swipe/arrows */}
-            <div className="relative w-full md:w-[58%] md:shrink-0">
-              <div
-                className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
-                style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
+      {/* Copy */}
+      <div className="flex w-full min-w-0 flex-col items-center md:w-auto md:flex-1 md:items-start">
+        <p className="mb-6 font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48">
+          {category.num} · {category.label}
+        </p>
+        <div className="w-full min-w-0 md:max-w-md">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={feature.label}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+            >
+              <p className="mb-2 font-mono text-[10px] tracking-[0.3em] uppercase text-white/30">{feature.label}</p>
+              <h3
+                className="font-black leading-[1.1] tracking-tighter text-white text-balance"
+                style={{ fontSize: "clamp(1.8rem,3.2vw,2.6rem)" }}
               >
-                <AnimatePresence initial={false} custom={direction} mode="wait">
-                  <motion.div
-                    key={`${category.key}-${feature.label}`}
-                    custom={direction}
-                    initial={{ x: direction >= 0 ? 40 : -40, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: direction >= 0 ? -40 : 40, opacity: 0 }}
-                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                    drag="x"
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.6}
-                    onDragEnd={(_e, info) => {
-                      if (info.offset.x < -SWIPE_THRESHOLD) paginate(1);
-                      else if (info.offset.x > SWIPE_THRESHOLD) paginate(-1);
-                    }}
-                    className="cursor-grab active:cursor-grabbing"
-                  >
-                    <Image
-                      src={feature.img}
-                      alt={feature.imgAlt}
-                      width={1440}
-                      height={feature.imgHeight}
-                      sizes="(min-width: 768px) 58vw, 92vw"
-                      className="w-full h-auto pointer-events-none select-none"
-                      draggable={false}
-                    />
-                  </motion.div>
-                </AnimatePresence>
-                <div className="lp-panel-shine" />
-              </div>
-
-              {/* Arrows */}
-              <button
-                type="button"
-                onClick={() => paginate(-1)}
-                aria-label="Previous feature"
-                className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0a0a0a]/70 text-white/60 backdrop-blur-sm transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => paginate(1)}
-                aria-label="Next feature"
-                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0a0a0a]/70 text-white/60 backdrop-blur-sm transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-
-              {/* Pagination dots */}
-              <div className="mt-4 flex justify-center gap-1.5">
-                {category.features.map((f, i) => (
-                  <button
-                    key={f.label}
-                    type="button"
-                    onClick={() => setFeat([i, i > featIndex ? 1 : -1])}
-                    aria-label={`Show ${f.label}`}
-                    className={`h-1.5 rounded-full transition-all ${
-                      i === featIndex ? "w-5 bg-[#d4a853]" : "w-1.5 bg-white/15 hover:bg-white/30"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Copy */}
-            <div className="flex w-full flex-col items-center text-center md:flex-1 md:items-start md:text-left">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`${category.key}-${feature.label}-copy`}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <p className="mb-4 font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48">
-                    {category.label} · {feature.label}
-                  </p>
-                  <h3
-                    className="font-black leading-[1.1] tracking-tighter text-white"
-                    style={{ fontSize: "clamp(1.8rem,3.4vw,2.8rem)" }}
-                  >
-                    {feature.h}
-                  </h3>
-                  <div className="my-6 h-px w-8 bg-[#d4a853]/22 md:mx-0 mx-auto" />
-                  <p className="max-w-xs text-[13px] leading-relaxed text-white/48">{feature.sub}</p>
-                  <p className="mt-5 font-mono text-[9px] tracking-[0.32em] uppercase text-white/18">{feature.note}</p>
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </div>
+                {feature.h}
+              </h3>
+              <div className="my-6 h-px w-8 bg-[#d4a853]/22" />
+              <p className="max-w-xs text-[13px] leading-relaxed text-white/48">{feature.sub}</p>
+              <p className="mt-5 font-mono text-[9px] tracking-[0.32em] uppercase text-white/18">{feature.note}</p>
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function FeatureShowcase() {
+  return (
+    <div className="flex flex-col gap-28">
+      {CATEGORIES.map((category, i) => (
+        <CategorySection key={category.key} category={category} reversed={i % 2 === 1} />
+      ))}
     </div>
   );
 }
