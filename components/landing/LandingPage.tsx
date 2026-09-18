@@ -25,21 +25,21 @@ const HERO_VARIANTS: Record<
 > = {
   a: {
     h1: <>Stop stitching your<br />production together.</>,
-    sub: <>Your quote becomes the contract, the contract becomes the shoot,<br />and the shoot becomes the invoice. Nothing gets retyped.</>,
+    sub: <>Your quote becomes the contract, the contract becomes the shoot,<br className="hidden md:inline" /> and the shoot becomes the invoice. Nothing gets retyped.</>,
     img: "/marketing/panel-production.png",
     imgAlt: "CineFlow shot list for a short film production, with scenes, camera moves, and lenses tracked per shot.",
     imgHeight: 820,
   },
   b: {
     h1: <>One project. First call<br />to final payment.</>,
-    sub: <>Your quote becomes the contract, the contract becomes the shoot,<br />and the shoot becomes the invoice. Nothing gets retyped.</>,
+    sub: <>Your quote becomes the contract, the contract becomes the shoot,<br className="hidden md:inline" /> and the shoot becomes the invoice. Nothing gets retyped.</>,
     img: "/marketing/panel-client-portal.png",
     imgAlt: "CineFlow review hub showing video cuts with approval status — in house, revision needed, approved.",
     imgHeight: 460,
   },
   c: {
     h1: <>You got into this to make films.<br />Not to chase invoices.</>,
-    sub: <>Quotes, contracts, client approvals, and payments — handled,<br />so you can get back on set.</>,
+    sub: <>Quotes, contracts, client approvals, and payments — handled,<br className="hidden md:inline" /> so you can get back on set.</>,
     img: "/marketing/panel-invoicing.png",
     imgAlt: "CineFlow finance dashboard with a revenue chart, top clients, and invoice totals.",
     imgHeight: 900,
@@ -65,9 +65,13 @@ const FRAGMENTS = [
   { text: '"can you resend the contract?"',    mono: false, x: "74%", y: "42%", rot: -4, d: 1.4,  dur: 3.9 },
   { text: "Client approval: pending 14d",      mono: false, x: "8%",  y: "80%", rot:  3, d: 1.0,  dur: 4.1 },
   { text: '"what time is call time again?"',   mono: false, x: "12%", y: "38%", rot: -5, d: 1.5,  dur: 3.6 },
-  { text: "call_sheet_saturday_v4.pdf",        mono: true,  x: "58%", y: "24%", rot:  3, d: 0.9,  dur: 4.3 },
+  // Collides with variant b's sub (~76px overlap at 768px height).
+  { text: "call_sheet_saturday_v4.pdf",        mono: true,  x: "58%", y: "24%", rot:  3, d: 0.9,  dur: 4.3, hideFor: ["b"] as const },
   { text: '"I never got the invoice 🙏"',      mono: false, x: "76%", y: "60%", rot: -3, d: 1.3,  dur: 3.7 },
-  { text: '"just checking in again..."',       mono: false, x: "28%", y: "19%", rot:  2, d: 1.6,  dur: 4.0 },
+  // Collides with variant a's sub (~51px) and variant b's headline (~80px)
+  // and sub (~79px) — the widened max-w-md sub reaches this fragment on
+  // both. Hidden for a and b; c/d have their own clearance already.
+  { text: '"just checking in again..."',       mono: false, x: "28%", y: "19%", rot:  2, d: 1.6,  dur: 4.0, hideFor: ["a", "b"] as const },
 ] as const;
 
 // Annual figures mirror app/(app)/upgrade/page.tsx — keep in sync if pricing changes.
@@ -381,17 +385,23 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
               variant so each headline immediately shows what it promised. */}
           <div className="lp-hero-peek relative z-10 mt-32 w-full max-w-4xl sm:mt-64">
             <div
-              className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+              className="lp-panel-frame relative max-h-52 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] sm:max-h-none"
               style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
             >
+              {/* Below sm, the full 1440px screenshot shrinks ~4.6x and reads
+                  as an illegible blur — its whole purpose is proof the
+                  product is real. Render it ~2x larger than the frame and
+                  let overflow-hidden crop to the top-left (header + first
+                  shot row), a legible fragment instead of an unreadable
+                  whole. Reverts to the normal full-width fit at sm+. */}
               <Image
                 src={hero.img}
                 alt={hero.imgAlt}
                 width={1440}
                 height={hero.imgHeight}
                 priority
-                sizes="(min-width: 1024px) 896px, 92vw"
-                className="block h-auto w-full"
+                sizes="(min-width: 1024px) 896px, 184vw"
+                className="block h-auto w-[200%] max-w-none sm:w-full sm:max-w-full"
               />
               <div className="lp-panel-shine" />
             </div>
