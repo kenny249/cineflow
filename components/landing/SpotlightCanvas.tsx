@@ -21,8 +21,10 @@ export function SpotlightCanvas() {
     let raf: number;
 
     function resize() {
-      canvas!.width = window.innerWidth;
-      canvas!.height = window.innerHeight;
+      // clientWidth/Height reflect the true visible viewport more reliably
+      // than window.innerWidth/Height — see BackgroundCanvas.tsx.
+      canvas!.width = document.documentElement.clientWidth;
+      canvas!.height = document.documentElement.clientHeight;
     }
     resize();
     window.addEventListener("resize", resize);
@@ -31,8 +33,8 @@ export function SpotlightCanvas() {
       active.current = true;
       const x = "touches" in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
       const y = "touches" in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
-      mouse.current.x = x / window.innerWidth;
-      mouse.current.y = y / window.innerHeight;
+      mouse.current.x = x / document.documentElement.clientWidth;
+      mouse.current.y = y / document.documentElement.clientHeight;
     }
     window.addEventListener("mousemove", onMove, { passive: true });
     window.addEventListener("touchmove", onMove, { passive: true });

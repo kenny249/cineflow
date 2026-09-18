@@ -218,7 +218,7 @@ export function LandingPage({ refCode }: Props) {
 
       {/* Nav */}
       <nav
-        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-5 transition-colors duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-8 py-5 transition-colors duration-300 ${
           scrolled ? "border-b border-white/5 bg-[#050508]/80 backdrop-blur-md" : "border-b border-transparent bg-transparent"
         }`}
       >
@@ -228,16 +228,16 @@ export function LandingPage({ refCode }: Props) {
           </div>
           <span className="text-sm font-semibold tracking-tight text-white/90">CineFlow</span>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3 sm:gap-5">
           <Link
             href="/login"
-            className="text-xs font-medium text-white/45 transition-colors hover:text-white/80"
+            className="hidden text-xs font-medium text-white/45 transition-colors hover:text-white/80 sm:inline"
           >
             Log in
           </Link>
           <Link
             href={href}
-            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 backdrop-blur-sm transition-all hover:border-[#d4a853]/50 hover:text-[#d4a853]"
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 backdrop-blur-sm transition-all hover:border-[#d4a853]/50 hover:text-[#d4a853] sm:px-4"
           >
             Start free trial
           </Link>

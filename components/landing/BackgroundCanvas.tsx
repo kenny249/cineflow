@@ -16,10 +16,16 @@ export function BackgroundCanvas() {
     const canvas = ref.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    let W = window.innerWidth, H = window.innerHeight;
+    // document.documentElement.clientWidth/Height reflect the true visible
+    // viewport; window.innerWidth/Height can report a stale layout-viewport
+    // value that's wider than what's actually on screen, which then feeds
+    // back into overflow (this exact canvas was the source of a bug where
+    // the whole page — including the fixed nav — rendered wider than the
+    // viewport at narrow widths).
+    let W = document.documentElement.clientWidth, H = document.documentElement.clientHeight;
 
     function resize() {
-      W = window.innerWidth; H = window.innerHeight;
+      W = document.documentElement.clientWidth; H = document.documentElement.clientHeight;
       canvas!.width = W; canvas!.height = H;
     }
     resize();
