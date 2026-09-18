@@ -407,13 +407,14 @@ export function LandingPage({ refCode }: Props) {
                 }}
               />
               <div
-                className="font-black leading-none tracking-tighter"
+                className="font-black leading-none tracking-tight"
                 style={{
                   background: "linear-gradient(135deg,#ffffff 34%,#d4a853 63%,#fff3c4 100%)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
                   display: "block",
+                  paddingRight: "0.06em",
                 }}
               >CineFlow</div>
             </div>
