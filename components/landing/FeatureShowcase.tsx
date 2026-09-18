@@ -132,75 +132,84 @@ function CategorySection({ category, reversed }: { category: ShowcaseCategory; r
       }`}
     >
       {/* Screenshot + swipe/arrows */}
-      <div className="relative w-full md:w-[54%] md:shrink-0" onWheel={handleWheel}>
-        <div
-          className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
-          style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
-        >
-          <AnimatePresence initial={false} custom={direction} mode="wait">
-            <motion.div
-              key={feature.label}
-              custom={direction}
-              initial={{ x: direction >= 0 ? 40 : -40, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: direction >= 0 ? -40 : 40, opacity: 0 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={0.6}
-              onDragEnd={(_e, info) => {
-                if (info.offset.x < -SWIPE_THRESHOLD) paginate(1);
-                else if (info.offset.x > SWIPE_THRESHOLD) paginate(-1);
-              }}
-              className="cursor-grab touch-pan-y active:cursor-grabbing"
-            >
-              <Image
-                src={feature.img}
-                alt={feature.imgAlt}
-                width={1440}
-                height={feature.imgHeight}
-                sizes="(min-width: 768px) 54vw, 92vw"
-                className="w-full h-auto pointer-events-none select-none"
-                draggable={false}
-              />
-            </motion.div>
-          </AnimatePresence>
-          <div className="lp-panel-shine" />
-        </div>
-
-        {category.features.length > 1 && (
-          <>
+      <div className="w-full md:w-[54%] md:shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {category.features.length > 1 && (
             <button
               type="button"
               onClick={() => paginate(-1)}
               aria-label="Previous feature"
-              className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0a0a0a]/70 text-white/60 backdrop-blur-sm transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-white/50 transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
+          )}
+
+          <div className="relative min-w-0 flex-1" onWheel={handleWheel}>
+            <div
+              className="lp-panel-frame lp-panel-frame-resize relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+              style={{
+                boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)",
+                ["--panel-ratio" as string]: `${(feature.imgHeight / 1440) * 100}%`,
+              }}
+            >
+              <AnimatePresence initial={false} custom={direction} mode="wait">
+                <motion.div
+                  key={feature.label}
+                  custom={direction}
+                  initial={{ x: direction >= 0 ? 40 : -40, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  exit={{ x: direction >= 0 ? -40 : 40, opacity: 0 }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.6}
+                  onDragEnd={(_e, info) => {
+                    if (info.offset.x < -SWIPE_THRESHOLD) paginate(1);
+                    else if (info.offset.x > SWIPE_THRESHOLD) paginate(-1);
+                  }}
+                  className="absolute inset-0 cursor-grab touch-pan-y active:cursor-grabbing"
+                >
+                  <Image
+                    src={feature.img}
+                    alt={feature.imgAlt}
+                    fill
+                    sizes="(min-width: 768px) 54vw, 92vw"
+                    className="object-cover pointer-events-none select-none"
+                    draggable={false}
+                  />
+                </motion.div>
+              </AnimatePresence>
+              <div className="lp-panel-shine" />
+            </div>
+          </div>
+
+          {category.features.length > 1 && (
             <button
               type="button"
               onClick={() => paginate(1)}
               aria-label="Next feature"
-              className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-[#0a0a0a]/70 text-white/60 backdrop-blur-sm transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-white/50 transition-colors hover:border-[#d4a853]/40 hover:text-[#d4a853]"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
+          )}
+        </div>
 
-            <div className="mt-4 flex justify-center gap-1.5">
-              {category.features.map((f, i) => (
-                <button
-                  key={f.label}
-                  type="button"
-                  onClick={() => setFeat([i, i > featIndex ? 1 : -1])}
-                  aria-label={`Show ${f.label}`}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === featIndex ? "w-5 bg-[#d4a853]" : "w-1.5 bg-white/15 hover:bg-white/30"
-                  }`}
-                />
-              ))}
-            </div>
-          </>
+        {category.features.length > 1 && (
+          <div className="mt-4 flex justify-center gap-1.5">
+            {category.features.map((f, i) => (
+              <button
+                key={f.label}
+                type="button"
+                onClick={() => setFeat([i, i > featIndex ? 1 : -1])}
+                aria-label={`Show ${f.label}`}
+                className={`h-1.5 rounded-full transition-all ${
+                  i === featIndex ? "w-5 bg-[#d4a853]" : "w-1.5 bg-white/15 hover:bg-white/30"
+                }`}
+              />
+            ))}
+          </div>
         )}
       </div>
 

@@ -544,6 +544,18 @@
 .lp-panel-frame {
   transition: transform 0.5s cubic-bezier(0.16,1,0.3,1), box-shadow 0.5s cubic-bezier(0.16,1,0.3,1);
 }
+/* Smoothly resize the frame when swiping between screenshots of different
+   aspect ratios, instead of snapping to the new height instantly. CSS
+   `aspect-ratio` isn't reliably animatable across browsers, so we use the
+   classic percentage padding-top trick instead — percentage lengths always
+   interpolate smoothly on transition. */
+.lp-panel-frame-resize {
+  height: 0;
+  padding-top: var(--panel-ratio);
+  transition-property: transform, box-shadow, padding-top;
+  transition-duration: 0.5s, 0.5s, 0.45s;
+  transition-timing-function: cubic-bezier(0.16,1,0.3,1);
+}
 .lp-panel-frame:hover {
   transform: translateY(-6px) scale(1.015);
   box-shadow: 0 0 90px rgba(212,168,83,0.16), 0 30px 70px rgba(0,0,0,0.55) !important;
