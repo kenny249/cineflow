@@ -400,12 +400,15 @@
   display: block;
 }
 @keyframes lp-cf-shine-sweep {
-  0%, 58%  { background-position: -100% center; }
-  82%      { background-position: 300% center; }
-  100%     { background-position: 300% center; }
+  0%, 58%   { background-position: -100% center; }
+  82%, 100% { background-position: 300% center; }
 }
 [data-reveal="clip"].is-visible .lp-cf-shine {
-  animation: lp-cf-shine-sweep 6.5s cubic-bezier(0.4,0,0.2,1) 1.4s infinite;
+  /* alternate direction so the loop reverses instead of snapping — a plain
+     "infinite" loop jumps from 300% back to -100% every cycle, which is
+     the likely source of a visible flash at the restart even though both
+     positions are meant to be off-screen */
+  animation: lp-cf-shine-sweep 6.5s cubic-bezier(0.4,0,0.2,1) 1.4s infinite alternate;
 }
 
 /* Scattered fragments converging into the wordmark on reveal */

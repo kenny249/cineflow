@@ -854,7 +854,7 @@ export function LandingPage({ refCode }: Props) {
                     <p className="mb-3 text-[10px] text-white/25">
                       Not ready to try it? Get occasional product updates — about once a month, no spam.
                     </p>
-                    <form onSubmit={handleNewsletterSubmit} className="flex items-center gap-2">
+                    <form onSubmit={handleNewsletterSubmit} className="flex items-center justify-center gap-2">
                       <input
                         type="email"
                         required
