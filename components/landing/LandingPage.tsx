@@ -172,12 +172,37 @@ export function LandingPage({ refCode }: Props) {
       );
       document.querySelectorAll("[data-reveal]").forEach(el => io.observe(el));
 
+      // Panel screenshots "develop" into view as you scroll past them —
+      // scrubbed directly against scroll position rather than a fixed-
+      // duration fade, so it feels tied to your own scroll motion instead
+      // of just switching on at a threshold. Scoped to the panels only;
+      // everything else keeps the simpler IntersectionObserver reveal.
+      const gsap = (await import("gsap")).default;
+      const { ScrollTrigger } = await import("gsap/ScrollTrigger");
+      gsap.registerPlugin(ScrollTrigger);
+      lenis.on("scroll", ScrollTrigger.update);
+
+      const panelFrames = gsap.utils.toArray<HTMLElement>(".lp-panel-frame");
+      panelFrames.forEach((frame) => {
+        gsap.fromTo(
+          frame,
+          { clipPath: "inset(0% 0% 22% 0%)", scale: 1.035 },
+          {
+            clipPath: "inset(0% 0% 0% 0%)",
+            scale: 1,
+            ease: "none",
+            scrollTrigger: { trigger: frame, start: "top 92%", end: "top 55%", scrub: 0.6 },
+          }
+        );
+      });
+
       teardown = () => {
         cancelAnimationFrame(rafId);
         lenis.destroy();
         lenisRef.current = null;
         window.removeEventListener("mousemove", onMove);
         io.disconnect();
+        ScrollTrigger.getAll().forEach((t) => t.kill());
       };
     })();
 
