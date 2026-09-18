@@ -5,6 +5,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { UtmCapture } from "@/components/shared/UtmCapture";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
+import { PostHogProvider } from "@/components/shared/PostHogProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -63,13 +64,15 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.variable} ${syne.variable} font-sans antialiased`}>
-        <ConfirmDialogProvider>
-          {children}
-          <Toaster />
-          <Suspense fallback={null}>
-            <UtmCapture />
-          </Suspense>
-        </ConfirmDialogProvider>
+        <PostHogProvider>
+          <ConfirmDialogProvider>
+            {children}
+            <Toaster />
+            <Suspense fallback={null}>
+              <UtmCapture />
+            </Suspense>
+          </ConfirmDialogProvider>
+        </PostHogProvider>
       </body>
     </html>
   );

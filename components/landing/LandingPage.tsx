@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePostHog } from "posthog-js/react";
 import { Film, Check, ChevronDown } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
 import { SpotlightCanvas } from "./SpotlightCanvas";
@@ -10,7 +11,32 @@ import { AdPixels } from "@/components/shared/AdPixels";
 import { MagneticLink } from "./MagneticLink";
 import { FeatureShowcase } from "./FeatureShowcase";
 
-interface Props { refCode?: string }
+export type HeroVariant = "a" | "b" | "c" | "d";
+
+interface Props { refCode?: string; heroVariant?: HeroVariant }
+
+// Paid-traffic headline test (Oct 2026) — Kenny sends ?h=b/c/d to compare
+// against the control. Swaps only the hero H1/sub; rest of the page is
+// identical across variants. See landing_hero_view / landing_cta_click.
+const HERO_VARIANTS: Record<HeroVariant, { h1: React.ReactNode; h1Size?: string; sub: React.ReactNode }> = {
+  a: {
+    h1: <>Stop stitching your<br />production together.</>,
+    sub: <>Your quote becomes the contract, the contract becomes the shoot,<br />and the shoot becomes the invoice. Nothing gets retyped.</>,
+  },
+  b: {
+    h1: <>One project. First call<br />to final payment.</>,
+    sub: <>Your quote becomes the contract, the contract becomes the shoot,<br />and the shoot becomes the invoice. Nothing gets retyped.</>,
+  },
+  c: {
+    h1: <>You got into this to make films.<br />Not to chase invoices.</>,
+    sub: <>Quotes, contracts, client approvals, and payments — handled,<br />so you can get back on set.</>,
+  },
+  d: {
+    h1: <>Frame.io for review. StudioBinder for prep.<br />Spreadsheets for everything else.</>,
+    h1Size: "clamp(1.7rem,3.4vw,2.9rem)",
+    sub: <>Or one platform that does the whole job.</>,
+  },
+};
 
 const FRAGMENTS = [
   { text: '"where are we at?" · 11:47pm',     mono: false, x: "4%",  y: "20%", rot: -3, d: 0.6,  dur: 3.8 },
@@ -76,7 +102,7 @@ const LP_PLANS = [
 const OUTCOMES = [
   { stat: "More bookings.",   sub: "Less time on admin means more time selling." },
   { stat: "Happier clients.", sub: "A portal that keeps them informed, not your DMs." },
-  { stat: "Zero chaos.",      sub: "Everything in one place. Nothing falls through." },
+  { stat: "Zero chaos.",      sub: "One project file, from first call to final payment." },
 ] as const;
 
 // Scattered points the intro particles converge in from — echoes the chaos
@@ -150,13 +176,23 @@ function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
-export function LandingPage({ refCode }: Props) {
+export function LandingPage({ refCode, heroVariant = "a" }: Props) {
   const href = refCode ? `/signup?ref=${refCode}` : "/signup";
   const [scrolled, setScrolled] = useState(false);
   const [billing, setBilling] = useState<"monthly" | "annual">("monthly");
   const lenisRef = useRef<{ scrollTo: (target: string | number | HTMLElement, opts?: Record<string, unknown>) => void } | null>(null);
   const [nlEmail, setNlEmail] = useState("");
   const [nlStatus, setNlStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const posthog = usePostHog();
+  const hero = HERO_VARIANTS[heroVariant];
+
+  useEffect(() => {
+    posthog?.capture("landing_hero_view", { variant: heroVariant });
+  }, [heroVariant, posthog]);
+
+  function trackCtaClick(location: string) {
+    posthog?.capture("landing_cta_click", { variant: heroVariant, location });
+  }
 
   async function handleNewsletterSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -259,6 +295,7 @@ export function LandingPage({ refCode }: Props) {
           </Link>
           <Link
             href={href}
+            onClick={() => trackCtaClick("nav")}
             className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white/70 backdrop-blur-sm transition-all hover:border-[#d4a853]/50 hover:text-[#d4a853] sm:px-4"
           >
             Start free trial
@@ -298,24 +335,22 @@ export function LandingPage({ refCode }: Props) {
 
           <div className="relative z-10 flex flex-col items-center">
             <div
-              className="lp-hero-line mb-12 h-px w-56"
+              className="lp-hero-line mb-16 h-px w-56"
               style={{ background: "linear-gradient(90deg,transparent,rgba(212,168,83,0.42),transparent)" }}
             />
-            <p className="lp-hero-kicker mb-5 text-[11px] font-medium tracking-[0.32em] uppercase text-white/40">
-              The all-in-one studio platform
-            </p>
             <h1
               className="lp-hero-headline max-w-3xl font-sans font-black leading-[1.04] tracking-tighter text-white"
-              style={{ fontSize: "clamp(2.2rem,4.2vw,3.8rem)" }}
+              style={{ fontSize: hero.h1Size ?? "clamp(2.2rem,4.2vw,3.8rem)" }}
             >
-              Stop stitching your<br />production together.
+              {hero.h1}
             </h1>
-            <p className="lp-hero-sub mt-6 max-w-sm text-[13px] leading-relaxed text-white/48">
-              Shot lists, client portals, invoicing, crew scheduling.<br />All flowing in one place. Finally.
+            <p className="lp-hero-sub mt-6 max-w-md text-[13px] leading-relaxed text-white/48">
+              {hero.sub}
             </p>
             <div className="lp-hero-cta mt-8 flex flex-col items-center gap-4">
               <MagneticLink
                 href={href}
+                onClick={() => trackCtaClick("hero")}
                 className="inline-block rounded-xl bg-[#d4a853] px-7 py-3 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_36px_rgba(212,168,83,0.35)]"
               >
                 Start for free →
@@ -511,7 +546,7 @@ export function LandingPage({ refCode }: Props) {
             <div className="lp-clip mt-7">
               <p className="lp-clip-inner mx-auto max-w-sm text-[13px] leading-relaxed text-white/28"
                 style={{ "--di": "0.30s" } as React.CSSProperties}>
-                Everything your production runs on. Finally in one place.
+                One continuous thread, from first call to final invoice.
               </p>
             </div>
           </div>
@@ -634,6 +669,7 @@ export function LandingPage({ refCode }: Props) {
                   <MagneticLink
                     href={href}
                     strength={7}
+                    onClick={() => trackCtaClick(`pricing:${plan.name}`)}
                     className={`block w-full rounded-xl py-2.5 text-center text-xs font-bold transition-all ${
                       plan.popular
                         ? "bg-[#d4a853] text-black hover:bg-[#d4a853]/90 hover:shadow-[0_0_28px_rgba(212,168,83,0.22)]"
@@ -663,6 +699,7 @@ export function LandingPage({ refCode }: Props) {
               </div>
               <Link
                 href={href}
+                onClick={() => trackCtaClick("lifetime")}
                 className="shrink-0 rounded-xl border border-[#d4a853]/30 bg-[#d4a853]/[0.08] px-5 py-2.5 font-mono text-xs font-semibold text-[#d4a853] transition-all hover:bg-[#d4a853]/[0.15]"
               >
                 Get lifetime access
@@ -704,8 +741,8 @@ export function LandingPage({ refCode }: Props) {
               className="mb-5 font-black leading-[1.04] tracking-tighter text-white"
               style={{ fontSize: "clamp(2.4rem,5vw,4.5rem)" }}
             >
-              <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0s" } as React.CSSProperties}>Everything in one place.</div></div>
-              <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.10s" } as React.CSSProperties}>Finally.</div></div>
+              <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0s" } as React.CSSProperties}>Stop stitching.</div></div>
+              <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.10s" } as React.CSSProperties}>Start shooting.</div></div>
             </div>
             <div className="lp-clip mb-5">
               <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/40"
@@ -716,6 +753,7 @@ export function LandingPage({ refCode }: Props) {
             <div className="lp-clip mb-2 mt-1">
               <Link
                 href={href}
+                onClick={() => trackCtaClick("closing")}
                 className="lp-clip-inner block rounded-xl bg-[#d4a853] px-8 py-3.5 text-sm font-bold text-black transition-all hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(212,168,83,0.35)]"
                 style={{ "--di": "0.30s" } as React.CSSProperties}
               >

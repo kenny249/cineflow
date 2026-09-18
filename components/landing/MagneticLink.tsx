@@ -8,10 +8,11 @@ interface Props {
   className?: string;
   children: React.ReactNode;
   strength?: number;
+  onClick?: () => void;
 }
 
 // Pulls the element toward the cursor within its own bounds, springs back on leave.
-export function MagneticLink({ href, className, children, strength = 14 }: Props) {
+export function MagneticLink({ href, className, children, strength = 14, onClick }: Props) {
   const ref = useRef<HTMLAnchorElement>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -38,6 +39,7 @@ export function MagneticLink({ href, className, children, strength = 14 }: Props
       href={href}
       onMouseMove={handleMove}
       onMouseLeave={handleLeave}
+      onClick={onClick}
       style={{ x: springX, y: springY }}
       className={className}
     >
