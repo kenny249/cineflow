@@ -349,7 +349,7 @@ export function HeroPreview() {
             For filmmakers, directors, producers and creative teams
           </p>
           <p className="text-base text-muted-foreground leading-relaxed text-center">
-            Launch faster, keep feedback organized, and deliver polished work all in one place.
+            Launch faster, keep feedback organized, and deliver polished work — without retyping it into four other tools.
           </p>
         </div>
 

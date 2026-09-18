@@ -56,7 +56,10 @@ const HERO_VARIANTS: Record<
 
 const FRAGMENTS = [
   { text: '"where are we at?" · 11:47pm',     mono: false, x: "4%",  y: "20%", rot: -3, d: 0.6,  dur: 3.8 },
-  { text: "Invoice_v4_FINAL_FINAL.pdf",        mono: true,  x: "70%", y: "16%", rot:  4, d: 1.0,  dur: 4.2 },
+  // Collides with variant d's 3-line headline (measured: ~81px overlap at
+  // both 768px and 900px viewport heights) — hidden only for that variant
+  // so the paid-traffic test isn't biased by layout instead of message.
+  { text: "Invoice_v4_FINAL_FINAL.pdf",        mono: true,  x: "70%", y: "16%", rot:  4, d: 1.0,  dur: 4.2, hideFor: ["d"] as const },
   { text: '"did you get the rough cut link?"', mono: false, x: "3%",  y: "60%", rot: -2, d: 1.2,  dur: 3.5 },
   { text: "shot_list_REVISED_use_this.xlsx",   mono: true,  x: "68%", y: "72%", rot:  5, d: 0.8,  dur: 4.5 },
   { text: '"can you resend the contract?"',    mono: false, x: "74%", y: "42%", rot: -4, d: 1.4,  dur: 3.9 },
@@ -321,9 +324,9 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
         <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 pb-40 text-center">
 
           {/* Hidden on mobile — overlap hero content on small screens */}
-          {FRAGMENTS.map((f, i) => (
+          {FRAGMENTS.filter((f) => !("hideFor" in f && (f.hideFor as readonly string[]).includes(heroVariant))).map((f) => (
             <div
-              key={i}
+              key={f.text}
               className="lp-frag-wrap absolute pointer-events-none hidden sm:block"
               style={{ left: f.x, top: f.y, "--fd": `${f.d}s`, "--fdur": `${f.dur}s` } as React.CSSProperties}
             >
@@ -376,7 +379,7 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
           {/* Product peek — top edge breaks into the first viewport so cold
               traffic sees the software without scrolling. Tied to the hero
               variant so each headline immediately shows what it promised. */}
-          <div className="lp-hero-peek relative z-10 mt-64 w-full max-w-4xl">
+          <div className="lp-hero-peek relative z-10 mt-32 w-full max-w-4xl sm:mt-64">
             <div
               className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
               style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
