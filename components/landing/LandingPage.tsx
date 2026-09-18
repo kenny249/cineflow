@@ -2,14 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Film, Check, ChevronDown } from "lucide-react";
 import { BackgroundCanvas } from "./BackgroundCanvas";
 import { SpotlightCanvas } from "./SpotlightCanvas";
 import { scrollState } from "./scrollState";
 import { AdPixels } from "@/components/shared/AdPixels";
 import { MagneticLink } from "./MagneticLink";
-import { TiltCard } from "./TiltCard";
+import { FeatureShowcase } from "./FeatureShowcase";
 
 interface Props { refCode?: string }
 
@@ -24,33 +23,6 @@ const FRAGMENTS = [
   { text: "call_sheet_saturday_v4.pdf",        mono: true,  x: "58%", y: "24%", rot:  3, d: 0.9,  dur: 4.3 },
   { text: '"I never got the invoice 🙏"',      mono: false, x: "76%", y: "60%", rot: -3, d: 1.3,  dur: 3.7 },
   { text: '"just checking in again..."',       mono: false, x: "28%", y: "19%", rot:  2, d: 1.6,  dur: 4.0 },
-] as const;
-
-const PANELS = [
-  {
-    num: "01", tag: "Production",
-    h: ["Your whole", "production.", "One view."] as const,
-    sub: "Shot lists, call sheets, and scheduling. Everything your crew needs, right where your project lives.",
-    note: "Replaces StudioBinder + Notion",
-    img: "/marketing/panel-production.png",
-    imgAlt: "CineFlow shot list for a short film production, with scenes, camera moves, and lenses tracked per shot.",
-  },
-  {
-    num: "02", tag: "Client Portal",
-    h: ["Clients stay", "in the loop.", "Automatically."] as const,
-    sub: "Every client gets their own portal. They see progress, approve cuts, and sign off. Without texting you.",
-    note: 'No more "hey, are the videos done yet?"',
-    img: "/marketing/panel-client-portal.png",
-    imgAlt: "CineFlow review hub showing video cuts with approval status — in house, revision needed, approved.",
-  },
-  {
-    num: "03", tag: "Payments",
-    h: ["Stop chasing", "your own", "money."] as const,
-    sub: "Professional invoices, deposit collection, and automated reminders, right next to the project.",
-    note: "Replaces HoneyBook + DocuSign",
-    img: "/marketing/panel-payments.png",
-    imgAlt: "CineFlow finance dashboard with revenue chart, top clients, and a list of invoices by status.",
-  },
 ] as const;
 
 // Annual figures mirror app/(app)/upgrade/page.tsx — keep in sync if pricing changes.
@@ -247,37 +219,12 @@ export function LandingPage({ refCode }: Props) {
       );
       document.querySelectorAll("[data-reveal]").forEach(el => io.observe(el));
 
-      // Panel screenshots "develop" into view as you scroll past them —
-      // scrubbed directly against scroll position rather than a fixed-
-      // duration fade, so it feels tied to your own scroll motion instead
-      // of just switching on at a threshold. Scoped to the panels only;
-      // everything else keeps the simpler IntersectionObserver reveal.
-      const gsap = (await import("gsap")).default;
-      const { ScrollTrigger } = await import("gsap/ScrollTrigger");
-      gsap.registerPlugin(ScrollTrigger);
-      lenis.on("scroll", ScrollTrigger.update);
-
-      const panelFrames = gsap.utils.toArray<HTMLElement>(".lp-panel-develop");
-      panelFrames.forEach((frame) => {
-        gsap.fromTo(
-          frame,
-          { clipPath: "inset(0% 0% 22% 0%)", scale: 1.035 },
-          {
-            clipPath: "inset(0% 0% 0% 0%)",
-            scale: 1,
-            ease: "none",
-            scrollTrigger: { trigger: frame, start: "top 92%", end: "top 55%", scrub: 0.6 },
-          }
-        );
-      });
-
       teardown = () => {
         cancelAnimationFrame(rafId);
         lenis.destroy();
         lenisRef.current = null;
         window.removeEventListener("mousemove", onMove);
         io.disconnect();
-        ScrollTrigger.getAll().forEach((t) => t.kill());
       };
     })();
 
@@ -572,65 +519,8 @@ export function LandingPage({ refCode }: Props) {
 
         {/* ══ PANELS ════════════════════════════════════════════════════ */}
         <section id="lp-panels" className="relative py-20 px-8">
-          <div className="mx-auto max-w-6xl flex flex-col gap-28">
-            {PANELS.map((panel, i) => (
-              <div
-                key={i}
-                data-reveal="clip"
-                className={`flex flex-col items-center gap-10 text-center md:gap-16 md:text-left ${
-                  i % 2 === 1 ? "md:flex-row-reverse" : "md:flex-row"
-                }`}
-              >
-                <div className="flex flex-col items-center md:w-[42%] md:shrink-0 md:items-start">
-                  <div className="lp-clip mb-6">
-                    <p className="lp-clip-inner font-mono text-[10px] tracking-[0.42em] uppercase text-[#d4a853]/48"
-                      style={{ "--di": "0s" } as React.CSSProperties}>
-                      {panel.num} · {panel.tag}
-                    </p>
-                  </div>
-                  <div
-                    className="font-black leading-[1.06] tracking-tighter text-white"
-                    style={{ fontSize: "clamp(2.6rem,5vw,4.6rem)" }}
-                  >
-                    <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.08s" } as React.CSSProperties}>{panel.h[0]}</div></div>
-                    <div className="lp-clip"><div className="lp-clip-inner" style={{ "--di": "0.16s" } as React.CSSProperties}>{panel.h[1]}</div></div>
-                    <div className="lp-clip"><div className="lp-clip-inner text-[#d4a853]" style={{ "--di": "0.24s" } as React.CSSProperties}>{panel.h[2]}</div></div>
-                  </div>
-                  <div className="lp-clip my-7">
-                    <div className="lp-clip-inner h-px w-8 bg-[#d4a853]/22" style={{ "--di": "0.30s" } as React.CSSProperties} />
-                  </div>
-                  <div className="lp-clip">
-                    <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/48"
-                      style={{ "--di": "0.36s" } as React.CSSProperties}>{panel.sub}</p>
-                  </div>
-                  <div className="lp-clip mt-5">
-                    <p className="lp-clip-inner font-mono text-[9px] tracking-[0.32em] uppercase text-white/18"
-                      style={{ "--di": "0.42s" } as React.CSSProperties}>{panel.note}</p>
-                  </div>
-                </div>
-
-                <div className="w-full md:flex-1">
-                  <TiltCard>
-                    <div
-                      className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
-                      style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
-                    >
-                      <div className="lp-panel-develop relative">
-                        <Image
-                          src={panel.img}
-                          alt={panel.imgAlt}
-                          width={1440}
-                          height={i === 0 ? 820 : i === 1 ? 460 : 1060}
-                          sizes="(min-width: 768px) 58vw, 92vw"
-                          className="w-full h-auto"
-                        />
-                        <div className="lp-panel-shine" />
-                      </div>
-                    </div>
-                  </TiltCard>
-                </div>
-              </div>
-            ))}
+          <div className="mx-auto max-w-6xl">
+            <FeatureShowcase />
           </div>
         </section>
 
