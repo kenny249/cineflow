@@ -303,7 +303,7 @@ export function LandingPage({ refCode }: Props) {
                 onClick={scrollToPanels}
                 className="font-mono text-[10px] tracking-[0.28em] uppercase text-white/35 transition-colors hover:text-[#d4a853]"
               >
-                See it in action ↓
+                See the product ↓
               </button>
             </div>
             <p className="lp-hero-trust mt-3 font-mono text-[9px] tracking-[0.28em] uppercase text-white/22">

@@ -9,16 +9,18 @@ interface Props {
   maxTilt?: number;
 }
 
-// Subtle mouse-tracked perspective tilt — kept restrained (default 5deg) so it
+// Subtle mouse-tracked perspective tilt — kept restrained (default 3deg) so it
 // reads as a physical object catching light, not a showy tilt.js demo effect.
+// A slow, heavy spring (low stiffness, higher mass) so it settles calmly
+// instead of snapping to the cursor — that snappiness read as jarring.
 // Applied to a wrapper so it composes cleanly with a child's own CSS hover
 // transform (lift/scale) instead of both fighting over the same property.
-export function TiltCard({ children, className, maxTilt = 5 }: Props) {
+export function TiltCard({ children, className, maxTilt = 3 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const px = useMotionValue(0.5);
   const py = useMotionValue(0.5);
-  const springX = useSpring(px, { stiffness: 150, damping: 20, mass: 0.5 });
-  const springY = useSpring(py, { stiffness: 150, damping: 20, mass: 0.5 });
+  const springX = useSpring(px, { stiffness: 55, damping: 20, mass: 1 });
+  const springY = useSpring(py, { stiffness: 55, damping: 20, mass: 1 });
 
   const rotateX = useTransform(springY, [0, 1], [maxTilt, -maxTilt]);
   const rotateY = useTransform(springX, [0, 1], [-maxTilt, maxTilt]);

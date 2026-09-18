@@ -2,19 +2,17 @@
 
 import { useEffect, useRef } from "react";
 
-// Ambient cursor light + trailing gold embers. Adapted from an earlier, heavier
-// version that punched a spotlight through a near-opaque dark overlay (a full
-// page takeover) — this one only ever adds warm light via additive/"screen"
-// compositing against a transparent canvas, so it layers safely over real
-// content instead of dimming it.
+// Ambient cursor light. Adapted from an earlier, heavier version that punched
+// a spotlight through a near-opaque dark overlay (a full page takeover) —
+// this one only ever adds warm light via additive/"screen" compositing
+// against a transparent canvas, so it layers safely over real content
+// instead of dimming it. Originally also trailed gold ember particles;
+// dropped after feedback that they read as distracting sparkles.
 export function SpotlightCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouse = useRef({ x: 0.5, y: 0.5 });
   const current = useRef({ x: 0.5, y: 0.5 });
   const active = useRef(false);
-
-  type Ember = { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number };
-  const embers = useRef<Ember[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -35,18 +33,6 @@ export function SpotlightCanvas() {
       const y = "touches" in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
       mouse.current.x = x / window.innerWidth;
       mouse.current.y = y / window.innerHeight;
-
-      for (let i = 0; i < 1; i++) {
-        embers.current.push({
-          x, y,
-          vx: (Math.random() - 0.5) * 1.4,
-          vy: -Math.random() * 1.6 - 0.3,
-          life: 1,
-          maxLife: 0.5 + Math.random() * 0.6,
-          size: 0.8 + Math.random() * 1.2,
-        });
-      }
-      if (embers.current.length > 60) embers.current.splice(0, embers.current.length - 60);
     }
     window.addEventListener("mousemove", onMove, { passive: true });
     window.addEventListener("touchmove", onMove, { passive: true });
@@ -57,7 +43,7 @@ export function SpotlightCanvas() {
       current.current.y += (mouse.current.y - current.current.y) * 0.4;
 
       ctx.clearRect(0, 0, canvas!.width, canvas!.height);
-      if (!active.current && embers.current.length === 0) return;
+      if (!active.current) return;
 
       const cx = current.current.x * canvas!.width;
       const cy = current.current.y * canvas!.height;
@@ -74,25 +60,6 @@ export function SpotlightCanvas() {
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.restore();
-
-      // Embers
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      embers.current = embers.current.filter(e => e.life > 0);
-      embers.current.forEach(e => {
-        e.x += e.vx;
-        e.y += e.vy;
-        e.vy += 0.04;
-        e.vx *= 0.97;
-        e.life -= 0.025 / e.maxLife;
-        const clampedLife = Math.max(0, e.life);
-        const alpha = clampedLife * 0.45;
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.size * clampedLife, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(212,168,83,${alpha})`;
-        ctx.fill();
-      });
       ctx.restore();
     }
     draw();
