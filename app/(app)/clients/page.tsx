@@ -405,10 +405,14 @@ export default function ClientsPage() {
           return (
             <div key={clientName} className="overflow-hidden rounded-xl border border-border bg-card/50">
               {/* Client row */}
-              <button
-                type="button"
-                className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-card transition-colors"
+              <div
+                role="button"
+                tabIndex={0}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left hover:bg-card transition-colors cursor-pointer"
                 onClick={() => toggle(clientName)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(clientName); }
+                }}
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#d4a853]/10 text-[#d4a853]">
                   <Briefcase className="h-4 w-4" />
@@ -508,7 +512,7 @@ export default function ClientsPage() {
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 {isOpen ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-              </button>
+              </div>
 
               {/* Project rows + Contracts */}
               {isOpen && (() => {

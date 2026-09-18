@@ -817,10 +817,15 @@ export default function ContractsPage() {
                         <span className="shrink-0 text-[10px] text-muted-foreground/50">{gc.length}</span>
                       </button>
                       {isExpanded && gc.map((c) => (
-                        <button
+                        <div
                           key={c.id}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => setSelected(c)}
-                          className={`group ml-4 w-[calc(100%-1rem)] rounded-xl border px-3 py-2.5 text-left transition-all ${
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelected(c); }
+                          }}
+                          className={`group ml-4 w-[calc(100%-1rem)] cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-all ${
                             selected?.id === c.id ? "border-[#d4a853] bg-[#d4a853]/10" : "border-border bg-card hover:border-[#d4a853]/30"
                           }`}
                         >
@@ -840,7 +845,7 @@ export default function ContractsPage() {
                               <Trash2 className="h-3 w-3" />
                             </button>
                           </div>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   );

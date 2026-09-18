@@ -398,10 +398,18 @@ export default function ShotListsPage() {
                 const done = list.items?.filter((i) => i.is_complete).length ?? 0;
                 const total = list.items?.length ?? 0;
                 return (
-                  <button
+                  <div
                     key={list.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedListId(list.id)}
-                    className={`group flex w-full items-center justify-between rounded-xl border px-3.5 py-3 text-left transition-all ${
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedListId(list.id);
+                      }
+                    }}
+                    className={`group flex w-full items-center justify-between rounded-xl border px-3.5 py-3 text-left transition-all cursor-pointer ${
                       selectedListId === list.id
                         ? "border-[#d4a853] bg-[#d4a853]/10 text-foreground"
                         : "border-border bg-card text-muted-foreground hover:border-[#d4a853]/30"
@@ -425,7 +433,7 @@ export default function ShotListsPage() {
                       </button>
                       <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
                     </div>
-                  </button>
+                  </div>
                 );
               })
             )}

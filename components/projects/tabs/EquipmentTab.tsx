@@ -477,10 +477,14 @@ function EquipmentSection({
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* Section header */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(!expanded); }
+        }}
+        className="flex w-full items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-2.5">
           <div className={`flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-muted/30 ${cfg.color}`}>
@@ -503,7 +507,7 @@ function EquipmentSection({
           )}
           {expanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
         </div>
-      </button>
+      </div>
 
       {/* Items */}
       {expanded && (
