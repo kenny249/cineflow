@@ -60,7 +60,7 @@ Key differentiators: AI-powered tools built-in, all-in-one (no integrations need
 `.trim();
 
     const message = await client.messages.create({
-      model: "claude-opus-4-8",
+      model: "claude-opus-5",
       max_tokens: 1024,
       messages: [{ role: "user", content: `${context}\n\n${fmt.instructions}` }],
     });

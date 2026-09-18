@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       const { scriptContent, projectTitle } = body as { scriptContent: string; projectTitle?: string };
 
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-5",
         max_tokens: 4096,
         system: `You are a professional 1st Assistant Director breaking down a screenplay into a production shot list for "${projectTitle || "this project"}".
 
@@ -119,7 +119,7 @@ Rules:
       const { scriptContent, projectTitle } = body as { scriptContent: string; projectTitle?: string };
 
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-5",
         max_tokens: 4096,
         system: `You are a creative director and storyboard artist visualizing a screenplay for "${projectTitle || "this project"}".
 

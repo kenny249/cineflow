@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
     const prompt = buildPrompt(templateId, fields, studioName);
 
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });

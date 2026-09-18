@@ -144,7 +144,7 @@ Return ONLY a valid JSON object — no markdown, no explanation:
 Include 3–8 items per section as appropriate. Action items must be specific and actionable. Notable quotes should be the most insightful or memorable lines only (2–4 max). Keep each bullet concise (1–2 sentences).`;
 
       const message = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-5",
         max_tokens: 2048,
         messages: [{ role: "user", content: prompt }],
       });
@@ -177,7 +177,7 @@ Return ONLY a valid JSON object — no markdown, no explanation:
 Extract 5–8 of the most valuable, actionable, or insightful takeaways. Each headline should stand alone as a memorable insight. Be specific — no generic filler.`;
 
       const message = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-5",
         max_tokens: 2048,
         messages: [{ role: "user", content: prompt }],
       });
@@ -247,7 +247,7 @@ Return ONLY a valid JSON object — no markdown, no explanation outside the JSON
 Cut labels to use: ${cutLabels} — pick what fits each moment. These are for THIS format specifically; use them, not a generic set.`;
 
     const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: "claude-sonnet-5",
       max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
