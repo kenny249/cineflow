@@ -182,7 +182,7 @@ export function LandingPage({ refCode }: Props) {
       gsap.registerPlugin(ScrollTrigger);
       lenis.on("scroll", ScrollTrigger.update);
 
-      const panelFrames = gsap.utils.toArray<HTMLElement>(".lp-panel-frame");
+      const panelFrames = gsap.utils.toArray<HTMLElement>(".lp-panel-develop");
       panelFrames.forEach((frame) => {
         gsap.fromTo(
           frame,
@@ -540,15 +540,17 @@ export function LandingPage({ refCode }: Props) {
                       className="lp-panel-frame relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
                       style={{ boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)" }}
                     >
-                      <Image
-                        src={panel.img}
-                        alt={panel.imgAlt}
-                        width={1440}
-                        height={i === 0 ? 820 : i === 1 ? 460 : 1060}
-                        sizes="(min-width: 768px) 58vw, 92vw"
-                        className="w-full h-auto"
-                      />
-                      <div className="lp-panel-shine" />
+                      <div className="lp-panel-develop relative">
+                        <Image
+                          src={panel.img}
+                          alt={panel.imgAlt}
+                          width={1440}
+                          height={i === 0 ? 820 : i === 1 ? 460 : 1060}
+                          sizes="(min-width: 768px) 58vw, 92vw"
+                          className="w-full h-auto"
+                        />
+                        <div className="lp-panel-shine" />
+                      </div>
                     </div>
                   </TiltCard>
                 </div>
