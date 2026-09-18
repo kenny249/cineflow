@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, Sparkles, CheckCircle2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -121,11 +121,15 @@ function StarRating({
 const LS_KEY = "cf_beta_feedback_done";
 
 export default function BetaFeedbackPage() {
-  const [done, setDone] = useState(() =>
-    typeof window !== "undefined" && localStorage.getItem(LS_KEY) === "1"
-  );
+  const [done, setDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Hydration-safe: read localStorage post-mount, not in the initializer
+  // above — see Sidebar.tsx/AppLayout.tsx for why that throws React #418.
+  useEffect(() => {
+    if (localStorage.getItem(LS_KEY) === "1") setDone(true);
+  }, []);
 
   // Answers
   const [usageFrequency, setUsageFrequency] = useState("");

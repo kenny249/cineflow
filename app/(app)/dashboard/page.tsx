@@ -71,11 +71,19 @@ export default function DashboardPage() {
   const [pipelineQuoteOldestDays, setPipelineQuoteOldestDays] = useState<number | null>(null);
   const [pipelineContracts, setPipelineContracts] = useState(0);
   const [pipelineContractOldestDays, setPipelineContractOldestDays] = useState<number | null>(null);
-  const [plan, setPlan] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
-  );
+  const [plan, setPlan] = useState<string>("studio");
   const [planStatus, setPlanStatus] = useState<string>("trialing");
   const router = useRouter();
+
+  useEffect(() => {
+    // Hydrate from sessionStorage post-mount, not in the useState initializer —
+    // reading it there produces a different value on the client's pre-hydration
+    // first paint than on the server (which always sees "studio"), throwing a
+    // React #418 hydration mismatch. Same pattern already fixed in Sidebar.tsx
+    // and Jarvis's settings page; this page had the same bug independently.
+    const cached = sessionStorage.getItem("cf_plan");
+    if (cached) setPlan(cached);
+  }, []);
 
   useEffect(() => {
     loadData();

@@ -352,13 +352,9 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
   const pathname = usePathname();
   const [displayName, setDisplayName] = useState("Studio User");
-  const [plan, setPlan] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
-  );
+  const [plan, setPlan] = useState<string>("studio");
   const [isAdmin, setIsAdmin] = useState(false);
-  const [planStatus, setPlanStatus] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan_status") : null) ?? ""
-  );
+  const [planStatus, setPlanStatus] = useState<string>("");
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [userPrefs, setUserPrefs] = useState<UserPrefs>({ user_role: null, team_size: null, uses_drone: false });
   const [moreExpanded, setMoreExpanded] = useState(false);
@@ -388,6 +384,13 @@ export function Sidebar({ collapsed, onToggle, role = "owner" }: SidebarProps) {
       const s = localStorage.getItem("sidebar-collapsed-sections");
       if (s) setCollapsedSections(new Set(JSON.parse(s)));
     } catch { /* ignore malformed stored value */ }
+    // Same hydration-safety reasoning as above — plan/planStatus had the
+    // identical sessionStorage-in-initializer bug, just missed in the pass
+    // that fixed the state above.
+    const cachedPlan = sessionStorage.getItem("cf_plan");
+    if (cachedPlan) setPlan(cachedPlan);
+    const cachedStatus = sessionStorage.getItem("cf_plan_status");
+    if (cachedStatus) setPlanStatus(cachedStatus);
   }, []);
 
   useEffect(() => {

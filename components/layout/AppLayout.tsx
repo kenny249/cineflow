@@ -82,12 +82,8 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const [plan, setPlan] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
-  );
-  const [planStatus, setPlanStatus] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan_status") : null) ?? ""
-  );
+  const [plan, setPlan] = useState<string>("studio");
+  const [planStatus, setPlanStatus] = useState<string>("");
   const [trialEndsAt, setTrialEndsAt] = useState<string | null>(null);
   const [isDemoUser, setIsDemoUser] = useState(false);
   const [userId, setUserId] = useState<string>("");
@@ -99,6 +95,18 @@ export function AppLayout({ children, topBarAction }: AppLayoutProps) {
   const [announcements, setAnnouncements] = useState<{ id: string; message: string; type: string }[]>([]);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Hydrate from sessionStorage post-mount, not in the useState initializer —
+  // reading it there produces a different value on the client's pre-hydration
+  // first paint than on the server (which never sees it), throwing a React
+  // #418 hydration mismatch. Same pattern already fixed in Sidebar.tsx for
+  // other state; plan/planStatus here had the same bug independently.
+  useEffect(() => {
+    const cachedPlan = sessionStorage.getItem("cf_plan");
+    if (cachedPlan) setPlan(cachedPlan);
+    const cachedStatus = sessionStorage.getItem("cf_plan_status");
+    if (cachedStatus) setPlanStatus(cachedStatus);
+  }, []);
 
   // Confirm plan, profile and role from Supabase
   useEffect(() => {

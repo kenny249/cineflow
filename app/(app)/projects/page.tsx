@@ -54,12 +54,7 @@ function ProjectsPageInner() {
   const [search, setSearch] = useState(searchParams.get("q") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [density, setDensity] = useState<Density>(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("projects-density") as Density) ?? "default";
-    }
-    return "default";
-  });
+  const [density, setDensity] = useState<Density>("default");
   const [modalOpen, setModalOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +63,13 @@ function ProjectsPageInner() {
   const [showTrash, setShowTrash] = useState(false);
   const [trashedProjects, setTrashedProjects] = useState<Project[]>([]);
   const [displayCount, setDisplayCount] = useState(24);
+
+  // Hydration-safe: read localStorage post-mount, not in useState's
+  // initializer — see Sidebar.tsx/AppLayout.tsx for why that throws React #418.
+  useEffect(() => {
+    const stored = localStorage.getItem("projects-density") as Density | null;
+    if (stored) setDensity(stored);
+  }, []);
 
   useEffect(() => {
     setSearch(searchParams.get("q") ?? "");

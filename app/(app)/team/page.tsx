@@ -596,9 +596,7 @@ export default function TeamPage() {
   const [memberMenuId, setMemberMenuId] = useState<string | null>(null);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [plan, setPlan] = useState<string>(() =>
-    (typeof window !== "undefined" ? sessionStorage.getItem("cf_plan") : null) ?? "studio"
-  );
+  const [plan, setPlan] = useState<string>("studio");
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -607,6 +605,11 @@ export default function TeamPage() {
 
   // ── Init ──
   useEffect(() => {
+    // Same hydration-safety reasoning as Sidebar/AppLayout: reading
+    // sessionStorage in the plan state's initializer disagrees with the
+    // server's render, throwing a React #418 mismatch.
+    const cachedPlan = sessionStorage.getItem("cf_plan");
+    if (cachedPlan) setPlan(cachedPlan);
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
     supabase.rpc("get_member_role").then(({ data: role }) => setIsOwner(role === "owner"));
