@@ -54,11 +54,15 @@ export function FeedbackButton() {
 
   return (
     <>
-      {/* Vertical right-edge tab */}
+      {/* Vertical corner tab — anchored bottom-right, not viewport-center, so it
+          doesn't sit permanently on top of whatever page content happens to
+          render at mid-height (confirmed doing exactly that on some pages —
+          covering, and blocking clicks on, real buttons underneath it).
+          Cleared above the mobile bottom nav (~70px tall) on small screens. */}
       <button
         onClick={() => setOpen(true)}
         aria-label="Send feedback"
-        className="fixed right-0 top-1/2 z-40 -translate-y-1/2 flex flex-col items-center gap-2 rounded-l-xl border border-r-0 border-[#d4a853]/20 bg-card/95 px-2.5 py-4 shadow-lg backdrop-blur-md transition-all duration-200 hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5 hover:shadow-[0_0_20px_rgba(212,168,83,0.12)]"
+        className="fixed right-0 bottom-20 z-40 md:bottom-10 flex flex-col items-center gap-2 rounded-l-xl border border-r-0 border-[#d4a853]/20 bg-card/95 px-2.5 py-4 shadow-lg backdrop-blur-md transition-all duration-200 hover:border-[#d4a853]/40 hover:bg-[#d4a853]/5 hover:shadow-[0_0_20px_rgba(212,168,83,0.12)]"
       >
         <MessageSquarePlus className="h-3.5 w-3.5 text-[#d4a853]" />
         <span
