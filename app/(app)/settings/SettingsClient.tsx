@@ -159,13 +159,10 @@ export default function SettingsClient() {
           setBusinessPhone(profile.business_phone ?? "");
           setBusinessWebsite(profile.business_website ?? "");
           setPaySettings((profile.payment_settings as PaymentSettings) ?? {});
-          // Load sensitive credentials from separate table
-          const supabase = createClient();
-          const { data: credRow } = await supabase
-            .from("payment_credentials")
-            .select("stripe_secret_key, stripe_webhook_secret, resend_api_key")
-            .single();
-          if (credRow) setPayCredentials(credRow);
+          // Load sensitive credentials via the server route — they're encrypted at
+          // rest, so decryption only ever happens server-side.
+          const credRes = await fetch("/api/settings/payment-credentials");
+          if (credRes.ok) setPayCredentials(await credRes.json());
           if (profile.plan) setPlan(profile.plan);
           if (profile.plan_status) setPlanStatus(profile.plan_status);
           if (profile.trial_ends_at) setTrialEndsAt(profile.trial_ends_at);
@@ -264,20 +261,15 @@ export default function SettingsClient() {
   const handleSavePayment = async () => {
     setIsSavingPayment(true);
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      await Promise.all([
+      const [, credRes] = await Promise.all([
         updateProfile({ payment_settings: paySettings }),
-        supabase.from("payment_credentials").upsert({
-          user_id: user.id,
-          stripe_secret_key: payCredentials.stripe_secret_key ?? null,
-          stripe_webhook_secret: payCredentials.stripe_webhook_secret ?? null,
-          resend_api_key: payCredentials.resend_api_key ?? null,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "user_id" }),
+        fetch("/api/settings/payment-credentials", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payCredentials),
+        }),
       ]);
+      if (!credRes.ok) throw new Error();
       toast.success("Payment settings saved.");
     } catch {
       toast.error("Failed to save payment settings.");
