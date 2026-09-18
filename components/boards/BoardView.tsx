@@ -607,7 +607,7 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
     <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#0a0a0a]">
       {/* Top right actions */}
       {!readonly && (
-        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
+        <div className="absolute top-3 right-3 z-20 flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 overflow-x-auto no-scrollbar">
           {/* Share manages the link itself (permission, revoke) — owner
               only, even when this render is an anonymous editor on an
               "anyone can edit" link. Being allowed to edit cards is not
@@ -615,14 +615,14 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
           {!shareToken && (
             <button
               onClick={() => setShareOpen((o) => !o)}
-              className="flex items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
+              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
             >
               <Share2 className="h-3.5 w-3.5" /> Share
             </button>
           )}
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
+            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card/90 backdrop-blur-sm px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-card transition-colors shadow-sm"
           >
             <Printer className="h-3.5 w-3.5" /> Print
           </button>
@@ -791,28 +791,28 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
 
       {/* Bottom toolbar */}
       {!readonly && (
-        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 rounded-2xl border border-border bg-card/95 backdrop-blur-md px-2.5 py-2 shadow-xl">
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex max-w-[calc(100vw-1.5rem)] items-center gap-0.5 overflow-x-auto no-scrollbar rounded-2xl border border-border bg-card/95 backdrop-blur-md px-2.5 py-2 shadow-xl">
           {TOOLBAR_TYPES.map(({ type, icon, label }) => (
             <button
               key={type}
               title={label}
               onClick={() => addCardAtCenter(type)}
               disabled={addingType !== null}
-              className="flex flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
+              className="flex shrink-0 flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 transition-colors"
             >
               {addingType === type ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
               <span className="text-[9px] font-medium">{label}</span>
             </button>
           ))}
 
-          <div className="mx-1.5 h-6 w-px bg-border" />
+          <div className="mx-1.5 h-6 w-px shrink-0 bg-border" />
 
           {/* Production tools */}
           {projectId && (
             <button
               title="Import from project"
               onClick={() => { setBreakdownOpen(false); setImportOpen((o) => !o); }}
-              className={`flex flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 transition-colors ${
+              className={`flex shrink-0 flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 transition-colors ${
                 importOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
               }`}
             >
@@ -825,7 +825,7 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
             <button
               title="AI Scene Breakdown"
               onClick={() => { setImportOpen(false); setBreakdownOpen((o) => !o); }}
-              className={`flex flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 transition-colors ${
+              className={`flex shrink-0 flex-col items-center gap-1 rounded-xl px-2.5 py-1.5 transition-colors ${
                 breakdownOpen ? "bg-[#d4a853]/20 text-[#d4a853]" : "text-muted-foreground hover:text-foreground hover:bg-accent"
               }`}
             >
@@ -834,19 +834,19 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
             </button>
           )}
 
-          <div className="mx-1.5 h-6 w-px bg-border" />
+          <div className="mx-1.5 h-6 w-px shrink-0 bg-border" />
 
           {/* Zoom */}
-          <button onClick={() => adjustZoom(0.85)} title="Zoom out" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+          <button onClick={() => adjustZoom(0.85)} title="Zoom out" className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
-          <span className="min-w-[38px] text-center text-[11px] text-muted-foreground/60 font-mono tabular-nums">
+          <span className="min-w-[38px] shrink-0 text-center text-[11px] text-muted-foreground/60 font-mono tabular-nums">
             {Math.round(zoom * 100)}%
           </span>
-          <button onClick={() => adjustZoom(1.18)} title="Zoom in" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+          <button onClick={() => adjustZoom(1.18)} title="Zoom in" className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
             <ZoomIn className="h-3.5 w-3.5" />
           </button>
-          <button onClick={fitToScreen} title="Fit to screen" className="rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+          <button onClick={fitToScreen} title="Fit to screen" className="shrink-0 rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
             <Maximize2 className="h-3.5 w-3.5" />
           </button>
         </div>
