@@ -102,15 +102,47 @@ Return ONLY valid JSON matching this exact structure. Be thorough — this break
   try {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 8000,
+      max_tokens: 16000,
       messages: [{ role: "user", content: prompt }],
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return NextResponse.json({ error: "Failed to parse breakdown" }, { status: 500 });
+    // Don't assume content[0] is the text block — a non-text block first
+    // (e.g. thinking) would otherwise silently produce an empty string here.
+    const textBlock = response.content.find((b) => b.type === "text");
+    const text = textBlock && textBlock.type === "text" ? textBlock.text : "";
 
-    const result = JSON.parse(jsonMatch[0]);
+    if (response.stop_reason === "max_tokens") {
+      console.error("[api/scripts/breakdown] truncated at max_tokens", {
+        contentTypes: response.content.map((b) => b.type),
+        textLength: text.length,
+      });
+      return NextResponse.json(
+        { error: "The breakdown was too long to complete — try a shorter script or split it into sections." },
+        { status: 500 }
+      );
+    }
+
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error("[api/scripts/breakdown] no JSON found in response", {
+        contentTypes: response.content.map((b) => b.type),
+        stopReason: response.stop_reason,
+        textPreview: text.slice(0, 500),
+      });
+      return NextResponse.json({ error: "Failed to parse breakdown" }, { status: 500 });
+    }
+
+    let result: unknown;
+    try {
+      result = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.error("[api/scripts/breakdown] JSON.parse failed", {
+        message: parseErr instanceof Error ? parseErr.message : parseErr,
+        matchPreview: jsonMatch[0].slice(0, 500),
+      });
+      return NextResponse.json({ error: "Failed to parse breakdown" }, { status: 500 });
+    }
+
     return NextResponse.json(result);
   } catch (err: unknown) {
     console.error("[api/scripts/breakdown]", err);
