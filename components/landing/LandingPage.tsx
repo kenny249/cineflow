@@ -26,9 +26,9 @@ const HERO_VARIANTS: Record<
   a: {
     h1: <>Stop stitching your<br />production together.</>,
     sub: <>Your quote becomes the contract, the contract becomes the shoot,<br className="hidden md:inline" /> and the shoot becomes the invoice. Nothing gets retyped.</>,
-    img: "/marketing/panel-production.png",
-    imgAlt: "CineFlow shot list for a short film production, with scenes, camera moves, and lenses tracked per shot.",
-    imgHeight: 820,
+    img: "/marketing/panel-dashboard.png",
+    imgAlt: "CineFlow dashboard showing active projects, this week's schedule, and revenue pipeline in one view.",
+    imgHeight: 900,
   },
   b: {
     h1: <>One project. First call<br />to final payment.</>,
@@ -48,9 +48,9 @@ const HERO_VARIANTS: Record<
     h1: <>Frame.io for review. StudioBinder for prep.<br />Spreadsheets for everything else.</>,
     h1Size: "clamp(1.7rem,3.4vw,2.9rem)",
     sub: <>Or one platform that does the whole job.</>,
-    img: "/marketing/panel-production.png",
-    imgAlt: "CineFlow shot list for a short film production, with scenes, camera moves, and lenses tracked per shot.",
-    imgHeight: 820,
+    img: "/marketing/panel-dashboard.png",
+    imgAlt: "CineFlow dashboard showing active projects, this week's schedule, and revenue pipeline in one view.",
+    imgHeight: 900,
   },
 };
 
@@ -327,13 +327,16 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
       <div className="relative z-20">
 
         {/* ══ HERO ══════════════════════════════════════════════════════ */}
-        <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 pb-40 text-center">
+        <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-8 pt-24 pb-40 text-center sm:pt-32">
 
-          {/* Hidden on mobile — overlap hero content on small screens */}
+          {/* Hidden on mobile — overlap hero content on small screens.
+              z-20: must render above both the text block and the product
+              peek image (both z-10) or fragments that fall behind the
+              peek's bounds get fully hidden by it regardless of DOM order. */}
           {FRAGMENTS.map((f) => (
             <div
               key={f.text}
-              className="lp-frag-wrap absolute pointer-events-none hidden sm:block"
+              className="lp-frag-wrap absolute z-20 pointer-events-none hidden sm:block"
               style={{ left: f.x, top: f.y, "--fd": `${f.d}s`, "--fdur": `${f.dur}s` } as React.CSSProperties}
             >
               <div
