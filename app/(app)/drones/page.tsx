@@ -282,7 +282,7 @@ export default function DronesPage() {
         supabase.from("drone_batteries").select("*, drone:drone_equipment(id, make, model)").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("drone_flight_logs").select("*, drone:drone_equipment(id, make, model), project:projects(id, title), batteries:drone_flight_batteries(battery:drone_batteries(id, label, cycle_count))").eq("user_id", user.id).order("flight_date", { ascending: false }),
         supabase.from("drone_maintenance_logs").select("*, drone:drone_equipment(id, make, model)").eq("user_id", user.id).order("maintenance_date", { ascending: false }),
-        supabase.from("projects").select("id, title").eq("user_id", user.id).order("title"),
+        supabase.from("projects").select("id, title").eq("created_by", user.id).order("title"),
         supabase.from("profiles").select("part107_number, part107_expires_at, part107_document_url").eq("id", user.id).single(),
       ]);
 
