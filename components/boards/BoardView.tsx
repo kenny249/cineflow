@@ -132,6 +132,23 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
     zCounterRef.current += 1;
     return zCounterRef.current;
   }
+
+  // Which frame (if any) a card now belongs to, based on whether its
+  // center point falls inside a frame's current bounds — evaluated once,
+  // when the card is actually dropped, and persisted to card.frame_id
+  // rather than re-derived from scratch on every future frame drag (see
+  // the migration note on board_cards.frame_id for why that mattered).
+  function resolveFrameMembership(excludeCardId: string, x: number, y: number, w: number, h: number): string | null {
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const frame = cardsRef.current.find((c) =>
+      c.type === "frame" && c.id !== excludeCardId &&
+      cx >= c.x && cy >= c.y &&
+      cx <= c.x + (c.width ?? 320) && cy <= c.y + (c.height ?? 220)
+    );
+    return frame ? frame.id : null;
+  }
+
   const panRef = useRef({ x: 60, y: 60 });
   const zoomRef = useRef(1);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
@@ -298,8 +315,24 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
           // an older one reverts to creation-order stacking and can end up
           // rendering partially behind whatever it now overlaps.
           const newZ = nextZ();
-          setCards((prev) => prev.map((c) => c.id === dr.cardId ? { ...c, x: newX, y: newY, position: newZ } : c));
-          boardActions.updateCardPosition(dr.cardId, newX, newY, newZ)
+          // Re-resolve frame membership from where the card actually landed
+          // — but not for a dragged frame itself (frames don't nest inside
+          // other frames). Measuring the card's real rendered size rather
+          // than assuming a default keeps this accurate for notes that have
+          // been resized or grown past their default height.
+          const draggedCard = cardsRef.current.find((c) => c.id === dr.cardId);
+          let newFrameId: string | null | undefined;
+          if (draggedCard && draggedCard.type !== "frame") {
+            const rect = el?.getBoundingClientRect();
+            const w = rect ? rect.width / zoomRef.current : MIN_CARD_WIDTH;
+            const h = rect ? rect.height / zoomRef.current : MIN_NOTE_HEIGHT;
+            newFrameId = resolveFrameMembership(dr.cardId, newX, newY, w, h);
+          }
+          setCards((prev) => prev.map((c) => c.id === dr.cardId
+            ? { ...c, x: newX, y: newY, position: newZ, ...(newFrameId !== undefined && { frame_id: newFrameId }) }
+            : c
+          ));
+          boardActions.updateCardPosition(dr.cardId, newX, newY, newZ, newFrameId)
             .then(() => broadcastChange({ type: "updated", card: { ...cardsRef.current.find((c) => c.id === dr.cardId)!, x: newX, y: newY, position: newZ } }))
             .catch(() => toast.error("Failed to save position"));
         }
@@ -433,13 +466,12 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
     };
 
     if (card.type === "frame") {
-      const fw = card.width ?? 320;
-      const fh = card.height ?? 220;
+      // Explicit membership (card.frame_id) rather than a fresh geometry
+      // scan — see resolveFrameMembership. A member dragged along with its
+      // frame doesn't need re-resolving here: it's moving by the same
+      // delta as the frame, so it's still exactly as contained as before.
       frameGroupRef.current = cardsRef.current
-        .filter((c) =>
-          c.id !== card.id && c.type !== "frame" &&
-          c.x >= card.x && c.y >= card.y && c.x <= card.x + fw && c.y <= card.y + fh
-        )
+        .filter((c) => c.frame_id === card.id)
         .map((c) => ({ id: c.id, startX: c.x, startY: c.y }));
     } else {
       frameGroupRef.current = null;

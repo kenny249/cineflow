@@ -22,6 +22,11 @@ export interface BoardCard {
   color?: string | null;
   x: number;
   y: number;
+  // Which frame (a board_cards row with type "frame") this card currently
+  // belongs to, null if none. Set/cleared explicitly when a card is
+  // dropped in or out of a frame's bounds (see resolveFrameMembership in
+  // BoardView) — not recomputed from geometry on every frame drag.
+  frame_id?: string | null;
   // Explicit size override — null/undefined means "use the type's default
   // size," so existing cards render unchanged until someone resizes them.
   width?: number | null;
@@ -213,9 +218,20 @@ export async function updateCard(
 // BoardView's nextZ() — passing it here is how a drag persists "this card
 // is now the frontmost one" past the drop, instead of the card silently
 // reverting to creation-order stacking (see orderedCards in BoardView).
-export async function updateCardPosition(cardId: string, x: number, y: number, zPosition?: number): Promise<void> {
+// frameId, when passed (including explicitly null), sets card.frame_id —
+// see resolveFrameMembership in BoardView. Omit it to leave membership
+// untouched (e.g. a frame dragging its already-grouped members doesn't
+// need to re-resolve who's a member).
+export async function updateCardPosition(
+  cardId: string,
+  x: number,
+  y: number,
+  zPosition?: number,
+  frameId?: string | null
+): Promise<void> {
   const updates: Record<string, unknown> = { x, y, updated_at: new Date().toISOString() };
   if (zPosition !== undefined) updates.position = zPosition;
+  if (frameId !== undefined) updates.frame_id = frameId;
   await db().from("board_cards").update(updates).eq("id", cardId);
 }
 

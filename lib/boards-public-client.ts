@@ -42,8 +42,16 @@ export function createPublicBoardActions(shareToken: string) {
       await call("PATCH", { token: shareToken, cardId, updates });
     },
 
-    async updateCardPosition(cardId: string, x: number, y: number, zPosition?: number): Promise<void> {
-      await call("PATCH", { token: shareToken, cardId, updates: { x, y, ...(zPosition !== undefined && { position: zPosition }) } });
+    async updateCardPosition(cardId: string, x: number, y: number, zPosition?: number, frameId?: string | null): Promise<void> {
+      await call("PATCH", {
+        token: shareToken,
+        cardId,
+        updates: {
+          x, y,
+          ...(zPosition !== undefined && { position: zPosition }),
+          ...(frameId !== undefined && { frame_id: frameId }),
+        },
+      });
     },
 
     async deleteCard(cardId: string): Promise<void> {

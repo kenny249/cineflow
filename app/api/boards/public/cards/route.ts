@@ -25,7 +25,7 @@ async function getEditableBoard(admin: ReturnType<typeof getAdmin>, token: strin
   return board;
 }
 
-const ALLOWED_UPDATE_FIELDS = ["content", "color", "type", "width", "height", "x", "y", "position"] as const;
+const ALLOWED_UPDATE_FIELDS = ["content", "color", "type", "width", "height", "x", "y", "position", "frame_id"] as const;
 
 function sanitizeUpdates(updates: unknown): Record<string, unknown> {
   if (!updates || typeof updates !== "object") return {};

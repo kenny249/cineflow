@@ -289,11 +289,11 @@ export function BoardCardComponent({
 
 // ── Frame (container) ───────────────────────────────────────────────────────────
 // A resizable region for combining several cards into one movable group.
-// Membership isn't stored anywhere — it's computed by geometry, on every
-// drag, from whichever cards currently sit inside the frame's bounds (see
-// startCardDrag in BoardView). The body is pointer-events-none so a card
-// rendered on top of a frame stays independently clickable/draggable;
-// only the label strip drags the frame itself.
+// Membership is explicit (card.frame_id), set/cleared when a card is
+// dropped in or out of a frame's bounds — see resolveFrameMembership in
+// BoardView. Both the header and the empty body drag the frame; cards
+// rendered on top of it are separate, later-painted elements, so they
+// keep winning the pointer target at their own pixels regardless.
 
 function FrameCardComponent({
   card,
@@ -406,7 +406,16 @@ function FrameCardComponent({
         )}
       </div>
 
-      <div data-resize-target="height" style={{ height: card.height ?? 220 }} className="pointer-events-none rounded-b-2xl" />
+      {/* Empty interior also drags the frame — cards positioned on top of
+          it are separate, later-painted elements (see orderedCards in
+          BoardView), so they still win the pointer target at their own
+          pixels and stay independently clickable regardless. */}
+      <div
+        data-resize-target="height"
+        onPointerDown={handleHeaderPointerDown}
+        style={{ height: card.height ?? 220 }}
+        className={`rounded-b-2xl ${readonly || editingTitle ? "" : "cursor-grab active:cursor-grabbing"}`}
+      />
 
       {!readonly && (
         <div
