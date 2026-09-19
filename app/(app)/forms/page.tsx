@@ -437,10 +437,7 @@ export default function FormsPage() {
 
   const loadForms = useCallback(async () => {
     try {
-      const [formsRes, responsesRes] = await Promise.all([
-        fetch("/api/forms"),
-        fetch("/api/forms/responses?form_id=all").catch(() => ({ ok: false, json: async () => ({}) })),
-      ]);
+      const formsRes = await fetch("/api/forms");
       const { forms: data } = await formsRes.json();
       // Count responses per form
       const allForms = data ?? [];
@@ -456,7 +453,6 @@ export default function FormsPage() {
           }
         })
       );
-      void responsesRes;
       setForms(withCounts);
     } catch {
       toast.error("Failed to load forms");
