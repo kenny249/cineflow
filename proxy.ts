@@ -22,6 +22,9 @@ const PUBLIC_PREFIXES = [
   "/share",
   "/maintenance",
   "/manifest.webmanifest",
+  // Referral short link — the whole point is that the visitor doesn't have
+  // an account yet (redirects to /signup?ref=CODE or / for a bad code).
+  "/r",
   // Public / token-gated API routes — these are hit by unauthenticated clients
   // (review portals, share links, public forms, quote & contract signing, etc.).
   // Each handler enforces its own token/auth, so the middleware must let them through.
@@ -44,6 +47,14 @@ const PUBLIC_PREFIXES = [
   "/api/invoices/confirm-payment",
   "/api/boards/public",
   "/api/newsletter",
+  // ICS calendar-subscription feed — fetched periodically by external
+  // calendar apps (Google/Apple/Outlook), never by a logged-in browser.
+  // Signed-token auth (lib/calendar-token.ts), not a session.
+  "/api/calendar",
+  // Open Graph image generation — fetched by link-preview crawlers
+  // (Slack, iMessage, social), which never carry a session cookie. Covers
+  // both the generic site image and the token-gated retainer variant.
+  "/api/og",
 ];
 
 function isPublic(pathname: string): boolean {
