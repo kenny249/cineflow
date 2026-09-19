@@ -255,19 +255,37 @@ export default function CalendarPage() {
         const [evts, projs, membersRes, prof] = await Promise.all([
           getCalendarEvents(),
           getProjects(),
-          supabase.from("team_members").select("user_id, profiles(first_name, last_name)").eq("status", "active"),
+          // Two queries joined in JS rather than PostgREST's embedded-resource
+          // shorthand (team_members.user_id -> profiles) — that relationship
+          // isn't actually discoverable in the live schema cache (a PGRST200
+          // "no relationship found" error, silently swallowed here before,
+          // which meant this list was always empty), even though the
+          // migration file itself declares the FK. Not worth chasing why the
+          // live DB and the migration history disagree (a known gap on this
+          // project) when a manual join sidesteps it entirely.
+          supabase.from("team_members").select("user_id").eq("status", "active"),
           getProfile(),
         ]);
         if (prof?.calendar_colors && typeof prof.calendar_colors === "object") {
           setCustomColors(prof.calendar_colors as Record<string, string>);
         }
         setProjects(projs || []);
-        setTeamMembers(
-          (membersRes.data ?? []).map((m: any) => ({
-            id: m.user_id,
-            name: [m.profiles?.first_name, m.profiles?.last_name].filter(Boolean).join(" ") || "Team member",
-          }))
-        );
+        const memberIds = (membersRes.data ?? []).map((m: { user_id: string }) => m.user_id).filter(Boolean);
+        if (memberIds.length > 0) {
+          const { data: memberProfiles } = await supabase
+            .from("profiles")
+            .select("id, first_name, last_name")
+            .in("id", memberIds);
+          const profileById = new Map((memberProfiles ?? []).map((p) => [p.id, p]));
+          setTeamMembers(
+            memberIds.map((id) => {
+              const p = profileById.get(id);
+              return { id, name: [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "Team member" };
+            })
+          );
+        } else {
+          setTeamMembers([]);
+        }
 
         if ((evts || []).length === 0) {
           // Seed demo events so beta testers see a populated calendar
