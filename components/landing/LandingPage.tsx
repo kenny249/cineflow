@@ -542,7 +542,15 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
         </section>
 
         {/* ══ CINEFLOW INTRO ════════════════════════════════════════════ */}
-        <section className="relative flex flex-col items-center justify-center px-8 py-14 text-center">
+        {/* overflow-hidden: CF_PARTICLES scatter up to ±400px from center for
+            the desktop converge-in effect. On narrow viewports those offsets
+            land outside the page, and without a clipping boundary here they
+            silently widen <body> itself — invisible until some unrelated
+            focus/scrollIntoView (e.g. tapping a panel-carousel arrow) makes
+            the browser auto-scroll body to the focused element, yanking the
+            whole page sideways. Clipping here has no visual effect on desktop
+            (section is already wider than the scatter radius there). */}
+        <section className="relative flex flex-col items-center justify-center overflow-hidden px-8 py-14 text-center">
           <div data-reveal="clip" className="flex flex-col items-center">
             <div className="lp-clip mb-8">
               <div className="lp-clip-inner h-px w-10 bg-[#d4a853]" style={{ "--di": "0s" } as React.CSSProperties} />

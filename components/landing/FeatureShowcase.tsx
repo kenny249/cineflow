@@ -147,7 +147,7 @@ function CategorySection({ category, reversed }: { category: ShowcaseCategory; r
 
           <div className="relative min-w-0 flex-1" onWheel={handleWheel}>
             <div
-              className="lp-panel-frame lp-panel-frame-resize relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+              className="lp-panel-frame lp-panel-frame-resize relative max-h-52 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] md:max-h-none"
               style={{
                 boxShadow: "0 0 60px rgba(212,168,83,0.06), 0 20px 60px rgba(0,0,0,0.5)",
                 ["--panel-ratio" as string]: `${(feature.imgHeight / 1440) * 100}%`,
@@ -170,12 +170,18 @@ function CategorySection({ category, reversed }: { category: ShowcaseCategory; r
                   }}
                   className="absolute inset-0 cursor-grab touch-pan-y active:cursor-grabbing"
                 >
+                  {/* Below md, the frame is capped short (max-h-52) so the full
+                      1440px screenshot would shrink to ~24% scale and read as
+                      illegible noise — the same problem already solved for the
+                      hero peek. Scale the image 2x from its top-left corner so
+                      a legible fragment fills the cropped frame instead of the
+                      whole (tiny) screenshot. Reverts to normal cover-fit at md+. */}
                   <Image
                     src={feature.img}
                     alt={feature.imgAlt}
                     fill
                     sizes="(min-width: 768px) 54vw, 92vw"
-                    className="object-cover pointer-events-none select-none"
+                    className="origin-top-left scale-[2] object-cover pointer-events-none select-none md:scale-100 md:origin-center"
                     draggable={false}
                   />
                 </motion.div>
