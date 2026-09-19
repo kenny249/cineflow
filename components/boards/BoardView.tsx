@@ -114,7 +114,11 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
   // pointermove would mean a re-render per tick.
   const vGuideRef = useRef<HTMLDivElement>(null);
   const hGuideRef = useRef<HTMLDivElement>(null);
-  const snapTargetsRef = useRef<{ vx: number[]; hy: number[] }>({ vx: [], hy: [] });
+  // Other cards' world-space boxes, captured once at drag-start (see
+  // startCardDrag) — computeSnap checks each box's edges/center and, on a
+  // match, sizes the guide line to that specific box rather than spanning
+  // the whole canvas (a full-bleed line read as heavy-handed in testing).
+  const snapTargetsRef = useRef<{ left: number; right: number; top: number; bottom: number }[]>([]);
   const draggedSizeRef = useRef({ w: 0, h: 0 });
 
   const [cards, _setCards] = useState<BoardCard[]>(initialBoard.cards);
@@ -167,26 +171,35 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
   // snapTargetsRef is populated once at drag-start (see startCardDrag) from
   // every other card's actual rendered bounds — other cards don't move
   // during a single-card drag, so there's no need to re-measure per tick.
-  // x/y/w/h are all world-space; returns the (possibly adjusted) position
-  // plus which world coordinate, if any, to draw a guide line at on each axis.
-  function computeSnap(x: number, y: number, w: number, h: number): { x: number; y: number; vLine: number | null; hLine: number | null } {
+  // x/y/w/h are all world-space; returns the (possibly adjusted) position,
+  // plus each active guide line's own coordinate AND span — sized to the
+  // specific card it matched, not a canvas-spanning strip (that read as
+  // heavy-handed in testing — a short line at the box you're aligning to
+  // reads as a precise hint instead).
+  function computeSnap(
+    x: number, y: number, w: number, h: number
+  ): { x: number; y: number; vLine: { x: number; top: number; bottom: number } | null; hLine: { y: number; left: number; right: number } | null } {
     const threshold = SNAP_THRESHOLD_PX / zoomRef.current;
     const left = x, right = x + w, cx = x + w / 2;
     const top = y, bottom = y + h, cy = y + h / 2;
 
-    let bestVDist = threshold, vLine: number | null = null, snappedX = x;
-    for (const target of snapTargetsRef.current.vx) {
-      for (const [edge, offset] of [[left, 0], [right, w], [cx, w / 2]] as const) {
-        const dist = Math.abs(target - edge);
-        if (dist < bestVDist) { bestVDist = dist; vLine = target; snappedX = target - offset; }
-      }
-    }
+    let bestVDist = threshold, vLine: { x: number; top: number; bottom: number } | null = null, snappedX = x;
+    let bestHDist = threshold, hLine: { y: number; left: number; right: number } | null = null, snappedY = y;
 
-    let bestHDist = threshold, hLine: number | null = null, snappedY = y;
-    for (const target of snapTargetsRef.current.hy) {
-      for (const [edge, offset] of [[top, 0], [bottom, h], [cy, h / 2]] as const) {
+    for (const box of snapTargetsRef.current) {
+      const boxCx = (box.left + box.right) / 2;
+      const boxCy = (box.top + box.bottom) / 2;
+      for (const [target, edge, offset] of [
+        [box.left, left, 0], [box.right, right, w], [boxCx, cx, w / 2],
+      ] as const) {
         const dist = Math.abs(target - edge);
-        if (dist < bestHDist) { bestHDist = dist; hLine = target; snappedY = target - offset; }
+        if (dist < bestVDist) { bestVDist = dist; vLine = { x: target, top: box.top, bottom: box.bottom }; snappedX = target - offset; }
+      }
+      for (const [target, edge, offset] of [
+        [box.top, top, 0], [box.bottom, bottom, h], [boxCy, cy, h / 2],
+      ] as const) {
+        const dist = Math.abs(target - edge);
+        if (dist < bestHDist) { bestHDist = dist; hLine = { y: target, left: box.left, right: box.right }; snappedY = target - offset; }
       }
     }
 
@@ -306,13 +319,30 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
           const snapped = computeSnap(dr.cardStartX + dx, dr.cardStartY + dy, w, h);
           dx = snapped.x - dr.cardStartX;
           dy = snapped.y - dr.cardStartY;
+          // Sized to the matched card's own extent (plus a small overshoot,
+          // matching Figma's guide style) rather than spanning the canvas —
+          // reads as "you're aligned with this card" instead of a line
+          // slicing across the whole board.
+          const GUIDE_OVERSHOOT = 8;
           if (vGuideRef.current) {
-            vGuideRef.current.style.display = snapped.vLine === null ? "none" : "block";
-            if (snapped.vLine !== null) vGuideRef.current.style.left = `${snapped.vLine}px`;
+            if (snapped.vLine === null) {
+              vGuideRef.current.style.display = "none";
+            } else {
+              vGuideRef.current.style.display = "block";
+              vGuideRef.current.style.left = `${snapped.vLine.x}px`;
+              vGuideRef.current.style.top = `${snapped.vLine.top - GUIDE_OVERSHOOT}px`;
+              vGuideRef.current.style.height = `${snapped.vLine.bottom - snapped.vLine.top + GUIDE_OVERSHOOT * 2}px`;
+            }
           }
           if (hGuideRef.current) {
-            hGuideRef.current.style.display = snapped.hLine === null ? "none" : "block";
-            if (snapped.hLine !== null) hGuideRef.current.style.top = `${snapped.hLine}px`;
+            if (snapped.hLine === null) {
+              hGuideRef.current.style.display = "none";
+            } else {
+              hGuideRef.current.style.display = "block";
+              hGuideRef.current.style.top = `${snapped.hLine.y}px`;
+              hGuideRef.current.style.left = `${snapped.hLine.left - GUIDE_OVERSHOOT}px`;
+              hGuideRef.current.style.width = `${snapped.hLine.right - snapped.hLine.left + GUIDE_OVERSHOOT * 2}px`;
+            }
           }
         }
 
@@ -536,11 +566,11 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
       frameGroupRef.current = cardsRef.current
         .filter((c) => c.frame_id === card.id)
         .map((c) => ({ id: c.id, startX: c.x, startY: c.y }));
-      snapTargetsRef.current = { vx: [], hy: [] };
+      snapTargetsRef.current = [];
     } else {
       frameGroupRef.current = null;
-      // Snap targets: every other card's actual rendered edges/centers, in
-      // world space, measured once here rather than per pointermove tick —
+      // Snap targets: every other card's actual rendered box, in world
+      // space, measured once here rather than per pointermove tick —
       // nothing else moves during a single-card drag, so they can't go
       // stale mid-drag. Frame drags (above) don't snap; that's a bigger
       // group move where edge-alignment is a lot less meaningful.
@@ -550,8 +580,7 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
         w: ownRect ? ownRect.width / zoomRef.current : MIN_CARD_WIDTH,
         h: ownRect ? ownRect.height / zoomRef.current : MIN_NOTE_HEIGHT,
       };
-      const vx: number[] = [];
-      const hy: number[] = [];
+      const boxes: { left: number; right: number; top: number; bottom: number }[] = [];
       document.querySelectorAll<HTMLElement>("[data-card-id]").forEach((otherEl) => {
         const otherId = otherEl.getAttribute("data-card-id");
         if (!otherId || otherId === card.id) return;
@@ -559,10 +588,9 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
         const topLeft = screenToWorld(r.left, r.top);
         const w = r.width / zoomRef.current;
         const h = r.height / zoomRef.current;
-        vx.push(topLeft.x, topLeft.x + w, topLeft.x + w / 2);
-        hy.push(topLeft.y, topLeft.y + h, topLeft.y + h / 2);
+        boxes.push({ left: topLeft.x, right: topLeft.x + w, top: topLeft.y, bottom: topLeft.y + h });
       });
-      snapTargetsRef.current = { vx, hy };
+      snapTargetsRef.current = boxes;
     }
 
     setDraggingCardId(card.id);
@@ -929,20 +957,19 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
             </div>
           ))}
 
-          {/* Alignment guides — hidden by default, toggled directly (not
-              via React state) in the pointermove handler during a
-              single-card drag. Long fixed strips rather than percentage
-              sizing since this div has no intrinsic width/height of its
-              own to size against. */}
+          {/* Alignment guides — hidden by default, position/size set
+              directly (not via React state) in the pointermove handler
+              during a single-card drag, sized to whichever card they
+              matched (see computeSnap) rather than the whole canvas. */}
           <div
             ref={vGuideRef}
             className="pointer-events-none absolute z-30 w-px bg-[#d4a853]"
-            style={{ display: "none", top: -10000, height: 20000 }}
+            style={{ display: "none" }}
           />
           <div
             ref={hGuideRef}
             className="pointer-events-none absolute z-30 h-px bg-[#d4a853]"
-            style={{ display: "none", left: -10000, width: 20000 }}
+            style={{ display: "none" }}
           />
         </div>
       </div>
