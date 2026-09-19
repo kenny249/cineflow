@@ -140,7 +140,7 @@ export function AnnouncementsClient({ initial }: { initial: Announcement[] }) {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-xs text-zinc-500">
-                    {new Date(a.created_at).toLocaleDateString()}
+                    {new Date(a.created_at).toLocaleDateString("en-US", { timeZone: "UTC" })}
                   </td>
                   <td className="px-4 py-3">
                     <button onClick={() => remove(a.id)} className="text-zinc-700 hover:text-red-400 transition-colors">
