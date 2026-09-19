@@ -54,25 +54,25 @@ const HERO_VARIANTS: Record<
   },
 };
 
-// Across all 4 hero variants, the H1+sub block occupies a fixed pixel
-// band (independent of viewport height — the section is taller than any
-// tested viewport, so its layout is content-driven, not viewport-driven):
-// y 60-243px, x up to 270-1010px at its widest (variant c). The CTA
-// button sits at y 275-319, x 559-721 — comfortably clear of that band
-// (32px > the ~8.87px worst-case mouse-parallax excursion) with wide
-// open margins to either side. Fragments that used to sit near the
-// headline were repositioned into that band instead of hidden, so all
-// 10 render on all 4 variants with no variant-conditional logic.
+// Positions are pinned against real measurements (Playwright getBoundingClientRect
+// at 1440x900, variant a/d — the tallest peek image, so the tightest case) of every
+// fragment, the headline/sub/CTA/trust block, and the .lp-panel-frame peek image —
+// not eyeballed. The peek occupies section-relative y ~50.8%-89%; the headline
+// block ends at y ~33.3% (trust line bottom). That leaves one open, full-width gap
+// (y ~33.3%-48.7%) between the headline and the peek where the last 3 fragments
+// (previously placed at y 60-80%, which put them on top of the now-taller peek
+// image) were moved. Re-verify with the same measurement approach if FRAGMENTS,
+// hero copy, or imgHeight change again — don't eyeball it.
 const FRAGMENTS = [
   { text: '"where are we at?" · 11:47pm',     mono: false, x: "4%",  y: "20%", rot: -3, d: 0.6,  dur: 3.8 },
   { text: "Invoice_v4_FINAL_FINAL.pdf",        mono: true,  x: "82%", y: "26%", rot:  4, d: 1.0,  dur: 4.2 },
   { text: '"did you get the rough cut link?"', mono: false, x: "3%",  y: "60%", rot: -2, d: 1.2,  dur: 3.5 },
-  { text: "shot_list_REVISED_use_this.xlsx",   mono: true,  x: "68%", y: "72%", rot:  5, d: 0.8,  dur: 4.5 },
+  { text: "shot_list_REVISED_use_this.xlsx",   mono: true,  x: "38%", y: "36%", rot:  5, d: 0.8,  dur: 4.5 },
   { text: '"can you resend the contract?"',    mono: false, x: "74%", y: "42%", rot: -4, d: 1.4,  dur: 3.9 },
-  { text: "Client approval: pending 14d",      mono: false, x: "8%",  y: "80%", rot:  3, d: 1.0,  dur: 4.1 },
+  { text: "Client approval: pending 14d",      mono: false, x: "56%", y: "44%", rot:  3, d: 1.0,  dur: 4.1 },
   { text: '"what time is call time again?"',   mono: false, x: "12%", y: "38%", rot: -5, d: 1.5,  dur: 3.6 },
   { text: "call_sheet_saturday_v4.pdf",        mono: true,  x: "6%",  y: "33%", rot:  3, d: 0.9,  dur: 4.3 },
-  { text: '"I never got the invoice 🙏"',      mono: false, x: "76%", y: "60%", rot: -3, d: 1.3,  dur: 3.7 },
+  { text: '"I never got the invoice 🙏"',      mono: false, x: "69%", y: "34%", rot: -3, d: 1.3,  dur: 3.7 },
   { text: '"just checking in again..."',       mono: false, x: "83%", y: "35%", rot:  2, d: 1.6,  dur: 4.0 },
 ] as const;
 
@@ -791,7 +791,7 @@ export function LandingPage({ refCode, heroVariant = "a" }: Props) {
             <div className="lp-clip mb-5">
               <p className="lp-clip-inner max-w-xs text-[13px] leading-relaxed text-white/40"
                 style={{ "--di": "0.20s" } as React.CSSProperties}>
-                Built by a filmmaker who got tired of stitching tools together. See if it fits how you actually work.
+                Built to replace the tools you're stitching together today. See if it fits how you actually work.
               </p>
             </div>
             <div className="lp-clip mb-2 mt-1">
