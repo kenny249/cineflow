@@ -66,8 +66,8 @@ const HERO_VARIANTS: Record<
 const FRAGMENTS = [
   { text: '"where are we at?" · 11:47pm',     mono: false, x: "4%",  y: "20%", rot: -3, d: 0.6,  dur: 3.8 },
   { text: "Invoice_v4_FINAL_FINAL.pdf",        mono: true,  x: "82%", y: "26%", rot:  4, d: 1.0,  dur: 4.2 },
-  { text: '"did you get the rough cut link?"', mono: false, x: "3%",  y: "60%", rot: -2, d: 1.2,  dur: 3.5 },
-  { text: "shot_list_REVISED_use_this.xlsx",   mono: true,  x: "38%", y: "36%", rot:  5, d: 0.8,  dur: 4.5 },
+  { text: '"did you get the rough cut link?"', mono: false, x: "3%",  y: "46%", rot: -2, d: 1.2,  dur: 3.5 },
+  { text: "shot_list_REVISED_use_this.xlsx",   mono: true,  x: "30%", y: "41%", rot:  5, d: 0.8,  dur: 4.5 },
   { text: '"can you resend the contract?"',    mono: false, x: "74%", y: "42%", rot: -4, d: 1.4,  dur: 3.9 },
   { text: "Client approval: pending 14d",      mono: false, x: "56%", y: "44%", rot:  3, d: 1.0,  dur: 4.1 },
   { text: '"what time is call time again?"',   mono: false, x: "12%", y: "38%", rot: -5, d: 1.5,  dur: 3.6 },
