@@ -13,6 +13,12 @@ interface ShowcaseFeature {
   img: string;
   imgAlt: string;
   imgHeight: number;
+  // Focus point for the mobile 2x zoom crop (see the Image below) — the
+  // screenshot's "hero" content isn't always in the top-left corner, so a
+  // uniform crop origin leaves some panels showing empty canvas or sidebar.
+  // Defaults to "top left" when omitted. Irrelevant at md+ (scale resets to
+  // 1, where transform-origin has no visible effect).
+  mobileOrigin?: string;
 }
 
 interface ShowcaseCategory {
@@ -45,6 +51,9 @@ const CATEGORIES: readonly ShowcaseCategory[] = [
         img: "/marketing/panel-ai-breakdown-results.png",
         imgAlt: "CineFlow AI script breakdown showing scene count, characters, locations, shoot days, and production notes for a commercial.",
         imgHeight: 900,
+        // Results panel sits center-right, not top-left — the sidebar and an
+        // empty script pane occupy the whole left side of this screenshot.
+        mobileOrigin: "74% 32%",
       },
     ],
   },
@@ -94,6 +103,9 @@ const CATEGORIES: readonly ShowcaseCategory[] = [
         note: "Replaces Milanote + sticky notes",
         img: "/marketing/panel-boards.png",
         imgAlt: "CineFlow board with note, location, character, and shot cards for a festival shoot.",
+        // Cards start well right of the sidebar and below the header — a
+        // top-left crop shows mostly empty canvas.
+        mobileOrigin: "51% 42%",
         imgHeight: 900,
       },
     ],
@@ -173,15 +185,20 @@ function CategorySection({ category, reversed }: { category: ShowcaseCategory; r
                   {/* Below md, the frame is capped short (max-h-52) so the full
                       1440px screenshot would shrink to ~24% scale and read as
                       illegible noise — the same problem already solved for the
-                      hero peek. Scale the image 2x from its top-left corner so
-                      a legible fragment fills the cropped frame instead of the
-                      whole (tiny) screenshot. Reverts to normal cover-fit at md+. */}
+                      hero peek. Scale the image 2x, anchored on each feature's
+                      mobileOrigin (its own "hero" content region — not every
+                      screenshot's useful content sits in the top-left corner),
+                      so a legible fragment fills the cropped frame instead of
+                      the whole (tiny) screenshot. transform-origin has no
+                      visible effect once md:scale-100 neutralizes the zoom, so
+                      no responsive reset is needed. */}
                   <Image
                     src={feature.img}
                     alt={feature.imgAlt}
                     fill
                     sizes="(min-width: 768px) 54vw, 92vw"
-                    className="origin-top-left scale-[2] object-cover pointer-events-none select-none md:scale-100 md:origin-center"
+                    className="scale-[2] object-cover pointer-events-none select-none md:scale-100"
+                    style={{ transformOrigin: feature.mobileOrigin ?? "top left" }}
                     draggable={false}
                   />
                 </motion.div>
