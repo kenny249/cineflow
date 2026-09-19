@@ -1867,14 +1867,25 @@ export async function updateRetainerDeliverable(id: string, updates: { status?: 
 export const BETA_STORAGE_LIMIT_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
 
 export async function getStorageUsageBytes(): Promise<number> {
+  // PostgREST aggregate functions (.sum()) are disabled on this project's
+  // API settings — the previous select('size.sum()') 400'd on every call,
+  // silently falling back to 0, so this has always displayed 0 bytes used
+  // regardless of actual usage. Summing in JS instead; nothing here
+  // currently enforces BETA_STORAGE_LIMIT_BYTES (Settings display only),
+  // so this was misleading rather than a broken safety limit.
+  // Note: PostgREST's default page size caps a plain select() around 1000
+  // rows — fine at current beta-stage file counts, but if that ever
+  // becomes a real concern, move this to a `SUM(...) ... LANGUAGE sql`
+  // Postgres function instead (see landing_events_summary for the pattern
+  // already used elsewhere in this codebase).
   const client = db();
   const [filesRes, revisionsRes] = await Promise.all([
-    client.from('project_files').select('size.sum()').single(),
-    client.from('revisions').select('file_size.sum()').single(),
+    client.from('project_files').select('size'),
+    client.from('revisions').select('file_size'),
   ]);
-  const filesTotal = (filesRes.data as any)?.sum ?? 0;
-  const revisionsTotal = (revisionsRes.data as any)?.sum ?? 0;
-  return Number(filesTotal) + Number(revisionsTotal);
+  const filesTotal = (filesRes.data ?? []).reduce((sum, r) => sum + (Number(r.size) || 0), 0);
+  const revisionsTotal = (revisionsRes.data ?? []).reduce((sum, r) => sum + (Number(r.file_size) || 0), 0);
+  return filesTotal + revisionsTotal;
 }
 
 export async function deleteRetainerDeliverable(id: string): Promise<void> {
