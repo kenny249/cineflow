@@ -383,9 +383,14 @@ function FrameCardComponent({
         ) : (
           <button
             onClick={() => { if (!readonly) { setTitleDraft(str(card.content.title)); setEditingTitle(true); } }}
-            onPointerDown={(e) => e.stopPropagation()}
             className="flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold text-muted-foreground/70 hover:text-foreground transition-colors"
           >
+            {/* No onPointerDown stopPropagation here (unlike the delete
+                button below): the visible title text is the one thing that
+                looks like a drag handle, so a plain click must still let
+                handleHeaderPointerDown's own move-threshold check run —
+                click-to-rename and drag-to-move both come out of the same
+                pointerdown, exactly like the rest of the header. */}
             <Square className="h-3 w-3 shrink-0" />
             <span className="truncate">{str(card.content.title) || "Untitled group"}</span>
           </button>
@@ -1030,6 +1035,16 @@ function ChecklistBody({
   onUpdate: (c: BoardCardType) => void;
 }) {
   const [localItems, setLocalItems] = useState(items);
+
+  // Keep localItems in sync when the items prop changes from outside a
+  // toggle() here — e.g. a freshly-created checklist: saving the inline
+  // editor closes it (ChecklistBody mounts) before the async save's
+  // onUpdate has propagated the new content back down, so this can mount
+  // with a still-stale (often empty) items prop. Without this effect,
+  // useState's initializer never re-runs, so the card gets stuck showing
+  // "Click ··· to add items" until a full remount (e.g. a page reload) —
+  // the data was saved correctly the whole time, only the display was stuck.
+  useEffect(() => { setLocalItems(items); }, [items]);
 
   async function toggle(index: number) {
     const next = localItems.map((item, i) =>

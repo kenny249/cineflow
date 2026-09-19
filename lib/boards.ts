@@ -189,11 +189,12 @@ export async function createCard(
   content: Record<string, unknown>,
   x: number,
   y: number,
-  columnId?: string | null
+  columnId?: string | null,
+  zPosition = 0
 ): Promise<BoardCard> {
   const { data, error } = await db()
     .from("board_cards")
-    .insert({ board_id: boardId, column_id: columnId ?? null, type, content, position: 0, x, y })
+    .insert({ board_id: boardId, column_id: columnId ?? null, type, content, position: zPosition, x, y })
     .select()
     .single();
   if (error) throw error;
@@ -207,8 +208,15 @@ export async function updateCard(
   await db().from("board_cards").update({ ...updates, updated_at: new Date().toISOString() }).eq("id", cardId);
 }
 
-export async function updateCardPosition(cardId: string, x: number, y: number): Promise<void> {
-  await db().from("board_cards").update({ x, y, updated_at: new Date().toISOString() }).eq("id", cardId);
+// zPosition reuses the `position` column (otherwise unused by freeform
+// cards) as a stacking-order key: higher = rendered later = on top. See
+// BoardView's nextZ() — passing it here is how a drag persists "this card
+// is now the frontmost one" past the drop, instead of the card silently
+// reverting to creation-order stacking (see orderedCards in BoardView).
+export async function updateCardPosition(cardId: string, x: number, y: number, zPosition?: number): Promise<void> {
+  const updates: Record<string, unknown> = { x, y, updated_at: new Date().toISOString() };
+  if (zPosition !== undefined) updates.position = zPosition;
+  await db().from("board_cards").update(updates).eq("id", cardId);
 }
 
 export async function deleteCard(cardId: string): Promise<void> {

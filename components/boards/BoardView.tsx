@@ -124,6 +124,14 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
   const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const cardsRef = useRef<BoardCard[]>(initialBoard.cards);
+  const zCounterRef = useRef(Math.max(0, ...initialBoard.cards.map((c) => c.position)));
+  // Next stacking-order value for "bring this card to front." A plain
+  // incrementing counter rather than re-scanning cardsRef each time, so two
+  // cards dragged back-to-back in the same tick still get distinct values.
+  function nextZ(): number {
+    zCounterRef.current += 1;
+    return zCounterRef.current;
+  }
   const panRef = useRef({ x: 60, y: 60 });
   const zoomRef = useRef(1);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
@@ -284,9 +292,15 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
         if (moved) {
           const newX = dr.cardStartX + dx;
           const newY = dr.cardStartY + dy;
-          setCards((prev) => prev.map((c) => c.id === dr.cardId ? { ...c, x: newX, y: newY } : c));
-          boardActions.updateCardPosition(dr.cardId, newX, newY)
-            .then(() => broadcastChange({ type: "updated", card: { ...cardsRef.current.find((c) => c.id === dr.cardId)!, x: newX, y: newY } }))
+          // Bring the dragged card to front, persisted — the transient
+          // zIndex:50 set above only lasted for the drag itself and got
+          // cleared a few lines up, so without this a card dropped onto/near
+          // an older one reverts to creation-order stacking and can end up
+          // rendering partially behind whatever it now overlaps.
+          const newZ = nextZ();
+          setCards((prev) => prev.map((c) => c.id === dr.cardId ? { ...c, x: newX, y: newY, position: newZ } : c));
+          boardActions.updateCardPosition(dr.cardId, newX, newY, newZ)
+            .then(() => broadcastChange({ type: "updated", card: { ...cardsRef.current.find((c) => c.id === dr.cardId)!, x: newX, y: newY, position: newZ } }))
             .catch(() => toast.error("Failed to save position"));
         }
 
@@ -297,9 +311,10 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
             if (moved) {
               const gNewX = g.startX + dx;
               const gNewY = g.startY + dy;
-              setCards((prev) => prev.map((c) => c.id === g.id ? { ...c, x: gNewX, y: gNewY } : c));
-              boardActions.updateCardPosition(g.id, gNewX, gNewY)
-                .then(() => broadcastChange({ type: "updated", card: { ...cardsRef.current.find((c) => c.id === g.id)!, x: gNewX, y: gNewY } }))
+              const gNewZ = nextZ();
+              setCards((prev) => prev.map((c) => c.id === g.id ? { ...c, x: gNewX, y: gNewY, position: gNewZ } : c));
+              boardActions.updateCardPosition(g.id, gNewX, gNewY, gNewZ)
+                .then(() => broadcastChange({ type: "updated", card: { ...cardsRef.current.find((c) => c.id === g.id)!, x: gNewX, y: gNewY, position: gNewZ } }))
                 .catch(() => toast.error("Failed to save position"));
             }
           }
@@ -460,7 +475,7 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
   async function addCardAt(type: CardType, x: number, y: number) {
     setAddingType(type);
     try {
-      const card = await boardActions.createCard(board.id, type, DEFAULT_CONTENT[type], x, y);
+      const card = await boardActions.createCard(board.id, type, DEFAULT_CONTENT[type], x, y, null, nextZ());
       setCards((prev) => [...prev, card]);
       broadcastChange({ type: "created", card });
       // open inline edit for all types (checklist and link use modal-style inline editor)
@@ -598,8 +613,15 @@ export function BoardView({ board: initialBoard, projectId, readonly, shareToken
   // order — otherwise a frame created after a note would sit on top and
   // cover it (frames have no z-index of their own; DOM order is what
   // stacks siblings, so this is the only thing that keeps that consistent).
+  // Non-frame cards render in `position` order (see nextZ()) rather than
+  // creation order, so bringing a card to front on drag actually sticks —
+  // Array.sort is stable, so untouched cards (all at their original
+  // position, usually 0) keep their existing relative/creation order.
   const orderedCards = useMemo(
-    () => [...cards.filter((c) => c.type === "frame"), ...cards.filter((c) => c.type !== "frame")],
+    () => [
+      ...cards.filter((c) => c.type === "frame"),
+      ...cards.filter((c) => c.type !== "frame").sort((a, b) => a.position - b.position),
+    ],
     [cards]
   );
 

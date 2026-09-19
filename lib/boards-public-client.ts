@@ -27,9 +27,11 @@ export function createPublicBoardActions(shareToken: string) {
       type: CardType,
       content: Record<string, unknown>,
       x: number,
-      y: number
+      y: number,
+      _columnId?: string | null,
+      zPosition?: number
     ): Promise<BoardCard> {
-      const { card } = await call("POST", { token: shareToken, type, content, x, y });
+      const { card } = await call("POST", { token: shareToken, type, content, x, y, position: zPosition });
       return card as BoardCard;
     },
 
@@ -40,8 +42,8 @@ export function createPublicBoardActions(shareToken: string) {
       await call("PATCH", { token: shareToken, cardId, updates });
     },
 
-    async updateCardPosition(cardId: string, x: number, y: number): Promise<void> {
-      await call("PATCH", { token: shareToken, cardId, updates: { x, y } });
+    async updateCardPosition(cardId: string, x: number, y: number, zPosition?: number): Promise<void> {
+      await call("PATCH", { token: shareToken, cardId, updates: { x, y, ...(zPosition !== undefined && { position: zPosition }) } });
     },
 
     async deleteCard(cardId: string): Promise<void> {

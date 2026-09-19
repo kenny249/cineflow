@@ -25,7 +25,7 @@ async function getEditableBoard(admin: ReturnType<typeof getAdmin>, token: strin
   return board;
 }
 
-const ALLOWED_UPDATE_FIELDS = ["content", "color", "type", "width", "height", "x", "y"] as const;
+const ALLOWED_UPDATE_FIELDS = ["content", "color", "type", "width", "height", "x", "y", "position"] as const;
 
 function sanitizeUpdates(updates: unknown): Record<string, unknown> {
   if (!updates || typeof updates !== "object") return {};
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { token, type, content, x, y } = body;
+  const { token, type, content, x, y, position } = body;
   if (!token) return NextResponse.json({ error: "token required" }, { status: 400 });
 
   const admin = getAdmin();
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   const { data: card, error } = await admin
     .from("board_cards")
-    .insert({ board_id: board.id, type, content: content ?? {}, position: 0, x: x ?? 0, y: y ?? 0 })
+    .insert({ board_id: board.id, type, content: content ?? {}, position: typeof position === "number" ? position : 0, x: x ?? 0, y: y ?? 0 })
     .select()
     .single();
 
